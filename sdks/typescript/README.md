@@ -1,12 +1,16 @@
 # thetadatadx (Node.js / TypeScript)
 
-Node.js SDK for ThetaData market data. napi-rs bindings over the `thetadatadx` Rust crate, shipped as pre-built native addons for Linux x64, macOS Apple Silicon, and Windows x64 (no Rust toolchain required on the consumer).
+Drop-in Node.js SDK for ThetaData market data. Speaks ThetaData's
+wire protocols directly — historical gRPC, streaming TCP, and the
+native flat-file distribution for bulk pulls — without a JVM or a
+local proxy. Pre-built native addons for Linux x64, macOS Apple
+Silicon, and Windows x64; no Rust toolchain required on the
+consumer.
 
-Every call crosses the napi boundary into compiled Rust: gRPC, protobuf, zstd, FIT decoding, and TCP streaming run inside the `thetadatadx` crate.
+Every call crosses the napi boundary into compiled Rust: gRPC,
+protobuf, zstd, FIT decoding, and TCP streaming all run natively.
 
-> **Surface coverage:** the TypeScript binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flatFiles.*()` with `.toArrowIpc()` and `.toJson()` terminals plus a `tdx.flatFileToPath(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
->
-> **REST routing escape hatch:** `FallbackPolicy.restAlways` + `Config.withRestFallback` + four `optionHistory*WithFallback` async methods on `ThetaDataDxClient` route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
+> **Surface coverage:** the TypeScript binding exposes all three ThetaData surfaces — historical request/response, real-time streaming, and whole-universe daily blobs. Flat files land via `tdx.flatFiles.*()` with `.toArrowIpc()` and `.toJson()` terminals plus a `tdx.flatFileToPath(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Install
 
@@ -84,43 +88,10 @@ tdx.stopStreaming();
 // Drain barrier: by the time `awaitDrain(5000)` resolves, the
 // consumer thread is guaranteed to have finished firing the
 // callback, so the JS closure can be released without a
-// use-after-free race against the LMAX Disruptor consumer.
+// use-after-free race against the dispatcher thread.
 const drained = await tdx.awaitDrain(5000);
 if (!drained) console.warn('drain timed out');
 ```
-
-### Pull-iter delivery — `for await (const event of iter)` (high-throughput drain)
-
-Push-callback (`tdx.streaming(callback)` above) is the recommended
-default for low-latency single-event reaction. Pull-iter is the
-sibling delivery mode for high-throughput batch processing where
-the dominant cost is per-event JS work rather than per-event vendor
-latency:
-
-```ts
-const iter = tdx.startStreamingIter();
-tdx.subscribe(SecType.option().fullTrades());
-for await (const event of iter) {
-  if (event.kind === 'trade') {
-    buf.push([event.trade.price, event.trade.size]);
-  }
-}
-// Stop the streaming session when done. The async-iterator
-// protocol handles `break` cleanly via `return()`, which calls
-// `iter.close()` so the worker thread stops blocking on the queue.
-tdx.stopStreaming();
-await tdx.awaitDrain(5000);
-```
-
-The Disruptor consumer pushes events into a per-client bounded
-queue; the `for await` loop drains the queue from the Node main
-thread in batches, with the actual queue wait happening on
-`tokio::task::spawn_blocking` so the event loop is never blocked.
-
-Mode is chosen at start. Push and pull are mutually exclusive on a
-given client; switch by calling `stopStreaming()` first. Backpressure
-surfaces on the same `droppedEventCount()` counter as the callback
-path.
 
 ## TypeScript types
 
@@ -171,10 +142,10 @@ fires and accounted on the `thetadatadx.fpss.decode_failures` metric
 counter on the Rust side; they never surface as an `FpssEvent`.
 
 The `kind` field is typed as a string-literal union narrowed by the
-generated `index.d.ts` — plain strings, not a TS `enum` (the previous
-`const enum FpssEventKind` was removed in #376 because it broke
-downstream consumers with `"isolatedModules": true`), so it works in
-every toolchain including Vite, esbuild, ts-jest, and Next.js.
+generated `index.d.ts` — plain strings, not a TS `const enum`, so the
+type information stays self-contained under
+`"isolatedModules": true` and works in every toolchain including
+Vite, esbuild, ts-jest, and Next.js.
 
 Each typed control payload mirrors the corresponding `FpssControl::*`
 Rust variant one-for-one — `Disconnected.reason` / `Reconnecting.reason`

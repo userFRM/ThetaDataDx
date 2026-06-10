@@ -1017,8 +1017,12 @@ int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value
  * Set streaming flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.
  *   mode=1: Immediate -- flush after every frame write.
+ *
+ * Returns 0 on success. Returns -1 and sets `tdx_last_error` /
+ * `tdx_last_error_code = TDX_ERR_CONFIG` when `mode` is outside the
+ * documented `{0, 1}` set or when `config` is null.
  */
-void tdx_config_set_flush_mode(TdxConfig* config, int mode);
+int tdx_config_set_flush_mode(TdxConfig* config, int mode);
 
 /**
  * Set streaming OHLCVC derivation on a config handle.
@@ -1149,70 +1153,6 @@ void tdx_client_free(TdxClient* client);
 
 /** Free a string returned by any tdx_* function. */
 void tdx_string_free(char* s);
-
-/* ═══════════════════════════════════════════════════════════════════════ */
-/*  REST routing policy                                                   */
-/*                                                                        */
-/*  Routes the four historical-quote endpoints (option_history_quote,     */
-/*  option_history_trade_quote, option_history_greeks_implied_volatility, */
-/*  option_history_greeks_first_order) over the local Terminal's REST     */
-/*  API when the caller wants a single transport for every quote-bearing  */
-/*  call. Disabled by default; install via tdx_config_with_rest_fallback. */
-/* ═══════════════════════════════════════════════════════════════════════ */
-
-/** Opaque fallback-policy handle. Construct via one of the factories,
- *  install on a config via tdx_config_with_rest_fallback, free with
- *  tdx_fallback_policy_free. */
-typedef struct TdxFallbackPolicy TdxFallbackPolicy;
-
-/** Disabled -- no REST routing. Identical to never calling
- *  tdx_config_with_rest_fallback. */
-TdxFallbackPolicy* tdx_fallback_policy_disabled(void);
-
-/** Always route the historical-quote endpoints over REST regardless of date. */
-TdxFallbackPolicy* tdx_fallback_policy_rest_always(const char* base_url);
-
-/** Free a fallback policy handle. */
-void tdx_fallback_policy_free(TdxFallbackPolicy* policy);
-
-/** Install the given fallback policy on a config. Borrows policy (clones
- *  the inner enum); the caller retains ownership and must still free policy
- *  via tdx_fallback_policy_free. Returns 0 on success, -1 on null-pointer
- *  error (check tdx_last_error()). */
-int tdx_config_with_rest_fallback(TdxConfig* config, const TdxFallbackPolicy* policy);
-
-/* ── Historical _with_fallback shims ── */
-
-/** Fetch option NBBO history per the configured FallbackPolicy.
- *  symbol, expiration, start_date are required; end_date, strike, right,
- *  interval may be NULL to omit. Returns empty array on error; check
- *  tdx_last_error(). Caller must free via tdx_quote_tick_array_free. */
-TdxQuoteTickArray tdx_option_history_quote_with_fallback(
-    const TdxClient* client,
-    const char* symbol, const char* expiration, const char* start_date,
-    const char* end_date, const char* strike, const char* right, const char* interval);
-
-/** Fetch combined trade+quote history per the configured FallbackPolicy.
- *  Same signature contract as tdx_option_history_quote_with_fallback
- *  (minus `interval`). Caller must free via tdx_trade_quote_tick_array_free. */
-TdxTradeQuoteTickArray tdx_option_history_trade_quote_with_fallback(
-    const TdxClient* client,
-    const char* symbol, const char* expiration, const char* start_date,
-    const char* end_date, const char* strike, const char* right);
-
-/** Fetch implied-volatility history per the configured FallbackPolicy.
- *  Caller must free via tdx_iv_tick_array_free. */
-TdxIvTickArray tdx_option_history_greeks_implied_volatility_with_fallback(
-    const TdxClient* client,
-    const char* symbol, const char* expiration, const char* start_date,
-    const char* end_date, const char* strike, const char* right, const char* interval);
-
-/** Fetch first-order Greeks history per the configured FallbackPolicy.
- *  Caller must free via tdx_greeks_first_order_tick_array_free. */
-TdxGreeksFirstOrderTickArray tdx_option_history_greeks_first_order_with_fallback(
-    const TdxClient* client,
-    const char* symbol, const char* expiration, const char* start_date,
-    const char* end_date, const char* strike, const char* right, const char* interval);
 
 /* Generated option-aware endpoint declarations. */
 #include "endpoint_with_options.h.inc"
@@ -1373,6 +1313,13 @@ int tdx_fpss_reconnect(const TdxFpssHandle* h);
  *  installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
+/** Cumulative count of user-callback panics caught by the per-invocation
+ *  catch_unwind boundary since the current stream started. A panic in the
+ *  callback is caught, recorded here, and does not stop event delivery —
+ *  the next event continues normally. Returns 0 if the handle is null or
+ *  no callback has been installed yet. Safe to call from any thread. */
+uint64_t tdx_fpss_panic_count(const TdxFpssHandle* h);
+
 /** Shut down the streaming client. Terminal: every subsequent
  *  set_callback / reconnect / shutdown call on this handle returns -1
  *  with a clear tdx_last_error() string. The handle remains valid for
@@ -1529,6 +1476,13 @@ int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
  *  installed yet. */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
 
+/** Cumulative count of user-callback panics caught by the per-invocation
+ *  catch_unwind boundary since the current stream started. A panic in the
+ *  callback is caught, recorded here, and does not stop event delivery —
+ *  the next event continues normally. Returns 0 if the handle is null or
+ *  no callback has been installed yet. Safe to call from any thread. */
+uint64_t tdx_unified_panic_count(const TdxUnified* handle);
+
 /** Free a unified client handle.
  *
  *  Calls tdx_unified_stop_streaming internally, then waits up to 5
@@ -1541,60 +1495,6 @@ uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
  *  free immediately on return. */
 void tdx_unified_free(TdxUnified* handle);
 
-/* ── Pull-iter delivery ─────────────────────────────────────
- *
- * Sibling of the push-callback path. `tdx_unified_set_callback` sends
- * each event through a user `extern "C" fn` invoked on the streaming
- * consumer thread; the iterator instead drains a per-client bounded
- * queue from the caller's own thread, so the consumer thread is
- * decoupled from any per-event GIL / event-loop costs the binding
- * pays. Mutually exclusive with the callback path on the same
- * `TdxUnified*`; switch by stopping streaming and starting again.
- */
-
-/** Opaque pull-iter handle returned by tdx_unified_start_streaming_iter. */
-typedef struct TdxFpssEventIterator TdxFpssEventIterator;
-
-/** Start real-time streaming on the unified client in pull-iter mode.
- *
- *  Returns a freshly allocated `TdxFpssEventIterator*` on success.
- *  Mutually exclusive with `tdx_unified_set_callback` — calling
- *  either while streaming is already running returns NULL with
- *  `tdx_last_error()` set to `"streaming already started"`. Free with
- *  `tdx_fpss_event_iter_free` when done iterating.
- *
- *  Returns NULL on connection / auth / state failure. */
-TdxFpssEventIterator* tdx_unified_start_streaming_iter(const TdxUnified* handle);
-
-/** Pop the next streaming event into `*out_event`. `timeout_ms = 0` is a
- *  non-blocking poll; positive `timeout_ms` blocks up to that
- *  deadline.
- *
- *  Return values:
- *  -  0 — event filled into `*out_event`.
- *  -  1 — timeout expired with no event; `*out_event` untouched.
- *  - -1 — terminal end-of-stream (queue drained on a stopped session)
- *         OR call-site error (check `tdx_last_error()`).
- *
- *  The borrowed pointer fields inside `*out_event` (`Contract.symbol`,
- *  `LoginSuccess.permissions`, payload byte slices, etc.) reference
- *  heap memory owned by the iterator handle's internal buffer. They
- *  are valid until the next `tdx_fpss_event_iter_next` call OR until
- *  `tdx_fpss_event_iter_free` is invoked, whichever happens first.
- *  Copy any fields the consumer wants to outlive the next call. */
-int tdx_fpss_event_iter_next(TdxFpssEventIterator* it,
-                             TdxFpssEvent* out_event,
-                             int32_t timeout_ms);
-
-/** Mark the iterator closed. Subsequent `_next` calls return -1
- *  (terminal) once the queue is drained, without shutting down the
- *  underlying streaming session. Idempotent. */
-void tdx_fpss_event_iter_close(TdxFpssEventIterator* it);
-
-/** Free a pull-iter handle. Does NOT stop the underlying streaming
- *  session — call `tdx_unified_stop_streaming` first if you need a
- *  full shutdown. */
-void tdx_fpss_event_iter_free(TdxFpssEventIterator* it);
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
  *

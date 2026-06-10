@@ -295,10 +295,8 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'Changelog', link: '/changelog' },
-          // U11 closure: v9 → v10 migration guide. Linked here so
-          // existing v9 users have a one-click landing page covering
-          // every breaking change in the v10 wave.
-          { text: 'Migrating v9 → v10', link: '/migration/v9-to-v10' },
+          { text: 'Migration: v11 → v12', link: '/migration/v11-to-v12' }, // VOCAB-OK: nav label for the migration guide whose canonical name names the transitioned versions
+          { text: 'Migration: v9 → v10 (historical)', link: '/migration/v9-to-v10' },
         ],
       },
     ],

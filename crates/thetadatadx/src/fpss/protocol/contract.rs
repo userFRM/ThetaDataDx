@@ -1,14 +1,14 @@
 //! Contract identifier, OCC-21 parser, and wire serialization codec.
 //!
-//! ## Contract serialization (`Contract.java`)
+//! ## Contract serialization
 //!
 //! Contracts are serialized as a compact binary format on the wire:
 //!
 //! - **Stock/Index**: `[total_size: u8] [root_len: u8] [root ASCII] [sec_type: u8]`
 //! - **Option**:      `[total_size: u8] [root_len: u8] [root ASCII] [sec_type: u8]
 //!                      [exp_date: i32 BE] [is_call: u8] [strike: i32 BE]`
-//!
-//! Source: `Contract.toBytes()` and `Contract.fromBytes()` in decompiled terminal.
+
+use std::sync::Arc;
 
 use tdbe::types::enums::SecType;
 use tdbe::Right;
@@ -27,11 +27,16 @@ use crate::error::Error;
 ///
 /// Source: `Contract.java` — `toBytes()`, `fromBytes()`, constructor overloads.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct Contract {
     /// Ticker symbol (ASCII, max ~6 chars in practice). Named `symbol` to
     /// match the v3 vendor surface; the wire codec still encodes it as the
     /// root field per `Contract.toBytes()` parity.
-    pub symbol: String,
+    ///
+    /// Stored as `Arc<str>` so every `Arc<Contract>` clone that flows
+    /// through the hot-path event ring pays only an atomic refcount
+    /// increment — no heap allocation per event.
+    pub symbol: Arc<str>,
     /// Security type.
     pub sec_type: SecType,
     /// Expiration date as YYYYMMDD integer (options only).
@@ -53,13 +58,13 @@ impl Contract {
     /// use tdbe::types::enums::SecType;
     ///
     /// let c = Contract::stock("AAPL");
-    /// assert_eq!(c.symbol, "AAPL");
+    /// assert_eq!(&*c.symbol, "AAPL");
     /// assert_eq!(c.sec_type, SecType::Stock);
     /// assert!(c.expiration.is_none());
     /// ```
-    pub fn stock(symbol: impl Into<String>) -> Self {
+    pub fn stock(symbol: &str) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Arc::from(symbol),
             sec_type: SecType::Stock,
             expiration: None,
             is_call: None,
@@ -68,9 +73,9 @@ impl Contract {
     }
 
     /// Create an index contract.
-    pub fn index(symbol: impl Into<String>) -> Self {
+    pub fn index(symbol: &str) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Arc::from(symbol),
             sec_type: SecType::Index,
             expiration: None,
             is_call: None,
@@ -79,9 +84,9 @@ impl Contract {
     }
 
     /// Create a rate contract.
-    pub fn rate(symbol: impl Into<String>) -> Self {
+    pub fn rate(symbol: &str) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Arc::from(symbol),
             sec_type: SecType::Rate,
             expiration: None,
             is_call: None,
@@ -105,7 +110,7 @@ impl Contract {
     /// use thetadatadx::fpss::protocol::Contract;
     ///
     /// let c = Contract::option("SPY", "20260417", "550", "C")?;
-    /// assert_eq!(c.symbol, "SPY");
+    /// assert_eq!(&*c.symbol, "SPY");
     /// assert_eq!(c.expiration, Some(20_260_417));
     /// assert_eq!(c.is_call, Some(true));
     /// assert_eq!(c.strike, Some(550_000));
@@ -118,7 +123,7 @@ impl Contract {
     /// expiration, non-strict right value, unparseable strike, or
     /// strike outside `i32` range after `*1000` scaling.
     pub fn option(
-        symbol: impl Into<String>,
+        symbol: &str,
         expiration: &str,
         strike: &str,
         right: &str,
@@ -180,14 +185,9 @@ impl Contract {
     /// - `expiration`: `YYYYMMDD` integer
     /// - `is_call`: `true` for call, `false` for put
     /// - `strike_raw`: Strike in thousandths of a dollar (i32)
-    pub fn option_raw(
-        symbol: impl Into<String>,
-        expiration: i32,
-        is_call: bool,
-        strike_raw: i32,
-    ) -> Self {
+    pub fn option_raw(symbol: &str, expiration: i32, is_call: bool, strike_raw: i32) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Arc::from(symbol),
             sec_type: SecType::Option,
             expiration: Some(expiration),
             is_call: Some(is_call),
@@ -220,6 +220,32 @@ impl Contract {
             .map(|c| if c { Right::Call } else { Right::Put })
     }
 
+    /// Build an unresolved-contract sentinel for a given wire contract id.
+    ///
+    /// The sentinel is emitted for tick events that arrive before the
+    /// matching `ContractAssigned` control frame has been processed.
+    /// `sec_type` is [`SecType::Unknown`] so downstream code can detect
+    /// the sentinel via the enum variant rather than a symbol-prefix match.
+    /// The `symbol` carries the decimal wire id under the `__pending:`
+    /// prefix for diagnostic correlation.
+    #[must_use]
+    pub fn pending(contract_id: i32) -> Self {
+        use tdbe::types::enums::SecType;
+        Self {
+            symbol: Arc::from(
+                format!(
+                    "{}{contract_id}",
+                    crate::fpss::UNRESOLVED_CONTRACT_SYMBOL_PREFIX
+                )
+                .as_str(),
+            ),
+            sec_type: SecType::Unknown,
+            expiration: None,
+            is_call: None,
+            strike: None,
+        }
+    }
+
     /// Synthetic marker used by `reconnect_streaming` to represent a failed
     /// full-type subscription inside [`crate::Error::PartialReconnect::failed`].
     ///
@@ -233,7 +259,7 @@ impl Contract {
     #[must_use]
     pub fn full_type_marker(sec_type: SecType) -> Self {
         Self {
-            symbol: String::new(),
+            symbol: Arc::from(""),
             sec_type,
             expiration: None,
             is_call: None,
@@ -347,8 +373,8 @@ impl Contract {
         let bytes = input.as_bytes();
         // Root: bytes 0..6, right-padded with spaces.
         let root_raw = &input[0..6];
-        let root = root_raw.trim_end_matches(' ').to_string();
-        Self::validate_root(input, &root)?;
+        let root: &str = root_raw.trim_end_matches(' ');
+        Self::validate_root(input, root)?;
 
         // YYMMDD -> integer, then centuried to YYYYMMDD.
         let yymmdd_raw = &input[6..12];
@@ -425,7 +451,7 @@ impl Contract {
         })?;
 
         Ok(Self {
-            symbol: root,
+            symbol: Arc::from(root),
             sec_type: SecType::Option,
             expiration: Some(expiration),
             is_call: Some(is_call),
@@ -587,9 +613,10 @@ impl Contract {
 
         let root_start = 2;
         let root_end = root_start + root_len;
-        let root = std::str::from_utf8(&data[root_start..root_end])
-            .map_err(|_| ContractParseError::InvalidUtf8)?
-            .to_string();
+        let root: Arc<str> = Arc::from(
+            std::str::from_utf8(&data[root_start..root_end])
+                .map_err(|_| ContractParseError::InvalidUtf8)?,
+        );
 
         let sec_type_byte = data[root_end];
         let sec_type = SecType::from_code(i32::from(sec_type_byte))
@@ -678,7 +705,7 @@ impl std::str::FromStr for Contract {
     ///    # use std::str::FromStr;
     ///    # use thetadatadx::fpss::protocol::Contract;
     ///    let c = "AAPL".parse::<Contract>().unwrap();
-    ///    assert_eq!(c.symbol, "AAPL");
+    ///    assert_eq!(&*c.symbol, "AAPL");
     ///    ```
     /// 2. **OCC-21 option identifier**. 21 ASCII characters:
     ///    `[root (6, space-padded)] [YYMMDD (6)] [C|P (1)] [strike (8, 1/1000$)]`.
@@ -693,7 +720,7 @@ impl std::str::FromStr for Contract {
     ///    # use std::str::FromStr;
     ///    # use thetadatadx::fpss::protocol::Contract;
     ///    let c = "SPY   260417C00550000".parse::<Contract>().unwrap();
-    ///    assert_eq!(c.symbol, "SPY");
+    ///    assert_eq!(&*c.symbol, "SPY");
     ///    assert_eq!(c.expiration, Some(20_260_417));
     ///    assert_eq!(c.is_call, Some(true));
     ///    assert_eq!(c.strike, Some(550_000));
@@ -762,6 +789,7 @@ impl std::str::FromStr for Contract {
 
 /// Errors that can occur when parsing a contract from bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ContractParseError {
     TooShort,
     InvalidSize(usize),
@@ -820,7 +848,7 @@ mod tests {
         let c = Contract::index("SPX");
         let bytes = c.to_bytes();
         let (parsed, _) = Contract::from_bytes(&bytes).unwrap();
-        assert_eq!(parsed.symbol, "SPX");
+        assert_eq!(&*parsed.symbol, "SPX");
         assert_eq!(parsed.sec_type, SecType::Index);
     }
 
@@ -959,7 +987,7 @@ mod tests {
     fn from_str_bare_root_stock() {
         use std::str::FromStr;
         let c = Contract::from_str("AAPL").unwrap();
-        assert_eq!(c.symbol, "AAPL");
+        assert_eq!(&*c.symbol, "AAPL");
         assert_eq!(c.sec_type, SecType::Stock);
         assert!(c.expiration.is_none());
         assert!(c.is_call.is_none());
@@ -970,7 +998,7 @@ mod tests {
     fn from_str_bare_root_short_ticker() {
         use std::str::FromStr;
         let c = Contract::from_str("A").unwrap();
-        assert_eq!(c.symbol, "A");
+        assert_eq!(&*c.symbol, "A");
         assert_eq!(c.sec_type, SecType::Stock);
     }
 
@@ -979,7 +1007,7 @@ mod tests {
         use std::str::FromStr;
         // BRK.A style tickers must parse as stock roots.
         let c = Contract::from_str("BRK.A").unwrap();
-        assert_eq!(c.symbol, "BRK.A");
+        assert_eq!(&*c.symbol, "BRK.A");
         assert_eq!(c.sec_type, SecType::Stock);
     }
 
@@ -987,7 +1015,7 @@ mod tests {
     fn from_str_bare_root_trims_surrounding_whitespace() {
         use std::str::FromStr;
         let c = Contract::from_str("  SPY  ").unwrap();
-        assert_eq!(c.symbol, "SPY");
+        assert_eq!(&*c.symbol, "SPY");
     }
 
     #[test]
@@ -995,7 +1023,7 @@ mod tests {
         use std::str::FromStr;
         // SPY  (4 chars -> 6 chars padded) 26-04-17 Call 550.00.
         let c = Contract::from_str("SPY   260417C00550000").unwrap();
-        assert_eq!(c.symbol, "SPY");
+        assert_eq!(&*c.symbol, "SPY");
         assert_eq!(c.sec_type, SecType::Option);
         assert_eq!(c.expiration, Some(20_260_417));
         assert_eq!(c.is_call, Some(true));
@@ -1007,7 +1035,7 @@ mod tests {
         use std::str::FromStr;
         // QQQ 26-06-20 Put 350.00.
         let c = Contract::from_str("QQQ   260620P00350000").unwrap();
-        assert_eq!(c.symbol, "QQQ");
+        assert_eq!(&*c.symbol, "QQQ");
         assert_eq!(c.is_call, Some(false));
         assert_eq!(c.expiration, Some(20_260_620));
         assert_eq!(c.strike, Some(350_000));
@@ -1018,7 +1046,7 @@ mod tests {
         use std::str::FromStr;
         // The exact example from the spec.
         let c = Contract::from_str("AAPL  260417C00550000").unwrap();
-        assert_eq!(c.symbol, "AAPL");
+        assert_eq!(&*c.symbol, "AAPL");
         assert_eq!(c.expiration, Some(20_260_417));
         assert_eq!(c.is_call, Some(true));
         assert_eq!(c.strike, Some(550_000));
@@ -1029,7 +1057,7 @@ mod tests {
         use std::str::FromStr;
         // Full six-char root: no spaces in the root field.
         let c = Contract::from_str("ABCDEF260417C00550000").unwrap();
-        assert_eq!(c.symbol, "ABCDEF");
+        assert_eq!(&*c.symbol, "ABCDEF");
         assert_eq!(c.expiration, Some(20_260_417));
         assert_eq!(c.strike, Some(550_000));
     }
@@ -1147,7 +1175,7 @@ mod tests {
     fn from_str_accepts_seven_char_root() {
         use std::str::FromStr;
         let c = Contract::from_str("ABCDEFG").expect("7-char root must parse");
-        assert_eq!(c.symbol, "ABCDEFG");
+        assert_eq!(&*c.symbol, "ABCDEFG");
         assert_eq!(c.sec_type, SecType::Stock);
     }
 
@@ -1158,7 +1186,7 @@ mod tests {
         let sixteen = "AAAAAAAAAAAAAAAA";
         assert_eq!(sixteen.len(), 16);
         let c = Contract::from_str(sixteen).expect("16-char root must parse");
-        assert_eq!(c.symbol, sixteen);
+        assert_eq!(&*c.symbol, sixteen);
         assert_eq!(c.sec_type, SecType::Stock);
     }
 
@@ -1173,7 +1201,7 @@ mod tests {
             let root: String = "A".repeat(n);
             let parsed = Contract::from_str(&root)
                 .unwrap_or_else(|_| panic!("from_str must accept {n}-char root"));
-            assert_eq!(parsed.symbol, root);
+            assert_eq!(&*parsed.symbol, root.as_str());
             let wire = parsed.to_bytes();
             let (decoded, consumed) = Contract::from_bytes(&wire)
                 .unwrap_or_else(|_| panic!("from_bytes must decode {n}-char root"));
@@ -1223,7 +1251,7 @@ mod tests {
         // with a trailing space, which shifted the right-byte into a
         // digit slot and either errored or decoded a different contract.
         assert_eq!(c20, c21, "20-char and 21-char forms must parse identically");
-        assert_eq!(c20.symbol, "SPY");
+        assert_eq!(&*c20.symbol, "SPY");
         assert_eq!(c20.expiration, Some(20_260_417));
         assert_eq!(c20.is_call, Some(true));
         assert_eq!(c20.strike, Some(550_000));
@@ -1237,7 +1265,7 @@ mod tests {
         let twenty = "T    260417C00150000";
         assert_eq!(twenty.len(), 20);
         let c = Contract::from_str(twenty).expect("20-char OCC-21 with short root must repair");
-        assert_eq!(c.symbol, "T");
+        assert_eq!(&*c.symbol, "T");
         assert_eq!(c.is_call, Some(true));
         assert_eq!(c.strike, Some(150_000));
     }
@@ -1257,7 +1285,7 @@ mod tests {
             Some(20_990_101),
             "YY=99 must map to 2099-01-01"
         );
-        assert_eq!(c.symbol, "AAPL");
+        assert_eq!(&*c.symbol, "AAPL");
         assert_eq!(c.is_call, Some(true));
         assert_eq!(c.strike, Some(100_000));
     }
@@ -1286,7 +1314,7 @@ mod tests {
         // Industry-practice single-dot compound tickers MUST still
         // parse — keeping BRK.A / BRK.B / RDS.A reachable.
         let c = Contract::from_str("BRK.B").expect("single-dot root must parse");
-        assert_eq!(c.symbol, "BRK.B");
+        assert_eq!(&*c.symbol, "BRK.B");
     }
 
     // ---------------------------------------------------------------------------
@@ -1353,7 +1381,7 @@ mod tests {
     fn arbitrary_contract() -> impl Strategy<Value = Contract> {
         prop_oneof![
             // Stock branch.
-            arbitrary_root().prop_map(Contract::stock),
+            arbitrary_root().prop_map(|root| Contract::stock(&root)),
             // Option branch: wire-format integer triple variant so the
             // strategy never has to round-trip strings -- the Contract
             // value itself is the unit under test.
@@ -1371,7 +1399,7 @@ mod tests {
                 1i32..=99_999_999,
             )
                 .prop_map(|(root, exp, is_call, strike)| {
-                    Contract::option_raw(root, exp, is_call, strike)
+                    Contract::option_raw(&root, exp, is_call, strike)
                 }),
         ]
     }
@@ -1425,7 +1453,7 @@ mod tests {
 
             let parsed: Contract = original.parse()
                 .expect("well-formed OCC-21 string must parse");
-            prop_assert_eq!(&parsed.symbol, &root);
+            prop_assert_eq!(&*parsed.symbol, root.as_str());
             prop_assert_eq!(parsed.expiration, Some(exp));
             prop_assert_eq!(parsed.is_call, Some(is_call));
             prop_assert_eq!(parsed.strike, Some(strike));

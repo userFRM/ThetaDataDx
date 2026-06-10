@@ -107,7 +107,7 @@ pub const UNRESOLVED_CONTRACT_SYMBOL_PREFIX: &str = "__pending:";
 /// the type-safe enum check rather than a string prefix match.
 fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
     Arc::new(Contract {
-        symbol: format!("{UNRESOLVED_CONTRACT_SYMBOL_PREFIX}{contract_id}"),
+        symbol: Arc::from(format!("{UNRESOLVED_CONTRACT_SYMBOL_PREFIX}{contract_id}").as_str()),
         sec_type: tdbe::types::enums::SecType::Unknown,
         expiration: None,
         is_call: None,
@@ -823,7 +823,7 @@ mod tests {
             }) => {
                 // Contract resolves via the seeded local_contracts cache
                 // (Arc refcount-clone, no unresolved-sentinel sym leak).
-                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(&*contract.symbol, "AAPL");
                 assert_eq!(*ms_of_day, 34200000);
                 assert_eq!(*sequence, 12345);
                 assert_eq!(*size, 50);
@@ -923,7 +923,7 @@ mod tests {
                 date,
                 ..
             }) => {
-                assert_eq!(contract.symbol, "SPY");
+                assert_eq!(&*contract.symbol, "SPY");
                 assert_eq!(*ms_of_day, 34200000);
                 assert_eq!(*sequence, 99999);
                 assert_eq!(*ext_condition1, 1);
@@ -1077,7 +1077,7 @@ mod tests {
         let assigned_arc: Arc<Contract> = match expect_public(&primary_internal) {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 assert_eq!(*id, 777);
-                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(&*contract.symbol, "AAPL");
                 // The Arc inside the event and the Arc in the thread-local
                 // cache must point at the SAME Contract heap cell — a
                 // different pointer would mean we regressed to per-event
@@ -1138,7 +1138,7 @@ mod tests {
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
             FpssEvent::Data(FpssData::Quote { contract, .. }) => {
-                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(&*contract.symbol, "AAPL");
                 // Arc::ptr_eq proves both events share the SAME heap
                 // allocation — `assert_eq!(contract.symbol, "AAPL")` alone
                 // only checks that both events carry the same *value*,
@@ -1219,7 +1219,7 @@ mod tests {
                 // without re-introducing the wire id on the public
                 // `FpssData` surface.
                 assert_eq!(
-                    contract.symbol, "__pending:999",
+                    &*contract.symbol, "__pending:999",
                     "unresolved sentinel must encode the wire id under \
                      the `__pending:` prefix"
                 );
@@ -1329,7 +1329,7 @@ mod tests {
                     "post-Restart tick on known-but-cleared ID must surface Unknown"
                 );
                 assert_ne!(
-                    contract.symbol, "SEED",
+                    &*contract.symbol, "SEED",
                     "post-Restart decoder must NOT resurrect the pre-restart Contract"
                 );
             }

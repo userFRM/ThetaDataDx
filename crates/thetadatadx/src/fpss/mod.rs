@@ -1,7 +1,7 @@
 //! FPSS real-time streaming client.
 //!
 //! Synchronous blocking I/O on `std::thread` (no tokio). A TLS reader
-//! publishes events to a single LMAX Disruptor ring; the consumer
+//! publishes events to a lock-free event ring; the consumer
 //! thread invokes the user callback inside `std::panic::catch_unwind`
 //! so panics are counted on [`FpssClient::panic_count`] rather than
 //! tearing down the pipeline. See `docs-site/docs/streaming/index.md`
@@ -10,16 +10,20 @@
 //! # Examples
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent};
+//! # use thetadatadx::fpss::{FpssClient, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
-//! # fn example() -> Result<(), thetadatadx::error::Error> {
+//! # use thetadatadx::fpss::protocol::Contract;
+//! # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
-//! let args = FpssConnectArgs::new(&creds, &hosts);
-//! let client = FpssClient::connect(args, |_event: &FpssEvent| {})?;
-//! use thetadatadx::fpss::protocol::Contract;
+//!
+//! let client = FpssClient::builder(&creds, &hosts).build()?;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
-//! client.shutdown();
+//!
+//! for event in &client {
+//!     let _event: FpssEvent = event?;
+//!     // ...
+//! }
 //! # Ok(())
 //! # }
 //! ```
@@ -37,30 +41,20 @@ pub(crate) mod ring;
 mod session;
 pub mod wake;
 
-#[cfg(test)]
-mod streaming_soak_tests;
-
-// Surface a thin slice of the framing codec for offline benchmarks
-// (`benches/bench_framing.rs`). The full `framing` module remains
-// crate-private; only the round-trip primitives are exposed.
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{BackpressurePolicy, FpssControl, FpssData, FpssEvent};
-// `Delivery` stays crate-private; it is the union type the io_loop
-// dispatches on. Public callers reach the two modes via
-// `FpssClient::connect` (push-callback) and `FpssClient::connect_iter`
-// (pull-iter), not by constructing a `Delivery` directly. Referenced
-// by name from `connect_iter` below.
+pub use self::events::{FpssControl, FpssData, FpssEvent};
 pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::{reconnect_delay, reconnect_delay_for};
 
-// Direct-consumer (single-ring) poller plumbing. The third-party
-// `disruptor` poller types are wrapped by `FpssEventPoller` and never
-// appear on the public surface; these imports are crate-internal only.
+// Lock-free event ring buffer plumbing. The third-party ring-buffer
+// crate's `EventPoller` / `Polling` / `SingleProducerBarrier` types are
+// stored inside `FpssClient::poller_state` and never reach the public
+// signature surface; these imports are crate-internal only.
 use self::ring::RingEvent;
-use disruptor::wait_strategies::WaitStrategy;
-use disruptor::{EventPoller, Polling, SingleProducerBarrier};
+use disruptor::wait_strategies::WaitStrategy; // VOCAB-OK: internal crate name, not user-facing
+use disruptor::{EventPoller, Polling, SingleProducerBarrier}; // VOCAB-OK: internal crate name, not user-facing
 
 /// Hidden test-internals surface for vendor-failure-mode resilience tests
 /// in `crates/thetadatadx/tests/`.
@@ -85,6 +79,7 @@ pub mod __test_internals {
     pub use super::framing::{read_frame_into, FrameReadState, MAX_PAYLOAD_LEN};
 }
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -99,6 +94,186 @@ use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
 };
+
+// ---------------------------------------------------------------------------
+// FpssError — typed error enum returned by the FPSS public surface
+// ---------------------------------------------------------------------------
+
+/// Typed errors returned by the FPSS client public surface.
+///
+/// Each variant pairs a concrete failure category with a human-readable
+/// detail string. Mark on a `match` arm to dispatch retry / fail-fast
+/// behaviour without parsing strings. The enum is `#[non_exhaustive]`
+/// so new variants can be added without breaking SemVer.
+///
+/// # Conversions
+///
+/// `From<FpssError> for Error` maps each `FpssError` variant into an
+/// umbrella [`crate::Error`] variant according to the table below.
+/// `DispatcherFailed` does NOT have a dedicated umbrella variant; it
+/// is encoded as `Error::Fpss { kind: Disconnected }` with a
+/// `"dispatcher failed: "` prefix on the message, which the reverse
+/// direction recognises:
+///
+/// | `FpssError`               | `Error`                                                         |
+/// |---------------------------|-----------------------------------------------------------------|
+/// | `ConnectionRefused(m)`    | `Error::Fpss { kind: ConnectionRefused, message: m }`           |
+/// | `Timeout(m)`              | `Error::Fpss { kind: Timeout, message: m }`                     |
+/// | `Protocol(m)`             | `Error::Fpss { kind: ProtocolError, message: m }`               |
+/// | `Disconnected(m)`         | `Error::Fpss { kind: Disconnected, message: m }`                |
+/// | `RateLimited(m)`          | `Error::Fpss { kind: TooManyRequests, message: m }`             |
+/// | `AuthenticationFailed(m)` | `Error::Auth { kind: InvalidCredentials, message: m }`          |
+/// | `Config(m)`               | `Error::Config { kind: InvalidValue { field: "fpss", message }}`|
+/// | `Io(m)`                   | `Error::Io(io::Error::other(m))`                                |
+/// | `DispatcherFailed(m)`     | `Error::Fpss { kind: Disconnected, message: "dispatcher failed: {m}" }` |
+///
+/// Round-tripping `FpssError → Error → FpssError` preserves the
+/// variant for every row above (the prefixed message lets the
+/// `Disconnected → DispatcherFailed` decoder run) and preserves the
+/// message string verbatim. Two caveats:
+///
+/// - `Io(m) → Error::Io(io::Error::other(m)) → Io(io.to_string())`
+///   preserves the message text but the synthesised inner
+///   `io::Error` reports `ErrorKind::Other`. A caller that
+///   round-trips through `Error` and then inspects the recovered
+///   `io::ErrorKind` will see `Other`, not whatever kind the original
+///   `FpssError::Io` was carrying in its string form.
+/// - `Config(m) → Error::Config { kind: InvalidValue { field: "fpss",
+///   message } }` regenerates `field = "fpss"` unconditionally. A
+///   caller that converted an `Error::Config { kind: InvalidValue {
+///   field: "<custom>", .. } }` into `FpssError::Config` loses the
+///   original field name on the round trip.
+/// - `Disconnected(m)` with a user-supplied `m` that happens to start
+///   with the literal `"dispatcher failed: "` prefix re-emerges as
+///   `DispatcherFailed` — do not author messages with that prefix
+///   manually.
+///
+/// `From<Error> for FpssError` is **best-effort categorisation**. The
+/// FPSS-shaped umbrella variants (`Error::Fpss`, `Error::Auth`,
+/// `Error::Config`, `Error::Io`, `Error::Tls`, `Error::Timeout`)
+/// preserve their human-readable message and route to the closest
+/// `FpssError` variant; everything else (gRPC, decode, transport)
+/// collapses to `FpssError::Protocol` with the `Display` string of the
+/// source error. Use this direction at SDK boundaries where the
+/// caller already knows the error originated on the FPSS surface.
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum FpssError {
+    /// Could not connect to any FPSS server (TLS handshake failed, no
+    /// route, DNS failure, etc.).
+    #[error("connection refused: {0}")]
+    ConnectionRefused(String),
+
+    /// Operation timed out (initial connect, login, or read deadline).
+    #[error("timeout: {0}")]
+    Timeout(String),
+
+    /// Wire-protocol violation (unexpected frame, malformed payload, or
+    /// decoder failure).
+    #[error("protocol error: {0}")]
+    Protocol(String),
+
+    /// Server closed the connection.
+    #[error("disconnected: {0}")]
+    Disconnected(String),
+
+    /// Server replied `TOO_MANY_REQUESTS`; back off before retrying.
+    #[error("rate limited: {0}")]
+    RateLimited(String),
+
+    /// Authentication failed (invalid credentials, expired session,
+    /// server-side rejection).
+    #[error("authentication failed: {0}")]
+    AuthenticationFailed(String),
+
+    /// Builder validation failed (missing field, out-of-range value,
+    /// invalid host:port).
+    #[error("configuration error: {0}")]
+    Config(String),
+
+    /// Internal supervisor thread terminated unexpectedly. The next
+    /// `next_event()` / iterator pull surfaces this variant; the
+    /// client has transitioned to a failed state.
+    #[error("dispatcher failed: {0}")]
+    DispatcherFailed(String),
+
+    /// I/O error on the FPSS socket.
+    #[error("io: {0}")]
+    Io(String),
+}
+
+impl From<FpssError> for Error {
+    fn from(e: FpssError) -> Self {
+        use crate::error::{AuthErrorKind, ConfigErrorKind, FpssErrorKind};
+        match e {
+            FpssError::ConnectionRefused(message) => Error::Fpss {
+                kind: FpssErrorKind::ConnectionRefused,
+                message,
+            },
+            FpssError::Timeout(message) => Error::Fpss {
+                kind: FpssErrorKind::Timeout,
+                message,
+            },
+            FpssError::Protocol(message) => Error::Fpss {
+                kind: FpssErrorKind::ProtocolError,
+                message,
+            },
+            FpssError::Disconnected(message) => Error::Fpss {
+                kind: FpssErrorKind::Disconnected,
+                message,
+            },
+            FpssError::RateLimited(message) => Error::Fpss {
+                kind: FpssErrorKind::TooManyRequests,
+                message,
+            },
+            FpssError::AuthenticationFailed(message) => Error::Auth {
+                kind: AuthErrorKind::InvalidCredentials,
+                message,
+            },
+            FpssError::DispatcherFailed(message) => Error::Fpss {
+                kind: FpssErrorKind::Disconnected,
+                message: format!("dispatcher failed: {message}"),
+            },
+            FpssError::Config(message) => Error::Config {
+                kind: ConfigErrorKind::InvalidValue {
+                    field: "fpss".to_string(),
+                    message: message.clone(),
+                },
+                message,
+            },
+            FpssError::Io(message) => Error::Io(std::io::Error::other(message)),
+        }
+    }
+}
+
+impl From<Error> for FpssError {
+    fn from(e: Error) -> Self {
+        use crate::error::FpssErrorKind;
+        match e {
+            Error::Fpss { kind, message } => match kind {
+                FpssErrorKind::ConnectionRefused => FpssError::ConnectionRefused(message),
+                FpssErrorKind::Timeout => FpssError::Timeout(message),
+                FpssErrorKind::ProtocolError => FpssError::Protocol(message),
+                FpssErrorKind::Disconnected => {
+                    if let Some(payload) = message.strip_prefix("dispatcher failed: ") {
+                        FpssError::DispatcherFailed(payload.to_string())
+                    } else {
+                        FpssError::Disconnected(message)
+                    }
+                }
+                FpssErrorKind::TooManyRequests => FpssError::RateLimited(message),
+            },
+            Error::Auth { message, .. } => FpssError::AuthenticationFailed(message),
+            Error::Io(io) => FpssError::Io(io.to_string()),
+            Error::Tls(t) => FpssError::ConnectionRefused(t.to_string()),
+            Error::Timeout { duration_ms } => {
+                FpssError::Timeout(format!("deadline exceeded after {duration_ms}ms"))
+            }
+            Error::Config { message, .. } => FpssError::Config(message),
+            other => FpssError::Protocol(other.to_string()),
+        }
+    }
+}
 
 /// Clamp a 64-bit counter value into a positive 31-bit wire `req_id`.
 ///
@@ -145,87 +320,51 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// FpssConnectArgs — typed parameter bundle for `FpssClient::connect`
+// FpssClientBuilder — fluent constructor for `FpssClient`
 // ---------------------------------------------------------------------------
 
-/// Parameters for [`FpssClient::connect`].
+/// Fluent builder for an [`FpssClient`].
 ///
-/// Bundles the connection-side knobs (credentials, hosts, ring size, flush mode,
-/// reconnect policy, OHLCVC derivation) into one struct so the call site reads
-/// linearly rather than as a positional list of seven heterogeneous arguments.
+/// Holds the connection-side knobs (credentials, hosts, ring size,
+/// flush mode, reconnect policy, OHLCVC derivation, timeouts) and
+/// returns a connected client from [`Self::build`]. Optional setters
+/// consume `self` so calls chain.
 ///
 /// # Example
 ///
 /// ```rust,no_run
-/// # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent};
+/// # use thetadatadx::fpss::{FpssClient, FpssEvent};
 /// # use thetadatadx::auth::Credentials;
-/// # fn example() -> Result<(), thetadatadx::error::Error> {
+/// # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 /// let creds = Credentials::new("user@example.com", "pw");
 /// let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
-/// let args = FpssConnectArgs::new(&creds, &hosts);
-/// let client = FpssClient::connect(args, |_event: &FpssEvent| {})?;
+///
+/// let client = FpssClient::builder(&creds, &hosts)
+///     .ring_size(8192)
+///     .read_timeout_ms(15_000)
+///     .build()?;
+/// # let _ = client;
 /// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
-pub struct FpssConnectArgs<'a> {
-    /// Authenticated user credentials.
-    pub creds: &'a Credentials,
-    /// FPSS server list. Servers are tried in order until one connects;
-    /// the surviving list is retained for auto-reconnect.
-    pub hosts: &'a [(String, u16)],
-    /// Disruptor ring buffer size (events). Must be a power of two.
-    ///
-    /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
-    /// current 64-bit layout, validated by the `assert_layout_compat`
-    /// test). The default
-    /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
-    /// `FpssClient` for the ring, plus per-event refcounted
-    /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if
-    /// memory is tight; tune upward (e.g., 16_384) if you observe
-    /// sustained `dropped_event_count()` under bursty load.
-    pub ring_size: usize,
-    /// I/O thread flush behavior. See [`FpssFlushMode`].
-    pub flush_mode: FpssFlushMode,
-    /// Auto-reconnect policy after involuntary disconnect.
-    pub policy: ReconnectPolicy,
-    /// Delay (ms) before reconnecting after a generic transient drop
-    /// (TimedOut, ServerRestarting, Unspecified, …). Mirrors
-    /// [`crate::config::ReconnectConfig::wait_ms`]. Default
-    /// [`crate::fpss::protocol::RECONNECT_DELAY_MS`] (2_000).
-    pub wait_ms: u64,
-    /// Delay (ms) before reconnecting after a `TooManyRequests` drop.
-    /// Mirrors [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
-    /// Default [`crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS`] (130_000).
-    pub wait_rate_limited_ms: u64,
-    /// When `false`, suppresses locally derived `FpssData::Ohlcvc` events.
-    /// Server-sent OHLCVC frames (wire code 24) still pass through.
-    pub derive_ohlcvc: bool,
-    /// Per-server TCP connect timeout in milliseconds.
-    ///
-    /// Plumbed through to [`std::net::TcpStream::connect_timeout`] so a
-    /// slow / unreachable host fails fast and the next host gets a try.
-    pub connect_timeout_ms: u64,
-    /// FPSS read timeout in milliseconds.
-    ///
-    /// Drives the framing layer's mid-frame stall budget, the initial
-    /// per-socket read deadline, and the I/O loop's overall
-    /// "no-data-received" deadline that emits
-    /// [`tdbe::types::enums::RemoveReason::TimedOut`].
-    pub read_timeout_ms: u64,
-    /// FPSS heartbeat ping interval in milliseconds. Drives the
-    /// background `fpss-ping` thread cadence.
-    pub ping_interval_ms: u64,
+pub struct FpssClientBuilder<'a> {
+    creds: &'a Credentials,
+    hosts: &'a [(String, u16)],
+    ring_size: usize,
+    flush_mode: FpssFlushMode,
+    policy: ReconnectPolicy,
+    wait_ms: u64,
+    wait_rate_limited_ms: u64,
+    derive_ohlcvc: bool,
+    connect_timeout_ms: u64,
+    read_timeout_ms: u64,
+    ping_interval_ms: u64,
 }
 
-impl<'a> FpssConnectArgs<'a> {
-    /// Construct with the two required arguments and SDK defaults for the rest.
-    ///
-    /// `Default` is intentionally NOT implemented on this type: `creds`
-    /// and `hosts` are required references with no sensible global
-    /// default, so a `Default::default()` would manufacture an
-    /// unusable value. Callers populate the optional fields with
-    /// builder-style mutation after [`Self::new`].
+impl<'a> FpssClientBuilder<'a> {
+    /// Construct a builder with the two required arguments and SDK
+    /// defaults for the rest.
     #[must_use]
     pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
         Self {
@@ -242,6 +381,155 @@ impl<'a> FpssConnectArgs<'a> {
             ping_interval_ms: protocol::PING_INTERVAL_MS,
         }
     }
+
+    /// Event ring buffer size (events). Must be a power of two.
+    ///
+    /// Default `4096`. Each slot stores one event (96 bytes on the
+    /// current 64-bit layout, validated by `assert_layout_compat`), so
+    /// `4096 × 96 ≈ 384 KiB` per client plus refcounted `Arc<Contract>`
+    /// storage on top. Tune upward (e.g. `16_384`) if you observe
+    /// sustained ring-overflow drops on bursty load.
+    #[must_use]
+    pub fn ring_size(mut self, n: usize) -> Self {
+        self.ring_size = n;
+        self
+    }
+
+    /// I/O thread flush behaviour. See [`FpssFlushMode`].
+    #[must_use]
+    pub fn flush_mode(mut self, m: FpssFlushMode) -> Self {
+        self.flush_mode = m;
+        self
+    }
+
+    /// Auto-reconnect policy after involuntary disconnect.
+    #[must_use]
+    pub fn reconnect_policy(mut self, p: ReconnectPolicy) -> Self {
+        self.policy = p;
+        self
+    }
+
+    /// Delay (ms) before reconnecting after a generic transient drop
+    /// (`TimedOut`, `ServerRestarting`, `Unspecified`, ...).
+    #[must_use]
+    pub fn reconnect_wait_ms(mut self, ms: u64) -> Self {
+        self.wait_ms = ms;
+        self
+    }
+
+    /// Delay (ms) before reconnecting after a `TooManyRequests` drop.
+    #[must_use]
+    pub fn reconnect_wait_rate_limited_ms(mut self, ms: u64) -> Self {
+        self.wait_rate_limited_ms = ms;
+        self
+    }
+
+    /// When `false`, suppresses locally-derived `FpssData::Ohlcvc`
+    /// events. Server-sent OHLCVC frames still pass through.
+    #[must_use]
+    pub fn derive_ohlcvc(mut self, on: bool) -> Self {
+        self.derive_ohlcvc = on;
+        self
+    }
+
+    /// Per-server TCP connect timeout in milliseconds.
+    #[must_use]
+    pub fn connect_timeout_ms(mut self, ms: u64) -> Self {
+        self.connect_timeout_ms = ms;
+        self
+    }
+
+    /// FPSS read timeout in milliseconds. Drives the framing layer's
+    /// mid-frame stall budget and the I/O loop's no-data deadline.
+    #[must_use]
+    pub fn read_timeout_ms(mut self, ms: u64) -> Self {
+        self.read_timeout_ms = ms;
+        self
+    }
+
+    /// FPSS heartbeat ping interval in milliseconds.
+    #[must_use]
+    pub fn ping_interval_ms(mut self, ms: u64) -> Self {
+        self.ping_interval_ms = ms;
+        self
+    }
+
+    /// Connect, authenticate, and start the background I/O and ping
+    /// threads. Returns a ready-to-use [`FpssClient`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FpssError::ConnectionRefused`] if no host accepts the
+    /// TLS handshake, [`FpssError::AuthenticationFailed`] on login
+    /// failure, and other variants on protocol violations or
+    /// configuration validation errors.
+    pub fn build(self) -> Result<FpssClient, FpssError> {
+        FpssClient::connect(self.into_args()).map_err(FpssError::from)
+    }
+
+    pub(crate) fn into_args(self) -> FpssConnectArgs<'a> {
+        FpssConnectArgs {
+            creds: self.creds,
+            hosts: self.hosts,
+            ring_size: self.ring_size,
+            flush_mode: self.flush_mode,
+            policy: self.policy,
+            wait_ms: self.wait_ms,
+            wait_rate_limited_ms: self.wait_rate_limited_ms,
+            derive_ohlcvc: self.derive_ohlcvc,
+            connect_timeout_ms: self.connect_timeout_ms,
+            read_timeout_ms: self.read_timeout_ms,
+            ping_interval_ms: self.ping_interval_ms,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FpssConnectArgs — crate-internal parameter bundle
+// ---------------------------------------------------------------------------
+
+/// Internal parameter bundle for the crate-private connect path.
+///
+/// Built from [`FpssClientBuilder::build`] and threaded into the I/O
+/// loop. Not part of the public surface — callers use the builder.
+#[derive(Clone, Debug)]
+pub(crate) struct FpssConnectArgs<'a> {
+    pub(crate) creds: &'a Credentials,
+    pub(crate) hosts: &'a [(String, u16)],
+    pub(crate) ring_size: usize,
+    pub(crate) flush_mode: FpssFlushMode,
+    pub(crate) policy: ReconnectPolicy,
+    pub(crate) wait_ms: u64,
+    pub(crate) wait_rate_limited_ms: u64,
+    pub(crate) derive_ohlcvc: bool,
+    pub(crate) connect_timeout_ms: u64,
+    pub(crate) read_timeout_ms: u64,
+    pub(crate) ping_interval_ms: u64,
+}
+
+/// Outcome of a single non-blocking poll inside
+/// [`FpssClient::try_next_event_internal`]. The internal blocking
+/// loop (`next_event`) distinguishes "empty right now, retry" from
+/// "ring shut down, stop" before mapping back to the public
+/// `Option<FpssEvent>` shape.
+enum TryNext {
+    Event(FpssEvent),
+    Empty,
+    Shutdown,
+}
+
+/// Internal state for [`FpssClient::poller_state`].
+///
+/// Pairs the event ring's `EventPoller` with a small staging queue so the
+/// event-at-a-time API (`next_event`, the `Iterator` impl) can buffer a
+/// drained batch and yield events one by one without rerunning the
+/// poller per yield. `pending` is drained before each new `poll()` call;
+/// when the producer drops and the ring shuts down with `pending`
+/// empty, the entire [`PollerState`] is dropped so subsequent polls
+/// short-circuit to `Ok(None)`.
+struct PollerState {
+    poller: EventPoller<RingEvent, SingleProducerBarrier>,
+    pending: VecDeque<FpssEvent>,
 }
 
 /// Selector for the test-only [`FpssClient::for_self_join_test`]
@@ -249,7 +537,7 @@ impl<'a> FpssConnectArgs<'a> {
 /// blocking `publish` (matches handshake-time control-frame emission)
 /// and non-blocking `try_publish` (matches the live data path that
 /// drives the public `dropped_count`).
-#[cfg(test)]
+#[cfg(any(test, feature = "__test-helpers"))]
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy)]
 pub enum HarnessPublishMode {
@@ -271,6 +559,7 @@ pub enum HarnessPublishMode {
 /// matching the [`FpssConnectArgs`] convention.
 struct SpawnArgs<'a, P> {
     producer: P,
+    poller: EventPoller<RingEvent, SingleProducerBarrier>,
     stream: connection::FpssStream,
     cmd_rx: std_mpsc::Receiver<IoCommand>,
     cmd_tx: std_mpsc::Sender<IoCommand>,
@@ -311,7 +600,7 @@ struct SpawnArgs<'a, P> {
 ///
 /// 1. `FpssClient::connect()` -- TLS connect + authenticate + start background tasks
 /// 2. `subscribe(...)` / `unsubscribe(...)` -- subscribe to market data
-/// 3. Events delivered via the user's `FnMut(&FpssEvent)` callback on the Disruptor thread
+/// 3. Events delivered via the user's `FnMut(&FpssEvent)` callback on the event-dispatch thread
 /// 4. `shutdown()` -- clean disconnect
 ///
 /// # Thread safety
@@ -330,6 +619,15 @@ pub struct FpssClient {
     io_handle: Option<JoinHandle<()>>,
     /// Handle to the ping heartbeat thread.
     ping_handle: Option<JoinHandle<()>>,
+    /// Ring poller drained by [`Self::next_event`],
+    /// [`Self::poll_batch`], [`Self::for_each`], and the
+    /// `Iterator for &FpssClient` impl. Wrapped in a `Mutex` so the
+    /// client is `Sync` and can be cloned into an embedding thread for
+    /// control operations while another thread drives the polling loop;
+    /// in practice only one thread polls so the lock is uncontended.
+    /// Becomes `None` after a clean shutdown where the ring has been
+    /// fully drained.
+    poller_state: Mutex<Option<PollerState>>,
     /// Shutdown flag shared with background threads.
     shutdown: Arc<AtomicBool>,
     /// Whether we are authenticated and the connection is live.
@@ -354,31 +652,27 @@ pub struct FpssClient {
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     /// The server address we connected to.
     server_addr: String,
-    /// Cumulative count of `Producer::try_publish` failures: events the
-    /// TLS reader could not enqueue because the Disruptor consumer fell
-    /// behind and the ring buffer was full. Snapshot via
-    /// [`FpssClient::dropped_count`]; this is the user-facing
-    /// "ring-overflow" metric.
+    /// Cumulative count of publish failures: events the TLS reader could
+    /// not enqueue because the consumer fell behind and the ring buffer
+    /// was full. Snapshot via [`FpssClient::dropped_count`]; this is the
+    /// user-facing "ring-overflow" metric.
     dropped: Arc<AtomicU64>,
     /// Cumulative count of user-callback panics caught by the
-    /// Disruptor consumer's `catch_unwind` boundary. Snapshot via
+    /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`FpssClient::panic_count`].
     panics: Arc<AtomicU64>,
-    /// `ThreadId` of the Disruptor consumer thread, captured on first
-    /// invocation of the consumer closure. Read by [`Drop`] to detect
-    /// the **self-join** case: when the user callback (running on the
-    /// consumer thread) drops the last `Arc<FpssClient>`, we cannot
-    /// `JoinHandle::join` the I/O thread inline because that join
-    /// transitively joins the consumer thread itself — the very thread
-    /// running `Drop`. In that case [`Drop`] detaches the join onto a
-    /// helper thread; cleanup still completes, callers just observe
-    /// completion via [`FpssClient::drained_flag`] (or the high-level
-    /// [`crate::ThetaDataDxClient::await_drain`] barrier) rather than
-    /// blocking on `Drop`.
+    /// Captured `ThreadId` of a per-binding dispatcher / consumer
+    /// thread that the binding wants the core's `Drop` self-join
+    /// detector to skip. The harness in
+    /// [`Self::for_self_join_test`] is the only path that actually
+    /// initialises this cell — production bindings own their own
+    /// dispatcher join handles and detect self-join at their level.
+    /// Kept here so the offline self-join soak harness has a real
+    /// fixture without paying for a separate type.
     consumer_thread_id: Arc<OnceLock<ThreadId>>,
     /// Quiescence barrier: flipped to `true` once the I/O thread and
-    /// the Disruptor consumer have both joined and the user callback is
-    /// guaranteed to have stopped firing. Set inside [`Drop`] for both
+    /// the event-dispatch consumer have both joined and the user callback
+    /// is guaranteed to have stopped firing. Set inside [`Drop`] for both
     /// the inline-join path and the detached-helper path. Outer holders
     /// (e.g. [`crate::ThetaDataDxClient::stop_streaming`]) may capture an
     /// [`Arc::clone`] of this flag before releasing their last
@@ -388,7 +682,7 @@ pub struct FpssClient {
     drained: Arc<AtomicBool>,
     /// Slow-callback observability surface (Resilience).
     ///
-    /// `slow_callback_threshold_ns` is read by the Disruptor consumer
+    /// `slow_callback_threshold_ns` is read by the event-dispatch consumer
     /// closure on every dispatch — `0` means the watchdog is disabled.
     /// `slow_callback_count` is incremented every time a user
     /// callback's measured wall-clock duration exceeds the threshold.
@@ -406,311 +700,24 @@ pub struct FpssClient {
 }
 
 impl FpssClient {
-    /// Connect to a `ThetaData` FPSS server, authenticate, and start processing
-    /// events via the provided callback.
-    ///
-    /// The callback runs on the Disruptor's consumer thread -- keep it fast.
-    /// For heavy processing, push events to your own queue from the callback.
-    ///
-    /// # Sequence
-    ///
-    /// 1. Try each server in `hosts` until one connects (blocking TLS over TCP)
-    /// 2. Send CREDENTIALS (code 0) with email + password
-    /// 3. Wait for METADATA (code 3) = login success, or DISCONNECTED (code 12) = failure
-    /// 4. Start ping heartbeat (100ms interval, `std::thread` with sleep loop)
-    /// 5. Start I/O thread (blocking TLS read -> Disruptor ring -> callback)
-    ///
-    /// Connect to FPSS streaming servers.
-    ///
-    /// `hosts` is the FPSS server list from [`crate::config::FpssConfig::hosts`].
-    /// Servers are tried in order until one connects.
-    ///
-    /// `policy` controls auto-reconnect behavior after involuntary disconnect.
-    ///
-    /// When `args.derive_ohlcvc` is `false`, the client will NOT emit derived
-    /// `FpssData::Ohlcvc` events after each trade. You still receive
-    /// server-sent OHLCVC frames (wire code 24). This reduces throughput
-    /// overhead by eliminating one extra event per trade.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Config`] when `ring_size` is below
-    /// [`ring::MIN_RING_SIZE`] or is not a power of two — the
-    /// Disruptor index-wrap requires `i & (cap - 1)`, and silent
-    /// rounding would rewrite the caller's stated buffer budget.
-    /// Returns [`Error`] on TLS handshake or FPSS authentication
-    /// failure.
-    pub fn connect<F>(args: FpssConnectArgs<'_>, handler: F) -> Result<Self, Error>
-    where
-        F: FnMut(&FpssEvent) + Send + 'static,
-    {
-        Self::connect_with_delivery(args, events::Delivery::Callback(Box::new(handler)))
+    /// Start a new [`FpssClientBuilder`] with the two required arguments
+    /// and SDK defaults for the rest. Optional setters chain.
+    #[must_use]
+    pub fn builder<'a>(
+        creds: &'a Credentials,
+        hosts: &'a [(String, u16)],
+    ) -> FpssClientBuilder<'a> {
+        FpssClientBuilder::new(creds, hosts)
     }
 
-    /// Connect with pull-iter (queue-drained) delivery.
+    /// Connect, authenticate, and start the background I/O and ping
+    /// threads. Returns the assembled client; the ring poller is held
+    /// internally and drained via [`Self::next_event`],
+    /// [`Self::poll_batch`], [`Self::for_each`], or the `Iterator for
+    /// &FpssClient` impl.
     ///
-    /// Sibling of [`Self::connect`] for the high-throughput batch path.
-    /// Returns the connected client paired with an [`EventIterator`]
-    /// that drains the per-client bounded queue on the user thread.
-    /// Both modes share the same Disruptor ring, reader, and producer
-    /// — only the consumer-side dispatch differs.
-    ///
-    /// The queue is sized to match the Disruptor ring (default `4096`)
-    /// so backpressure semantics match the callback path: when the
-    /// iterator falls behind and the queue saturates, the consumer
-    /// thread drops the new event and increments
-    /// [`Self::dropped_count`]. This is the same operator-facing signal
-    /// callbacks surface today; pull-iter does not introduce a second
-    /// drop counter to interpret.
-    ///
-    /// `iter()` on the returned [`EventIterator`] holds the iterator's
-    /// caller thread (typically a Python `for event in iter:` loop)
-    /// across a batch drain — under load, the loop pops as many events
-    /// as it can without re-acquiring the GIL, which is the throughput
-    /// win pull-iter delivery exists for.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
-    /// config validation).
-    pub fn connect_iter(args: FpssConnectArgs<'_>) -> Result<(Self, EventIterator), Error> {
-        let queue_capacity = args.ring_size;
-        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
-            queue_capacity,
-        ));
-        let finished = Arc::new(AtomicBool::new(false));
-        // Sync pull-iter retains legacy `DropNewest` behaviour (silent
-        // overflow drops). The async surfaces route through
-        // [`Self::connect_iter_with_wake_keep_handle_policy`] when
-        // they want explicit policy control.
-        let policy = events::BackpressurePolicy::DropNewest;
-        // Dedicated terminal predicate for the iterator. Flipped to
-        // `true` ONLY after the Disruptor consumer thread has exited
-        // its consume loop and dropped the closure that owns the queue
-        // push (see `Delivery::Queue::iter_closed` and the drop guard
-        // in `io_loop`). Keying terminal-EOF off this — not the global
-        // `client.shutdown` flag — is what guarantees `stop_streaming`
-        // followed by a tail of not-yet-pushed events cannot false-EOF
-        // the iterator. The race the old `client_shutdown` predicate
-        // lost: `stop_streaming()` flips `shutdown` BEFORE the consumer
-        // thread has finished pushing the last few events into the
-        // queue, so any iterator caller polling `next_timeout` between
-        // those two moments saw `Closed` and dropped tail events on
-        // the floor.
-        let iter_closed = Arc::new(AtomicBool::new(false));
-        let delivery = events::Delivery::Queue {
-            queue: Arc::clone(&queue),
-            iter_closed: Arc::clone(&iter_closed),
-            wake_fd: None,
-            policy,
-        };
-        let client = Self::connect_with_delivery(args, delivery)?;
-        let iterator = EventIterator {
-            queue,
-            finished,
-            iter_closed,
-        };
-        Ok((client, iterator))
-    }
-
-    /// Connect with pull-iter delivery AND an asyncio-style FD wake-up
-    /// channel.
-    ///
-    /// Sibling of [`Self::connect_iter`] for asyncio / select-loop
-    /// consumers that cannot afford the 100 µs polling tick of the
-    /// blocking iterator. The caller allocates a self-pipe (typically
-    /// `pipe2(O_CLOEXEC | O_NONBLOCK)`) and passes the write-end FD to
-    /// this method. The Disruptor consumer thread writes a single
-    /// coalesced byte to the FD on every successful `queue.push` so the
-    /// reader's `epoll` / `kqueue` / `select` wake fires immediately —
-    /// no polling, no busy-wait.
-    ///
-    /// `wake_fd` ownership transfers to the returned [`wake::WakeFd`]
-    /// (stored inside the pull-iter `Delivery::Queue` variant);
-    /// the FD is closed on `Drop` when the [`FpssClient`] and the
-    /// matching [`EventIterator`] are both released. Callers MUST NOT
-    /// `close(2)` the FD themselves.
-    ///
-    /// Use [`Self::connect_iter`] (no wake FD) for synchronous
-    /// consumers — the wake-fd path is pure overhead when the caller
-    /// drains via `next_timeout` polling.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
-    /// config validation).
-    pub fn connect_iter_with_wake(
-        args: FpssConnectArgs<'_>,
-        wake: wake::WakeFd,
-    ) -> Result<(Self, EventIterator), Error> {
-        let queue_capacity = args.ring_size;
-        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
-            queue_capacity,
-        ));
-        let finished = Arc::new(AtomicBool::new(false));
-        let iter_closed = Arc::new(AtomicBool::new(false));
-        let wake_arc = Arc::new(wake);
-        // Async pull-iter without explicit policy defaults to `Block`
-        // — the safe default for new callers. Existing consumers that
-        // want legacy `DropNewest` semantics call the `_policy`
-        // variant below.
-        let policy = events::BackpressurePolicy::Block;
-        let delivery = events::Delivery::Queue {
-            queue: Arc::clone(&queue),
-            iter_closed: Arc::clone(&iter_closed),
-            wake_fd: Some(Arc::clone(&wake_arc)),
-            policy,
-        };
-        let client = Self::connect_with_delivery(args, delivery)?;
-        let iterator = EventIterator {
-            queue,
-            finished,
-            iter_closed,
-        };
-        // `wake_arc` is intentionally not surfaced to the caller — the
-        // [`Delivery::Queue`] variant captured a clone, and the iterator
-        // / client lifetime governs the FD close. The Python SDK keeps
-        // a third `Arc<WakeFd>` clone for the `rearm()` path that runs
-        // on the asyncio reader thread; that clone is acquired via the
-        // explicit `connect_iter_with_wake_keep_handle` constructor in
-        // `streaming_async_session.rs`, which forwards through this
-        // method.
-        let _ = wake_arc;
-        Ok((client, iterator))
-    }
-
-    /// Variant of [`Self::connect_iter_with_wake`] that hands back the
-    /// `Arc<WakeFd>` so the caller can drive [`wake::WakeFd::rearm`]
-    /// from the reader thread. The async wake protocol requires:
-    ///
-    /// 1. Reader observes pipe-read-ready on the asyncio loop.
-    /// 2. Reader calls `wake.rearm()` BEFORE draining the pipe.
-    /// 3. Reader drains the pipe with one or more non-blocking `read(2)`.
-    /// 4. Reader drains the event queue via `iterator.try_next` until
-    ///    `NextEvent::Timeout` or `NextEvent::Closed`.
-    /// 5. Reader awaits the next FD-ready signal.
-    ///
-    /// Step 2 is what makes the wake re-arm — without it, a producer
-    /// push observed between the rearm-elsewhere and the drain would
-    /// fail to re-fire the wake. Returning the shared `Arc<WakeFd>` is
-    /// the only safe way to expose `rearm()` to the reader.
-    ///
-    /// Internally builds the same pull-iter `Delivery::Queue` variant
-    /// as [`Self::connect_iter_with_wake`]; the only difference is the
-    /// third return value carrying the shared handle.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
-    /// config validation).
-    pub fn connect_iter_with_wake_keep_handle(
-        args: FpssConnectArgs<'_>,
-        wake: wake::WakeFd,
-    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
-        Self::connect_iter_with_wake_keep_handle_policy(
-            args,
-            wake,
-            None,
-            events::BackpressurePolicy::Block,
-        )
-    }
-
-    /// Variant of [`Self::connect_iter_with_wake_keep_handle`] that
-    /// accepts an explicit [`events::BackpressurePolicy`] and an
-    /// optional `max_queue_depth` override.
-    ///
-    /// * `max_queue_depth` — `None` reuses `args.ring_size` (the
-    ///   existing implicit sizing); `Some(n)` caps the
-    ///   [`crossbeam_queue::ArrayQueue`] at `n` events. Must satisfy
-    ///   the same power-of-two + [`ring::MIN_RING_SIZE`] constraints
-    ///   the ring does, validated via [`ring::check_ring_size`].
-    /// * `policy` — overflow strategy. See [`events::BackpressurePolicy`].
-    ///
-    /// Production callers reach this through the Python
-    /// `client.streaming_async(max_queue_depth=..., backpressure=...)`
-    /// kwargs.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same set of errors as [`Self::connect`] (TLS,
-    /// login, config validation), plus [`Error::Config`] when
-    /// `max_queue_depth` is below [`ring::MIN_RING_SIZE`] or is not a
-    /// power of two.
-    pub fn connect_iter_with_wake_keep_handle_policy(
-        args: FpssConnectArgs<'_>,
-        wake: wake::WakeFd,
-        max_queue_depth: Option<usize>,
-        policy: events::BackpressurePolicy,
-    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
-        let queue_capacity = match max_queue_depth {
-            Some(n) => ring::check_ring_size(n)
-                .map_err(|e| Error::config_invalid("fpss.max_queue_depth", e.to_string()))?,
-            None => args.ring_size,
-        };
-        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
-            queue_capacity,
-        ));
-        let finished = Arc::new(AtomicBool::new(false));
-        let iter_closed = Arc::new(AtomicBool::new(false));
-        let wake_arc = Arc::new(wake);
-        let delivery = events::Delivery::Queue {
-            queue: Arc::clone(&queue),
-            iter_closed: Arc::clone(&iter_closed),
-            wake_fd: Some(Arc::clone(&wake_arc)),
-            policy,
-        };
-        let client = Self::connect_with_delivery(args, delivery)?;
-        let iterator = EventIterator {
-            queue,
-            finished,
-            iter_closed,
-        };
-        Ok((client, iterator, wake_arc))
-    }
-
-    /// Connect and return the client paired with a single-consumer
-    /// poller. The caller's own thread drives the ring directly via
-    /// [`FpssEventPoller::run`] (or [`FpssEventPoller::poll_batch`]) —
-    /// no Disruptor consumer thread is spawned and no intermediate queue
-    /// is allocated, so the SDK ring is the only buffer between the wire
-    /// reader and the caller.
-    ///
-    /// This is the lowest-overhead delivery mode for an embedded Rust
-    /// consumer that owns its own dispatch loop: an event handed to the
-    /// caller is a borrow into the ring slot itself (zero-copy), valid
-    /// for the duration of the per-event call. Contrast with:
-    ///
-    /// * [`Self::connect`] (push-callback) — the SDK runs your closure
-    ///   on a spawned consumer thread.
-    /// * [`Self::connect_iter`] (pull-iter) — the SDK clones each event
-    ///   into a bounded queue an [`EventIterator`] drains.
-    ///
-    /// Both of those own a second buffer / thread for the consumer;
-    /// `connect_consumer` removes both.
-    ///
-    /// # Thread affinity
-    ///
-    /// The returned [`FpssEventPoller`] is the single consumer of the
-    /// ring: drive it from exactly one thread (the same single-consumer
-    /// contract the pull-iter [`EventIterator`] documents). It is
-    /// `Send`, so it may be moved to the thread that will own the drain
-    /// loop; the `&mut self` / `self` receivers on its drive methods
-    /// enforce the single-consumer invariant at compile time.
-    ///
-    /// # Shutdown
-    ///
-    /// [`Self::shutdown`] (or dropping the [`FpssClient`]) makes
-    /// [`FpssEventPoller::run`] return and
-    /// [`FpssEventPoller::poll_batch`] report
-    /// [`PollOutcome::Shutdown`] — but only after every event already
-    /// published into the ring has been drained, mirroring the
-    /// EOF-drain guarantee the pull-iter path provides.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
-    /// config validation).
-    pub fn connect_consumer(args: FpssConnectArgs<'_>) -> Result<(Self, FpssEventPoller), Error> {
+    /// Crate-internal — public callers use [`Self::builder`].
+    pub(crate) fn connect(args: FpssConnectArgs<'_>) -> Result<Self, Error> {
         let FpssConnectArgs {
             creds,
             hosts,
@@ -756,7 +763,7 @@ impl FpssClient {
         let read_timeout = Duration::from_millis(read_timeout_ms);
         let (stream, server_addr) =
             connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)?;
-        let (client, poller) = Self::connect_with_stream(connection::ConnectWithStreamArgs {
+        Self::connect_with_stream(connection::ConnectWithStreamArgs {
             creds,
             stream,
             server_addr,
@@ -770,96 +777,7 @@ impl FpssClient {
             connect_timeout,
             read_timeout,
             ping_interval: Duration::from_millis(ping_interval_ms),
-            consumer: events::StreamConsumer::Poller,
-        })?;
-        let poller = poller.ok_or_else(|| Error::Fpss {
-            kind: crate::error::FpssErrorKind::ConnectionRefused,
-            message: "poller-mode connect did not return an FpssEventPoller".to_string(),
-        })?;
-        Ok((client, poller))
-    }
-
-    fn connect_with_delivery(
-        args: FpssConnectArgs<'_>,
-        delivery: events::Delivery,
-    ) -> Result<Self, Error> {
-        let FpssConnectArgs {
-            creds,
-            hosts,
-            ring_size,
-            flush_mode,
-            policy,
-            wait_ms,
-            wait_rate_limited_ms,
-            derive_ohlcvc,
-            connect_timeout_ms,
-            read_timeout_ms,
-            ping_interval_ms,
-        } = args;
-        // Validate ring_size at the public construction boundary so
-        // the caller's stated buffer budget is never silently rewritten.
-        // Rejecting at connect-time is cheaper than discovering a perf
-        // cliff under load.
-        let ring_size = ring::check_ring_size(ring_size)
-            .map_err(|e| Error::config_invalid("fpss.ring_size", e.to_string()))?;
-        // Validate the wired tuning knobs at the same boundary. The
-        // higher-level `DirectConfig::validate` already rejects out-of-
-        // range values at config-load time; this second check defends
-        // against callers that bypass `DirectConfig` and construct
-        // `FpssConnectArgs` directly with a hand-rolled `FpssConfig`.
-        let to_i64 = |v: u64| i64::try_from(v).unwrap_or(i64::MAX);
-        if !crate::config::fpss_bounds::TIMEOUT_MS.contains(&read_timeout_ms) {
-            return Err(Error::config_out_of_range(
-                "fpss.read_timeout_ms",
-                to_i64(read_timeout_ms),
-                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.start()),
-                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.end()),
-            ));
-        }
-        if !crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.contains(&connect_timeout_ms) {
-            return Err(Error::config_out_of_range(
-                "fpss.connect_timeout_ms",
-                to_i64(connect_timeout_ms),
-                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.start()),
-                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.end()),
-            ));
-        }
-        if !crate::config::fpss_bounds::PING_INTERVAL_MS.contains(&ping_interval_ms) {
-            return Err(Error::config_out_of_range(
-                "fpss.ping_interval_ms",
-                to_i64(ping_interval_ms),
-                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.start()),
-                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.end()),
-            ));
-        }
-        let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
-        let connect_timeout = Duration::from_millis(connect_timeout_ms);
-        let read_timeout = Duration::from_millis(read_timeout_ms);
-        let (stream, server_addr) =
-            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)?;
-        let (client, _poller) = Self::connect_with_stream(connection::ConnectWithStreamArgs {
-            creds,
-            stream,
-            server_addr,
-            hosts,
-            ring_size,
-            derive_ohlcvc,
-            flush_mode,
-            policy,
-            wait_ms,
-            wait_rate_limited_ms,
-            connect_timeout,
-            read_timeout,
-            ping_interval: Duration::from_millis(ping_interval_ms),
-            consumer: events::StreamConsumer::Managed(delivery),
-        })?;
-        // Managed-consumer modes never yield a poller; the SDK spawned a
-        // consumer thread that runs the `Delivery` dispatch.
-        debug_assert!(
-            _poller.is_none(),
-            "managed-consumer connect must not produce an FpssEventPoller",
-        );
-        Ok(client)
+        })
     }
 
     /// Connect using a pre-established stream (for testing with mock sockets).
@@ -867,14 +785,12 @@ impl FpssClient {
     /// `hosts` is the full FPSS server list, needed for auto-reconnect to try
     /// all servers. Pass an empty slice to disable reconnection to other servers.
     ///
-    /// Returns the connected client and, for the direct-consumer
-    /// ([`events::StreamConsumer::Poller`]) path, the
-    /// [`FpssEventPoller`] the caller drives on its own thread. The
-    /// managed-consumer paths (`Callback` / `Queue`) return `None` for
-    /// the poller — the SDK spawned a consumer thread instead.
+    /// Returns the connected client with its internal poller bundled
+    /// in; drain via [`Self::next_event`] / [`Self::poll_batch`] /
+    /// [`Self::for_each`] or the `Iterator` impl.
     pub(crate) fn connect_with_stream(
         args: connection::ConnectWithStreamArgs<'_>,
-    ) -> Result<(Self, Option<FpssEventPoller>), Error> {
+    ) -> Result<Self, Error> {
         let connection::ConnectWithStreamArgs {
             creds,
             mut stream,
@@ -889,7 +805,6 @@ impl FpssClient {
             connect_timeout,
             read_timeout,
             ping_interval,
-            consumer,
         } = args;
         // Send CREDENTIALS (code 0).
         let cred_payload = build_credentials_payload(&creds.email, &creds.password);
@@ -918,16 +833,21 @@ impl FpssClient {
                 permissions
             }
             LoginResult::Disconnected(reason) => {
-                if matches!(
+                let is_auth_failure = matches!(
                     reason,
                     RemoveReason::InvalidCredentials
                         | RemoveReason::InvalidLoginValues
                         | RemoveReason::InvalidCredentialsNullUser
-                ) {
+                );
+                if is_auth_failure {
                     tracing::warn!(
                         "FPSS login failed. If your password contains special characters, \
                          try URL-encoding them."
                     );
+                    return Err(Error::Auth {
+                        kind: crate::error::AuthErrorKind::InvalidCredentials,
+                        message: format!("FPSS server rejected login: {reason:?}"),
+                    });
                 }
                 return Err(Error::Fpss {
                     kind: crate::error::FpssErrorKind::Disconnected,
@@ -964,7 +884,7 @@ impl FpssClient {
         // `set_slow_callback_threshold` after `connect`. `0` disables.
         let slow_callback_threshold_ns = Arc::new(AtomicU64::new(0));
         let slow_callback_count = Arc::new(AtomicU64::new(0));
-        // Captured by the Disruptor consumer closure on first dispatch
+        // Captured by the event-dispatch consumer closure on first dispatch
         // and read by `FpssClient::drop` to break the self-join cycle
         // (callback -> stop_streaming -> drop FpssClient -> join io
         // thread -> drop producer -> join consumer thread = self).
@@ -982,69 +902,19 @@ impl FpssClient {
         // Ping command channel: ping thread -> I/O thread
         let ping_cmd_tx = cmd_tx.clone();
 
-        // Build the ring producer for the chosen consumer mode. The
-        // managed path spawns a Disruptor consumer thread that runs the
-        // `Delivery` dispatch; the poller path spawns no consumer thread
-        // and hands the caller an `EventPoller` to drive the ring on its
-        // own thread. Both produce a `Producer<RingEvent>` the io_loop
-        // drives identically via `try_publish`.
-        // Only the poller arm's value escapes this `match`; the managed
-        // arm diverges via `return`, so its arm type is `!` and the
-        // expression type is fixed by the poller arm — a single
-        // `EventPoller<RingEvent, SingleProducerBarrier>`.
-        let (producer, poller) = match consumer {
-            events::StreamConsumer::Managed(delivery) => {
-                let producer = io_loop::build_consumer_producer(io_loop::ConsumerProducerArgs {
-                    ring_size,
-                    delivery,
-                    dropped: Arc::clone(&dropped),
-                    panics: Arc::clone(&panics),
-                    consumer_thread_id: Arc::clone(&consumer_thread_id),
-                    slow_callback_threshold_ns: Arc::clone(&slow_callback_threshold_ns),
-                    slow_callback_count: Arc::clone(&slow_callback_count),
-                });
-                // Spawn the I/O thread + ping thread and assemble the
-                // client. No poller for the managed path.
-                let client = Self::spawn_io_and_assemble(SpawnArgs {
-                    producer,
-                    stream,
-                    cmd_rx,
-                    cmd_tx,
-                    ping_cmd_tx,
-                    ring_size,
-                    permissions,
-                    pending_control,
-                    server_addr,
-                    creds,
-                    hosts,
-                    derive_ohlcvc,
-                    flush_mode,
-                    policy,
-                    wait_ms,
-                    wait_rate_limited_ms,
-                    connect_timeout,
-                    read_timeout,
-                    ping_interval,
-                    shutdown,
-                    authenticated,
-                    active_subs,
-                    active_full_subs,
-                    dropped,
-                    panics,
-                    consumer_thread_id,
-                    slow_callback_threshold_ns,
-                    slow_callback_count,
-                    next_req_id,
-                })?;
-                return Ok((client, None));
-            }
-            events::StreamConsumer::Poller => io_loop::build_poller_producer(ring_size),
-        };
+        // Build the ring producer + poller. The producer is moved into
+        // the I/O thread; the poller is bundled into the assembled
+        // `FpssClient` and drained via `next_event` / `poll_batch` /
+        // `for_each` / the `Iterator for &FpssClient` impl.
+        let (producer, poller) = io_loop::build_poller_producer(ring_size);
 
-        // Poller path: build the client around the poller-mode producer,
-        // then wrap the `EventPoller` for the caller's own thread.
-        let client = Self::spawn_io_and_assemble(SpawnArgs {
+        // Build the client with the producer + poller bundled in. The
+        // poller lives inside `FpssClient::poller_state` and is drained
+        // via `next_event`, `poll_batch`, `for_each`, or the
+        // `Iterator for &FpssClient` impl.
+        Self::spawn_io_and_assemble(SpawnArgs {
             producer,
+            poller,
             stream,
             cmd_rx,
             cmd_tx,
@@ -1073,26 +943,18 @@ impl FpssClient {
             slow_callback_threshold_ns,
             slow_callback_count,
             next_req_id,
-        })?;
-        let event_poller = FpssEventPoller {
-            poller,
-            panic_count: 0,
-        };
-        Ok((client, Some(event_poller)))
+        })
     }
 
     /// Spawn the I/O + ping threads for an already-built ring producer
-    /// and assemble the [`FpssClient`] handle. Shared verbatim by the
-    /// managed-consumer and direct-consumer (poller) paths so the
-    /// thread wiring lives in exactly one place — only the producer the
-    /// io_loop drives differs between modes, and that difference is
-    /// fixed before this call.
+    /// and assemble the [`FpssClient`] handle.
     fn spawn_io_and_assemble<P>(args: SpawnArgs<'_, P>) -> Result<Self, Error>
     where
         P: io_loop::RingProducer,
     {
         let SpawnArgs {
             producer,
+            poller,
             stream,
             cmd_rx,
             cmd_tx,
@@ -1190,6 +1052,10 @@ impl FpssClient {
             cmd_tx: Mutex::new(cmd_tx),
             io_handle: Some(io_handle),
             ping_handle: Some(ping_handle),
+            poller_state: Mutex::new(Some(PollerState {
+                poller,
+                pending: VecDeque::new(),
+            })),
             shutdown,
             authenticated,
             next_req_id: Arc::clone(&next_req_id),
@@ -1206,8 +1072,8 @@ impl FpssClient {
     }
 
     /// Cumulative count of events the TLS reader could not publish into
-    /// the Disruptor ring because the consumer fell behind and the ring
-    /// was full (`Producer::try_publish` returned [`disruptor::RingBufferFull`]).
+    /// the event ring because the consumer fell behind and the ring
+    /// was full.
     ///
     /// This is the user-facing "events dropped due to slow callback"
     /// metric on the post-SSOT pipeline. Operators should poll on a
@@ -1219,14 +1085,30 @@ impl FpssClient {
         self.dropped.load(Ordering::Relaxed)
     }
 
-    /// Cumulative count of user-callback panics caught by the
-    /// Disruptor consumer's `catch_unwind` boundary. Each panic is
-    /// also surfaced via `tracing::error!` with target
-    /// `thetadatadx::fpss::io_loop`. The consumer thread NEVER dies
-    /// from a user-code panic.
+    /// Cumulative count of user-callback faults: Rust panics caught by the
+    /// per-invocation `catch_unwind` boundary, and Python exceptions raised
+    /// inside the callback (surfaced via `PyErr::write_unraisable` on the
+    /// language-binding layer). Both kinds are counted atomically here so
+    /// callers observe a single unified fault counter regardless of whether
+    /// the fault originated in Rust or Python. The consumer thread never
+    /// dies from either kind of fault.
     #[must_use]
     pub fn panic_count(&self) -> u64 {
         self.panics.load(Ordering::Relaxed)
+    }
+
+    /// Increment the panic counter by one.
+    ///
+    /// Called by the Python binding's dispatcher when the user callback
+    /// raises a `PyErr` that is not a Rust panic and therefore bypasses
+    /// the `catch_unwind` boundary. Keeps `panic_count()` as the single
+    /// unified fault counter for both Rust panics and Python exceptions.
+    /// The TypeScript binding does not wire this entry point today — JS
+    /// errors surface through Node's `uncaughtException`.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
+    pub fn record_panic(&self) {
+        self.panics.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Set the slow-callback wall-clock threshold.
@@ -1259,7 +1141,7 @@ impl FpssClient {
     }
 
     /// Shared quiescence flag for this client. Flipped to `true` after
-    /// the I/O thread and the Disruptor consumer have both joined, so
+    /// the I/O thread and the event-dispatch consumer have both joined, so
     /// the user callback is guaranteed to have stopped firing.
     ///
     /// Returned as an `Arc<AtomicBool>` so a higher-level holder
@@ -1274,6 +1156,198 @@ impl FpssClient {
     #[must_use]
     pub fn drained_flag(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.drained)
+    }
+
+    /// Block the calling thread until the next event is available or
+    /// the ring shuts down.
+    ///
+    /// Returns:
+    /// - `Ok(Some(event))` when an event is delivered (or was buffered
+    ///   from the previous batch poll).
+    /// - `Ok(None)` ONLY when the ring is fully drained AND the
+    ///   producer has dropped (terminal shutdown). Iterator-style
+    ///   consumers can treat this as the end of the stream.
+    /// - `Err(_)` on a typed FPSS failure.
+    ///
+    /// On a momentarily empty live ring the call applies a three-phase
+    /// wait (spin, yield, spin-loop hint) and re-polls rather than
+    /// returning. A consumer that wants non-blocking semantics with
+    /// explicit "empty right now" handling should use
+    /// [`Self::try_next_event`] instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FpssError::DispatcherFailed`] if the internal staging
+    /// queue's mutex was poisoned by a panicking caller on a previous
+    /// invocation.
+    pub fn next_event(&self) -> Result<Option<FpssEvent>, FpssError> {
+        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
+        loop {
+            match self.try_next_event_internal()? {
+                TryNext::Event(event) => return Ok(Some(event)),
+                TryNext::Empty => waiter.wait_for(0),
+                TryNext::Shutdown => return Ok(None),
+            }
+        }
+    }
+
+    /// Non-blocking single-event pull from the ring. Returns `Ok(None)`
+    /// when the ring is momentarily empty OR terminally shut down — use
+    /// [`Self::next_event`] when you need to distinguish the two.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FpssError::DispatcherFailed`] if the staging mutex was
+    /// poisoned.
+    pub fn try_next_event(&self) -> Result<Option<FpssEvent>, FpssError> {
+        match self.try_next_event_internal()? {
+            TryNext::Event(event) => Ok(Some(event)),
+            TryNext::Empty | TryNext::Shutdown => Ok(None),
+        }
+    }
+
+    fn try_next_event_internal(&self) -> Result<TryNext, FpssError> {
+        let mut guard = self
+            .poller_state
+            .lock()
+            .map_err(|e| FpssError::DispatcherFailed(format!("poller mutex poisoned: {e}")))?;
+        let Some(mut state) = guard.take() else {
+            return Ok(TryNext::Shutdown);
+        };
+
+        if let Some(event) = state.pending.pop_front() {
+            *guard = Some(state);
+            return Ok(TryNext::Event(event));
+        }
+
+        let outcome = match state.poller.poll() {
+            Ok(mut batch) => {
+                for ring_event in &mut batch {
+                    if let Some(public) = ring_event.event.as_public() {
+                        state.pending.push_back(public.clone());
+                    }
+                }
+                match state.pending.pop_front() {
+                    Some(event) => TryNext::Event(event),
+                    None => TryNext::Empty,
+                }
+            }
+            Err(Polling::NoEvents) => TryNext::Empty,
+            Err(Polling::Shutdown) => match state.pending.pop_front() {
+                Some(event) => TryNext::Event(event),
+                None => TryNext::Shutdown,
+            },
+        };
+
+        match outcome {
+            TryNext::Shutdown => {
+                // Producer is gone and the queue is drained; release
+                // the staging state so subsequent polls short-circuit.
+                Ok(TryNext::Shutdown)
+            }
+            other => {
+                *guard = Some(state);
+                Ok(other)
+            }
+        }
+    }
+
+    /// Non-blocking single-batch drain through `on_event`.
+    ///
+    /// Returns a [`PollOutcome`] so a caller integrating the polling
+    /// loop into its own scheduler can tell a drained batch (and how
+    /// many events it carried) apart from terminal shutdown. Each
+    /// `&FpssEvent` handed to `on_event` is a zero-copy borrow into the
+    /// ring slot, valid only for that call.
+    pub fn poll_batch(&self, mut on_event: impl FnMut(&FpssEvent)) -> PollOutcome {
+        let Ok(mut guard) = self.poller_state.lock() else {
+            return PollOutcome::Shutdown;
+        };
+        let Some(mut state) = guard.take() else {
+            return PollOutcome::Shutdown;
+        };
+
+        // Drain anything buffered from a previous `next_event` call so
+        // batch consumers see those events first.
+        let mut delivered = 0usize;
+        while let Some(event) = state.pending.pop_front() {
+            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| on_event(&event))).is_err()
+            {
+                self.panics.fetch_add(1, Ordering::Relaxed);
+            } else {
+                delivered += 1;
+            }
+        }
+
+        let outcome = match state.poller.poll() {
+            Ok(mut batch) => {
+                for ring_event in &mut batch {
+                    if let Some(event) = ring_event.event.as_public() {
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            on_event(event);
+                        }))
+                        .is_err()
+                        {
+                            let prev = self.panics.fetch_add(1, Ordering::Relaxed);
+                            let count = prev + 1;
+                            if count == 1 || count.is_multiple_of(1024) {
+                                tracing::warn!(
+                                    target: "thetadatadx::fpss::poller",
+                                    panic_count = count,
+                                    "user poller handler panicked; event skipped, drain continuing"
+                                );
+                            }
+                        } else {
+                            delivered += 1;
+                        }
+                    }
+                }
+                Some(PollOutcome::Drained(delivered))
+            }
+            Err(Polling::NoEvents) => Some(PollOutcome::Drained(delivered)),
+            Err(Polling::Shutdown) => {
+                if delivered == 0 {
+                    None
+                } else {
+                    Some(PollOutcome::Drained(delivered))
+                }
+            }
+        };
+
+        match outcome {
+            Some(o) => {
+                *guard = Some(state);
+                o
+            }
+            None => PollOutcome::Shutdown,
+        }
+    }
+
+    /// Block the calling thread, draining events through `on_event`
+    /// until the ring shuts down.
+    ///
+    /// Each available batch is drained in order; on a momentarily empty
+    /// ring the loop applies a three-phase wait (spin, then `yield_now`,
+    /// then a `spin_loop` hint). Keeps an active stream low-latency and
+    /// yields to other runnable threads on a quiet stream, but does
+    /// NOT park — the loop stays runnable rather than idling at zero
+    /// CPU. A consumer that wants to release the core while idle should
+    /// drive [`Self::poll_batch`] behind its own parking strategy.
+    ///
+    /// Returns once [`Self::shutdown`] (or dropping the [`FpssClient`])
+    /// has fired AND every event already published into the ring has
+    /// been delivered.
+    pub fn for_each(&self, mut on_event: impl FnMut(&FpssEvent)) {
+        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
+        loop {
+            match self.poll_batch(&mut on_event) {
+                PollOutcome::Shutdown => return,
+                PollOutcome::Drained(0) => {
+                    waiter.wait_for(0);
+                }
+                PollOutcome::Drained(_) => {}
+            }
+        }
     }
 
     /// Polymorphic subscribe — wire-level entry point.
@@ -1539,7 +1613,7 @@ impl FpssClient {
         Ok(())
     }
 
-    /// Test-only constructor that wires up the same Disruptor +
+    /// Test-only constructor that wires up the same event ring +
     /// I/O-thread topology as [`Self::connect_with_stream`] **without**
     /// touching the network. It exists to drive the `Drop` self-join
     /// guard from `tests/streaming_soak.rs` against the real
@@ -1547,7 +1621,7 @@ impl FpssClient {
     /// plumbing, not a mock of either.
     ///
     /// Topology:
-    /// - The user `handler` runs on the Disruptor consumer thread,
+    /// - The user `handler` runs on the event-dispatch consumer thread,
     ///   under `catch_unwind`, exactly like `io_loop`.
     /// - The fake "I/O thread" runs a [`mode`]-dependent burst loop
     ///   (`publish` blocking or `try_publish` non-blocking, mirroring
@@ -1567,7 +1641,7 @@ impl FpssClient {
     /// busy-waits on the flag flipping to `true` before publishing the
     /// burst. When `None`, the burst runs as soon as the io thread
     /// scheduler is given a chance to start.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[doc(hidden)]
     pub fn for_self_join_test<F>(
         n_burst_events: usize,
@@ -1579,7 +1653,7 @@ impl FpssClient {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+        use disruptor::{build_single_producer, BusySpin, Producer, Sequence}; // VOCAB-OK: internal crate name
 
         use self::events::FpssEventInternal;
         use self::ring::RingEvent;
@@ -1685,6 +1759,7 @@ impl FpssClient {
             cmd_tx: Mutex::new(cmd_tx),
             io_handle: Some(io_handle),
             ping_handle: None,
+            poller_state: Mutex::new(None),
             shutdown,
             authenticated,
             next_req_id: Arc::clone(&next_req_id),
@@ -1714,257 +1789,7 @@ impl FpssClient {
     }
 }
 
-// ---------------------------------------------------------------------------
-// EventIterator -- pull-mode (queue-drain) delivery handle
-// ---------------------------------------------------------------------------
-
-/// Outcome of a single deadline-bounded pop on an [`EventIterator`].
-///
-/// Returned by [`EventIterator::next_timeout`]. Disambiguates the three
-/// distinct states a bounded-wait pop can land in:
-///
-/// * [`NextEvent::Ready`] — an event was popped within the deadline.
-/// * [`NextEvent::Timeout`] — the deadline expired with no event, but the
-///   upstream stream is still live; the caller should re-poll.
-/// * [`NextEvent::Closed`] — the iterator (`close()`) or the upstream
-///   [`FpssClient`] has shut down AND the queue is fully drained; no
-///   further events will ever arrive. The caller MUST stop iterating.
-///
-/// Pre-`9.1.0` `next_timeout` returned `Option<FpssEvent>` and overloaded
-/// `None` to mean both "timeout" and "closed", which forced every
-/// language binding to guess. The typed variants make the contract
-/// explicit at every layer (C ABI return code, C++ wrapper `ended_`,
-/// Python `StopIteration`, TypeScript `done: true`).
-#[derive(Debug)]
-pub enum NextEvent {
-    /// An event was popped from the queue within the wait window.
-    Ready(FpssEvent),
-    /// The wait window expired with no event, and the upstream stream
-    /// is still live. The caller should loop and re-poll.
-    Timeout,
-    /// The iterator has been closed (or the upstream client shut down)
-    /// AND the queue is fully drained. The caller MUST stop iterating;
-    /// further `next_timeout` calls will keep returning `Closed`.
-    Closed,
-}
-
-/// Drain handle for a pull-iter (`Delivery::Queue`) streaming session.
-///
-/// Returned by [`FpssClient::connect_iter`] and ultimately surfaced
-/// through `start_streaming_iter()` on the language SDKs (Python
-/// `with client.streaming_iter() as it: for event in it:` or
-/// `client.start_streaming_iter()`, TypeScript
-/// `client.startStreamingIter()` (async iterable), C
-/// `tdx_*_event_iter_next`, C++
-/// `client.start_streaming_iter().next(timeout)`).
-///
-/// `next()` pops the head of the bounded queue or, on empty, sleeps a
-/// configurable short interval and retries — until either an event
-/// arrives or the underlying [`FpssClient`] has been shut down. After
-/// shutdown the iterator drains every queued event and then returns
-/// `None`, matching the `StopIteration` contract on the Python binding.
-///
-/// Cloning is intentionally not implemented: the queue is single-consumer
-/// by design, and an SDK that handed multiple iterator instances to user
-/// code would silently fan out events across them. Callers that need a
-/// secondary observation path should pull events from a single iterator
-/// and re-broadcast.
-pub struct EventIterator {
-    /// Same `Arc<ArrayQueue>` the [`Delivery::Queue`] consumer pushes
-    /// into. The Disruptor consumer thread owns the producer side; this
-    /// iterator owns the consumer side.
-    queue: Arc<crossbeam_queue::ArrayQueue<FpssEvent>>,
-    /// Set to `true` by [`Self::close`] (or, on the language bindings,
-    /// when the user explicitly stops streaming) to break the wait loop
-    /// even if the underlying [`FpssClient`] is still draining late
-    /// events. Independent of [`Self::iter_closed`] so the iterator
-    /// can be retired without forcing a global shutdown.
-    finished: Arc<AtomicBool>,
-    /// Terminal-EOF predicate. Flipped to `true` by the Disruptor
-    /// consumer thread's drop guard AFTER its consume loop has exited
-    /// and every in-flight event has been pushed onto [`Self::queue`].
-    /// This is the only point in the system where "no more pushes will
-    /// ever happen" is observable, so the iterator keys terminal EOF
-    /// off this flag — NOT off [`FpssClient::shutdown`]. Pre-`9.1.0`
-    /// the iterator predicate read the raw `shutdown` flag; that
-    /// flipped to `true` inside `stop_streaming()` BEFORE the consumer
-    /// had finished draining the ring buffer into the queue, so an
-    /// iterator caller polling `next_timeout` between those two
-    /// moments observed `Closed` and dropped the tail of events on
-    /// the floor.
-    iter_closed: Arc<AtomicBool>,
-}
-
-impl EventIterator {
-    /// Pop the next event, blocking until one is available or the
-    /// underlying streaming session is shut down.
-    ///
-    /// Returns `None` when [`Self::close`] has been called, or when the
-    /// owning [`FpssClient`] has shut down and the queue is fully
-    /// drained. Otherwise spins in a 100 µs sleep loop on an empty
-    /// queue — matching the databento `for record in client:` polling
-    /// shape but without their intermediate `queue.Queue` middleman.
-    ///
-    /// On the Python binding the surrounding PyO3 wrapper releases the
-    /// GIL across this call (`py.allow_threads`) so the Disruptor
-    /// consumer can acquire the GIL to push the next event without
-    /// fighting the iterator thread for it.
-    #[must_use]
-    pub fn next(&self) -> Option<FpssEvent> {
-        loop {
-            if let Some(evt) = self.queue.pop() {
-                return Some(evt);
-            }
-            // Empty queue. If either local close or the consumer-side
-            // drain guard has fired, no further pushes can land —
-            // re-check the queue once more to absorb the final-push
-            // window between the last `queue.push` and the guard's
-            // store, then return.
-            if self.finished.load(Ordering::Acquire) || self.iter_closed.load(Ordering::Acquire) {
-                return self.queue.pop();
-            }
-            // 100 µs ≈ 100k iterations/s upper bound on the polling
-            // cost during quiet periods; under load the queue is rarely
-            // observed empty so the sleep path is cold.
-            std::thread::sleep(Duration::from_micros(100));
-        }
-    }
-
-    /// Try to pop without sleeping, returning the same typed three-state
-    /// outcome as [`Self::next_timeout`].
-    ///
-    /// Returns:
-    ///
-    /// * [`NextEvent::Ready`] — an event was popped from the queue.
-    /// * [`NextEvent::Timeout`] — the queue was empty but the upstream
-    ///   stream is still live; the caller should re-poll later.
-    /// * [`NextEvent::Closed`] — the iterator (`close()`) or the
-    ///   upstream [`FpssClient`] has shut down AND the queue is fully
-    ///   drained; no further events will ever arrive.
-    ///
-    /// Pre-`9.1.0` this returned `Option<FpssEvent>` and overloaded
-    /// `None` to mean both "queue empty right now" AND "queue closed
-    /// forever". The C ABI's non-blocking poll path inherited that
-    /// ambiguity and reported every `None` as `Timeout`, so a C client
-    /// calling `tdx_fpss_event_iter_next(.., 0)` after
-    /// `stop_streaming()` would see `1` (timeout) forever instead of
-    /// `-1` (terminal). The typed return makes the contract symmetric
-    /// with `next_timeout` and lets every binding map `Closed` to its
-    /// terminal sentinel (C ABI `-1`, C++ `ended_ = true`, Python
-    /// `StopIteration`, TypeScript `done: true`).
-    #[must_use]
-    pub fn try_next(&self) -> NextEvent {
-        if let Some(evt) = self.queue.pop() {
-            return NextEvent::Ready(evt);
-        }
-        // Empty queue. If either local close or the consumer-side
-        // drain guard has fired, the producer side has run dry; re-
-        // check the queue once more to close the final-push race
-        // (mirror of [`Self::next_timeout`]'s logic), then signal
-        // terminal Closed. Otherwise the upstream is still live —
-        // signal Timeout so a polling caller re-polls instead of
-        // false-EOFing.
-        if self.finished.load(Ordering::Acquire) || self.iter_closed.load(Ordering::Acquire) {
-            return match self.queue.pop() {
-                Some(evt) => NextEvent::Ready(evt),
-                None => NextEvent::Closed,
-            };
-        }
-        NextEvent::Timeout
-    }
-
-    /// Pop the next event with a deadline, returning a typed three-state
-    /// outcome that disambiguates timeout from end-of-stream.
-    ///
-    /// Returns:
-    ///
-    /// * [`NextEvent::Ready`] — an event was popped within the wait
-    ///   window.
-    /// * [`NextEvent::Timeout`] — the wait window expired with no event,
-    ///   and the upstream stream is still live. Loop and re-poll.
-    /// * [`NextEvent::Closed`] — the iterator was closed or the
-    ///   upstream [`FpssClient`] has shut down AND the queue is fully
-    ///   drained. Stop iterating.
-    ///
-    /// The blocking [`Iterator::next`] impl on `EventIterator` (no
-    /// timeout) keeps returning `Option<FpssEvent>` — there `None`
-    /// unambiguously means terminal because that path blocks until
-    /// either an event arrives or the queue closes.
-    #[must_use]
-    pub fn next_timeout(&self, timeout: Duration) -> NextEvent {
-        let deadline = std::time::Instant::now() + timeout;
-        loop {
-            if let Some(evt) = self.queue.pop() {
-                return NextEvent::Ready(evt);
-            }
-            // Empty queue. If either local close or the consumer-side
-            // drain guard has fired, drain any final residual then
-            // signal terminal. The double-pop closes the final-push
-            // race (mirror of [`Self::next`]'s logic).
-            if self.finished.load(Ordering::Acquire) || self.iter_closed.load(Ordering::Acquire) {
-                return match self.queue.pop() {
-                    Some(evt) => NextEvent::Ready(evt),
-                    None => NextEvent::Closed,
-                };
-            }
-            if std::time::Instant::now() >= deadline {
-                return NextEvent::Timeout;
-            }
-            std::thread::sleep(Duration::from_micros(100));
-        }
-    }
-
-    /// Mark the iterator as finished so [`Self::next`] returns once the
-    /// queue is drained, without requiring the underlying
-    /// [`FpssClient`] to shut down. Idempotent.
-    pub fn close(&self) {
-        self.finished.store(true, Ordering::Release);
-    }
-
-    /// Snapshot of the number of events currently queued (between the
-    /// Disruptor consumer thread and the iterator caller). Useful for
-    /// tests and operator dashboards.
-    #[must_use]
-    pub fn queue_len(&self) -> usize {
-        self.queue.len()
-    }
-
-    /// Test-only constructor that wires an [`EventIterator`] onto an
-    /// externally-supplied queue + drain-guard flag, bypassing the
-    /// Disruptor + TLS plumbing of [`FpssClient::connect_iter`].
-    ///
-    /// Soak tests use this to drive the iterator's `next` loop
-    /// against synthetic events without standing up a live FPSS
-    /// session. `iter_closed` corresponds to the same flag the
-    /// production drop guard flips after the consumer thread exits;
-    /// tests assert no false-EOF by writing into the queue, then
-    /// flipping the flag, then draining.
-    #[cfg(test)]
-    #[doc(hidden)]
-    pub(crate) fn for_test(
-        queue: Arc<crossbeam_queue::ArrayQueue<FpssEvent>>,
-        iter_closed: Arc<AtomicBool>,
-    ) -> Self {
-        Self {
-            queue,
-            finished: Arc::new(AtomicBool::new(false)),
-            iter_closed,
-        }
-    }
-}
-
-impl Iterator for EventIterator {
-    type Item = FpssEvent;
-    fn next(&mut self) -> Option<FpssEvent> {
-        EventIterator::next(self)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// FpssEventPoller -- direct-consumer (single-ring) delivery handle
-// ---------------------------------------------------------------------------
-
-/// Outcome of a single non-blocking [`FpssEventPoller::poll_batch`] drain.
+/// Outcome of a single non-blocking [`FpssClient::poll_batch`] drain.
 ///
 /// Lets a caller integrating the ring drive into its own loop tell
 /// "drained `n` events, more may come" apart from "the session has
@@ -1978,217 +1803,29 @@ impl Iterator for EventIterator {
 ///   every published event has been drained. No further events will
 ///   ever arrive; stop polling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PollOutcome {
     /// The available batch was drained into the closure. Carries the
     /// number of events delivered on this call (may be `0`).
     Drained(usize),
     /// Terminal: the session has shut down and the ring is fully
-    /// drained. Mirrors [`NextEvent::Closed`] on the pull-iter path.
+    /// drained. No further events will arrive.
     Shutdown,
 }
 
-/// Direct-consumer drain handle for a single-ring streaming session.
+/// Owning iterator for an [`FpssClient`] reference.
 ///
-/// Returned by [`FpssClient::connect_consumer`]. The caller's own thread
-/// drives the SDK ring through this handle — there is no SDK-spawned
-/// consumer thread and no intermediate queue, so the ring is the only
-/// buffer between the wire reader and the caller.
-///
-/// Two drive shapes are offered:
-///
-/// * [`Self::run`] — block on the calling thread until the session shuts
-///   down and the ring is fully drained, handing each event to a
-///   closure. The simplest shape for a thread dedicated to consumption.
-/// * [`Self::poll_batch`] — non-blocking single drain of the currently
-///   available batch, returning a [`PollOutcome`] so the caller can
-///   interleave the drive with its own work in a bespoke loop.
-///
-/// # Thread affinity
-///
-/// `FpssEventPoller` is the single consumer of the ring — drive it from
-/// exactly one thread, the same single-consumer contract the pull-iter
-/// [`EventIterator`] documents. It is `Send`, so you may build it on the
-/// connect thread and move it to the thread that owns the drain loop.
-/// The single-consumer invariant is enforced by the method receivers:
-/// [`Self::poll_batch`] takes `&mut self` and [`Self::run`] takes `self`
-/// by value, so the borrow checker already prevents two threads driving
-/// the same poller concurrently.
-///
-/// # Zero-copy borrow lifetime
-///
-/// Each `&FpssEvent` handed to the closure is a borrow directly into the
-/// ring slot, valid only for the duration of that call. The wrapped
-/// poller advances the ring's consumer cursor when the per-batch guard
-/// is dropped (at the end of the drain), so the closure must not stash
-/// the reference past its own invocation — clone the event if you need
-/// to retain it. This is enforced by the closure signature
-/// (`FnMut(&FpssEvent)`); the borrow cannot outlive the call.
-pub struct FpssEventPoller {
-    /// The wrapped third-party ring poller. The `disruptor::EventPoller`
-    /// / `EventGuard` / `Polling` types never appear on any public
-    /// signature — this field is private and every method maps the
-    /// poller's output to the SDK's own `FpssEvent` / [`PollOutcome`]
-    /// types.
-    ///
-    /// Terminal shutdown is observed entirely through this poller: when
-    /// the I/O thread exits (on [`FpssClient::shutdown`], a server
-    /// disconnect, or reconnect exhaustion) it drops the ring producer,
-    /// which stores the ring's shutdown sequence. The poller drains
-    /// every event published before that sequence and only then reports
-    /// [`disruptor::Polling::Shutdown`] — so the ring itself is the
-    /// single source of truth for the EOF-drain guarantee, with no
-    /// separate flag that could race ahead of the in-flight tail.
-    poller: EventPoller<RingEvent, SingleProducerBarrier>,
-    /// Count of caught panics from the user handler. The drain isolates
-    /// each `on_event` call under `catch_unwind` (mirroring the managed
-    /// consumer), so a panicking handler skips its own event and the
-    /// drain continues — the unread tail of the in-flight batch is never
-    /// lost. Surfaced via [`FpssEventPoller::panic_count`].
-    panic_count: u64,
-}
+/// Yields one [`FpssEvent`] per call to [`Iterator::next`] by repeatedly
+/// invoking [`FpssClient::next_event`]; surfaces typed errors as
+/// `Some(Err(_))` and terminates with `None` on clean shutdown.
+impl Iterator for &FpssClient {
+    type Item = Result<FpssEvent, FpssError>;
 
-// Note (no `unsafe` here): `EventPoller` is `Send` because its
-// `Arc`-held ring buffer and cursors are `Send`, and `RingEvent: Sync`
-// (see `ring.rs`). We do NOT implement `Sync` for `FpssEventPoller`;
-// the single-consumer ring sequencing requires one draining thread,
-// mirroring `EventIterator`.
-
-impl FpssEventPoller {
-    /// Drive the ring on the calling thread until the session shuts down
-    /// and the ring is fully drained, handing each event to `on_event`.
-    ///
-    /// Blocks the calling thread. Each available batch is drained in
-    /// order; on a momentarily-empty ring the loop applies the same
-    /// three-phase wait the SDK's managed consumer uses (spin, then
-    /// `yield_now`, then a `spin_loop` hint). This keeps an active
-    /// stream low-latency and yields to other runnable threads on a
-    /// quiet stream, but it does NOT park — the loop stays runnable
-    /// rather than idling at zero CPU. A consumer that wants to release
-    /// the core while the stream is idle should drive
-    /// [`Self::poll_batch`] behind its own parking strategy instead.
-    ///
-    /// Returns once [`FpssClient::shutdown`] (or dropping the
-    /// [`FpssClient`]) has fired AND every event already published into
-    /// the ring has been delivered — the EOF-drain guarantee. Each
-    /// `&FpssEvent` is a zero-copy borrow into the ring slot, valid only
-    /// for the `on_event` call.
-    pub fn run(mut self, mut on_event: impl FnMut(&FpssEvent)) {
-        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
-        loop {
-            match self.poll_batch(&mut on_event) {
-                PollOutcome::Shutdown => return,
-                PollOutcome::Drained(0) => {
-                    // Ring momentarily empty. Producer-drop (on client
-                    // shutdown or disconnect) stores the ring's shutdown
-                    // sequence; `poll_batch` surfaces that as `Shutdown`
-                    // once the consumer cursor reaches it. That stored
-                    // sequence is the sole termination signal here — the
-                    // poller holds no separate shutdown flag. Re-poll
-                    // after one wait cycle so a terminal state is observed
-                    // promptly without spinning hard on a quiet stream.
-                    waiter.wait_for(0);
-                }
-                PollOutcome::Drained(_) => {
-                    // Delivered a batch; loop straight back to drain any
-                    // events that arrived while this batch was processed.
-                }
-            }
-        }
-    }
-
-    /// Non-blocking drain of the currently-available batch into
-    /// `on_event`. Returns a [`PollOutcome`] so a caller integrating the
-    /// ring drive into its own loop can tell a drained batch (and how
-    /// many events it carried) apart from terminal shutdown.
-    ///
-    /// Does not sleep or spin: if the ring is momentarily empty the call
-    /// returns [`PollOutcome::Drained`]`(0)` immediately and the caller
-    /// decides when to re-poll. Once the [`FpssClient`] has shut down
-    /// and every published event has been drained, returns
-    /// [`PollOutcome::Shutdown`]; subsequent calls keep returning
-    /// `Shutdown`.
-    ///
-    /// Each `&FpssEvent` handed to `on_event` is a zero-copy borrow into
-    /// the ring slot, valid only for that call.
-    pub fn poll_batch(&mut self, mut on_event: impl FnMut(&FpssEvent)) -> PollOutcome {
-        match self.poller.poll() {
-            Ok(mut guard) => {
-                let mut delivered = 0usize;
-                // `&mut EventGuard` is an `Iterator<Item = &RingEvent>`
-                // borrowing the ring slots for the lifetime of the
-                // guard. Reborrow each slot to the public `&FpssEvent`
-                // via `as_public`, filtering the internal-only `Empty` /
-                // `Unparseable` discriminants exactly as the managed
-                // consumer does. The guard is dropped at the end of this
-                // block, which advances the ring's consumer cursor and
-                // frees the slots for the producer to reuse.
-                for ring_event in &mut guard {
-                    if let Some(evt) = ring_event.event.as_public() {
-                        // Isolate each handler call under `catch_unwind`,
-                        // mirroring the managed consumer. The guard's drop
-                        // advances the cursor to the end of the batch
-                        // unconditionally, so a panic that unwound across
-                        // the loop would commit — and silently skip — the
-                        // unread tail. Catching here keeps the drain going
-                        // so every event in the batch is delivered or
-                        // accounted; a panicking handler loses only its
-                        // own event and bumps `panic_count`.
-                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            on_event(evt);
-                        }))
-                        .is_err()
-                        {
-                            self.panic_count += 1;
-                            if self.panic_count == 1 || self.panic_count.is_multiple_of(1024) {
-                                tracing::warn!(
-                                    target: "thetadatadx::fpss::poller",
-                                    panic_count = self.panic_count,
-                                    "user poller handler panicked; event skipped, drain continuing"
-                                );
-                            }
-                        } else {
-                            delivered += 1;
-                        }
-                    }
-                }
-                PollOutcome::Drained(delivered)
-            }
-            Err(Polling::NoEvents) => {
-                // Ring empty right now. If the client has shut down, the
-                // producer has been (or is being) dropped; the ring's
-                // shutdown sequence will surface as `Polling::Shutdown`
-                // once the cursor reaches it. Until then report a
-                // zero-length drain so a `run` loop waits and re-polls
-                // rather than false-terminating mid-drain. The drained
-                // tail is delivered through the `Ok(guard)` arm on the
-                // poll that follows the last publish.
-                PollOutcome::Drained(0)
-            }
-            Err(Polling::Shutdown) => PollOutcome::Shutdown,
-        }
-    }
-
-    /// Number of user-handler panics caught and isolated during draining.
-    /// Mirrors [`FpssClient::panic_count`] for the direct-consumer mode:
-    /// each panic skips its own event without aborting the drain or
-    /// losing the rest of the in-flight batch.
-    #[must_use]
-    pub fn panic_count(&self) -> u64 {
-        self.panic_count
-    }
-
-    /// Test-only constructor that wraps an [`EventPoller`] built directly
-    /// from [`io_loop::build_poller_producer`], bypassing the TLS +
-    /// I/O-thread plumbing of [`FpssClient::connect_consumer`]. Soak /
-    /// unit tests drive the poller's `run` / `poll_batch` loops against a
-    /// producer they publish into by hand, then drop the producer to
-    /// assert the EOF-drain + terminal-shutdown contract.
-    #[cfg(test)]
-    #[doc(hidden)]
-    pub(in crate::fpss) fn for_test(poller: EventPoller<RingEvent, SingleProducerBarrier>) -> Self {
-        Self {
-            poller,
-            panic_count: 0,
+    fn next(&mut self) -> Option<Self::Item> {
+        match FpssClient::next_event(self) {
+            Ok(Some(event)) => Some(Ok(event)),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -2203,20 +1840,17 @@ impl Drop for FpssClient {
         // Self-join guard.
         //
         // The exit path of the I/O thread drops the ring producer
-        // (`drop(producer)` at the end of `io_loop`), and in the
-        // managed-consumer modes `disruptor::Producer::drop` joins the
-        // spawned consumer thread (`disruptor` 4.x `single.rs`). So
-        // `self.io_handle.join()` transitively joins that consumer
-        // thread. (In direct-consumer / poller mode there is no spawned
-        // consumer thread, so this guard simply never matches a
-        // consumer id.)
+        // (`drop(producer)` at the end of `io_loop`), which stores the
+        // shutdown sequence on the ring. The caller's consumer loop —
+        // typically a binding-owned dispatcher thread running
+        // `next_event` / `for_each` — observes that and exits.
         //
-        // If `Drop` is running on either of those threads — the I/O
-        // thread itself, or the Disruptor consumer thread (the thread
-        // running the user callback) — joining the I/O handle inline
-        // would block the very thread cleanup needs to complete on,
-        // producing a self-join deadlock. The consumer-thread case is
-        // load-bearing: a user callback that calls
+        // If `Drop` is running on the I/O thread itself, or on the
+        // binding's dispatcher thread that the user callback called
+        // back into, joining the I/O handle inline would block the
+        // very thread cleanup needs to complete on — a self-join
+        // deadlock. The dispatcher-thread case is load-bearing: a
+        // user callback that calls
         // `ThetaDataDxClient::stop_streaming()` swaps the live slot to
         // `Stopped` and drops the last `Arc<FpssClient>` while running
         // on the consumer thread.
@@ -2228,21 +1862,23 @@ impl Drop for FpssClient {
         let cur = thread::current().id();
         let consumer_id = self.consumer_thread_id.get().copied();
 
-        // Take both handles up-front so the helper-thread path can move
-        // them into the detached closure.
+        // Drop the poller state proactively so any caller still holding
+        // a borrow observes the ring shutdown immediately rather than
+        // racing the producer drop.
+        if let Ok(mut guard) = self.poller_state.lock() {
+            *guard = None;
+        }
+
         let ping_handle = self.ping_handle.take();
         let io_handle = self.io_handle.take();
-
         let io_handle_thread_id = io_handle.as_ref().map(|h| h.thread().id());
-
         let self_join = io_handle_thread_id == Some(cur) || consumer_id == Some(cur);
 
         if self_join {
-            // Detach on a fresh thread so the consumer thread (or the
-            // I/O thread itself) is not blocked waiting on its own
-            // termination. The detached helper signals `drained` once
-            // both joins have returned so callers polling
-            // `await_drain` see exact quiescence.
+            // Detach onto a fresh thread so the consumer / I/O thread is
+            // not blocked waiting on its own termination. The detached
+            // helper flips `drained` once both joins return so callers
+            // polling `await_drain` see exact quiescence.
             let drained_flag = Arc::clone(&self.drained);
             let detached = thread::Builder::new()
                 .name("fpss-shutdown-detach".to_owned())
@@ -2261,14 +1897,6 @@ impl Drop for FpssClient {
                     "failed to spawn fpss-shutdown-detach; handles will be leaked rather than \
                      attempting an inline join that would deadlock the current thread"
                 );
-                // Best-effort path: spawning a thread realistically only
-                // fails on catastrophic OOM / FD exhaustion. We choose
-                // to leak both handles (they were already moved out of
-                // `self`) rather than risk an inline join that would
-                // self-deadlock the consumer or I/O thread we are
-                // running on. The `drained` flag stays `false`; an
-                // `await_drain` caller will time out, which is the
-                // honest answer for an unreachable cleanup state.
             }
             return;
         }
@@ -2284,35 +1912,34 @@ impl Drop for FpssClient {
 }
 
 #[cfg(test)]
-mod connect_args_tests {
+mod builder_tests {
     use super::*;
     use crate::config::DirectConfig;
 
-    /// `FpssConnectArgs::new` seeds the timing knobs from the
-    /// protocol-level Java-parity constants so a caller that does
-    /// not override them reproduces the legacy behaviour exactly.
-    /// Regression guard against the fields silently going to `0`.
+    /// Default builder seeds the timing knobs from the protocol-level
+    /// Java-parity constants so a caller that does not override them
+    /// reproduces the legacy behaviour exactly. Regression guard
+    /// against the fields silently going to `0`.
     #[test]
-    fn new_seeds_timing_defaults_from_java_parity_constants() {
+    fn builder_seeds_timing_defaults_from_java_parity_constants() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
-        let args = FpssConnectArgs::new(&creds, &hosts);
+        let args = FpssClientBuilder::new(&creds, &hosts).into_args();
         assert_eq!(args.connect_timeout_ms, protocol::CONNECT_TIMEOUT_MS);
         assert_eq!(args.read_timeout_ms, protocol::READ_TIMEOUT_MS);
         assert_eq!(args.ping_interval_ms, protocol::PING_INTERVAL_MS);
     }
 
-    /// `FpssClient::connect` rejects a `read_timeout_ms` outside the
-    /// validated range. This is the second-line defence for callers
-    /// that bypass `DirectConfig::validate` and hand-roll an args
-    /// bundle with a stale field.
+    /// `build()` rejects a `read_timeout_ms` outside the validated
+    /// range. Second-line defence for callers that bypass
+    /// `DirectConfig::validate`.
     #[test]
-    fn connect_rejects_out_of_range_read_timeout_ms() {
+    fn build_rejects_out_of_range_read_timeout_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let mut args = FpssConnectArgs::new(&creds, &hosts);
-        args.read_timeout_ms = 50; // below 100 ms minimum
-        let res = FpssClient::connect(args, |_| {});
+        let res = FpssClientBuilder::new(&creds, &hosts)
+            .read_timeout_ms(50) // below 100 ms minimum
+            .build();
         let err = match res {
             Ok(_) => panic!("must reject"),
             Err(e) => e,
@@ -2323,12 +1950,12 @@ mod connect_args_tests {
 
     /// Same defence for `connect_timeout_ms`.
     #[test]
-    fn connect_rejects_out_of_range_connect_timeout_ms() {
+    fn build_rejects_out_of_range_connect_timeout_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let mut args = FpssConnectArgs::new(&creds, &hosts);
-        args.connect_timeout_ms = 50; // below 1 s minimum
-        let res = FpssClient::connect(args, |_| {});
+        let res = FpssClientBuilder::new(&creds, &hosts)
+            .connect_timeout_ms(50) // below 1 s minimum
+            .build();
         let err = match res {
             Ok(_) => panic!("must reject"),
             Err(e) => e,
@@ -2338,12 +1965,12 @@ mod connect_args_tests {
 
     /// Same defence for `ping_interval_ms`.
     #[test]
-    fn connect_rejects_out_of_range_ping_interval_ms() {
+    fn build_rejects_out_of_range_ping_interval_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let mut args = FpssConnectArgs::new(&creds, &hosts);
-        args.ping_interval_ms = 50; // below 100 ms minimum
-        let res = FpssClient::connect(args, |_| {});
+        let res = FpssClientBuilder::new(&creds, &hosts)
+            .ping_interval_ms(50) // below 100 ms minimum
+            .build();
         let err = match res {
             Ok(_) => panic!("must reject"),
             Err(e) => e,
@@ -2351,32 +1978,24 @@ mod connect_args_tests {
         assert!(err.to_string().contains("ping_interval_ms"));
     }
 
-    /// `start_streaming` reads the wired knobs from `DirectConfig::fpss`
-    /// — not from a stale local — so a user override on the config
-    /// surfaces at connect time. Verified by inspecting that
-    /// `DirectConfig::production().fpss.timeout_ms` matches the
-    /// `FpssConnectArgs` field path used by `client.rs::start_streaming`.
+    /// The fluent builder is the only channel through which tuning
+    /// reaches the runtime. If a future refactor drops any setter, this
+    /// test fails to compile — the desired regression guard.
     #[test]
-    fn production_config_threads_timing_knobs_into_connect_args_shape() {
+    fn production_config_threads_timing_knobs_through_builder() {
         let cfg = DirectConfig::production();
         let creds = Credentials::new("user", "pw");
-        let args = FpssConnectArgs {
-            creds: &creds,
-            hosts: &cfg.fpss.hosts,
-            ring_size: cfg.fpss.ring_size,
-            flush_mode: cfg.fpss.flush_mode,
-            policy: cfg.reconnect.policy.clone(),
-            wait_ms: cfg.reconnect.wait_ms,
-            wait_rate_limited_ms: cfg.reconnect.wait_rate_limited_ms,
-            derive_ohlcvc: cfg.fpss.derive_ohlcvc,
-            connect_timeout_ms: cfg.fpss.connect_timeout_ms,
-            read_timeout_ms: cfg.fpss.timeout_ms,
-            ping_interval_ms: cfg.fpss.ping_interval_ms,
-        };
-        // The args struct is the single channel through which
-        // tuning reaches the runtime. If a future refactor drops
-        // any of these fields, this test fails to compile, which is
-        // the desired regression guard.
+        let args = FpssClientBuilder::new(&creds, &cfg.fpss.hosts)
+            .ring_size(cfg.fpss.ring_size)
+            .flush_mode(cfg.fpss.flush_mode)
+            .reconnect_policy(cfg.reconnect.policy.clone())
+            .reconnect_wait_ms(cfg.reconnect.wait_ms)
+            .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
+            .derive_ohlcvc(cfg.fpss.derive_ohlcvc)
+            .connect_timeout_ms(cfg.fpss.connect_timeout_ms)
+            .read_timeout_ms(cfg.fpss.timeout_ms)
+            .ping_interval_ms(cfg.fpss.ping_interval_ms)
+            .into_args();
         assert_eq!(args.connect_timeout_ms, cfg.fpss.connect_timeout_ms);
         assert_eq!(args.read_timeout_ms, cfg.fpss.timeout_ms);
         assert_eq!(args.ping_interval_ms, cfg.fpss.ping_interval_ms);
@@ -2445,5 +2064,165 @@ mod full_stream_guard_tests {
         );
 
         client.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod panic_isolation_tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::{FpssClient, HarnessPublishMode};
+
+    /// Poll the drained flag until it flips or the deadline passes.
+    ///
+    /// The drained flag is set by [`FpssClient::drop`] after it has joined
+    /// the I/O handle. Call this AFTER dropping the last `Arc<FpssClient>`
+    /// reference; until then the flag stays false.
+    fn wait_for_drain(drained: &std::sync::atomic::AtomicBool) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !drained.load(Ordering::Acquire) {
+            if std::time::Instant::now() > deadline {
+                panic!("FpssClient did not drain within 5 seconds");
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// Poll the delivery counter until it reaches `expected` or the deadline
+    /// passes.  The consumer thread updates it after each non-panic event, so
+    /// when `expected` is reached the consumer has processed all events
+    /// (including the earlier panicking ones) and `panic_count()` is stable.
+    fn wait_for_deliveries(delivered: &AtomicU64, expected: u64) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while delivered.load(Ordering::Relaxed) < expected {
+            if std::time::Instant::now() > deadline {
+                panic!(
+                    "consumer did not deliver {expected} events within 5 s; \
+                     got {}",
+                    delivered.load(Ordering::Relaxed)
+                );
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// A panic in the callback on event 0 is caught and counted; events 1+
+    /// continue to be delivered normally.
+    ///
+    /// The `for_self_join_test` harness drives events through the ring
+    /// consumer closure which has per-invocation `catch_unwind` incrementing
+    /// the shared `panics` counter (the same Arc that `FpssClient::panic_count()`
+    /// reads).  Once all non-panic events are delivered the consumer has
+    /// processed every event, so `panic_count()` is stable and can be read on
+    /// the still-live `Arc<FpssClient>` before dropping.
+    ///
+    /// Contract: `client.panic_count() == 1` AND `delivered == N_EVENTS - 1`.
+    #[test]
+    fn panic_on_event_zero_is_isolated_delivery_continues() {
+        const N_EVENTS: usize = 10;
+
+        let delivered = Arc::new(AtomicU64::new(0));
+        let delivered_c = Arc::clone(&delivered);
+        let mut call_index: u64 = 0;
+
+        let client = FpssClient::for_self_join_test(
+            N_EVENTS,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            move |_event| {
+                let idx = call_index;
+                call_index += 1;
+                if idx == 0 {
+                    panic!("intentional test panic on event 0");
+                }
+                delivered_c.fetch_add(1, Ordering::Relaxed);
+            },
+        );
+
+        // Wait until the consumer has processed all N_EVENTS - 1 deliveries.
+        // At that point it has also processed event 0 (the panic), so the
+        // `panics` counter is stable on the live client.
+        wait_for_deliveries(&delivered, (N_EVENTS - 1) as u64);
+
+        // Read `panic_count()` on the live client before triggering Drop.
+        // The `panics` Arc is shared between the `FpssClient` struct and the
+        // consumer closure; the consumer is done, the value is stable.
+        let observed_panics = client.panic_count();
+        let delivered_count = delivered.load(Ordering::Relaxed);
+
+        // Drain: signal shutdown, drop the last Arc (triggers Drop → io_handle
+        // join), then confirm the drained flag flips.
+        let drained = client.drained_flag();
+        client.shutdown();
+        drop(client);
+        wait_for_drain(&drained);
+
+        assert_eq!(
+            observed_panics, 1,
+            "FpssClient::panic_count() must equal 1 after one caught panic; \
+             got {observed_panics}"
+        );
+        assert_eq!(
+            delivered_count,
+            (N_EVENTS - 1) as u64,
+            "events 1..N_EVENTS must have been delivered after the panic on event 0; \
+             got {delivered_count}"
+        );
+    }
+
+    /// Two consecutive panics each increment the counter independently.
+    ///
+    /// Asserts against `client.panic_count()` — the shared counter on the
+    /// public API — so a regression in the dispatcher's `catch_unwind`
+    /// increment path is caught here, not just by the local delivery counter.
+    #[test]
+    fn two_consecutive_panics_count_independently() {
+        const N_EVENTS: usize = 5;
+
+        let delivered = Arc::new(AtomicU64::new(0));
+        let delivered_c = Arc::clone(&delivered);
+        let mut call_index: u64 = 0;
+
+        let client = FpssClient::for_self_join_test(
+            N_EVENTS,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            move |_event| {
+                let idx = call_index;
+                call_index += 1;
+                if idx < 2 {
+                    panic!("intentional test panic on events 0 and 1");
+                }
+                delivered_c.fetch_add(1, Ordering::Relaxed);
+            },
+        );
+
+        // Wait until the consumer has processed all N_EVENTS - 2 deliveries.
+        // Events 0 and 1 panicked, so the delivery counter saturates at 3.
+        wait_for_deliveries(&delivered, (N_EVENTS - 2) as u64);
+
+        let observed_panics = client.panic_count();
+        let delivered_count = delivered.load(Ordering::Relaxed);
+
+        let drained = client.drained_flag();
+        client.shutdown();
+        drop(client);
+        wait_for_drain(&drained);
+
+        assert_eq!(
+            observed_panics, 2,
+            "FpssClient::panic_count() must equal 2 after two caught panics; \
+             got {observed_panics}"
+        );
+        assert_eq!(
+            delivered_count,
+            (N_EVENTS - 2) as u64,
+            "events 2..N_EVENTS must have been delivered after two panics; \
+             got {delivered_count}"
+        );
     }
 }

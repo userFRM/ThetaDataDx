@@ -444,58 +444,6 @@ struct FpssHandleDeleter {
     void operator()(TdxFpssHandle* p) const { if (p) tdx_fpss_free(p); }
 };
 
-struct FallbackPolicyDeleter {
-    void operator()(TdxFallbackPolicy* p) const { if (p) tdx_fallback_policy_free(p); }
-};
-
-// ── REST routing policy ──
-
-/**
- * REST-routing policy for the four historical-quote endpoints.
- *
- * Mirrors `thetadatadx::config::FallbackPolicy`. Construct via one of
- * the named factories, install on a `Config` via
- * `Config::withRestFallback`, and pass that `Config` to
- * `Client::connect`. Subsequent calls to the four
- * `Client::optionHistory*WithFallback` methods consult the policy.
- *
- * @code{.cpp}
- * auto policy = tdx::FallbackPolicy::restAlways("http://127.0.0.1:25503");
- * auto config = tdx::Config::production();
- * config.withRestFallback(policy);
- * auto client = tdx::Client::connect(creds, config);
- * auto ticks = client.optionHistoryQuoteWithFallback(
- *     "AAPL", "20240105", "20240104");
- * @endcode
- *
- * Move-only: the underlying handle is heap-owned through a
- * `std::unique_ptr` so copy semantics are deleted. Calls to
- * `Config::withRestFallback` borrow the inner enum without consuming
- * the policy.
- */
-class FallbackPolicy {
-public:
-    /** REST routing disabled. Every historical-quote endpoint goes over gRPC. */
-    static FallbackPolicy disabled();
-
-    /** Always route the historical-quote endpoints over REST regardless of date. */
-    static FallbackPolicy restAlways(const std::string& base_url);
-
-    /** Move-only. */
-    FallbackPolicy(FallbackPolicy&&) noexcept = default;
-    FallbackPolicy& operator=(FallbackPolicy&&) noexcept = default;
-    FallbackPolicy(const FallbackPolicy&) = delete;
-    FallbackPolicy& operator=(const FallbackPolicy&) = delete;
-    ~FallbackPolicy() = default;
-
-    /** Raw handle (for Config::withRestFallback). */
-    const TdxFallbackPolicy* get() const { return handle_.get(); }
-
-private:
-    explicit FallbackPolicy(TdxFallbackPolicy* h) : handle_(h) {}
-    std::unique_ptr<TdxFallbackPolicy, FallbackPolicyDeleter> handle_;
-};
-
 // ── Credentials ──
 
 class Credentials {
@@ -742,8 +690,18 @@ public:
         return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
     }
 
-    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
-    void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
+    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate.
+     *  Throws std::runtime_error when @p mode is outside the documented
+     *  `{0, 1}` set or when the underlying FFI returns an error. */
+    void set_flush_mode(int mode) {
+        const int rc = tdx_config_set_flush_mode(handle_.get(), mode);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_flush_mode failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+    }
 
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
@@ -896,18 +854,6 @@ public:
         return has_value ? std::optional<std::size_t>{n} : std::nullopt;
     }
 
-    /**
-     * Install a REST-routing policy on this config. The policy is
-     * borrowed -- the caller retains ownership of the @p policy
-     * `FallbackPolicy`. Subsequent `Client::optionHistory*WithFallback`
-     * calls on any client built from this config will consult the
-     * policy when routing the four historical-quote endpoints over
-     * REST instead of gRPC.
-     *
-     * Throws on null-handle / FFI error.
-     */
-    void withRestFallback(const FallbackPolicy& policy);
-
     /** Get the raw handle. */
     TdxConfig* get() const { return handle_.get(); }
 
@@ -924,47 +870,6 @@ public:
     static Client connect(const Credentials& creds, const Config& config);
 
     #include "historical.hpp.inc"
-
-    // ── REST-routing shims for the four historical-quote endpoints ──
-    //
-    // Dispatch through the `FallbackPolicy` installed on the
-    // `Config` the client was built with. Defaults to gRPC-only
-    // behaviour identical to the non-`WithFallback` siblings when
-    // no policy is installed.
-
-    /**
-     * Fetch option NBBO history with REST fallback per the configured
-     * policy. `symbol`, `expiration`, `start_date` are required;
-     * `end_date`, `strike`, `right`, `interval` accept the empty
-     * `std::string{}` sentinel to omit.
-     *
-     * Throws on transport / parse / REST decode failure.
-     */
-    std::vector<QuoteTick> optionHistoryQuoteWithFallback(
-        const std::string& symbol, const std::string& expiration,
-        const std::string& start_date, const std::string& end_date = {},
-        const std::string& strike = {}, const std::string& right = {},
-        const std::string& interval = {}) const;
-
-    /** Fetch combined trade+quote history with REST fallback. */
-    std::vector<TradeQuoteTick> optionHistoryTradeQuoteWithFallback(
-        const std::string& symbol, const std::string& expiration,
-        const std::string& start_date, const std::string& end_date = {},
-        const std::string& strike = {}, const std::string& right = {}) const;
-
-    /** Fetch implied-volatility history with REST fallback. */
-    std::vector<IvTick> optionHistoryGreeksImpliedVolatilityWithFallback(
-        const std::string& symbol, const std::string& expiration,
-        const std::string& start_date, const std::string& end_date = {},
-        const std::string& strike = {}, const std::string& right = {},
-        const std::string& interval = {}) const;
-
-    /** Fetch first-order Greeks history with REST fallback. */
-    std::vector<GreeksFirstOrderTick> optionHistoryGreeksFirstOrderWithFallback(
-        const std::string& symbol, const std::string& expiration,
-        const std::string& start_date, const std::string& end_date = {},
-        const std::string& strike = {}, const std::string& right = {},
-        const std::string& interval = {}) const;
 
 private:
     explicit Client(TdxClient* h) : handle_(h) {}
@@ -1136,6 +1041,16 @@ public:
      *  installed yet. Safe to call on a moved-from client. */
     uint64_t dropped_events() const {
         return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
+    }
+
+    /** Cumulative count of user-callback panics caught by the
+     *  per-invocation catch_unwind boundary since the current stream
+     *  started. A panic in the callback is caught, recorded here, and
+     *  does not stop event delivery — the next event continues normally.
+     *  Returns 0 when no callback has been installed yet.
+     *  Safe to call from any thread without blocking. */
+    uint64_t panic_count() const {
+        return handle_ ? tdx_fpss_panic_count(handle_.get()) : 0;
     }
 
 private:
@@ -1328,8 +1243,8 @@ struct FullSubscription {
 /// streaming (FPSS) sub-clients; the C++ wrapper exposes the
 /// FLATFILES surface, the polymorphic `subscribe(spec)` /
 /// `unsubscribe(spec)` API, the `set_callback`-driven push delivery
-/// path, the `streaming_iter_session()` RAII helper around pull-iter
-/// delivery, and the lifecycle methods (`stop_streaming`,
+/// path,
+/// and the lifecycle methods (`stop_streaming`,
 /// `reconnect`, `await_drain`, `dropped_event_count`, `is_streaming`,
 /// `active_subscriptions`, `active_full_subscriptions`). For
 /// pure-historical gRPC use, `Client` remains the recommended entry
@@ -1401,27 +1316,6 @@ public:
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const TdxUnified* get() const noexcept { return handle_.get(); }
-
-    /// Start FPSS streaming in pull-iter delivery mode. Returns a
-    /// move-only [`EventIterator`] handle; iterate with
-    /// `while (auto event = it.next(timeout)) { ... }` or use the
-    /// STL-iterator adapters `it.begin()` / `it.end()` for a
-    /// range-for loop.
-    ///
-    /// Mutually exclusive with `set_callback(...)` on the same handle;
-    /// switch by stopping streaming and starting again. Throws
-    /// `std::runtime_error` on connection / state failure.
-    inline class EventIterator start_streaming_iter() const;
-
-    /// Open a context-managed pull-iter streaming session. The
-    /// returned [`UnifiedFpssIterSession`] holds the
-    /// [`EventIterator`] and pairs its destructor with
-    /// `close()` + `stop_streaming()` + `await_drain(5000)`, mirroring
-    /// the Python `with tdx.streaming_iter() as it:` shape.
-    ///
-    /// Mutually exclusive with `set_callback(...)` on the same handle.
-    /// Throws on connection / state failure.
-    inline class UnifiedFpssIterSession streaming_iter_session() const;
 
     /** Register a streaming push callback and open the streaming session.
      *  `fn` runs on the consumer thread under `catch_unwind`, never on
@@ -1519,8 +1413,18 @@ public:
         return handle_ ? tdx_unified_dropped_events(handle_.get()) : 0;
     }
 
+    /// Cumulative count of user-callback panics caught by the
+    /// per-invocation catch_unwind boundary since the current stream
+    /// started. A panic in the callback is caught, recorded here, and
+    /// does not stop event delivery — the next event continues normally.
+    /// Returns 0 when no callback has been installed yet.
+    /// Safe to call from any thread without blocking.
+    uint64_t panic_count() const {
+        return handle_ ? tdx_unified_panic_count(handle_.get()) : 0;
+    }
+
     /// `true` iff the streaming session is currently live (set_callback
-    /// or start_streaming_iter has been invoked and stop_streaming /
+    /// and stop_streaming /
     /// terminal close has not).
     bool is_streaming() const {
         return handle_ && tdx_unified_is_streaming(handle_.get()) == 1;
@@ -1609,289 +1513,6 @@ private:
 };
 
 // ══════════════════════════════════════════════════════════════════════════
-// Pull-iter delivery — RAII wrapper around `TdxFpssEventIterator*`
-// ══════════════════════════════════════════════════════════════════════════
-//
-// Sibling of the push-callback path on `UnifiedClient`. Drains the
-// per-client bounded queue on the caller's own thread; each `next()`
-// blocks up to a user-supplied timeout for the next typed
-// `TdxFpssEvent`. The class is move-only — copying would silently
-// fan out queue draining across multiple consumers, which is not the
-// design.
-//
-// Two surfaces:
-//   * Explicit polling: `auto event = it.next(std::chrono::seconds(1));`
-//     — `std::optional<TdxFpssEvent>` so the caller can branch on
-//     timeout vs. terminal end-of-stream.
-//   * Range-for: `for (auto& event : it) { ... }` — uses the
-//     STL-iterator adapters below; the implicit timeout is "block
-//     indefinitely until terminal end-of-stream", which matches the
-//     idiomatic Python `for event in iter:` shape.
-//
-// The borrowed pointer fields inside `TdxFpssEvent` (`Contract.symbol`,
-// payload byte slices, etc.) reference heap memory owned by the
-// iterator handle. They are valid until the next `next()` call OR
-// until the iterator is destroyed. Copy any fields the consumer
-// wants to outlive the next pop.
-
-struct EventIteratorDeleter {
-    void operator()(TdxFpssEventIterator* p) const {
-        if (p) tdx_fpss_event_iter_free(p);
-    }
-};
-
-class EventIterator {
-public:
-    EventIterator(EventIterator&&) noexcept = default;
-    EventIterator& operator=(EventIterator&&) noexcept = default;
-    EventIterator(const EventIterator&) = delete;
-    EventIterator& operator=(const EventIterator&) = delete;
-
-    /// Pop the next event with a deadline. Returns `std::nullopt` on
-    /// timeout (non-terminal — the upstream is still live and the
-    /// caller can re-poll) and on terminal end-of-stream (the
-    /// streaming session has shut down and the queue is drained).
-    /// Distinguish via [`Self::ended`] after the call: `ended()` flips
-    /// to `true` ONLY on terminal close (C ABI rc `-1`), never on
-    /// timeout (rc `1`). A loop that re-polls on timeout therefore
-    /// will not falsely terminate on a quiet-but-live upstream.
-    std::optional<TdxFpssEvent> next(std::chrono::milliseconds timeout) {
-        TdxFpssEvent out{};
-        const int32_t ms = timeout.count() < 0
-                               ? 0
-                               : static_cast<int32_t>(std::min<long long>(
-                                     timeout.count(), static_cast<long long>(INT32_MAX)));
-        const int rc = tdx_fpss_event_iter_next(handle_.get(), &out, ms);
-        if (rc == 0) {
-            return out;
-        }
-        // rc == 1 — timeout; rc == -1 — terminal end-of-stream.
-        // Only the terminal case latches `ended_`; the timeout case
-        // is a soft re-poll signal the caller can act on.
-        if (rc == -1) {
-            ended_ = true;
-        }
-        return std::nullopt;
-    }
-
-    /// Non-blocking pop. Returns `std::nullopt` immediately on either
-    /// an empty-but-live queue (rc `1`, soft re-poll signal) or a
-    /// terminal end-of-stream (rc `-1`, queue drained on a stopped
-    /// session). Distinguish via [`Self::ended`] after the call:
-    /// `ended()` flips to `true` ONLY on terminal close, never on the
-    /// quiet-but-live empty path. A polling integration should
-    /// therefore loop on `try_next()` returning `nullopt` while
-    /// `!ended()` and exit cleanly when `ended()` flips. Earlier the
-    /// underlying core's `try_next()` returned `Option<FpssEvent>` and
-    /// overloaded `None` to mean both, so the C ABI mapped every empty
-    /// poll to `Timeout` (rc `1`) and a C++ caller draining after
-    /// `stop_streaming()` would never observe `ended() == true`.
-    std::optional<TdxFpssEvent> try_next() {
-        TdxFpssEvent out{};
-        const int rc = tdx_fpss_event_iter_next(handle_.get(), &out, 0);
-        if (rc == 0) {
-            return out;
-        }
-        // rc == 1 — empty-but-live; rc == -1 — terminal end-of-stream.
-        // Only the terminal case latches `ended_`; mirrors the
-        // `next(timeout)` code path so the two entry points have a
-        // consistent end-of-stream contract.
-        if (rc == -1) {
-            ended_ = true;
-        }
-        return std::nullopt;
-    }
-
-    /// Whether the iterator has observed terminal end-of-stream.
-    /// Once `true`, subsequent `next()` calls always return
-    /// `std::nullopt`.
-    bool ended() const noexcept { return ended_; }
-
-    /// Mark the iterator closed. Subsequent `next()` calls return
-    /// `std::nullopt` once the residual queue drains, without
-    /// shutting down the underlying streaming session.
-    void close() {
-        if (handle_) {
-            tdx_fpss_event_iter_close(handle_.get());
-        }
-    }
-
-    /// STL-compatible input-iterator adapter. Not bidirectional or
-    /// random-access — single-pass over the streaming queue.
-    class Sentinel {};
-    class IterAdapter {
-    public:
-        IterAdapter(EventIterator* parent, std::chrono::milliseconds timeout)
-            : parent_(parent), timeout_(timeout) {
-            advance();
-        }
-        const TdxFpssEvent& operator*() const { return current_; }
-        const TdxFpssEvent* operator->() const { return &current_; }
-        IterAdapter& operator++() {
-            advance();
-            return *this;
-        }
-        bool operator!=(const Sentinel&) const { return !done_; }
-
-    private:
-        void advance() {
-            // Re-poll on timeout — `next()` returns `std::nullopt`
-            // for both timeout and terminal close, but only the
-            // terminal case latches `parent_->ended()`. A `for (auto&
-            // event : iter)` loop must keep advancing on timeout so
-            // a quiet-but-live upstream doesn't falsely end the
-            // iteration (earlier the C ABI conflated the two,
-            // which is what made this distinction necessary).
-            for (;;) {
-                auto evt = parent_->next(timeout_);
-                if (evt.has_value()) {
-                    current_ = *evt;
-                    done_ = false;
-                    return;
-                }
-                if (parent_->ended()) {
-                    done_ = true;
-                    return;
-                }
-                // Timeout — upstream still live. Continue waiting on
-                // the next slice.
-            }
-        }
-        EventIterator* parent_;
-        std::chrono::milliseconds timeout_;
-        TdxFpssEvent current_{};
-        bool done_ = false;
-    };
-
-    /// `for (const auto& event : it)` adapter. Uses a 1-second
-    /// per-pop timeout so a stalled upstream surfaces as a soft
-    /// re-poll rather than blocking the iteration forever; callers
-    /// who need a different cadence drive `next()` directly.
-    IterAdapter begin() { return IterAdapter(this, std::chrono::milliseconds(1000)); }
-    Sentinel end() { return Sentinel{}; }
-
-    /// Raw handle for advanced consumers. Ownership stays with this
-    /// object.
-    TdxFpssEventIterator* get() const noexcept { return handle_.get(); }
-
-private:
-    friend class UnifiedClient;
-    explicit EventIterator(TdxFpssEventIterator* h) : handle_(h) {}
-    std::unique_ptr<TdxFpssEventIterator, EventIteratorDeleter> handle_;
-    bool ended_ = false;
-};
-
-// Definition of `UnifiedClient::start_streaming_iter` deferred until
-// after `EventIterator` is fully declared.
-inline EventIterator UnifiedClient::start_streaming_iter() const {
-    TdxFpssEventIterator* it = tdx_unified_start_streaming_iter(handle_.get());
-    if (it == nullptr) {
-        detail::throw_last_ffi_error();
-    }
-    return EventIterator(it);
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// RAII pull-iter session
-// ══════════════════════════════════════════════════════════════════════════
-//
-// Sibling of the Python `with tdx.streaming_iter() as it: ...` block.
-// Construction opens the FPSS streaming session in pull-iter delivery
-// mode; destruction pairs `close()` on the iterator with
-// `stop_streaming()` + `await_drain(5000)` on the parent client so the
-// consumer thread is guaranteed to have stopped pushing into the queue
-// before any captured state goes out of scope.
-//
-// The session borrows the parent `UnifiedClient` by reference. Keep
-// the parent alive for the whole session lifetime; a moved-from
-// parent would dangle the borrow and the next FFI call would be
-// undefined.
-
-class UnifiedFpssIterSession {
-public:
-    UnifiedFpssIterSession(UnifiedFpssIterSession&&) noexcept = default;
-    UnifiedFpssIterSession& operator=(UnifiedFpssIterSession&&) noexcept = default;
-    UnifiedFpssIterSession(const UnifiedFpssIterSession&) = delete;
-    UnifiedFpssIterSession& operator=(const UnifiedFpssIterSession&) = delete;
-
-    ~UnifiedFpssIterSession() {
-        if (iterator_.has_value()) {
-            // Close the iterator first so any in-flight `next()` on a
-            // helper thread bails out promptly; then stop streaming
-            // and block on the drain barrier with the same 5 s budget
-            // the Python / TS sessions use.
-            iterator_->close();
-            iterator_.reset();
-            if (parent_ != nullptr) {
-                tdx_unified_stop_streaming(parent_->get());
-                int drained = tdx_unified_await_drain(parent_->get(), 5000);
-                if (drained == 0) {
-                    // The consumer thread is still firing. The
-                    // event-loop body has already exited (we are in
-                    // destruction), so emit a diagnostic line and let
-                    // the consumer drain in the background bounded by
-                    // its own ring drain. Matches the warning the
-                    // Python / TS RAII paths emit on drain timeout.
-                    std::fprintf(stderr,
-                                 "thetadatadx: UnifiedFpssIterSession drain timed out after 5000ms; "
-                                 "the consumer thread may still be pushing events. "
-                                 "The iterator is already closed and will stop yielding "
-                                 "once the consumer exits.\n");
-                }
-            }
-        }
-    }
-
-    /// Pop the next event with a deadline. Returns `std::nullopt` on
-    /// timeout (non-terminal — the upstream is still live and the
-    /// caller can re-poll) or on terminal end-of-stream. Distinguish
-    /// the two via [`ended()`] after the call.
-    std::optional<TdxFpssEvent> next(std::chrono::milliseconds timeout) {
-        if (!iterator_.has_value()) {
-            return std::nullopt;
-        }
-        return iterator_->next(timeout);
-    }
-
-    /// Non-blocking pop. Same semantics as
-    /// [`EventIterator::try_next`].
-    std::optional<TdxFpssEvent> try_next() {
-        if (!iterator_.has_value()) {
-            return std::nullopt;
-        }
-        return iterator_->try_next();
-    }
-
-    /// `true` once the underlying iterator has observed terminal
-    /// end-of-stream. The session destructor itself does NOT mark
-    /// the iterator ended — it shuts down the streaming session.
-    bool ended() const noexcept {
-        return iterator_.has_value() ? iterator_->ended() : true;
-    }
-
-    /// Mark the iterator closed without tearing down the streaming
-    /// session. Subsequent `next()` calls drain residuals then return
-    /// `std::nullopt`. The session destructor still runs `close()` +
-    /// `stop_streaming()` + `await_drain()` — this method just lets
-    /// the caller short-circuit the iterator early.
-    void close() {
-        if (iterator_.has_value()) {
-            iterator_->close();
-        }
-    }
-
-private:
-    friend class UnifiedClient;
-    UnifiedFpssIterSession(const UnifiedClient* parent, EventIterator iterator)
-        : parent_(parent), iterator_(std::move(iterator)) {}
-
-    const UnifiedClient* parent_;
-    std::optional<EventIterator> iterator_;
-};
-
-inline UnifiedFpssIterSession UnifiedClient::streaming_iter_session() const {
-    return UnifiedFpssIterSession(this, start_streaming_iter());
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // Fluent contract-first API

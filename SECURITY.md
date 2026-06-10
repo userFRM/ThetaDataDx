@@ -47,7 +47,7 @@ provides no privileged access.
   never appear in debug output or log lines
 - `AuthRequest` (internal HTTP body struct) does **not** derive `Debug` — prevents
   accidental password exposure in error traces
-- **Session UUIDs** (bearer tokens for MDDS gRPC) are logged at `debug!` level only,
+- **Session UUIDs** (bearer tokens for MDDS requests) are logged at `debug!` level only,
   redacted to first 8 characters. They never appear at `info!` or higher.
 - Credentials are not persisted to disk by the library (the `creds.txt` file is
   user-managed and excluded from version control via `.gitignore`)
@@ -57,15 +57,15 @@ provides no privileged access.
 All network operations enforce timeouts to prevent indefinite hangs:
 
 - **Nexus auth HTTP**: 10s request timeout, 5s connect timeout
-- **MDDS gRPC**: connect timeout + keepalive from `DirectConfig`
-- **FPSS TCP+TLS**: connect timeout wraps both TCP and TLS handshake
+- **MDDS**: connect timeout + keepalive from `DirectConfig`
+- **FPSS TLS**: connect timeout wraps both TCP and TLS handshake
 - **FPSS read loop**: read timeout matching Java's `SO_TIMEOUT=10s`
 
 ### TLS
 
 All network connections use a **unified TLS stack** (`rustls` with ring backend):
 
-- **MDDS (gRPC)**: TLS via `tonic` + `rustls`
+- **MDDS**: TLS via `rustls`
 - **FPSS (streaming)**: TLS via `tokio-rustls` + `rustls`
 - **Nexus auth (HTTP)**: TLS via `reqwest` + `rustls`
 
@@ -97,8 +97,8 @@ silently passed to callers.
 
 ### FPSS Event Dispatch
 
-FPSS streaming uses a fully synchronous I/O thread with a lock-free disruptor ring buffer
-(`disruptor-rs` v4) for event dispatch. The bounded ring buffer prevents unbounded memory
+FPSS streaming uses a fully synchronous I/O thread with a lock-free event ring buffer
+for event dispatch. The bounded ring buffer prevents unbounded memory
 growth from unconsumed events.
 
 ### Frame Size Limits

@@ -49,7 +49,7 @@ except ImportError:
         return toml.loads(p.read_text())
 
 
-# Deps where cross-lockfile drift is a release blocker.
+# Deps where cross-lockfile drift breaks the release.
 SECURITY_CRITICAL = {
     "rustls",
     "webpki-roots",
@@ -76,7 +76,7 @@ SDK_OWNED = {
 # against different pyo3-ffi headers, arrow buffers laid out by
 # different arrow-schema versions, napi shims compiled against
 # divergent napi cores, gRPC envelopes encoded by divergent prost /
-# tonic schemas). The default-mode drift check used to pass while
+# old transport schemas). The default-mode drift check used to pass while
 # `--strict` flagged `pyo3 0.28.2 vs 0.28.3` and `arrow-ipc /
 # arrow-select 58.2.0 vs 58.3.0` between workspace root and
 # sdks/python Cargo.lock. Pinning these in the default set keeps the
@@ -92,7 +92,6 @@ BINDING_CRITICAL = {
     "arrow-array",
     "arrow-buffer",
     "arrow-schema",
-    "tonic",
     "napi",
     "napi-derive",
 }

@@ -1,17 +1,15 @@
 //! Per-contract OHLCVC accumulator and price-type scaling helper.
 //!
-//! Mirrors the Java terminal's `OHLCVC` tick aggregation: an accumulator is
-//! seeded either from a server-sent OHLCVC bar (code 24) or from the first
-//! trade, then each subsequent trade advances the open/high/low/close and
-//! bumps `volume` + `count`. Prices sent with a different `price_type` than
-//! the accumulator's are rescaled via [`change_price_type`].
+//! An accumulator is seeded either from a server-sent OHLCVC bar (code 24)
+//! or from the first trade, then each subsequent trade advances the
+//! open/high/low/close and bumps `volume` + `count`. Prices sent with a
+//! different `price_type` than the accumulator's are rescaled via
+//! [`change_price_type`].
 
 /// Per-contract OHLCVC accumulator, updated on every Trade event.
 ///
-/// `volume` and `count` use `i64` because they accumulate across many trades
-/// and can exceed `i32::MAX` for high-volume symbols (e.g. SPY). The Java
-/// terminal uses `int` (32-bit) but silently wraps on overflow; we use `i64`
-/// to avoid overflow entirely.
+/// `volume` and `count` use `i64` to avoid overflow on high-volume symbols
+/// (e.g. SPY) where per-session cumulative volume can exceed `i32::MAX`.
 pub(super) struct OhlcvcAccumulator {
     pub(super) open: i32,
     pub(super) high: i32,

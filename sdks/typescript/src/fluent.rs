@@ -17,9 +17,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use thetadatadx::fpss::protocol::{
-    self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind,
-};
+use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind};
 
 /// JS-visible `SecType` (frozen security-type enum). Construction
 /// happens via the four named factories: `SecType.stock()`,
@@ -159,7 +157,7 @@ impl ContractRef {
 
     #[napi(getter)]
     pub fn symbol(&self) -> String {
-        self.inner.symbol.clone()
+        self.inner.symbol.to_string()
     }
 
     #[napi(getter, js_name = "secType")]
@@ -212,6 +210,7 @@ impl Subscription {
                 SubscriptionKind::Quote => "quote",
                 SubscriptionKind::Trade => "trade",
                 SubscriptionKind::OpenInterest => "open_interest",
+                _ => "unknown",
             },
             protocol::Subscription::Full { kind, .. } => match kind {
                 FullSubscriptionKind::Trades => "full_trades",
@@ -237,9 +236,6 @@ impl Subscription {
     /// Rust core takes the `Subscription` value by move; cloning the
     /// inner enum keeps the JS handle reusable.
     pub(crate) fn snapshot(&self) -> protocol::Subscription {
-        self.inner
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }

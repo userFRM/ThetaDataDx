@@ -19,13 +19,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bytes::{BufMut, Bytes, BytesMut};
+use futures::StreamExt;
 use h2::server::SendResponse;
 use http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode};
 use prost::Message;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, Notify};
 use tokio::task::JoinHandle;
-use tokio_stream::StreamExt;
 
 use thetadatadx::grpc::{Channel, ChannelError, ChannelPool};
 use thetadatadx::wire::{data_value, DataValue, DataValueList, ResponseData};

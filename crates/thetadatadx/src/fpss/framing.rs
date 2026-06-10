@@ -1,6 +1,6 @@
 //! FPSS wire frame reader and writer.
 //!
-//! # Wire format (from `PacketStream.java`)
+//! # Wire format
 //!
 //! Every FPSS message (both client-to-server and server-to-client) uses the same
 //! 2-byte header followed by a variable-length payload:
@@ -14,9 +14,6 @@
 //! - `PAYLOAD` -- `LEN` bytes of message-specific data.
 //!
 //! Total bytes on the wire per message = `LEN + 2`.
-//!
-//! Source: `PacketStream.readFrame()` and `PacketStream.writeFrame()` in the
-//! decompiled Java terminal.
 //!
 //! # Design
 //!
@@ -633,8 +630,8 @@ pub fn write_raw_frame<W: Write>(
 /// Use this when batching multiple writes. Caller is responsible for
 /// flushing at the appropriate time (e.g., after PING frames only).
 ///
-/// Source: Java terminal only flushes on ping frames, letting `BufWriter`
-/// batch other writes for better throughput.
+/// Flushes only on ping frames, letting `BufWriter` batch other writes
+/// for better throughput.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.

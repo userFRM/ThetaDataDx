@@ -98,7 +98,7 @@ impl From<&[String]> for SymbolInput {
 // from `wire_semantics` above are shared with build-time code via
 // `#[path]` reuse and stay out of this file.
 
-/// Convert an interval to the format the MDDS gRPC server accepts.
+/// Convert an interval to the format the MDDS server accepts.
 ///
 /// Users can pass either:
 /// - Shorthand directly: `"tick"`, `"10ms"`, `"100ms"`, `"500ms"`,

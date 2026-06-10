@@ -50,7 +50,7 @@ def main() -> int:
 
     # Push-callback delivery — fan events into a thread-safe queue so
     # the main thread can drive the smoke assertions synchronously
-    # while the Disruptor consumer thread keeps producing.
+    # while the event-dispatch consumer thread keeps producing.
     events: "queue.Queue" = queue.Queue(maxsize=4096)
     stop_consuming = threading.Event()
 

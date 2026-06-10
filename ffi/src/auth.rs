@@ -136,14 +136,41 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 ///
 /// - `mode = 0`: Batched (default) -- flush only on PING every 100ms
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
+///
+/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` /
+/// `tdx_last_error_code = TDX_ERR_CONFIG` when `mode` is outside the
+/// documented `{0, 1}` set or when `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.fpss.flush_mode = match mode {
+pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "tdx_config_set_flush_mode: config handle is null",
+                crate::error::TDX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        let value = match mode {
+            0 => thetadatadx::FpssFlushMode::Batched,
             1 => thetadatadx::FpssFlushMode::Immediate,
-            _ => thetadatadx::FpssFlushMode::Batched,
+            other => {
+                crate::error::set_error_with_code(
+                    &format!(
+                        "tdx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
+                    ),
+                    crate::error::TDX_ERR_CONFIG,
+                );
+                return -1;
+            }
         };
+        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new`
+        // that has not been freed; null was rejected above; `&mut *` produces a
+        // unique reference valid for the call duration because the caller owns
+        // the Box and the FFI contract forbids concurrent calls on the same
+        // handle.
+        let config = unsafe { &mut *config };
+        config.inner.fpss.flush_mode = value;
+        0
     })
 }
 
@@ -921,7 +948,7 @@ pub unsafe extern "C" fn tdx_config_set_decoder_ring_size(config: *mut TdxConfig
             return;
         }
         // Same validation as the Rust core's `check_ring_size` plus
-        // the disruptor minimum — surface the rejection here so the
+        // the event ring minimum — surface the rejection here so the
         // FFI caller sees it at the setter rather than at connect.
         if n == 0 || !n.is_power_of_two() {
             set_error(&format!(
@@ -1021,7 +1048,7 @@ pub unsafe extern "C" fn tdx_config_set_decode_queue_depth_explicit(
     })
 }
 
-// ── Legacy n-only ABI (kept for v10 compatibility) ─────────────────
+// ── Legacy n-only ABI (kept for backwards compatibility) ─────────────────
 //
 // `n = 0` maps to `None` (auto-size); `n > 0` maps to `Some(n)`.
 // Callers that need to encode an explicit `Some(0)` should switch

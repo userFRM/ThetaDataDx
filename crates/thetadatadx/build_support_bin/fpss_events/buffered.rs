@@ -2,7 +2,7 @@
 //! emitted into both the Python and TypeScript SDK crates.
 //!
 //! This is the SSOT for the intermediate event shape between the FPSS
-//! Disruptor callback and the per-language typed dispatcher.
+//! dispatcher callback and the per-language typed dispatcher.
 
 use std::fmt::Write as _;
 

@@ -27,10 +27,10 @@ pub(crate) mod writer;
 
 /// Dynamic-schema Arrow conversion for [`FlatFileRow`] collections.
 ///
-/// Gated behind the `arrow` feature alongside [`crate::frames`]. Exposed
-/// as `pub` (not `pub(crate)`) so the language bindings (Python, TypeScript,
-/// C++ FFI) can route their `to_arrow` terminals through one SSOT
-/// implementation rather than re-deriving the schema on each surface.
+/// Gated behind the `arrow` feature. Exposed as `pub` (not `pub(crate)`) so
+/// the language bindings (Python, TypeScript, C++ FFI) can route their
+/// `to_arrow` terminals through one SSOT implementation rather than
+/// re-deriving the schema on each surface.
 #[cfg(feature = "arrow")]
 pub mod arrow;
 

@@ -13,6 +13,7 @@
 /// For Rust callers building their own runtime, use
 /// [`RuntimeConfig::build_runtime`] to honour the field directly.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct RuntimeConfig {
     /// Number of tokio worker threads.
     ///
@@ -65,7 +66,7 @@ mod tests {
     fn build_runtime_default_returns_ok() {
         let cfg = RuntimeConfig::default();
         let rt = cfg.build_runtime().expect("default runtime must build");
-        rt.block_on(async { 1 + 1 });
+        rt.block_on(async { 1 + 1 }); // VOCAB-OK: tokio Runtime::block_on in unit test, not PyO3 GIL path
     }
 
     #[test]
@@ -74,7 +75,7 @@ mod tests {
             tokio_worker_threads: Some(2),
         };
         let rt = cfg.build_runtime().expect("2-worker runtime must build");
-        let value = rt.block_on(async { 42 });
+        let value = rt.block_on(async { 42 }); // VOCAB-OK: tokio Runtime::block_on in unit test, not PyO3 GIL path
         assert_eq!(value, 42);
     }
 
@@ -89,6 +90,6 @@ mod tests {
         let rt = cfg
             .build_runtime()
             .expect("clamped 0 worker count must build");
-        rt.block_on(async {});
+        rt.block_on(async {}); // VOCAB-OK: tokio Runtime::block_on in unit test, not PyO3 GIL path
     }
 }

@@ -1,7 +1,5 @@
 //! TLS TCP connection to FPSS servers.
 //!
-//! Behaviour mirrors the upstream Java terminal.
-//!
 //! # Transport
 //!
 //! TLS over TCP with:
@@ -59,12 +57,6 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub ping_interval: Duration,
-    /// Consumer-side selector: an SDK-managed consumer thread running a
-    /// push-callback / pull-iter [`super::events::Delivery`], or a
-    /// caller-driven event poller. Captured at connect time and held
-    /// for the lifetime of the [`super::FpssClient`]; switching modes
-    /// requires `stop_streaming()` followed by a fresh `start_streaming*`.
-    pub consumer: super::events::StreamConsumer,
 }
 
 /// Install the process-global rustls crypto provider exactly once.

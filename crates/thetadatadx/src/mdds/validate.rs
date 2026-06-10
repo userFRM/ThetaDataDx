@@ -58,6 +58,10 @@ fn check_gregorian(
 /// Calendar correctness is left to [`check_gregorian`] so the shape
 /// check and the calendar check stay independent of each other and
 /// can be composed by callers that already know which form they hold.
+// Only compiled under `__internal`: called exclusively by `validate_expiration`
+// which is itself gated (only reached from `EndpointArgs::required_expiration`
+// and friends in the gated `impl EndpointArgs` block).
+#[cfg(feature = "__internal")]
 fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
     let mut parts = value.splitn(3, '-');
     let (y, m, d) = match (parts.next(), parts.next(), parts.next(), parts.next()) {
@@ -111,6 +115,9 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
 /// Both dated forms are calendar-checked — `2026-02-30`,
 /// `2026-13-01`, and `2026-04-31` are rejected on every public input
 /// regardless of which textual shape the caller used.
+///
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if matches!(value, "*" | "0") {
         return Ok(());
@@ -137,6 +144,9 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
 /// wildcard forms. Wildcards become proto-unset in
 /// [`crate::mdds::wire_semantics::wire_strike_opt`] so the server applies
 /// its documented default.
+///
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() || matches!(value, "*" | "0") {
         return Ok(());
@@ -149,6 +159,8 @@ pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), Endpo
     }
 }
 
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() {
         return Err(EndpointError::InvalidParams(format!(
@@ -167,11 +179,16 @@ pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), Endpo
 /// [`crate::mdds::endpoints::normalize_interval`]; this validator
 /// recognises both shapes so the CLI / MCP layer rejects garbage
 /// before the gRPC dispatch.
+///
+/// Only compiled under `__internal` — used by `validate_interval`.
+#[cfg(feature = "__internal")]
 const VALID_INTERVAL_PRESETS: &[&str] = &[
     "tick", "10ms", "100ms", "500ms", "1s", "5s", "10s", "15s", "30s", "1m", "5m", "10m", "15m",
     "30m", "1h",
 ];
 
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() {
         return Err(EndpointError::InvalidParams(format!(
@@ -194,6 +211,8 @@ pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), End
     )))
 }
 
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
     // Delegate to the canonical parser so the accepted vocabulary stays
     // in one place. The endpoint layer does not distinguish
@@ -207,6 +226,8 @@ pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), Endpoi
     })
 }
 
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn validate_year(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.len() != 4 || !value.bytes().all(|b| b.is_ascii_digit()) {
         return Err(EndpointError::InvalidParams(format!(
@@ -216,6 +237,8 @@ pub(crate) fn validate_year(value: &str, param_name: &str) -> Result<(), Endpoin
     Ok(())
 }
 
+/// Only compiled under `__internal` — called from `EndpointArgs` methods.
+#[cfg(feature = "__internal")]
 pub(crate) fn parse_symbols(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -225,6 +248,9 @@ pub(crate) fn parse_symbols(value: &str) -> Vec<String> {
         .collect()
 }
 
+/// Only compiled under `__internal` — called from `parse_raw_arg_value` in
+/// `endpoint_args.rs` which is itself gated on `__internal`.
+#[cfg(feature = "__internal")]
 pub(crate) fn parse_bool(value: &str) -> Result<bool, &'static str> {
     if value.eq_ignore_ascii_case("true") || value == "1" {
         Ok(true)
@@ -310,6 +336,27 @@ mod tests {
     }
 
     #[test]
+    fn validate_date_yyyymmdd_path_rejects_same_impossibles_as_dashed_form() {
+        // Symmetry guard: the two surface forms accept exactly the
+        // same set of real dates. The dashed form is checked above;
+        // the digits-only form rejects the corresponding inputs.
+        for bad in [
+            "20260230", "20261301", "20260431", "18991231", "21010101", "00000000", "19000229",
+        ] {
+            assert!(
+                validate_date(bad, "date").is_err(),
+                "expected calendar rejection on digits-only form: {bad}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "__internal")]
+mod internal_tests {
+    use super::*;
+
+    #[test]
     fn expiration_accepts_documented_vocab_and_rejects_garbage() {
         for good in ["*", "0", "20260417", "2026-04-17"] {
             assert!(validate_expiration(good, "expiration").is_ok(), "{good}");
@@ -358,21 +405,6 @@ mod tests {
             assert!(
                 validate_expiration(good, "expiration").is_ok(),
                 "expected acceptance: {good}"
-            );
-        }
-    }
-
-    #[test]
-    fn validate_date_yyyymmdd_path_rejects_same_impossibles_as_dashed_form() {
-        // Symmetry guard: the two surface forms accept exactly the
-        // same set of real dates. The dashed form is checked above;
-        // the digits-only form rejects the corresponding inputs.
-        for bad in [
-            "20260230", "20261301", "20260431", "18991231", "21010101", "00000000", "19000229",
-        ] {
-            assert!(
-                validate_date(bad, "date").is_err(),
-                "expected calendar rejection on digits-only form: {bad}"
             );
         }
     }

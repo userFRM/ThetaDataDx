@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "11.0.1"
+version = "12.0.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
@@ -18,13 +18,13 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-# The Rust SDK we're wrapping
-thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow"] }
+# The native ThetaData implementation we're wrapping in Python bindings.
+thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow", "__internal"] }
 tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 
-# Direct prost dep for decoding `thetadatadx::proto::ResponseData` bytes in
-# the `decode_response_bytes` hook. The main crate no longer re-exports
-# `prost`; we pull it in here at the same version pin.
+# Direct prost dep for decoding `ResponseData` bytes in the
+# `decode_response_bytes` hook. Pinned to the same version the engine
+# crate consumes so the wire types resolve to a single instantiation.
 prost = "=0.14.3"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
@@ -34,7 +34,7 @@ pyo3 = { version = "=0.28.3", features = ["abi3-py312", "multiple-pymethods"] }
 # Bridge between pyo3 and tokio so generated `*_async` methods return real
 # awaitables backed by the shared runtime singleton (no second runtime is
 # spun up per call). Pin to the matching release for pyo3 0.28.
-pyo3-async-runtimes = { version = "=0.28.0", features = ["attributes", "tokio-runtime"] }
+pyo3-async-runtimes = { version = "=0.28.0", features = ["tokio-runtime"] }
 
 # Apache Arrow columnar pipeline for the DataFrame adapter. We pick the
 # upstream `arrow` crate with the `pyarrow` feature over the third-party
@@ -42,18 +42,12 @@ pyo3-async-runtimes = { version = "=0.28.0", features = ["attributes", "tokio-ru
 #   1. Arrow Apache owns the pyo3 compat matrix — version bumps ship
 #      together (arrow 58 <-> pyo3 0.28), so we stay on the canonical
 #      upgrade path.
-#   2. Single dep, fewer surfaces to audit. `arrow_pyarrow::{IntoPyArrow,
-#      PyArrowType, Table}` is all we need.
+#   2. Single dep, fewer surfaces to audit. `arrow::array::*`,
+#      `arrow::datatypes::*`, `arrow::record_batch::RecordBatch`,
+#      `arrow::pyarrow::{IntoPyArrow, PyArrowType}` is all we need.
 #   3. Zero-copy to pyarrow via the Arrow C Data Interface, identical
 #      semantics to pyo3-arrow.
-#
-# `arrow-array` + `arrow-schema` give us the typed builders
-# (Int32Array / Float64Array / Int64Array / StringArray) and `Schema` /
-# `DataType` needed to construct RecordBatch from Vec<TickType> in one
-# allocation per column.
 arrow = { version = "58.1.0", features = ["pyarrow"] }
-arrow-array = "58.1.0"
-arrow-schema = "58.1.0"
 
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
@@ -61,21 +55,6 @@ tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # Error derivation for the 365-day auto-chunk date-math module. Matches
 # the workspace crate's pin so we never drift on the trait surface.
 thiserror = "2.0.18"
-
-# Reason: the auto-chunk helper splits multi-year date ranges into
-# ≤365-day chunks before dispatch. The hand-rolled YYYYMMDD parser in
-# `chunking.rs` previously range-checked month 1..=12 and day 1..=31
-# independently, so Gregorian-impossible inputs like "20230229" (Feb 29
-# in a non-leap year) and "20240231" (Feb 31) parsed to a `Ymd` whose
-# `to_ord` silently normalized to a neighbouring valid day — wrong
-# chunk boundaries on impossible ranges. Swap the hand-rolled validator
-# for `chrono::NaiveDate::parse_from_str(_, "%Y%m%d")` which enforces
-# real Gregorian validity. chrono is already a transitive dep via the
-# tzdb chain pulled in by the main crate, so adoption adds zero new
-# crates to the build tree (verified in `sdks/python/Cargo.lock`).
-# `default-features = false` with `alloc` keeps the compile profile
-# minimal — we only need the calendar math.
-chrono = { version = "=0.4.44", default-features = false, features = ["alloc"] }
 
 # Structured diagnostics for generator-emitted streaming helpers. Trace-level
 # emission only — shutdown-time `tx.send` failures (Python rx dropped before

@@ -2,7 +2,7 @@
 //!
 //! [`io_loop`] owns the TLS stream for the lifetime of a session. It reads
 //! frames, dispatches them through [`super::decode::decode_frame`], publishes
-//! the resulting events into the LMAX Disruptor ring, and drains the outgoing
+//! the resulting events into the event ring, and drains the outgoing
 //! command channel between reads. On involuntary disconnect it re-runs the
 //! login handshake in-place according to [`ReconnectPolicy`].
 //!
@@ -24,25 +24,13 @@ pub(in crate::fpss) use ping::ping_loop;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, LazyLock, Mutex, OnceLock};
-
-// parking_lot's Mutex is ~5ns uncontended (vs ~20-40ns for
-// std::sync::Mutex), inlines aggressively, and ships no poisoning
-// machinery — the single-consumer Disruptor hot path below holds the
-// lock for the duration of one `as_public()` reborrow plus the user
-// callback / queue push, never across an await, and is reached from
-// exactly one thread (`handle_events_with`'s consumer), so the
-// faster lock is a strict win on that path. Every other Mutex in
-// this module keeps `std::sync::Mutex` and its poison-on-panic
-// behaviour.
-use parking_lot::Mutex as ParkingLotMutex;
-use std::thread::{self, ThreadId};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 
-use disruptor::{build_single_producer, EventPoller, Producer, Sequence, SingleProducerBarrier};
+use disruptor::{build_single_producer, EventPoller, Producer, SingleProducerBarrier};
 use metrics::Counter;
 
 // ─── Hoisted I/O-loop counter handles ───────────────────────────────
@@ -75,7 +63,7 @@ use crate::error::Error;
 use super::connection;
 use super::decode::decode_frame;
 use super::delta::DeltaState;
-use super::events::{BackpressurePolicy, Delivery, FpssControl, FpssEventInternal, IoCommand};
+use super::events::{FpssControl, FpssEventInternal, IoCommand};
 use super::framing::{
     self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
     write_raw_frame_no_flush, Frame, FrameReadState,
@@ -119,21 +107,12 @@ type ActiveFullSubs = Arc<
 /// the framing-layer mid-frame stall budget honour the configured
 /// values, not the Java-parity hardcoded defaults).
 ///
-/// `producer` is the ring publisher built by the caller. It is generic
-/// over [`Producer<RingEvent>`] so the io_loop drives both delivery
-/// shapes through the same blocking-read + reconnect state machine:
-///
-/// * The **callback** and **pull-iter** modes build the producer via
-///   [`build_consumer_producer`], which spawns a Disruptor consumer
-///   thread that runs the [`Delivery`] dispatch.
-/// * The **direct-consumer** mode builds the producer via
-///   [`build_poller_producer`], which spawns no consumer thread; the
-///   caller drives the ring on its own thread through an
-///   [`super::FpssEventPoller`].
-///
-/// The io_loop only ever calls [`Producer::try_publish`] on it, so the
-/// reader path is identical across modes — only the consumer side
-/// differs, and that difference is fixed at producer-build time.
+/// `producer` is the ring publisher built by the caller via
+/// [`build_poller_producer`]. The io_loop only ever calls
+/// [`Producer::try_publish`] on it; the consumer side is driven on
+/// the caller's own thread through `FpssClient::next_event` /
+/// `poll_batch` / `for_each` (or by the per-binding dispatcher thread
+/// each language SDK owns).
 pub(in crate::fpss) struct IoLoopArgs<P> {
     pub stream: connection::FpssStream,
     pub cmd_rx: std_mpsc::Receiver<IoCommand>,
@@ -208,17 +187,14 @@ where
     // would rewrite the caller's stated buffer budget after the fact.
     debug_assert!(
         ring_size >= ring::MIN_RING_SIZE && ring_size.is_power_of_two(),
-        "io_loop received unvalidated ring_size {ring_size}; check upstream FpssClient::connect",
+        "io_loop received unvalidated ring_size {ring_size}; check upstream FpssClientBuilder",
     );
 
-    // The producer was built by the caller — either
-    // [`build_consumer_producer`] (callback / pull-iter modes, which
-    // spawn a Disruptor consumer thread) or [`build_poller_producer`]
-    // (direct-consumer mode, no spawned thread). From here on the
-    // io_loop is mode-agnostic: it only publishes into the ring via
-    // [`Producer::try_publish`], and the consumer side — whether a
-    // spawned thread or the caller's own thread driving an
-    // [`super::FpssEventPoller`] — drains it independently.
+    // The producer was built by the caller via
+    // [`build_poller_producer`]. From here on the io_loop only
+    // publishes into the ring via [`Producer::try_publish`]; the
+    // consumer side runs on the caller's own thread (or each binding's
+    // dispatcher thread) and drains the ring independently.
 
     // Publish every handshake-time typed control frame in wire order.
     // Emitted BEFORE LoginSuccess so the user sees exactly the sequence
@@ -880,11 +856,9 @@ where
         // Continue 'session loop: the inner read/write loop will run on the new stream.
     } // end 'session loop
 
-    // Dropping the producer at scope exit stores the shutdown sequence on
-    // the ring. In callback / pull-iter modes that also joins the spawned
-    // Disruptor consumer thread after it drains the remaining events; in
-    // direct-consumer (poller) mode there is no spawned thread, so the
-    // store simply lets the caller's [`super::FpssEventPoller`] observe
+    // Dropping the producer at scope exit stores the shutdown sequence
+    // on the ring. The caller's consumer loop (`FpssClient::next_event`
+    // / `poll_batch` / `for_each` / `Iterator for &FpssClient`) observes
     // `Polling::Shutdown` once it has drained every published event.
     drop(producer);
     tracing::debug!("fpss-io thread exiting");
@@ -894,10 +868,8 @@ where
 /// [`Producer<RingEvent>`] that is `Send` (moved into the spawned I/O
 /// thread) and `'static` (outlives the thread it is moved into).
 ///
-/// Both producer shapes returned by [`build_consumer_producer`] and
-/// [`build_poller_producer`] satisfy this via the blanket impl below,
-/// so the shared spawn helper in [`super::FpssClient`] can stay generic
-/// over the consumer mode with a single bound.
+/// The producer shape returned by [`build_poller_producer`] satisfies
+/// this via the blanket impl below.
 pub(in crate::fpss) trait RingProducer:
     Producer<RingEvent> + Send + 'static
 {
@@ -905,272 +877,18 @@ pub(in crate::fpss) trait RingProducer:
 
 impl<T> RingProducer for T where T: Producer<RingEvent> + Send + 'static {}
 
-/// Build the ring producer for callback / pull-iter delivery.
+/// Build the ring producer + poller.
 ///
-/// Spawns the single Disruptor consumer thread (via
-/// [`disruptor::builder::single::SPBuilder::handle_events_with`]) that
-/// runs the [`Delivery`] dispatch: it reborrows each published
-/// [`RingEvent`] to a public `&FpssEvent` (filtering the internal-only
-/// `Empty` / `Unparseable` slots) and either invokes the user callback
-/// under `catch_unwind` ([`Delivery::Callback`]) or pushes a clone onto
-/// the bounded pull-iter queue ([`Delivery::Queue`]). The returned
-/// [`disruptor::SingleProducer`] is handed to [`io_loop`] as its ring
-/// publisher; dropping it at io_loop exit joins this consumer thread
-/// after the ring drains.
-///
-/// The closure-captured `Arc`s mirror the public surfaces on
-/// [`super::FpssClient`]: `panics` ([`super::FpssClient::panic_count`]),
-/// `dropped` ([`super::FpssClient::dropped_count`]),
-/// `consumer_thread_id` (read by [`super::FpssClient`]'s `Drop`
-/// self-join guard), and the slow-callback watchdog counters
-/// ([`super::FpssClient::set_slow_callback_threshold`] /
-/// [`super::FpssClient::slow_callback_count`]).
-pub(in crate::fpss) struct ConsumerProducerArgs {
-    pub ring_size: usize,
-    pub delivery: Delivery,
-    pub dropped: Arc<AtomicU64>,
-    pub panics: Arc<AtomicU64>,
-    pub consumer_thread_id: Arc<OnceLock<ThreadId>>,
-    pub slow_callback_threshold_ns: Arc<AtomicU64>,
-    pub slow_callback_count: Arc<AtomicU64>,
-}
-
-#[allow(clippy::too_many_lines)]
-pub(in crate::fpss) fn build_consumer_producer(args: ConsumerProducerArgs) -> impl RingProducer {
-    let ConsumerProducerArgs {
-        ring_size,
-        delivery,
-        dropped,
-        panics,
-        consumer_thread_id,
-        slow_callback_threshold_ns,
-        slow_callback_count,
-    } = args;
-
-    let factory = RingEvent::default;
-    let wait_strategy = AdaptiveWaitStrategy::fpss_default();
-
-    // The Disruptor consumer thread is the SINGLE consumer between the
-    // TLS reader and the user-facing delivery sink. The reader publishes
-    // events into the ring; this closure runs on the consumer thread,
-    // filters internal-only events, and dispatches to the
-    // [`Delivery`] mode chosen at `connect` time:
-    //
-    // * [`Delivery::Callback`] — invoke the user closure under
-    //   `catch_unwind` so a panic from user code (or binding glue such
-    //   as PyO3 / napi `ThreadsafeFunction`) is counted on `panics` and
-    //   surfaced via `tracing::error!` rather than killing the consumer.
-    // * [`Delivery::Queue`] — `force_push` the cloned public event into
-    //   the bounded `ArrayQueue` shared with the
-    //   [`super::EventIterator`], incrementing the shared `dropped`
-    //   counter when overflow forces an evict-oldest.
-    //
-    // The `Mutex` wrap on the [`Delivery`] sink mirrors the previous
-    // `Mutex<F>` shape — `Producer::handle_events_with` requires the
-    // closure to be `Fn`, so the captured sink lives behind a Mutex even
-    // though the Disruptor's single consumer thread is the only acquirer
-    // (single-locker pattern; the lock collapses to one unlocked
-    // acquire/release per event).
-    // Pull-iter mode wires a drop guard into the consumer closure that
-    // flips an `Arc<AtomicBool>` when the closure is dropped — i.e.,
-    // when the Disruptor producer is dropped at io_loop exit and the
-    // consumer thread is wound down. That moment is the ONLY observable
-    // "no more `queue.push` will ever fire" point in the system, which
-    // is what the [`super::EventIterator`] needs as its terminal-EOF
-    // predicate. Earlier the iterator polled the global I/O-thread
-    // shutdown flag instead, which fired BEFORE the consumer had
-    // finished pushing the tail of in-flight events into the queue and
-    // produced false-EOFs that dropped tail events. See
-    // `super::events::Delivery::Queue::iter_closed` for the wiring.
-    let iter_closed_for_guard: Option<Arc<AtomicBool>> = match &delivery {
-        Delivery::Queue { iter_closed, .. } => Some(Arc::clone(iter_closed)),
-        Delivery::Callback(_) => None,
-    };
-    // Single-consumer hot path: parking_lot's Mutex avoids the
-    // ~20-40ns overhead std::sync::Mutex carries per
-    // lock/unlock pair. The lock is acquired once per ring event on
-    // the Disruptor consumer thread; the runtime cost compounds at
-    // event rates of 100k+/s.
-    let delivery_cell = ParkingLotMutex::new(delivery);
-    let panics_consumer = panics;
-    let dropped_consumer = dropped;
-    let consumer_thread_id_cell = consumer_thread_id;
-    let slow_threshold_ns_consumer = slow_callback_threshold_ns;
-    let slow_count_consumer = slow_callback_count;
-
-    // Flips `iter_closed` to `true` when the consumer closure is
-    // dropped — the EventIterator's terminal-EOF predicate.
-    struct IterCloseGuard {
-        iter_closed: Arc<AtomicBool>,
-    }
-    impl Drop for IterCloseGuard {
-        fn drop(&mut self) {
-            // Release ordering pairs with the iterator's Acquire load.
-            self.iter_closed.store(true, Ordering::Release);
-        }
-    }
-    let iter_close_guard: Option<IterCloseGuard> =
-        iter_closed_for_guard.map(|iter_closed| IterCloseGuard { iter_closed });
-
-    build_single_producer(ring_size, factory, wait_strategy)
-        .handle_events_with(
-            move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                // Touch the guard so the closure captures it (and so it
-                // is dropped on consumer-thread exit). The branch is
-                // never taken — `Option::None` for the callback path,
-                // and the guard never matches `Some(_)`-returning
-                // cleanup logic at runtime.
-                let _guard_anchor = &iter_close_guard;
-                // Capture the Disruptor consumer thread's `ThreadId`
-                // exactly once, on first dispatch. `FpssClient::drop`
-                // reads this to detect the self-join case (callback
-                // dropping the last `Arc<FpssClient>` from inside this
-                // closure) and detach the I/O-handle join onto a helper
-                // thread instead of deadlocking.
-                consumer_thread_id_cell.get_or_init(|| thread::current().id());
-
-                // Reborrow the ring slot to the public `&FpssEvent`.
-                // `as_public` returns `None` for the `Empty`
-                // ring-buffer placeholder and the `Unparseable`
-                // decode-fallback variant, so neither escapes into the
-                // delivery sink. Discriminants `Data` and `Control`
-                // are layout-compatible with the public enum (both
-                // `#[repr(C, u8)]`, see `events::FpssEventInternal`),
-                // which is what makes the reborrow zero-clone.
-                if let Some(evt) = ring_event.event.as_public() {
-                    // parking_lot's Mutex never poisons on panic, so
-                    // there is no `PoisonError` recovery path to thread
-                    // through; the guard is the lock result directly.
-                    let mut delivery = delivery_cell.lock();
-                    match &mut *delivery {
-                        Delivery::Callback(handler) => {
-                            let threshold_ns = slow_threshold_ns_consumer.load(Ordering::Relaxed);
-                            // `AssertUnwindSafe` is sound here because
-                            // the user callback's captured state lives
-                            // behind the `Mutex<Delivery>`; any side
-                            // effects observable across a panic
-                            // boundary are the user's responsibility,
-                            // not the SDK's.
-                            let start = if threshold_ns > 0 {
-                                Some(std::time::Instant::now())
-                            } else {
-                                None
-                            };
-                            if catch_unwind(AssertUnwindSafe(|| handler(evt))).is_err() {
-                                panics_consumer.fetch_add(1, Ordering::Relaxed);
-                                tracing::error!(
-                                    target: "thetadatadx::fpss::io_loop",
-                                    "user callback panicked on Disruptor consumer thread; \
-                                     panic_count incremented, consumer continuing",
-                                );
-                            }
-                            if let Some(start) = start {
-                                // Resilience: slow-callback
-                                // observability. Threshold is opt-in
-                                // via `set_slow_callback_threshold`.
-                                let elapsed_ns =
-                                    u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
-                                if elapsed_ns > threshold_ns {
-                                    let prev = slow_count_consumer.fetch_add(1, Ordering::Relaxed);
-                                    // Rate-limit per 1024 over-budget
-                                    // events so a sustained slow
-                                    // callback regression does not
-                                    // amplify the log stream.
-                                    if prev.is_multiple_of(1024) {
-                                        tracing::warn!(
-                                            target: "thetadatadx::fpss::io_loop",
-                                            elapsed_ns,
-                                            threshold_ns,
-                                            slow_callback_count = prev + 1,
-                                            "user callback exceeded slow-callback threshold",
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        Delivery::Queue {
-                            queue,
-                            wake_fd,
-                            policy,
-                            ..
-                        } => {
-                            // Pull-iter delivery. Clone the public event
-                            // into the bounded queue; `Arc<Contract>` /
-                            // `String` payloads collapse the clone to
-                            // refcount bumps so the per-event cost stays
-                            // in the low hundreds of nanoseconds.
-                            //
-                            // Overflow is governed by the configured
-                            // [`BackpressurePolicy`]. `Block` parks the
-                            // consumer thread on push until space frees
-                            // up; `DropOldest` evicts the head before
-                            // push so the queue stays full of fresh
-                            // data; `DropNewest` skips the new event
-                            // when full (legacy behaviour). The shared
-                            // `dropped` counter increments on every
-                            // eviction / skipped push so operators see
-                            // one signal for queue-overflow pressure.
-                            let pushed = match *policy {
-                                BackpressurePolicy::Block => push_with_block(queue, evt.clone()),
-                                BackpressurePolicy::DropOldest => {
-                                    // `force_push` returns `Some(old)`
-                                    // when the queue was full and the
-                                    // head was evicted — count the
-                                    // eviction as a drop so the metric
-                                    // stays comparable to `DropNewest`.
-                                    if queue.force_push(evt.clone()).is_some() {
-                                        dropped_consumer.fetch_add(1, Ordering::Relaxed);
-                                    }
-                                    true
-                                }
-                                BackpressurePolicy::DropNewest => {
-                                    if queue.push(evt.clone()).is_err() {
-                                        dropped_consumer.fetch_add(1, Ordering::Relaxed);
-                                        false
-                                    } else {
-                                        true
-                                    }
-                                }
-                            };
-                            if pushed {
-                                if let Some(wake) = wake_fd.as_ref() {
-                                    // Wake the asyncio reader. `signal()`
-                                    // coalesces under load — at most one
-                                    // wake byte is in the pipe at a time
-                                    // (see `super::wake::WakeFd`) — so
-                                    // the hot-path cost compresses to
-                                    // one atomic compare-exchange and a
-                                    // never-taken branch on subsequent
-                                    // pushes until the reader drains
-                                    // and re-arms. The sync pull-iter
-                                    // path leaves `wake_fd: None` and
-                                    // pays zero overhead.
-                                    wake.signal();
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        )
-        .build()
-}
-
-/// Build the ring producer for direct-consumer (poller) delivery.
-///
-/// Constructs the single-producer ring with
-/// [`disruptor::builder::single::SPBuilder::new_event_poller`] instead
-/// of `handle_events_with`, so **no** Disruptor consumer thread is
-/// spawned and **no** intermediate queue is allocated. The returned
-/// [`disruptor::SingleProducer`] is the io_loop's ring publisher
-/// exactly as in the other modes; the returned [`EventPoller`] is
-/// wrapped in a [`super::FpssEventPoller`] and handed to the caller,
-/// whose own thread drains the ring directly.
+/// Constructs the single-producer ring in polling mode, so
+/// **no** consumer thread is spawned and **no** intermediate
+/// queue is allocated. The returned producer is moved into the I/O
+/// thread; the returned `EventPoller` is bundled into the assembled
+/// `FpssClient` and drained by `next_event` / `poll_batch` /
+/// `for_each` / the `Iterator for &FpssClient` impl.
 ///
 /// Dropping the producer at io_loop exit stores the shutdown sequence
-/// on the ring (it has no consumer thread to join); the poller then
-/// drains every published event and observes [`disruptor::Polling::Shutdown`]
-/// once it reaches that sequence — the EOF-drain guarantee.
+/// on the ring; the consumer side then drains every published event
+/// and signals shutdown once it reaches that sequence — the EOF-drain guarantee.
 pub(in crate::fpss) fn build_poller_producer(
     ring_size: usize,
 ) -> (
@@ -1234,50 +952,6 @@ impl ReconnectCounters {
                 self.rate_limited = self.rate_limited.saturating_add(1);
                 self.rate_limited
             }
-        }
-    }
-}
-
-/// Push under `BackpressurePolicy::Block`: 16-spin fast path, then
-/// 100 µs park (same cadence as `EventIterator::next_timeout`).
-/// Always returns `true`; the policy guarantees delivery.
-#[inline]
-fn push_with_block(
-    queue: &Arc<crossbeam_queue::ArrayQueue<super::events::FpssEvent>>,
-    mut evt: super::events::FpssEvent,
-) -> bool {
-    // Fast path: queue has space, single push, done.
-    match queue.push(evt) {
-        Ok(()) => return true,
-        Err(returned) => evt = returned,
-    }
-    // Slow path: queue is full. Park with backoff so a transient
-    // saturation absorbs at near-zero CPU cost while a sustained stall
-    // doesn't hot-loop the CPU.
-    let mut spins: u32 = 0;
-    loop {
-        match queue.push(evt) {
-            Ok(()) => return true,
-            Err(returned) => evt = returned,
-        }
-        if spins < 16 {
-            std::hint::spin_loop();
-            spins += 1;
-        } else {
-            // 100 µs cadence — same budget the iterator polls on.
-            // Tracing emission rate-limited per 1024 stall iterations
-            // so a sustained blocked consumer surfaces in logs without
-            // amplifying them.
-            spins = spins.saturating_add(1);
-            if spins.is_multiple_of(1024) {
-                tracing::warn!(
-                    target: "thetadatadx::fpss::io_loop",
-                    stall_iterations = spins,
-                    "BackpressurePolicy::Block parked on full pull-iter queue \
-                     (consumer is not draining fast enough)",
-                );
-            }
-            std::thread::sleep(Duration::from_micros(100));
         }
     }
 }

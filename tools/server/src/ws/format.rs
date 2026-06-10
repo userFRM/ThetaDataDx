@@ -3,9 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{
-    FpssControl, FpssData, FpssEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX,
-};
+use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX};
 
 /// Total events dropped because their JSON serialization failed.
 ///
@@ -169,23 +167,14 @@ pub(super) fn fpss_event_to_ws_json(
             // no way to disambiguate a backlog of pre-ContractAssigned
             // ticks from a serialisation regression.
             let mut msg_obj = sonic_rs::Object::new();
-            msg_obj.insert(
-                "header",
-                sonic_rs::json!({ "type": event_type }),
-            );
+            msg_obj.insert("header", sonic_rs::json!({ "type": event_type }));
             match peeked_contract {
                 Some(c) if is_unresolved_contract(c) => {
                     // Pre-ContractAssigned tick. Emit a `pending`
                     // contract status header and the parsed wire id.
-                    msg_obj.insert(
-                        "contract",
-                        sonic_rs::json!({ "status": "pending" }),
-                    );
+                    msg_obj.insert("contract", sonic_rs::json!({ "status": "pending" }));
                     if let Some(id) = parse_unresolved_contract_id(&c.symbol) {
-                        msg_obj.insert(
-                            "unresolved_contract_id",
-                            sonic_rs::Value::from(id),
-                        );
+                        msg_obj.insert("unresolved_contract_id", sonic_rs::Value::from(id));
                     }
                 }
                 Some(c) => {
@@ -278,7 +267,7 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     let sec_type_str = format!("{:?}", c.sec_type).to_uppercase();
     let mut obj = sonic_rs::Object::new();
-    obj.insert("symbol", sonic_rs::Value::from(c.symbol.as_str()));
+    obj.insert("symbol", sonic_rs::Value::from(&*c.symbol));
     obj.insert("sec_type", sonic_rs::Value::from(sec_type_str.as_str()));
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
@@ -333,7 +322,7 @@ mod tests {
         let contract = Arc::new(Contract::stock("AAPL"));
         let event = make_quote(Arc::clone(&contract));
         let peeked = lookup_event_contract(&event).expect("event carries its contract");
-        assert_eq!(peeked.symbol, "AAPL");
+        assert_eq!(&*peeked.symbol, "AAPL");
         let json = fpss_event_to_ws_json(&event, Some(&peeked))
             .expect("serialization must succeed with the event's contract");
         assert!(
@@ -367,13 +356,7 @@ mod tests {
     /// downstream.
     #[test]
     fn unresolved_sentinel_surfaces_wire_id_to_ws_payload() {
-        let unresolved = Arc::new(Contract {
-            symbol: format!("{UNRESOLVED_CONTRACT_SYMBOL_PREFIX}42"),
-            sec_type: tdbe::types::enums::SecType::Unknown,
-            expiration: None,
-            is_call: None,
-            strike: None,
-        });
+        let unresolved = Arc::new(Contract::pending(42));
         let event = make_quote(Arc::clone(&unresolved));
         let json = fpss_event_to_ws_json(&event, Some(&unresolved))
             .expect("serialization must succeed for an unresolved sentinel");

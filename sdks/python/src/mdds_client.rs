@@ -1,7 +1,7 @@
 //! Standalone Python `MddsClient` pyclass.
 //!
-//! Opens ONLY the MDDS gRPC channel and the Nexus HTTP authentication
-//! flow — no FPSS TLS connection, no Disruptor ring, no streaming
+//! Opens ONLY the MDDS channel and the Nexus HTTP authentication
+//! flow — no FPSS TLS connection, no event ring, no streaming
 //! state machine. Mirrors the standalone C ABI entry points
 //! (`tdx_client_*` in `ffi/src/auth.rs`) and the C++ `tdx::Client`
 //! pattern, letting Python users run a historical-only session
@@ -28,7 +28,7 @@
 //! and forwards historical / list / snapshot / at-time / FLATFILES
 //! endpoint calls through PyO3 attribute lookup against an internally
 //! held [`crate::ThetaDataDxClient`] pyclass instance. The bundled
-//! client opens MDDS gRPC + Nexus at construction time and never
+//! client opens MDDS + Nexus at construction time and never
 //! opens FPSS unless `start_streaming` is called — by construction
 //! and by allowlist enforcement here, no FPSS-touching method is
 //! reachable through `MddsClient`.
@@ -61,7 +61,7 @@ use crate::{Config, Credentials, ThetaDataDxClient};
 /// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted FPSS method
 /// without also extending this list fails the build, so the block-list
 /// cannot silently fall behind. Hand-written FPSS methods on the unified
-/// pyclass (`subscribe`, `streaming`, `start_streaming_iter`, …) are
+/// pyclass (`subscribe`, `streaming`, …) are
 /// covered by the offline coverage test in
 /// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
 /// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
@@ -95,15 +95,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
     // pairs every name here with the
     // `mdds_client._blocked_fpss_methods()` introspection helper.
-    "start_streaming_iter",
     "streaming",
-    "streaming_iter",
-    // `streaming_async()` was added by PR #559 (async FD-readiness
-    // surface) and the unified pyclass exposes it hand-written in
-    // `streaming_async_session.rs`. Reaching for it through
-    // `MddsClient` would open the FPSS surface bound to the hidden
-    // inner unified client, so block at the proxy layer.
-    "streaming_async",
 ];
 
 /// `const fn` byte-wise string compare for the compile-time guard
@@ -154,7 +146,7 @@ const _: () = {
 
 /// Standalone MDDS-only historical client.
 ///
-/// Opens ONLY the MDDS gRPC channel — no FPSS TLS connection.
+/// Opens ONLY the MDDS channel — no FPSS TLS connection.
 /// Authenticates once against Nexus at construction time. Use when a
 /// parallel FPSS process is already running in the same environment
 /// and you need to test historical / FLATFILES endpoints without the
@@ -180,7 +172,7 @@ const _: () = {
 // than slipping silently.
 #[pyclass(module = "thetadatadx", name = "MddsClient", frozen)]
 pub(crate) struct MddsClient {
-    /// Hidden inner unified client. Opens MDDS gRPC + Nexus at
+    /// Hidden inner unified client. Opens MDDS + Nexus at
     /// `connect` time and lazily opens FPSS only on `start_streaming*`
     /// — neither of which we surface through this pyclass, so no FPSS
     /// TLS slot is ever opened for a session that lives entirely
@@ -190,7 +182,7 @@ pub(crate) struct MddsClient {
 
 #[pymethods]
 impl MddsClient {
-    /// Connect to ThetaData and open the MDDS gRPC channel.
+    /// Connect to ThetaData and open the MDDS channel.
     ///
     /// Authenticates against Nexus once and opens the in-house gRPC
     /// channel pool — same first-step behaviour as

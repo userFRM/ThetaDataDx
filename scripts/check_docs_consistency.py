@@ -119,13 +119,13 @@ def check_static_docs() -> None:
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the workspace
-    # major. Bumped from "10" → "11" alongside the v11.0.0 release wave;
+    # major. Pinned against the current `crates/thetadatadx/Cargo.toml` version (Bumped from "10" → "11");
     # the matching version-sync gate
     # (`scripts/check_version_sync.py`) enforces this against
     # `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
-        'thetadatadx = "11"',
+        'thetadatadx = "12"',
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
@@ -222,7 +222,6 @@ def check_static_docs() -> None:
     expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
     expect_not_contains(ROOT / "docs/architecture.md", "18 FFI FPSS functions")
     expect_not_contains(ROOT / "docs/architecture.md", "symbol-level subscribe/unsubscribe only")
-    expect_contains(ROOT / "docs-site/docs/api-reference.md", "FpssEventPtr")
     expect_not_contains(
         ROOT / "docs-site/docs/api-reference.md",
         "Python only (uses Rust SDK directly)",
@@ -251,22 +250,23 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "Python does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "C++ does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "| `active_subscriptions` | `() -> std::string` |")
-    # v9.1.0: Streaming Methods Reference now reflects the real public
-    # surfaces — Rust/Python pull-iter via `start_streaming_iter()`, C++
-    # `start_streaming_iter` on `tdx::UnifiedClient`. The Go SDK was
-    # removed in Wave H, so its row is absent. Pin the new shape.
-    expect_contains(
+    # Streaming Methods Reference now reflects the unified callback
+    # surface: every binding exposes `start_streaming(callback)` as the
+    # sole delivery path. Pin that contract.
+    for streaming_page in [
         ROOT / "docs-site/docs/streaming/events.md",
-        "| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator`",
-    )
-    expect_contains(
-        ROOT / "docs-site/docs/streaming/events.md",
-        "| `streaming_iter()` | Context-manager wrapper",
-    )
-    expect_contains(
-        ROOT / "docs-site/docs/streaming/events.md",
-        "| `start_streaming_iter` | `() -> EventIterator` |",
-    )
+        ROOT / "docs-site/docs/streaming/index.md",
+        ROOT / "docs-site/docs/streaming/connection.md",
+        ROOT / "docs-site/docs/streaming/reconnection.md",
+        ROOT / "docs-site/docs/streaming/latency.md",
+    ]:
+        expect_not_contains(streaming_page, "start_streaming_iter")
+        expect_not_contains(streaming_page, "streaming_iter")
+        expect_not_contains(streaming_page, "streaming_async")
+        expect_not_contains(streaming_page, "startStreamingIter")
+        expect_not_contains(streaming_page, "FpssEventPoller")
+        expect_not_contains(streaming_page, "EventIterator")
+        expect_not_contains(streaming_page, "tdx_fpss_event_iter")
     # Forbidden Go-era residue must stay out of streaming docs.
     for streaming_page in [
         ROOT / "docs-site/docs/streaming/connection.md",
@@ -298,6 +298,19 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/streaming/reconnection.md",
         "Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.",
     )
+    # Same streaming-API guards apply to interactive Vue components under the
+    # VitePress theme. Code samples embedded in recipe builders deploy to the
+    # public docs site on every push to main; a dead-API reference there
+    # ships broken paste-and-run examples to readers.
+    vue_components_dir = ROOT / "docs-site/docs/.vitepress/theme/components"
+    for vue_file in sorted(vue_components_dir.rglob("*.vue")):
+        expect_not_contains(vue_file, "start_streaming_iter")
+        expect_not_contains(vue_file, "streaming_iter")
+        expect_not_contains(vue_file, "streaming_async")
+        expect_not_contains(vue_file, "startStreamingIter")
+        expect_not_contains(vue_file, "EventIterator")
+        expect_not_contains(vue_file, "FpssEventPoller")
+        expect_not_contains(vue_file, "tdx_fpss_event_iter")
 
 
 def check_api_reference() -> None:

@@ -83,7 +83,7 @@ pub struct DirectConfig {
     // FPSS (Real-Time TCP)
     pub fpss_hosts: Vec<(String, u16)>,     // server failover list
     pub fpss_timeout_ms: u64,               // read timeout (ms)
-    pub fpss_ring_size: usize,              // Disruptor ring buffer size (events; power of two, >= 64)
+    pub fpss_ring_size: usize,              // Streaming ring buffer size (events; power of two, >= 64)
     pub fpss_ping_interval_ms: u64,         // heartbeat interval (default 100ms)
     pub fpss_connect_timeout_ms: u64,       // TCP connect timeout (ms)
 
@@ -101,7 +101,7 @@ pub struct DirectConfig {
 
 ## FPSS Server List
 
-The default FPSS server list matches the Java terminal:
+The default FPSS server list:
 
 | Server | Port |
 |--------|------|
@@ -162,7 +162,7 @@ Stage-1 (per-channel zstd decompress) thread count auto-sizes to `max(available_
 
 ### `decoder_ring_size`
 
-Per-thread Disruptor ring depth, the buffer between the h2 receive task and each decoder thread. Must be a power of two, `>= 64`. Default `256` is enough headroom for a 64-way burst across 4 channels.
+Per-thread ring depth, the buffer between the h2 receive task and each decoder thread. Must be a power of two, `>= 64`. Default `256` is enough headroom for a 64-way burst across 4 channels.
 
 Larger rings absorb burstier IO without back-pressuring `try_publish`; smaller rings reduce memory footprint. Benchmark results (`bench_decoder_pool/ring`) show **ring depth is not the bottleneck at the default workload** — 64/256/1024/4096 land within ~5% of each other at 1024-row quote payloads. Tune this only if profiling shows producer-side `try_publish` retries in your specific workload.
 

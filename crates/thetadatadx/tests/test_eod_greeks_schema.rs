@@ -3,14 +3,14 @@
 //! Two fixtures replay the verified-live wire shapes (terminal jar build
 //! `202605221`) for:
 //!
-//!   * `option_history_greeks_eod` -- the v10 `GreeksAllTick` routing
+//!   * `option_history_greeks_eod` -- an earlier `GreeksAllTick` routing
 //!     (28 columns) dropped the twelve EOD trade/quote columns
 //!     (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
 //!     `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
 //!     `ask_condition`) from the 39-column EOD response. The new
 //!     `GreeksEodTick` carries the full wire shape end-to-end.
 //!
-//!   * `index_at_time_price` -- the v10 `PriceTick` routing (3 columns)
+//!   * `index_at_time_price` -- an earlier `PriceTick` routing (3 columns)
 //!     dropped the seven trade-side execution columns (`sequence`,
 //!     `ext_condition1..4`, `condition`, `size`, `exchange`) including
 //!     the SIP-exchange attribution field. The new
@@ -18,7 +18,7 @@
 //!
 //! The `expected_headers` assert pins the upstream column list and the
 //! typed first-row asserts pin the twelve EOD / seven trade-side
-//! columns that the v10 routing dropped, so any regression that
+//! columns that the earlier routing dropped, so any regression that
 //! reverts to the narrower tick shape surfaces here.
 
 use std::fs;

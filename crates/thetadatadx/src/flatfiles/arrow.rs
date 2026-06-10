@@ -1,6 +1,6 @@
 //! Dynamic-schema Arrow conversion for [`FlatFileRow`] collections.
 //!
-//! Unlike the per-tick conversions in [`crate::frames`], the FLATFILES
+//! Unlike the per-tick Arrow conversions, the FLATFILES
 //! schema is determined at request time by `(SecType, ReqType)` —
 //! `FlatFileRow::fields` carries `Vec<(String, FlatFileValue)>` whose
 //! shape only becomes known after the vendor blob is decoded. This

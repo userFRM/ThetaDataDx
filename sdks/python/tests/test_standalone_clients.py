@@ -53,17 +53,10 @@ import pytest
 # ``MddsClient`` instance.
 BLOCKED_FPSS_METHODS = (
     "start_streaming",
-    "start_streaming_iter",
     "stop_streaming",
     "shutdown",
     "reconnect",
     "streaming",
-    "streaming_iter",
-    # `streaming_async()` is the asyncio-native FPSS surface added in
-    # PR #559; reaching it through `MddsClient` would open the FPSS
-    # slot via the hidden inner unified client, so it MUST raise
-    # `AttributeError` on the standalone MDDS handle.
-    "streaming_async",
     "is_streaming",
     "await_drain",
     "subscribe",
@@ -313,12 +306,10 @@ def test_mdds_client_no_fpss_connection() -> None:
     # autocomplete steers callers to FpssClient / ThetaDataDxClient.
     blocked = {
         "start_streaming",
-        "start_streaming_iter",
         "subscribe",
         "unsubscribe",
         "reconnect",
         "streaming",
-        "streaming_iter",
     }
     public_attrs = {name for name in dir(mod.MddsClient) if not name.startswith("_")}
     leaked = blocked & public_attrs
@@ -332,66 +323,18 @@ def test_mdds_client_no_fpss_connection() -> None:
 
 @pytest.mark.skipif(
     not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip live FPSS streaming-iter smoke",
-)
-def test_fpss_streaming_iter_smoke() -> None:
-    """Live FPSS smoke: construct `FpssClient`, open a pull-iter
-    session, subscribe to a quote stream, drain for ~3 seconds, and
-    confirm at least one event arrives."""
-    mod = _import_module()
-    creds = mod.Credentials.from_file(_live_creds_path())
-    fpss = mod.FpssClient(creds, mod.Config.production())
-
-    received: list[Any] = []
-    drain_done = threading.Event()
-
-    with fpss.streaming_iter() as session:
-        # `SecType.OPTION.full_trades()` exercises the polymorphic
-        # `subscribe(Subscription)` dispatch via the full-stream
-        # surface. Live smoke value: confirms the FPSS handshake,
-        # subscription dispatch, and pull-iter drain all wire through.
-        fpss.subscribe(mod.SecType.OPTION.full_trades())
-
-        def drain() -> None:
-            t_end = time.monotonic() + 3.0
-            for event in session:
-                received.append(event)
-                if time.monotonic() >= t_end:
-                    session.close()
-                    break
-            drain_done.set()
-
-        t = threading.Thread(target=drain, daemon=True)
-        t.start()
-        drain_done.wait(timeout=10.0)
-
-    # SPY is a deep, always-quoted symbol on every market session, so
-    # >=1 event in a 3-second drain is a conservative bar. The live
-    # FPSS handshake plus subscription dispatch is the meaningful
-    # smoke -- the count assertion is incidental.
-    assert received, "expected >=1 FPSS event over a 3s SPY quote subscription"
-
-
-@pytest.mark.skipif(
-    not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip live FPSS callback smoke",
+    reason="THETADX_LIVE_CREDS unset -- skip live FPSS streaming callback smoke",
 )
 def test_fpss_streaming_callback_smoke() -> None:
-    """Live FPSS smoke: construct `FpssClient`, register a push
-    callback via `start_streaming(callback)`, subscribe, wait until
-    the callback fires (up to 10 s), and confirm at least one event
+    """Live FPSS smoke: construct `FpssClient`, register a callback
+    via `start_streaming(callback)`, subscribe, wait until the
+    callback fires (up to 10 s), and confirm at least one event
     arrived.
 
-    Complementary to `test_fpss_streaming_iter_smoke`: pull-iter and
-    push-callback are mutually exclusive on a single `FpssClient`,
-    so each delivery mode needs its own end-to-end smoke. Without
-    this test the callback path is entirely uncovered by live runs.
-
     Synchronisation: a ``threading.Event`` set by the callback on
-    first delivery + ``event.wait(timeout=10.0)`` mirrors the
-    iter-mode smoke. Avoids `time.sleep` — which adds dead wall-time
-    on a healthy stream and silently masks a stalled callback on a
-    sick one.
+    first delivery + ``event.wait(timeout=10.0)`` avoids `time.sleep`
+    — which adds dead wall-time on a healthy stream and silently
+    masks a stalled callback on a sick one.
     """
     mod = _import_module()
     creds = mod.Credentials.from_file(_live_creds_path())

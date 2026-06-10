@@ -18,7 +18,7 @@ fn decode_chunks_into_table(
                 ))
             })?;
         // Offline test harness path — uses the default ceiling
-        // (`DEFAULT_MAX_MESSAGE_SIZE`) which is the v10 channel-side
+        // (`DEFAULT_MAX_MESSAGE_SIZE`) which is the earlier channel-side
         // default. Test fixtures embed pre-captured `ResponseData`
         // bytes that were already validated against the live channel's
         // `max_message_size` at capture time. The R1 ceiling exists

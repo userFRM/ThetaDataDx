@@ -15,6 +15,7 @@ use std::time::Duration;
 
 /// FLATFILES retry tuning.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FlatFilesConfig {
     /// Total attempts for a single `flatfile_request_raw` call,
     /// including the first attempt. `1` disables retry; values

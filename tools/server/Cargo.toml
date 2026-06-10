@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-server"
-version = "11.0.1"
+version = "12.0.0"
 edition = "2021"
 rust-version = "1.88"
 authors = ["userFRM"]
@@ -22,8 +22,8 @@ name = "thetadatadx-server"
 path = "src/main.rs"
 
 [dependencies]
-thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file"] }
-rustls = { version = "0.23.38", features = ["ring"] }
+thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file", "__internal"] }
+rustls = { version = "0.23.38", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }
@@ -48,12 +48,8 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # and immune to future axum internals shifting.
 serde_urlencoded = "0.7.1"
 clap = { version = "4.6.1", features = ["derive"] }
-uuid = { version = "1.23.1", features = ["v4"] }
-
-# Constant-time equality for the shutdown token comparison. A naive
-# `String ==` early-exits on the first differing byte and is a timing
-# oracle for remote token-guessing attacks.
-subtle = "2.6.1"
+# Cryptographically random bytes for the shutdown token.
+rand = "0.9"
 
 # `Zeroizing<String>` scrubs the CLI password from the process's memory
 # image as soon as it drops. Without this, `/proc/<pid>/mem` (or a core

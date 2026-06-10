@@ -199,11 +199,11 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
                 name = column.name
             )
             .unwrap(),
-            // Contract is constructed explicitly — `symbol` clones,
-            // the option fields transfer by value.
+            // Contract is constructed explicitly — `symbol` converts to
+            // owned String at the SDK boundary; the option fields transfer by value.
             "Contract" => writeln!(
                 out,
-                "                {name}: Contract {{\n                    symbol: {name}.symbol.clone(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike_dollars: {name}.strike_dollars(),\n                    strike: {name}.strike,\n                }},",
+                "                {name}: Contract {{\n                    symbol: {name}.symbol.to_string(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike_dollars: {name}.strike_dollars(),\n                    strike: {name}.strike,\n                }},",
                 name = column.name
             )
             .unwrap(),

@@ -32,17 +32,18 @@ use crate::validation;
 /// see structured JSON they can parse.
 fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
     let mut body = format::error_envelope(error_type, msg);
-    let json_bytes = tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
-        tracing::error!(
-            error = %err,
-            "error envelope failed to serialise; emitting minimal fallback"
-        );
-        format!(
-            "{{\"header\":{{\"error_type\":\"serialization_error\",\
+    let json_bytes =
+        tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
+            tracing::error!(
+                error = %err,
+                "error envelope failed to serialise; emitting minimal fallback"
+            );
+            format!(
+                "{{\"header\":{{\"error_type\":\"serialization_error\",\
              \"error_msg\":\"failed to serialise error envelope: {err}\"}},\
              \"response\":[]}}"
-        )
-    });
+            )
+        });
     (
         status,
         [(

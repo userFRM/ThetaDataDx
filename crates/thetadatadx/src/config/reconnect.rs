@@ -9,8 +9,7 @@ use tdbe::types::enums::RemoveReason;
 ///
 /// # Default
 ///
-/// [`ReconnectPolicy::Auto`] matches the Java terminal's
-/// `handleInvoluntaryDisconnect()` shape with attempt counters split by
+/// [`ReconnectPolicy::Auto`] uses attempt counters split by
 /// failure class (see [`ReconnectAttemptLimits`]):
 ///
 /// * **Permanent** reasons (invalid credentials, account issues) —
@@ -32,9 +31,9 @@ use tdbe::types::enums::RemoveReason;
 /// Supply a closure that receives the disconnect reason and attempt number (1-based)
 /// and returns `Some(delay)` to reconnect after that delay, or `None` to stop.
 #[derive(Clone)]
+#[non_exhaustive]
 pub enum ReconnectPolicy {
-    /// Auto-reconnect matching Java terminal behavior with split
-    /// attempt budgets per failure class.
+    /// Auto-reconnect with attempt budgets split by failure class.
     Auto(ReconnectAttemptLimits),
     /// No auto-reconnect. User calls `reconnect_streaming()` manually.
     Manual,
@@ -61,6 +60,7 @@ impl Default for ReconnectPolicy {
 /// gave up after ~10 minutes when the desired behaviour is to keep
 /// trying for hours through a sustained throttle.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ReconnectAttemptLimits {
     /// Maximum consecutive reconnect attempts on a generic transient
     /// failure (TimedOut, ServerRestarting, Unspecified, …) before
@@ -126,6 +126,7 @@ impl ReconnectAttemptLimits {
 /// budget; the counters reset independently when the stable window
 /// elapses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ReconnectAttemptClass {
     /// Generic transient (TimedOut, ServerRestarting, Unspecified, …).
     Transient,
@@ -145,6 +146,7 @@ impl std::fmt::Debug for ReconnectPolicy {
 
 /// FPSS auto-reconnection cadence + policy.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ReconnectConfig {
     /// Delay before attempting reconnection after a disconnect, in milliseconds.
     ///
@@ -152,9 +154,8 @@ pub struct ReconnectConfig {
     /// has `RECONNECT_WAIT=1000` but the runtime uses the constant `2000`.
     ///
     /// Plumbed into the FPSS I/O loop through
-    /// [`crate::fpss::FpssConnectArgs::wait_ms`] at
+    /// [`crate::fpss::FpssClientBuilder::reconnect_wait_ms`] at
     /// [`crate::ThetaDataDxClient::start_streaming`] /
-    /// [`crate::ThetaDataDxClient::start_streaming_iter`] /
     /// [`crate::ThetaDataDxClient::reconnect_streaming`] connect time —
     /// the [`ReconnectPolicy::Auto`] arm honours this value for generic
     /// transient drops (TimedOut, ServerRestarting, Unspecified, …) via
@@ -166,10 +167,10 @@ pub struct ReconnectConfig {
     /// Involuntary-disconnect handler waits 130 seconds in this case.
     ///
     /// Plumbed into the FPSS I/O loop through
-    /// [`crate::fpss::FpssConnectArgs::wait_rate_limited_ms`] at
-    /// connect time and honoured by the [`ReconnectPolicy::Auto`] arm
-    /// via [`crate::fpss::reconnect_delay_for`] for `TooManyRequests`
-    /// drops.
+    /// [`crate::fpss::FpssClientBuilder::reconnect_wait_rate_limited_ms`]
+    /// at connect time and honoured by the [`ReconnectPolicy::Auto`]
+    /// arm via [`crate::fpss::reconnect_delay_for`] for
+    /// `TooManyRequests` drops.
     pub wait_rate_limited_ms: u64,
 
     /// Controls FPSS auto-reconnection behavior after involuntary disconnect.
@@ -179,7 +180,7 @@ pub struct ReconnectConfig {
 }
 
 impl ReconnectConfig {
-    /// Production defaults — matches the Java terminal's reconnect cadence.
+    /// Production defaults for ThetaData's FPSS reconnect cadence.
     #[must_use]
     pub fn production_defaults() -> Self {
         Self {

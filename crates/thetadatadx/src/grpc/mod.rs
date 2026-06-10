@@ -3,10 +3,10 @@
 //! # Why this exists
 //!
 //! The MDDS code path is server-streaming gRPC over HTTP/2 + TLS with
-//! prost-encoded protobuf payloads. This module is the tonic-free
-//! implementation that the SDK ships: encode prost → frame → send DATA
-//! → poll response stream → decode frames → parse trailers. No tower
-//! stack, no boxed bodies, no `async-trait` dyn dispatch.
+//! prost-encoded protobuf payloads. This module implements that path
+//! directly: encode prost → frame → send DATA → poll response stream →
+//! decode frames → parse trailers. No tower stack, no boxed bodies,
+//! no `async-trait` dyn dispatch.
 //!
 //! # Wire shape
 //!

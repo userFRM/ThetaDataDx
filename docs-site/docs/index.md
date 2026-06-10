@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "ThetaDataDx"
   text: "Rust SDK for ThetaData market data"
-  tagline: "Three public surfaces — historical request/response (MDDS gRPC), real-time streaming (FPSS), and whole-universe daily blobs (FLATFILES) — plus a local Greeks calculator, exposed in Rust, Python, TypeScript, and C++ from a single Rust core."
+  tagline: "Three public surfaces — historical request/response (MDDS), real-time streaming (FPSS), and whole-universe daily blobs (FLATFILES) — plus a local Greeks calculator, exposed in Rust, Python, TypeScript, and C++ from a single Rust core."
   actions:
     - theme: brand
       text: Get Started

@@ -21,14 +21,8 @@ cpp = true
 [[class]]
 name = "Config"
 python = true
-typescript = true   # exposed as `Config` napi class with `production() / dev() / stage()` factories + `withRestFallback(policy)` setter
+typescript = true   # exposed as `Config` napi class with `production() / dev() / stage()` factories
 cpp = true
-
-[[class]]
-name = "FallbackPolicy"
-python = true
-typescript = true   # exposed with the four named factories + `variant` / `baseUrl` getters
-cpp = true          # exposed as `tdx::FallbackPolicy` move-only RAII class with the four named factories
 
 
 [[class]]
@@ -60,36 +54,6 @@ name = "StreamingSession"
 python = true
 typescript = false  # JS uses a Promise-based async iterator instead — equivalent ergonomics
 cpp = false         # C++ uses RAII guard pattern instead
-
-[[class]]
-name = "StreamingIterSession"
-python = true
-typescript = false  # JS uses `[Symbol.asyncIterator]` directly on `EventIterator`
-cpp = true          # exposed as `tdx::UnifiedFpssIterSession`
-
-[[class]]
-name = "StreamingAsyncSession"
-python = true
-typescript = false  # JS asyncio analogue is `[Symbol.asyncIterator]` on `EventIterator` + the async-IPC bridge below; no separate session class
-cpp = false         # C++ async surface deferred — RAII guard + sync iter cover the documented C++ idiom
-
-[[class]]
-name = "StreamingAsyncBatchesSession"
-python = true
-typescript = false  # Python-only for now — Arrow IPC zero-copy surface lands on the Python binding first; TS/C++ follow once napi-arrow / arrow-cpp shape lock in
-cpp = false         # Python-only for now — same rationale as StreamingAsyncSession plus zero-copy Arrow buffer aliasing depends on pyo3's PyCapsule integration
-
-[[class]]
-name = "BackpressurePolicy"
-python = true
-typescript = false  # Python-only for now — TS streaming surface ships DropNewest-only; the Block / DropOldest knobs land once the cross-binding asyncio analogue is ported
-cpp = false         # Python-only for now — C++ async surface deferred, so the policy enum follows the session class
-
-[[class]]
-name = "EventIterator"
-python = true
-typescript = true
-cpp = true
 
 [[class]]
 name = "Contract"
@@ -405,7 +369,7 @@ cpp = true
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
 # Two tick types model the verified-live wire shape on two endpoints
-# whose v10 routing dropped server-emitted columns:
+# whose earlier routing dropped server-emitted columns:
 #
 #   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
 #     Previously routed to the bare `GreeksAllTick` (28 columns),
@@ -422,7 +386,7 @@ cpp = true
 # catch-all (`scripts/check_binding_parity.py::_is_implicitly_tracked`)
 # alongside every other generator-emitted tick wrapper. The rows
 # below are documentation anchors so the parity matrix records the
-# v11 additions; the script does not gate on dotted-name rows.
+# Additions; the script does not gate on dotted-name rows.
 
 [[class]]
 name = "GreeksEodTick.cross_binding_anchor"
@@ -572,14 +536,15 @@ cpp = false
 rust_only = true
 issue = "#595"
 
-# `FpssConfig.flush_mode` is exposed on the C ABI (`tdx_config_set_flush_mode`)
-# + C++ (`set_flush_mode`) but not on Python / TypeScript. The
-# row captures the partial-binding state — a future #595 follow-up
-# would balance Python + TypeScript onto the same surface.
+# `FpssConfig.flush_mode` is exposed on every binding:
+# C ABI (`tdx_config_set_flush_mode`), C++ (`set_flush_mode`),
+# Python (`Config.flush_mode` getter + setter accepting
+# `"batched"` / `"immediate"`), TypeScript (`Config.flushMode`
+# getter + `setFlushMode` accepting the same strings).
 [[class]]
 name = "FpssConfig.flush_mode"
-python = false
-typescript = false
+python = true
+typescript = true
 cpp = true
 
 # `FpssConfig.derive_ohlcvc` is exposed on the C ABI
@@ -625,3 +590,335 @@ name = "MetricsConfig.port"
 python = true
 typescript = true
 cpp = true
+
+
+# ─── Method-level parity matrix ────────────────────────────────────────
+#
+# `[[method]]` rows pin the per-method binding state on the load-bearing
+# user-facing classes (`ThetaDataDxClient`, `FpssClient`, `Credentials`,
+# `Config`). The class-level `[[class]]` rows above only record that
+# the class exists in each binding; without these `[[method]]` rows a
+# binding could quietly drop a public method (or fail to add a new one
+# alongside its siblings) and no checker would notice. Each row carries:
+#
+#   class       — the canonical class name (Python pyclass / TS napi
+#                 class / C++ class). For C++ alias names see
+#                 `scripts/check_binding_parity.py::CPP_ALIASES`
+#                 (`ThetaDataDxClient` -> `UnifiedClient`).
+#   name        — the canonical method name in camelCase. The parity
+#                 checker derives the snake_case form for Python +
+#                 C++ matching and uses the camelCase form to match
+#                 `#[napi(js_name = "...")]` declarations.
+#   python      — `true` iff a `fn <snake_case>` declaration lives
+#                 inside an `impl <class>` block on the Python source.
+#   typescript  — `true` iff a `#[napi(js_name = "<camelCase>")]`
+#                 attribute appears anywhere in `sdks/typescript/src/`.
+#   cpp         — `true` iff a `<snake_case>(` member declaration
+#                 appears inside the C++ class body in `thetadx.hpp`.
+#
+# Set a column to `false` to record a deliberate cross-binding
+# asymmetry (e.g. the TS unified client deliberately exposes
+# `setCallback` via the napi `startStreaming(callback)` factory rather
+# than a separate method — the row captures that). Adding a method on
+# one binding without flipping the matching column trips the gate;
+# removing a method from a binding without updating the matrix also
+# trips the gate.
+#
+# Scope: high-visibility user-facing classes only. Configuration
+# setters (`Config.*`) remain governed by the dotted `[[class]]` rows
+# above (e.g. `ReconnectConfig.wait_ms`) which already cover the
+# cross-binding setter contract at the field level.
+
+# ── ThetaDataDxClient (the unified entry-point client) ──
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "startStreaming"
+python = true
+typescript = true
+cpp = false  # C++ uses `setCallback` for the same role; tracked below
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "stopStreaming"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "shutdown"
+python = true
+typescript = true
+cpp = false  # C++ frees through the RAII destructor on `UnifiedClient`
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "reconnect"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "isStreaming"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "awaitDrain"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "subscribe"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "subscribeMany"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "unsubscribe"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "unsubscribeMany"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "activeSubscriptions"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "activeFullSubscriptions"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "droppedEventCount"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "panicCount"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "setCallback"
+python = false  # Python uses `startStreaming(callback)` for the same role
+typescript = false  # TypeScript uses `startStreaming(callback)` likewise
+cpp = true
+
+# ── FpssClient (the standalone streaming-only client) ──
+#
+# Not on TypeScript today (tracked as a follow-up under issue #545 in
+# the class-level row above). Every `typescript = false` below reflects
+# the same gap and is NOT an action item by itself.
+
+[[method]]
+class = "FpssClient"
+name = "startStreaming"
+python = true
+typescript = false
+cpp = false  # C++ uses `setCallback` for the same role
+
+[[method]]
+class = "FpssClient"
+name = "stopStreaming"
+python = true
+typescript = false
+cpp = false  # C++ frees through the RAII destructor on `FpssClient`
+
+[[method]]
+class = "FpssClient"
+name = "shutdown"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "reconnect"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "isStreaming"
+python = true
+typescript = false
+cpp = false  # C++ `FpssClient` is always live once constructed
+
+[[method]]
+class = "FpssClient"
+name = "isAuthenticated"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "awaitDrain"
+python = true
+typescript = false
+cpp = false  # C++ drain barrier runs inside the RAII destructor
+
+[[method]]
+class = "FpssClient"
+name = "subscribe"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "subscribeMany"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "unsubscribe"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "unsubscribeMany"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "activeSubscriptions"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "activeFullSubscriptions"
+python = true
+typescript = false
+cpp = false  # C++ FpssClient surface omits the full-stream snapshot today
+
+[[method]]
+class = "FpssClient"
+name = "droppedEventCount"
+python = true
+typescript = false
+cpp = false  # C++ method is `dropped_events`, declared separately below
+
+[[method]]
+class = "FpssClient"
+name = "droppedEvents"
+python = false
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "panicCount"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "setCallback"
+python = false
+typescript = false
+cpp = true
+
+# ── Credentials (the auth-handle class) ──
+#
+# TypeScript takes credentials as constructor arguments rather than a
+# class (see the class-level row above), so every column below is
+# `false` — the row exists to document the cross-binding factory
+# contract on Python + C++.
+
+[[method]]
+class = "Credentials"
+name = "fromFile"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "Credentials"
+name = "fromEmail"
+python = false  # Python uses the `Credentials(email, password)` constructor
+typescript = false
+cpp = true
+
+# ── Config (the streaming/historical client configuration class) ──
+#
+# Field-level setters are tracked by the dotted `[[class]]` rows above
+# (e.g. `ReconnectConfig.wait_ms`, `RetryPolicy.initial_delay_ms`).
+# The factory rows below pin the three environment-tier constructors.
+
+[[method]]
+class = "Config"
+name = "production"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "dev"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "stage"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setFlushMode"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "flushMode"
+python = true
+typescript = true
+cpp = false  # follow-up — mirror getter in sdks/cpp/include/thetadx.hpp

@@ -1,10 +1,13 @@
 # thetadatadx (Python)
 
-Python bindings over the Rust core. Every call crosses the PyO3 boundary into Rust: gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate.
+Drop-in Python SDK for ThetaData market data. Speaks ThetaData's wire
+protocols directly — historical gRPC, streaming TCP, and the native
+flat-file distribution for bulk pulls — without a JVM or a local
+proxy. Every call crosses the PyO3 boundary into compiled Rust: gRPC,
+protobuf parsing, zstd decompression, FIT tick decoding, and TCP
+streaming all run natively.
 
-> **Surface coverage:** the Python binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flat_files.*()` with `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_list()` terminals plus a `flatfile_to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
->
-> **REST routing escape hatch:** `FallbackPolicy.rest_always` + `Config.with_rest_fallback` + four `option_history_*_with_fallback` methods route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
+> **Surface coverage:** the Python binding exposes all three ThetaData surfaces — historical request/response, real-time streaming, and whole-universe daily blobs. Flat files land via `tdx.flat_files.*()` with `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_list()` terminals plus a `flatfile_to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Installation
 
@@ -294,10 +297,10 @@ from thetadatadx import SecType
 with tdx.streaming(on_event) as session:
     session.subscribe(SecType.OPTION.full_trades())
 
-    # `on_event` runs on the LMAX Disruptor consumer thread under the
-    # GIL, wrapped in `catch_unwind` so a Python exception is reported
-    # via `tracing::error!` and `panic_count()` rather than tearing
-    # down the consumer. Park the main thread while events flow.
+    # `on_event` runs on the dispatcher thread under the GIL, wrapped
+    # in `catch_unwind` so a Python exception is reported via
+    # `tracing::error!` and `panic_count()` rather than tearing down
+    # the consumer. Park the main thread while events flow.
     import time
     time.sleep(60)
 # `__exit__` calls `stop_streaming()` and then blocks on
@@ -325,59 +328,11 @@ tdx.stop_streaming()
 # Drain barrier: by the time `await_drain(5000)` returns, the consumer
 # thread is guaranteed to have finished firing `on_event`, so the
 # closure stack the callback closed over can be released without a
-# use-after-free race against the LMAX Disruptor consumer.
+# use-after-free race against the dispatcher thread.
 tdx.await_drain(5_000)
 ```
 
 You can also subscribe to per-contract streams if you only need specific symbols rather than the full-stream subscription.
-
-#### Pull-iter delivery — `for event in tdx.streaming_iter()` (high-throughput drain)
-
-Push-callback (`tdx.streaming(callback)` above) is the recommended
-default for low-latency single-event reaction. Pull-iter is the
-sibling delivery mode for high-throughput batch processing where the
-dominant cost is per-event Python work (tuple build, deque append,
-DataFrame ingest) rather than per-event vendor latency:
-
-```python
-from thetadatadx import Contract, SecType
-
-with tdx.streaming_iter() as iterator:
-    iterator.subscribe(SecType.OPTION.full_trades())
-    iterator.subscribe(Contract.stock("AAPL").quote())
-    for event in iterator:
-        match event:
-            case Trade(price=p, size=s, contract=c):
-                buf.append((c.symbol, p, s))
-            case _:
-                pass
-```
-
-`tdx.streaming_iter()` is a context manager that opens an FPSS
-session in pull-iter mode on enter and pairs `stop_streaming()` +
-`await_drain(5_000)` on exit, mirroring `tdx.streaming(callback)`.
-The bound `iterator` is also an `EventIterator` you can drain with
-`for event in iterator:`; `subscribe(...)` / `unsubscribe(...)`
-forward to the underlying `ThetaDataDxClient` through the same
-`__getattr__` proxy the callback session uses.
-
-The Disruptor consumer thread pushes each event into a per-client
-bounded queue; the `for event in iterator:` loop drains the queue
-under one GIL acquire across the whole batch instead of one GIL
-acquire per event. For the same per-event Python work (5-field
-tuple build + `deque.append`), the included `streaming_throughput`
-bench measures **~4.6 Melem/s for pull-iter** vs. **~1.1 Melem/s for
-push-callback** — a 4.1× win.
-
-Trade-off: pull-iter pays one queue hop of per-event latency for the
-batched-GIL throughput win. Push-callback remains the recommended
-default for sub-millisecond reaction loops; pick pull-iter when the
-integrator's per-event work dominates.
-
-Mode is chosen at start. Push and pull are mutually exclusive on a
-given client; switch by calling `stop_streaming()` first. Backpressure
-surfaces on the same `dropped_event_count()` counter as the callback
-path.
 
 #### Streaming buffering — Pattern A (`collections.deque`) vs Pattern B (`queue.Queue`)
 
@@ -437,11 +392,9 @@ the blocking `get()`.
 |--------|-------------|
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
 | `streaming(callback)` | Open a context-managed streaming session. `with tdx.streaming(callback) as session:` registers `callback` via `start_streaming` on enter and pairs `stop_streaming()` + `await_drain(5_000)` on exit, mirroring the C++ RAII destructor. Subscription methods on the bound `session` proxy through to the underlying `ThetaDataDxClient` via `StreamingSession.__getattr__` -- single source of truth. |
-| `streaming_iter()` | Open a context-managed pull-iter streaming session. `with tdx.streaming_iter() as it:` opens FPSS in pull-iter delivery mode on enter and pairs `stop_streaming()` + `await_drain(5_000)` on exit. The bound `it` is an `EventIterator` — `for event in it:` drains the per-client queue under one GIL acquire per batch, ~4.1× faster than push-callback on tuple-build / deque-append integrators. Mutually exclusive with `start_streaming(callback)` on the same client. |
-| `start_streaming_iter()` | Lower-level pull-iter entry point. Returns a bare `EventIterator`; the caller is responsible for `stop_streaming()` + `await_drain()` on shutdown. Prefer `streaming_iter()` unless you need explicit lifecycle control. |
-| `start_streaming(callback)` | Register a callable; the LMAX Disruptor consumer thread invokes `callback(event)` under the GIL for every typed FPSS event. `event` is a `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` for market data or one of the typed control classes (`LoginSuccess`, `ContractAssigned`, `Disconnected`, `Reconnecting`, ...) for lifecycle events — dispatch via Python `match`. Truncated / unrecognised wire frames are filtered before the callback fires (counted on `thetadatadx.fpss.decode_failures`). Each invocation is wrapped in `catch_unwind`. `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
+| `start_streaming(callback)` | Register a callable; the dispatcher thread invokes `callback(event)` under the GIL for every typed FPSS event. `event` is a `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` for market data or one of the typed control classes (`LoginSuccess`, `ContractAssigned`, `Disconnected`, `Reconnecting`, ...) for lifecycle events — dispatch via Python `match`. Truncated / unrecognised wire frames are filtered before the callback fires (counted on `thetadatadx.fpss.decode_failures`). Each invocation is wrapped in `catch_unwind`. `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
 | `await_drain(timeout_ms)` | Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns `True` if the drain completed within `timeout_ms`, `False` otherwise. Use after `stop_streaming()` or `reconnect()` from a thread other than the callback thread to confirm the callback closure can be safely released. The `with tdx.streaming(...)` context manager calls this for you with a 5_000 ms timeout. |
-| `dropped_event_count()` | Cumulative count of events the FPSS reader could not publish into the Disruptor ring because the consumer fell behind and the ring was full. Resets to 0 on `reconnect()` (which rebuilds the FPSS client) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
+| `dropped_event_count()` | Cumulative count of events the FPSS reader could not publish into the streaming ring because the consumer fell behind and the ring was full. Resets to 0 on `reconnect()` (which rebuilds the FPSS client) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
@@ -582,7 +535,7 @@ graph TD
     B - "in-house gRPC / TLS TCP" --> C["ThetaData servers"]
 ```
 
-No HTTP middleware, no Java terminal, no subprocess. Direct wire-protocol access from the Rust core.
+No HTTP middleware, no JVM, no subprocess. Direct wire-protocol access from the Rust core.
 
 ## FPSS Streaming
 
@@ -596,7 +549,7 @@ creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDxClient(creds, Config.production())
 
 # Register a callback (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...).
-# The LMAX Disruptor consumer thread acquires the GIL to invoke `on_event`,
+# The dispatcher thread acquires the GIL to invoke `on_event`,
 # with each invocation wrapped in `catch_unwind` so a Python exception
 # is counted on `panic_count()` rather than tearing down the consumer.
 def on_event(event):

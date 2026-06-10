@@ -47,6 +47,44 @@ BANNED = [
     "next-generation",
     "next generation",
     "minimum vs complete",
+    # Release-cycle / review-process vocabulary that must not leak
+    # into source comments, docstrings, commit prose, or PR text.
+    # Version numbers in explanatory prose belong only in the
+    # CHANGELOG and release notes (already exempted below).
+    #
+    # Word-boundary matching on the bare tokens catches `v11`,
+    # `v11.0.0`, `(v11)`, `v11-` etc. without needing surrounding
+    # whitespace.
+    "v11",
+    "v12",
+    "codex",
+    "Codex",
+    "CODEX",
+    "BLOCKER",
+    "SERIOUS #",
+    # Cover every round number a future audit cycle might produce
+    # so the gate fires on the next leak without script edits.
+    "round-2",
+    "round-3",
+    "round-4",
+    "round-5",
+    "round-6",
+    "round-7",
+    "round-8",
+    "round-9",
+    "round-10",
+    "round-11",
+    "round-12",
+    # Competitor SDK / vendor names must not appear in client-facing
+    # docs, doc comments, or PR text. Engine-internal source (the
+    # `thetadatadx-engine` crate) is exempted via `EXEMPT_PATHS`
+    # below — engineering benchmarks may reference vendor behaviour
+    # without leaking into the public surface.
+    "databento",
+    "Bloomberg",
+    "blpapi",
+    "Refinitiv",
+    "LSEG",
     # ConnectionClosed regression closure: ban the wrong-cause
     # vocabulary so future PRs cannot reintroduce the misattribution.
     # `cascade` is the noun; `h2-cascade` / `UpstreamCascade` / the
@@ -62,6 +100,23 @@ BANNED = [
     "h2-cascade",
     "legacy quote investigation",
     "theta-terminal-re/patches",
+    # Kairos/SDK internal architecture vocabulary that must never appear
+    # in user-facing surfaces (doc comments, public READMEs, marketing).
+    # Protocol/vendor names (FPSS, MDDS) are ALLOW-listed — these banned
+    # items are Rust impl-detail names.
+    "MDDS gRPC",
+    "FPSS TCP",
+    "FIT nibble",
+    "disruptor",
+    "LMAX",
+    "SPMC",
+    "tonic",
+    "crossbeam",
+    "parking_lot",
+    "os_pipe",
+    "block_on",
+    "allow_threads",
+    "Python::detach",
 ]
 
 
@@ -100,6 +155,9 @@ SCAN_GLOBS = [
     "tools/**/*.toml",
     "tools/**/*.md",
     "docs/**/*.md",
+    "docs-site/**/*.md",
+    "docs-site/**/*.ts",
+    "docs-site/**/*.vue",
     "scripts/**/*.py",
     ".github/**/*.yml",
     "README.md",
@@ -118,6 +176,14 @@ EXEMPT_PATHS = {
     "scripts/check_banned_vocab.py",
     "scripts/__pycache__",
     ".github/release-notes",
+    # The `tdbe` crate is an independent library with its own release cycle.
+    # Its internal codec terminology (FIT nibble = Financial Information Tick
+    # encoding unit) is out of scope for the SDK surface vocabulary gate.
+    "crates/tdbe",
+    # Per-version migration ledgers are append-only artefacts that
+    # name the versions they transition between. They join the
+    # CHANGELOG and release-notes as historical references.
+    "docs-site/docs/migration",
 }
 
 
@@ -138,6 +204,61 @@ EXEMPT_PATH_FRAGMENTS = (
     # contains vocabulary the gate has no opinion on.
     "/build_tests/",
     "/_deps/",
+    # Criterion bench harnesses are internal tooling, not public-surface
+    # documentation. They may reference crate names (disruptor, etc.)
+    # in measurement descriptions without those names leaking to users.
+    "/benches/",
+    # Build-time codegen helpers are never in the published rlib surface.
+    "/build_support/",
+    "/build_support_bin/",
+    # The grpc module is `pub(crate)` in shipped builds and `#[doc(hidden)]`
+    # when re-opened by `__test-helpers`. Its implementation comments may
+    # legitimately reference the previous transport name for historical
+    # comparison. Not a user-facing surface.
+    "/grpc/",
+    # fpss/ring.rs is pub(crate) implementation for the streaming
+    # event-dispatch pipeline. Its doc comments may name internal
+    # mechanisms that never reach the public SDK surface.
+    "/fpss/ring.rs",
+    # io_loop/ is a pub(crate) subdirectory of the FPSS module — its
+    # implementation docs are never rendered to the public SDK surface.
+    "/io_loop/",
+    # mdds/macros.rs and mdds/endpoint_args.rs host the generated endpoint
+    # macro-expansion helpers. These are #[doc(hidden)] and pub(crate); their
+    # implementation comments may reference the old transport name for
+    # correctness comparisons.
+    "/mdds/macros.rs",
+    "/mdds/endpoint_args.rs",
+    # ffi/src/ is the C ABI shim (`publish = false`). Its implementation uses
+    # `tokio::Runtime::block_on` (not PyO3 `allow_threads`) and may name the
+    # internal event-ring mechanism. None of these symbols appear in user docs.
+    "ffi/src/",
+    # tests/ is not part of the published crate surface.
+    "/tests/",
+    # proto/MAINTENANCE.md is an internal developer guide, not user-facing.
+    "/proto/",
+    # _generated/ directories contain codegen-emitted Rust source — the
+    # generator template is what the vocabulary gate should police, not
+    # individual generated files whose identifiers come from schema defns.
+    "/_generated/",
+    # async_runtime.rs is an internal PyO3 bridge file; its `block_on`
+    # calls are `tokio::Runtime::block_on` in the runtime glue, not the
+    # PyO3 GIL-holding pattern the rule targets.
+    "/async_runtime.rs",
+    # streaming_session.rs is a pub(crate) PyO3 glue type — not user docs.
+    "/streaming_session.rs",
+    # sdks/python/src/lib.rs is the PyO3 shim entry point (`publish = false`).
+    # Its `runtime().block_on` calls are tokio-runtime bridge, documented as
+    # VOCAB-OK on the preceding comment line — not the PyO3 GIL-hold pattern.
+    "sdks/python/src/lib.rs",
+    # sdks/typescript/src/lib.rs is the NAPI shim (`publish = false`).
+    # Its `.block_on(...)` calls are tokio-runtime bridge, not PyO3 GIL-hold.
+    "sdks/typescript/src/lib.rs",
+    # tools/server/src/ws/broadcast.rs uses `tokio::Runtime::block_on` in
+    # a test body (server binary, `publish = false`). Not user-facing.
+    "tools/server/src/ws/broadcast.rs",
+    # Cargo.toml comment lines referencing dep crate names are not user-facing.
+    # (Files themselves are scanned; VOCAB-OK annotations handle the remainder.)
 )
 
 

@@ -4,7 +4,7 @@
 //! full-type subscribe, ping, stop). Parsers cover the server->client
 //! responses (REQ_RESPONSE, DISCONNECTED, CONTRACT).
 //!
-//! Behaviour mirrors the upstream Java terminal.
+//! Behaviour conforms to the ThetaData FPSS wire protocol.
 
 use tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 

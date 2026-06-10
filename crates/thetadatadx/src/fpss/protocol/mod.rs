@@ -36,7 +36,7 @@
 //! - `wire` (crate-private) — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
 //! - [`subscription`] — `SubscriptionKind` enum (Quote / Trade / OpenInterest).
 //!
-//! Behaviour mirrors the upstream Java terminal.
+//! Behaviour conforms to the ThetaData FPSS wire protocol.
 
 pub mod contract;
 pub mod subscription;
@@ -49,7 +49,7 @@ pub mod subscription;
 // The module stays accessible inside the crate (and under the private
 // `__test-helpers` feature for integration-test fixture builders) but
 // drops from the published `protocol::*` re-export surface. The
-// builders / parsers no longer appear on the v11 SemVer commitment.
+// builders / parsers no longer appear on the public SemVer commitment.
 pub(crate) mod wire;
 
 pub use self::contract::{Contract, ContractParseError};
@@ -69,7 +69,7 @@ pub(crate) use self::wire::{
 /// vendor_schema_drift, decode_fuzz_property). Feature-gated on
 /// `__test-helpers` so the symbols never enter the shipped rlib.
 /// `cargo-semver-checks` runs with default features and never sees
-/// this module — the helpers stay off the v11 commitment.
+/// this module — the helpers stay off the public SemVer commitment.
 #[cfg(feature = "__test-helpers")]
 #[doc(hidden)]
 pub mod test_wire {

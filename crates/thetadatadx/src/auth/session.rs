@@ -1,4 +1,4 @@
-//! Shared, mutable session UUID used by MDDS gRPC requests.
+//! Shared, mutable session UUID used by MDDS requests.
 //!
 //! The session UUID is obtained from Nexus auth and embedded in every
 //! `QueryInfo.auth_token.session_uuid`. If the server returns
@@ -41,6 +41,7 @@ use crate::error::Error;
 /// `refresh_lock` held, and the write lock is taken only for the brief
 /// UUID swap.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct SessionToken {
     state: Arc<RwLock<Inner>>,
     /// Serializes concurrent refresh attempts so N tasks observing the
@@ -206,6 +207,16 @@ impl std::fmt::Debug for SessionToken {
 mod tests {
     use super::*;
 
+    /// Pin ring as the process-wide rustls `CryptoProvider` before any
+    /// test that builds a `reqwest` client (which triggers a TLS
+    /// handshake).  Idempotent — second-and-later calls are no-ops.
+    fn ensure_crypto_provider() {
+        static INSTALLED: std::sync::Once = std::sync::Once::new();
+        INSTALLED.call_once(|| {
+            let _ = crate::__internal_install_ring_crypto_provider();
+        });
+    }
+
     fn fake_creds() -> Credentials {
         Credentials::new("user@example.com", "hunter2")
     }
@@ -254,6 +265,7 @@ mod tests {
 
     #[tokio::test]
     async fn refresh_attempts_authenticate_when_version_matches() {
+        ensure_crypto_provider();
         // Pointing at an unreachable URL forces `authenticate_at` to
         // return `Err(Error::Auth)` — but the code path executes,
         // proving we actually made the upstream call rather than
@@ -334,6 +346,7 @@ mod tests {
 
     #[tokio::test]
     async fn concurrent_refreshes_serialize_on_refresh_lock() {
+        ensure_crypto_provider();
         // Companion to the dedup test: prove the refresh_lock
         // actually serializes when the version has NOT been
         // pre-bumped. Both tasks try to refresh, both point at an

@@ -1,4 +1,4 @@
-"""Regression coverage for the v11 `InterestRateTick` schema fix.
+"""Regression coverage for the `InterestRateTick` schema fix.
 
 Before this PR the `tick_schema.toml` definition advertised three fields
 (`ms_of_day`, `rate`, `date`) but the upstream v3 server actually emits
@@ -34,7 +34,7 @@ def InterestRateTick():
 
 def test_interest_rate_tick_constructs_with_two_kw_fields(InterestRateTick) -> None:
     """The keyword-only constructor accepts `date` and `rate` (and only
-    those). The reference row from the v11 wire dump is SOFR
+    those). The reference row from the wire-format pin is SOFR
     `2025-04-28` -> `date=20250428`, `rate=4.36`."""
     tick = InterestRateTick(date=20250428, rate=4.36)
     assert tick.date == 20250428
@@ -51,7 +51,7 @@ def test_interest_rate_tick_default_constructor_zero_fields(InterestRateTick) ->
 
 
 def test_interest_rate_tick_rejects_removed_ms_of_day_kw(InterestRateTick) -> None:
-    """Pin the v11 breaking change: `ms_of_day` was a fictitious field
+    """Pin the breaking change: `ms_of_day` was a fictitious field
     (server never sent it) and has been removed. A keyword call that
     targets the removed field must raise `TypeError` — the wheel is
     explicitly NOT backward-compatible with v10.x `InterestRateTick(

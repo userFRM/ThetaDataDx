@@ -251,11 +251,11 @@ fn resolve_surface_endpoint(
             &endpoint.name,
             "subcategory",
         )?,
-        rest_path: resolve_required_surface_field(
-            endpoint.rest_path.clone().or(template.rest_path),
-            &endpoint.name,
-            "rest_path",
-        )?,
+        rest_path: endpoint
+            .rest_path
+            .clone()
+            .or(template.rest_path)
+            .unwrap_or_default(),
         kind: resolve_required_surface_field(
             endpoint.kind.clone().or(template.kind),
             &endpoint.name,
@@ -274,12 +274,6 @@ fn resolve_surface_endpoint(
             .vendor_docstring
             .clone()
             .or(template.vendor_docstring),
-        // Endpoint overrides template; absent on both sides defaults to
-        // `Grpc` (the surface-wide default — REST opt-in is explicit).
-        transport: endpoint
-            .transport
-            .or(template.transport)
-            .unwrap_or_default(),
         params,
     })
 }
@@ -353,9 +347,6 @@ fn resolve_surface_template(
     }
     if let Some(value) = &template.vendor_docstring {
         resolved.vendor_docstring = Some(value.clone());
-    }
-    if let Some(value) = template.transport {
-        resolved.transport = Some(value);
     }
     resolved.params.extend(resolve_param_entries(
         &template.params,
@@ -687,7 +678,6 @@ fn merge_surface_and_wire(
         kind: surface.kind,
         list_column: surface.list_column,
         vendor_docstring: surface.vendor_docstring,
-        _transport: surface.transport,
     }
 }
 

@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn gregorian_validator_rejects_impossible_dates() {
-        // The exact garbage shapes the codex audit flagged as silently accepted.
+        // The exact garbage shapes the audit pass flagged as silently accepted.
         assert!(!is_valid_gregorian_date(0, 0, 0)); // 00000000 sentinel
         assert!(!is_valid_gregorian_date(2026, 2, 30)); // Feb 30 never exists
         assert!(!is_valid_gregorian_date(1999, 4, 31)); // April only has 30

@@ -882,8 +882,10 @@ for d in early_closes:
 
     case 'live_quote_monitor': return `${h}
 
-# Subscribe before entering the pull-iter context so the queue
-# starts filling immediately after start_streaming_iter() fires.
+import threading
+
+# Subscribe before opening the streaming session so the first quote
+# lands as soon as client.streaming() activates the dispatcher.
 symbols = [${symsListPy()}]
 for sym in symbols:
     client.subscribe(Contract.stock(sym).quote())
@@ -892,18 +894,22 @@ print(f"Monitoring quotes for: {symbols}")
 print(f"{'Symbol':<8}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
 print("-" * 50)
 
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind != "quote":
-            continue
-        name   = event.contract.symbol
-        bid    = event.bid
-        ask    = event.ask
-        spread = ask - bid
-        mid    = (bid + ask) / 2
-        print(f"\\r{name:<8}  {bid:>8.2f}  {ask:>8.2f}  {spread:>8.4f}  {mid:>8.2f}", end="", flush=True)`
+def on_event(event):
+    if event.kind != "quote":
+        return
+    name   = event.contract.symbol
+    bid    = event.bid
+    ask    = event.ask
+    spread = ask - bid
+    mid    = (bid + ask) / 2
+    print(f"\\r{name:<8}  {bid:>8.2f}  {ask:>8.2f}  {spread:>8.4f}  {mid:>8.2f}", end="", flush=True)
+
+with client.streaming(on_event):
+    threading.Event().wait()  # blocks until Ctrl-C`
 
     case 'trade_tape': return `${h}
+
+import threading
 
 symbols = [${symsListPy()}]
 for sym in symbols:
@@ -913,45 +919,53 @@ print(f"Trade tape for: {symbols}")
 print(f"{'Time':>12}  {'Symbol':<8}  {'Price':>8}  {'Size':>8}  {'Cond'}")
 print("-" * 55)
 
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind != "trade":
-            continue
-        name         = event.contract.symbol
-        price        = event.price
-        size         = event.size
-        ms           = event.ms_of_day
-        h, remainder = divmod(ms, 3600000)
-        m, s_ms      = divmod(remainder, 60000)
-        s            = s_ms // 1000
-        time_str     = f"{h:02d}:{m:02d}:{s:02d}"
-        cond         = event.condition
-        print(f"{time_str:>12}  {name:<8}  {price:>8.2f}  {size:>8,}  {cond}")`
+def on_event(event):
+    if event.kind != "trade":
+        return
+    name         = event.contract.symbol
+    price        = event.price
+    size         = event.size
+    ms           = event.ms_of_day
+    h, remainder = divmod(ms, 3600000)
+    m, s_ms      = divmod(remainder, 60000)
+    s            = s_ms // 1000
+    time_str     = f"{h:02d}:{m:02d}:{s:02d}"
+    cond         = event.condition
+    print(f"{time_str:>12}  {name:<8}  {price:>8.2f}  {size:>8,}  {cond}")
+
+with client.streaming(on_event):
+    threading.Event().wait()`
 
     case 'option_flow_scanner': return `${h}
 
+import threading
+
 # Subscribe to the full option-trade stream; the contract on each event
-# carries symbol / expiration / strike / is_call directly.
+# carries symbol / expiration / strike / right directly.
 client.subscribe(SecType.Option.full_trades())
 
 print(f"Option Flow Scanner — alerting on size >= ${minSize()}")
 print(f"{'Contract':<35}  {'Size':>6}  {'Price':>8}  {'Premium':>12}")
 print("-" * 70)
 
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind != "trade":
-            continue
-        size  = event.size
-        price = event.price
+def on_event(event):
+    if event.kind != "trade":
+        return
+    size  = event.size
+    price = event.price
 
-        if size >= ${minSize()}:
-            c        = event.contract
-            contract = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
-            premium  = price * size * 100
-            print(f"{contract:<35}  {size:>6,}  {price:>8.2f}  \${premium:>11,.0f}")`
+    if size >= ${minSize()}:
+        c        = event.contract
+        contract = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+        premium  = price * size * 100
+        print(f"{contract:<35}  {size:>6,}  {price:>8.2f}  \${premium:>11,.0f}")
+
+with client.streaming(on_event):
+    threading.Event().wait()`
 
     case 'live_option_chain': return `${h}
+
+import threading
 
 symbol = "${sym()}"
 exp    = "${exp()}"
@@ -969,24 +983,27 @@ print(f"{'Contract':<30}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
 print("-" * 75)
 
 chain_state: dict = {}
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind != "quote":
-            continue
-        c    = event.contract
-        name = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
-        bid   = event.bid
-        ask   = event.ask
-        chain_state[name] = {"bid": bid, "ask": ask}
-        # Reprint sorted by contract name
-        print("\\033[H\\033[J", end="")  # clear screen
-        for k, v in sorted(chain_state.items()):
-            spread = v["ask"] - v["bid"]
-            mid    = (v["bid"] + v["ask"]) / 2
-            print(
-                f"{k:<30}  {v['bid']:>8.2f}  {v['ask']:>8.2f}  "
-                f"{spread:>8.4f}  {mid:>8.2f}"
-            )`
+
+def on_event(event):
+    if event.kind != "quote":
+        return
+    c    = event.contract
+    name = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+    bid   = event.bid
+    ask   = event.ask
+    chain_state[name] = {"bid": bid, "ask": ask}
+    # Reprint sorted by contract name
+    print("\\033[H\\033[J", end="")  # clear screen
+    for k, v in sorted(chain_state.items()):
+        spread = v["ask"] - v["bid"]
+        mid    = (v["bid"] + v["ask"]) / 2
+        print(
+            f"{k:<30}  {v['bid']:>8.2f}  {v['ask']:>8.2f}  "
+            f"{spread:>8.4f}  {mid:>8.2f}"
+        )
+
+with client.streaming(on_event):
+    threading.Event().wait()`
 
     default:
       return '# Recipe not yet implemented'

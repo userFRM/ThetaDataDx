@@ -1,18 +1,7 @@
-//! REST-routing policy napi bindings + `Config` napi class.
-//!
-//! Mirrors the Python `FallbackPolicy` pyclass + `Config.with_rest_fallback`
-//! method one-for-one, plus the four `option_history_*_with_fallback`
-//! methods on the `ThetaDataDxClient` napi class.
-//!
-//! See [`thetadatadx::config::FallbackPolicy`] for the underlying
-//! contract and `docs-site/docs/channel-pool-design.md` for the
-//! gRPC channel-pool reconnect story.
-
+//! `Config` napi class for the TypeScript SDK.
 use std::sync::{Arc, Mutex};
 
 use thetadatadx::config;
-
-use crate::to_napi_err;
 
 /// `(has_value, n)` shape mirroring the FFI
 /// `tdx_config_get_tokio_worker_threads` out-params and the Python
@@ -27,83 +16,14 @@ pub struct TokioWorkerThreadsSetting {
     pub n: u32,
 }
 
-/// REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
-///
-/// Constructed via one of the static factories, then installed on
-/// a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
-/// installed policy is then passed to
-/// [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
-/// to bind the policy to a live client.
-///
-/// # Example
-///
-/// ```js
-/// const { FallbackPolicy, Config, ThetaDataDxClient } = require('@userfrm/thetadatadx');
-///
-/// const policy = FallbackPolicy.restAlways('http://127.0.0.1:25503');
-/// const cfg = Config.production();
-/// cfg.withRestFallback(policy);
-/// const tdx = ThetaDataDxClient.connectWithConfig('user@example.com', 'pw', cfg);
-/// const ticks = await tdx.optionHistoryQuoteWithFallback({
-///     symbol: 'AAPL', expiration: '20240105', startDate: '20240104',
-/// });
-/// ```
-#[napi]
-#[derive(Clone)]
-pub struct FallbackPolicy {
-    pub(crate) inner: config::FallbackPolicy,
-}
-
-#[napi]
-impl FallbackPolicy {
-    /// REST routing disabled. Every historical-quote endpoint goes
-    /// over gRPC. Default state.
-    #[napi(factory)]
-    pub fn disabled() -> Self {
-        Self {
-            inner: config::FallbackPolicy::Disabled,
-        }
-    }
-
-    /// Always route the four historical-quote endpoints over REST
-    /// regardless of the requested date range.
-    #[napi(factory, js_name = "restAlways")]
-    pub fn rest_always(base_url: String) -> Self {
-        Self {
-            inner: config::FallbackPolicy::RestAlways { base_url },
-        }
-    }
-
-    /// Human-readable variant name: `"Disabled"` or `"RestAlways"`.
-    /// The Rust enum is `#[non_exhaustive]`, so a future variant
-    /// returns `"Unknown"` here until the binding is updated.
-    #[napi(getter)]
-    pub fn variant(&self) -> &'static str {
-        match &self.inner {
-            config::FallbackPolicy::Disabled => "Disabled",
-            config::FallbackPolicy::RestAlways { .. } => "RestAlways",
-            _ => "Unknown",
-        }
-    }
-
-    /// Return the REST base URL the policy would target, or `null`
-    /// for `disabled()`.
-    #[napi(getter, js_name = "baseUrl")]
-    pub fn base_url(&self) -> Option<String> {
-        self.inner.base_url().map(str::to_owned)
-    }
-}
-
 /// SDK configuration. Mirrors [`thetadatadx::DirectConfig`].
 ///
 /// Build a config via one of the three static factories
 /// ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
-/// install a [`FallbackPolicy`] via [`Config::withRestFallback`] if
-/// needed, then pass to
-/// [`ThetaDataDxClient.connectWithConfig`] /
+/// `ThetaDataDxClient.connectWithConfig` /
 /// `connectFromFileWithConfig`.
 ///
-/// Mutating methods (`withRestFallback`, ...) follow JS convention and
+/// Mutating methods follow JS convention and
 /// return `void` (chain by calling `cfg.method(...)` then passing
 /// `cfg` itself).
 ///
@@ -146,36 +66,6 @@ impl Config {
         Self {
             inner: Arc::new(Mutex::new(config::DirectConfig::stage())),
         }
-    }
-
-    /// Install a REST-fallback policy. Subsequent
-    /// `option_history_*_with_fallback` calls on a client built from
-    /// this config will consult the policy. Mirrors
-    /// `Python`'s `Config.with_rest_fallback(policy)`.
-    #[napi(js_name = "withRestFallback")]
-    pub fn with_rest_fallback(&self, policy: &FallbackPolicy) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fallback = policy.inner.clone();
-        Ok(())
-    }
-
-    /// Current REST-fallback policy variant name. Same string ladder
-    /// as [`FallbackPolicy::variant`]. Returns `"Disabled"` when no
-    /// fallback policy has been installed.
-    #[napi(getter, js_name = "fallbackVariant")]
-    pub fn fallback_variant(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.fallback {
-            config::FallbackPolicy::Disabled => "Disabled",
-            config::FallbackPolicy::RestAlways { .. } => "RestAlways",
-            _ => "Unknown",
-        })
     }
 
     // ── MDDS pool sizing ───────────────────────────────────────────
@@ -236,9 +126,7 @@ impl Config {
     /// Current `warn_on_buffered_threshold_bytes` setting (bytes,
     /// returned as a `BigInt`).
     #[napi(getter, js_name = "warnOnBufferedThresholdBytes")]
-    pub fn warn_on_buffered_threshold_bytes(
-        &self,
-    ) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    pub fn warn_on_buffered_threshold_bytes(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
@@ -365,8 +253,8 @@ impl Config {
     /// Set the streaming reconnect policy.
     ///
     /// - `"auto"` (default): auto-reconnect with the per-class attempt
-    ///   budgets supplied by [`Config::setReconnectMaxAttempts`] and
-    ///   [`Config::setReconnectMaxRateLimitedAttempts`].
+    ///   budgets supplied by `Config.setReconnectMaxAttempts` and
+    ///   `Config.setReconnectMaxRateLimitedAttempts`.
     /// - `"manual"`: no auto-reconnect; callers reconnect explicitly.
     #[napi(js_name = "setReconnectPolicy")]
     pub fn set_reconnect_policy(&self, policy: String) -> napi::Result<()> {
@@ -465,10 +353,7 @@ impl Config {
     ///
     /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
     #[napi(js_name = "setReconnectWaitMs")]
-    pub fn set_reconnect_wait_ms(
-        &self,
-        ms: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
+    pub fn set_reconnect_wait_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let (_signed, value, lossless) = ms.get_u64();
         if !lossless {
             return Err(napi::Error::from_reason(
@@ -533,11 +418,7 @@ impl Config {
     /// matching the `decode_threads` setter shape across the binding
     /// matrix).
     #[napi(js_name = "setTokioWorkerThreadsExplicit")]
-    pub fn set_tokio_worker_threads_explicit(
-        &self,
-        has_value: bool,
-        n: u32,
-    ) -> napi::Result<()> {
+    pub fn set_tokio_worker_threads_explicit(&self, has_value: bool, n: u32) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
@@ -604,10 +485,7 @@ impl Config {
     /// Set the upper-bound backoff delay (ms) for the MDDS retry
     /// policy. Default `30_000n` (30 s).
     #[napi(js_name = "setRetryMaxDelayMs")]
-    pub fn set_retry_max_delay_ms(
-        &self,
-        ms: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
+    pub fn set_retry_max_delay_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let (_signed, value, lossless) = ms.get_u64();
         if !lossless {
             return Err(napi::Error::from_reason(
@@ -842,7 +720,9 @@ impl Config {
     pub fn set_metrics_port(&self, port: Option<u32>) -> napi::Result<()> {
         let resolved = match port {
             Some(v) => Some(u16::try_from(v).map_err(|_| {
-                napi::Error::from_reason(format!("setMetricsPort: port must be in 0..=65535; got {v}"))
+                napi::Error::from_reason(format!(
+                    "setMetricsPort: port must be in 0..=65535; got {v}"
+                ))
             })?),
             None => None,
         };
@@ -865,29 +745,43 @@ impl Config {
         Ok(guard.metrics.port.map(u32::from))
     }
 
-    /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
-    /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
-    /// fresh `DirectConfig` clone -- the napi `Config` remains usable
-    /// after the call (subsequent mutations only affect new connects).
-    pub(crate) fn snapshot(&self) -> napi::Result<config::DirectConfig> {
+    /// Set the streaming write-flush policy.
+    ///
+    /// Accepts `"batched"` (default — flushes on the PING heartbeat,
+    /// roughly every 100 ms — best throughput) or `"immediate"`
+    /// (flushes after every wire write — lowest latency, higher
+    /// per-frame syscall cost).
+    #[napi(js_name = "setFlushMode")]
+    pub fn set_flush_mode(&self, mode: String) -> napi::Result<()> {
+        let parsed = match mode.to_ascii_lowercase().as_str() {
+            "batched" => config::FpssFlushMode::Batched,
+            "immediate" => config::FpssFlushMode::Immediate,
+            other => {
+                return Err(napi::Error::from_reason(format!(
+                    "setFlushMode: mode must be \"batched\" or \"immediate\"; got {other:?}"
+                )));
+            }
+        };
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.flush_mode = parsed;
+        Ok(())
+    }
+
+    /// Current streaming write-flush policy (`"batched"` or
+    /// `"immediate"`).
+    #[napi(getter, js_name = "flushMode")]
+    pub fn flush_mode(&self) -> napi::Result<&'static str> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.clone())
+        Ok(match guard.fpss.flush_mode {
+            config::FpssFlushMode::Batched => "batched",
+            config::FpssFlushMode::Immediate => "immediate",
+            _ => "unknown",
+        })
     }
-}
-
-/// Default base URL for the local Terminal's REST surface. Mirrors
-/// [`thetadatadx::config::DEFAULT_REST_BASE_URL`]. Exposed as a module-
-/// level constant so callers can write
-/// `FallbackPolicy.restAlways(DEFAULT_REST_BASE_URL)`
-/// instead of repeating the URL literal.
-#[napi]
-pub const DEFAULT_REST_BASE_URL: &str = config::DEFAULT_REST_BASE_URL;
-
-/// Forwarder used by the `ThetaDataDxClient` napi class to dispatch the
-/// four `_with_fallback` endpoint calls.
-pub(crate) fn err_from_thetadatadx(e: thetadatadx::Error) -> napi::Error {
-    to_napi_err(e)
 }

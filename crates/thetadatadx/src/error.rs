@@ -112,9 +112,8 @@ impl std::fmt::Display for FpssErrorKind {
 /// Categorized decode failures. Each variant carries enough context for
 /// programmatic recovery without parsing strings.
 ///
-/// Constructed by [`Error::Decode`] and surfaced through the
-/// `From<crate::decode::DecodeError>` impl when per-cell type mismatches
-/// are detected after the table is decoded.
+/// Constructed by [`Error::Decode`] and surfaced when per-cell type
+/// mismatches are detected after the table is decoded.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum DecodeErrorKind {
@@ -321,7 +320,7 @@ pub enum Error {
         message: String,
     },
 
-    /// gRPC status error from the upstream MDDS server.
+    /// gRPC status error from the ThetaData historical data service.
     #[error("gRPC status {kind}: {message}")]
     Grpc {
         kind: GrpcStatusKind,
@@ -387,7 +386,7 @@ pub enum Error {
     /// The in-flight future is dropped before this error is returned, so the
     /// underlying gRPC channel sends `RST_STREAM` and the
     /// request-semaphore permit is released; subsequent calls on the same
-    /// `MddsClient` succeed.
+    /// client succeed.
     #[error("Request deadline exceeded after {duration_ms} ms")]
     Timeout {
         /// Configured budget in milliseconds.
@@ -594,9 +593,8 @@ impl Error {
 
     /// Build a `Decompress` error for a payload whose advertised
     /// decompressed size exceeds the channel's `max_message_size`
-    /// ceiling. Used by the MDDS decode path to refuse a hostile
-    /// `ResponseData.original_size` before any `Vec::resize` runs —
-    /// see [`crate::mdds::decode::decompress_response`].
+    /// ceiling. The decode path validates the advertised size before
+    /// any allocation, refusing an oversized payload without a `Vec::resize`.
     #[must_use]
     pub fn decompress_message_too_large(size: usize, max: usize) -> Self {
         let kind = DecompressErrorKind::MessageTooLarge { size, max };
@@ -636,7 +634,7 @@ impl From<crate::grpc::Status> for Error {
     fn from(s: crate::grpc::Status) -> Self {
         // The in-house transport carries the canonical `grpc-status` and
         // `grpc-message` trailers directly. ThetaData-specific
-        // `http_status_code` metadata enrichment used to ride on tonic's
+        // `http_status_code` metadata enrichment previously rode on the old transport's
         // metadata map; the in-house path can recover it the same way
         // once trailer-metadata propagation lands in `grpc::Status`. For
         // now, surface the numeric code + UTF-8 message as-is so

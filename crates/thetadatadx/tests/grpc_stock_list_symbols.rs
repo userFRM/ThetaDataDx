@@ -101,9 +101,9 @@ async fn mid_stream_unauthenticated_classifies_as_grpc_unauthenticated() {
     // `From<ChannelError> for Error` then folds it to
     // `Error::Grpc { kind: Unauthenticated }` along the streaming-
     // builder code path.
+    use futures::StreamExt as _;
     use thetadatadx::grpc::{ChannelError, Status};
     use thetadatadx::wire::{DataValueList, ResponseData};
-    use tokio_stream::StreamExt as _;
 
     let server = mock::MockServer::spawn_with_message(
         vec![make_symbols_response(&["AAPL", "MSFT"])],

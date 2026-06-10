@@ -38,11 +38,11 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a JS callback for incoming events.\n\
                  \n\
-                 The LMAX Disruptor consumer thread routes every typed\n\
+                 The dispatcher thread routes every typed\n\
                  FPSS event through napi-rs `ThreadsafeFunction` to the\n\
                  Node main thread, where the user's `callback(event)`\n\
                  runs. The FPSS TLS reader thread itself never touches\n\
-                 V8: events cross the Disruptor ring first, with the\n\
+                 V8: events cross the streaming ring first, with the\n\
                  consumer thread invoking the callback under\n\
                  `catch_unwind`.\n\
                  \n\
@@ -50,7 +50,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  so `ThreadsafeFunction` (with its internal `uv_async_t`\n\
                  queue) is the only safe path.\n\
                  \n\
-                 Backpressure: a slow callback fills the Disruptor ring\n\
+                 Backpressure: a slow callback fills the streaming ring\n\
                  and overflow events are dropped, observable via\n\
                  `droppedEventCount()`. The FPSS TLS reader is never\n\
                  blocked — vendor disconnects on slow consumers cannot\n\
