@@ -245,11 +245,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
-    let http_app = router::build(state.clone()).layer(cors);
+    // Loopback binds skip the general per-IP rate limiter: every local
+    // client shares the same peer IP, so a parallel backtest or bulk
+    // pull would throttle itself as a group — a regression against the
+    // legacy terminal, which imposes no per-IP limit. The limiter stays
+    // on for non-loopback binds where it is a real DoS guard, and the
+    // tighter shutdown-route limiter stays on everywhere.
+    let rate_limit_general = !router::is_loopback_bind(&args.bind);
+    if !rate_limit_general {
+        tracing::info!(
+            bind = %args.bind,
+            "loopback bind: general per-IP rate limiter disabled (shutdown-route limiter stays active)"
+        );
+    }
+
+    let http_app = router::build(state.clone(), rate_limit_general).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
     // Step 7: Build WebSocket server.
-    let ws_app = ws::router(state.clone());
+    let ws_app = ws::router(state.clone(), rate_limit_general);
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
     // Step 8: Start both servers concurrently.

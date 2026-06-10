@@ -39,7 +39,10 @@ pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
 /// serialisation cannot legitimately fail. If it does anyway, fall back to a
 /// minimal hard-coded envelope rather than an empty body so callers always
 /// see structured JSON they can parse.
-fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
+///
+/// `pub(crate)` so the rate-limit rejection path in `router` emits the
+/// same canonical envelope as every other error.
+pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
     let mut body = format::error_envelope(error_type, msg);
     let json_bytes =
         tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
