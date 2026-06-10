@@ -313,9 +313,9 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
                 "upstream_exhausted",
                 &format!("upstream is at capacity; retry shortly: {message}"),
             );
-            if let Ok(value) = axum::http::HeaderValue::from_str(
-                &UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS.to_string(),
-            ) {
+            if let Ok(value) =
+                axum::http::HeaderValue::from_str(&UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS.to_string())
+            {
                 resp.headers_mut()
                     .insert(axum::http::header::RETRY_AFTER, value);
             }
@@ -361,7 +361,9 @@ enum ResponseFormat {
 }
 
 /// Parse the `format` query parameter. Absent means JSON.
-fn parse_response_format(params: &HashMap<String, String>) -> Result<ResponseFormat, EndpointError> {
+fn parse_response_format(
+    params: &HashMap<String, String>,
+) -> Result<ResponseFormat, EndpointError> {
     let Some(raw) = params.get("format") else {
         return Ok(ResponseFormat::Json);
     };
@@ -743,7 +745,10 @@ mod tests {
             ("start_date", "20260603"),
             ("end_date", "20260605"),
         ]);
-        assert_eq!(resolve_range_sibling(ep, &params).name, "stock_history_ohlc");
+        assert_eq!(
+            resolve_range_sibling(ep, &params).name,
+            "stock_history_ohlc"
+        );
     }
 
     /// Endpoints without a `_range` sibling keep their existing
@@ -955,7 +960,10 @@ mod tests {
         assert_eq!(lines.len(), 2, "one line per response row: {body}");
         for line in &lines {
             let row: Value = sonic_rs::from_str(line).expect("each line is standalone JSON");
-            assert!(row.get("symbol").is_some(), "row carries its fields: {line}");
+            assert!(
+                row.get("symbol").is_some(),
+                "row carries its fields: {line}"
+            );
         }
         assert!(
             !body.contains("\"header\""),
@@ -1135,7 +1143,10 @@ mod tests {
             }),
         );
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert!(resp.headers().get(axum::http::header::RETRY_AFTER).is_none());
+        assert!(resp
+            .headers()
+            .get(axum::http::header::RETRY_AFTER)
+            .is_none());
     }
 
     #[tokio::test]

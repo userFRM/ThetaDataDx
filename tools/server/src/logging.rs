@@ -237,9 +237,11 @@ mod tests {
         });
 
         let out = capture.contents();
-        let line_shape =
-            regex_lite_match(&out, r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] INFO: ");
-        assert!(line_shape, "INFO line must match the bracketed shape: {out}");
+        let line_shape = regex_lite_match(&out, r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] INFO: ");
+        assert!(
+            line_shape,
+            "INFO line must match the bracketed shape: {out}"
+        );
         assert!(
             out.contains("] INFO: starting thetadatadx-server"),
             "message text follows the level: {out}"

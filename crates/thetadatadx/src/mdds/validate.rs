@@ -426,7 +426,13 @@ mod tests {
     fn validate_date_rejects_malformed_dashed_shapes() {
         // Near-miss dashed shapes fall through to the digits-only path
         // and reject — only the exact `4-2-2` digit layout parses.
-        for bad in ["2026-1-01", "2026-011", "26-01-01", "2026-01-01x", "2026/01/01"] {
+        for bad in [
+            "2026-1-01",
+            "2026-011",
+            "26-01-01",
+            "2026-01-01x",
+            "2026/01/01",
+        ] {
             let err = validate_date(bad, "date").expect_err(bad);
             let msg = format!("{err}");
             assert!(

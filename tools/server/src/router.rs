@@ -146,7 +146,8 @@ pub(crate) fn governor_error_response(error: GovernorError) -> axum::response::R
         GovernorError::Other { code, msg, .. } => handler::error_response(
             code,
             "server_error",
-            msg.as_deref().unwrap_or("rate limiter rejected the request"),
+            msg.as_deref()
+                .unwrap_or("rate limiter rejected the request"),
         ),
     }
 }

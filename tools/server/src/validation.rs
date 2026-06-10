@@ -489,8 +489,11 @@ mod tests {
         // Spot-check the per-type routing: each value below passes its
         // own validator but would overflow the generic 64-byte cap if
         // misrouted (or vice versa for the control-char case).
-        validate_param_value(&param_meta("expiration", ParamType::Expiration), "2026-06-19")
-            .expect("ISO expiration fits the date cap");
+        validate_param_value(
+            &param_meta("expiration", ParamType::Expiration),
+            "2026-06-19",
+        )
+        .expect("ISO expiration fits the date cap");
         validate_param_value(&param_meta("strike", ParamType::Strike), "550.5")
             .expect("decimal strike fits");
         validate_param_value(&param_meta("right", ParamType::Right), "both")
