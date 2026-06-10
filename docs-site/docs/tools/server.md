@@ -100,7 +100,7 @@ The WebSocket server at `/v1/events` uses the terminal streaming protocol:
 - Event types: QUOTE, TRADE, OHLC, OPEN_INTEREST, STATUS
 
 ::: warning
-The WebSocket endpoint supports a single concurrent client connection. If a second client connects, the first connection will be dropped. For multi-client setups, run multiple server instances on different ports.
+The WebSocket endpoint supports a single concurrent client connection. If a second client connects, the first connection is dropped: it receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream. For multi-client setups, run multiple server instances on different ports.
 :::
 
 ## Concurrency Model

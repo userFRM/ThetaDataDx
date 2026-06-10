@@ -108,6 +108,8 @@ Failures use one canonical error envelope across every route family (registry en
 
 Connect to `ws://127.0.0.1:25520/v1/events` to receive streaming events.
 
+One client at a time: a second connection replaces the first — the existing client receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream, matching the legacy terminal.
+
 The server sends:
 - `STATUS` messages every second with FPSS connection state
 - `QUOTE`, `TRADE`, `OHLC` events when FPSS is connected and subscriptions are active

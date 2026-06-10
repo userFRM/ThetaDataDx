@@ -9,21 +9,18 @@ use crate::state::AppState;
 use super::session;
 
 /// Handle the HTTP -> WebSocket upgrade.
+///
+/// The upgrade always succeeds; the single-client invariant is enforced
+/// with REPLACEMENT semantics inside `session::handle_socket` — beginning
+/// the new session fires the close signal of any session already active,
+/// which sends a Close frame and exits. This matches the legacy terminal,
+/// which drops the existing client to let the new one in (a stuck or
+/// half-dead client must never lock out its replacement).
 pub(super) async fn ws_upgrade(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     tracing::debug!("WebSocket upgrade request");
-
-    if !state.try_acquire_ws() {
-        tracing::warn!("WebSocket connection rejected: another client is already connected");
-        return (
-            axum::http::StatusCode::CONFLICT,
-            "only one WebSocket client allowed at a time",
-        )
-            .into_response();
-    }
-
     ws.on_upgrade(move |socket| session::handle_socket(socket, state))
         .into_response()
 }
