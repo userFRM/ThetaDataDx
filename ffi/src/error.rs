@@ -272,6 +272,7 @@ mod tests {
         thetadatadx::Error::Grpc {
             kind,
             message: String::new(),
+            retry_after: None,
         }
     }
 

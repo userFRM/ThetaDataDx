@@ -21,7 +21,7 @@ pub struct FlatFilesConfig {
     /// including the first attempt. `1` disables retry; values
     /// greater than `1` enable exponential backoff between attempts.
     ///
-    /// Validated to the range `[1, 10]` — typical production use fits
+    /// Validated to the range `[1, 100]` — typical production use fits
     /// inside that envelope. A misconfiguration outside the range is
     /// rejected at [`crate::config::DirectConfig::validate`] time
     /// rather than silently capped.
@@ -34,40 +34,53 @@ pub struct FlatFilesConfig {
     /// Upper bound on the computed backoff delay, regardless of
     /// attempt number.
     pub max_backoff: Duration,
+
+    /// Apply AWS-style full jitter to each retry delay (uniform over
+    /// `[0, capped_backoff]`). Default `true` — backfill traffic after
+    /// an upstream outage hits the same hosts from many clients at
+    /// once, and an un-jittered ladder lands those retries in
+    /// lockstep. Disable only for tests that assert exact timings.
+    pub jitter: bool,
 }
 
 impl FlatFilesConfig {
-    /// Production defaults: 3 attempts total, 1s initial backoff,
-    /// 4s ceiling — so a sustained transient failure (e.g. a 30s
-    /// network blip on the legacy host) surfaces within ~7s of wall
-    /// clock instead of either failing fast (single attempt) or
-    /// hanging the caller for a runaway retry chain.
+    /// Production defaults: 10 attempts total, 1 s initial backoff,
+    /// 30 s ceiling, full jitter. The deterministic ladder is
+    /// 1 s, 2 s, 4 s, 8 s, 16 s, then 30 s flat — roughly three
+    /// minutes of runway, sized so a historical backfill keeps
+    /// retrying across a multi-minute upstream outage instead of
+    /// surfacing an error within seconds of the disconnect.
     #[must_use]
     pub fn production_defaults() -> Self {
         Self {
-            max_attempts: 3,
+            max_attempts: 10,
             initial_backoff: Duration::from_secs(1),
-            max_backoff: Duration::from_secs(4),
+            max_backoff: Duration::from_secs(30),
+            jitter: true,
         }
     }
 
-    /// Compute the sleep delay before the next retry, capped at
-    /// `max_backoff`. `attempt` is 1-based (attempt 1 = first retry
-    /// after the initial call failed).
+    /// Compute the deterministic sleep ceiling before the next retry,
+    /// capped at `max_backoff`. `attempt` is 1-based (attempt 1 =
+    /// first retry after the initial call failed). Jitter is NOT
+    /// applied here — see [`Self::delay_for_attempt`] for the value
+    /// the driver actually sleeps.
     #[must_use]
     pub fn backoff_for_attempt(&self, attempt: u32) -> Duration {
-        if attempt == 0 {
-            return Duration::ZERO;
+        crate::backoff::capped_exponential(self.initial_backoff, self.max_backoff, attempt)
+    }
+
+    /// Sleep delay before the next retry: the capped deterministic
+    /// ladder from [`Self::backoff_for_attempt`], full-jittered across
+    /// `[0, ceiling]` when [`Self::jitter`] is set.
+    #[must_use]
+    pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
+        let ceiling = self.backoff_for_attempt(attempt);
+        if self.jitter {
+            crate::backoff::uniform_duration(Duration::ZERO, ceiling)
+        } else {
+            ceiling
         }
-        // `shift = attempt - 1` so attempt 1 = base, attempt 2 = base*2,
-        // attempt 3 = base*4. Clamp to 31 so `checked_shl` cannot
-        // overflow for pathological inputs.
-        let shift = (attempt - 1).min(31);
-        let base_nanos = self.initial_backoff.as_nanos();
-        let scaled_nanos = base_nanos.checked_shl(shift).unwrap_or(u128::MAX);
-        let max_nanos = self.max_backoff.as_nanos();
-        let nanos = scaled_nanos.min(max_nanos);
-        Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
     }
 }
 
@@ -80,7 +93,7 @@ impl Default for FlatFilesConfig {
 /// Validation bounds for the wired FLATFILES knobs.
 pub mod bounds {
     /// Allowed range for [`super::FlatFilesConfig::max_attempts`].
-    pub const MAX_ATTEMPTS: std::ops::RangeInclusive<u32> = 1..=10;
+    pub const MAX_ATTEMPTS: std::ops::RangeInclusive<u32> = 1..=100;
 }
 
 #[cfg(test)]
@@ -88,11 +101,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_are_three_attempts() {
+    fn defaults_cover_a_multi_minute_outage() {
         let cfg = FlatFilesConfig::default();
-        assert_eq!(cfg.max_attempts, 3);
+        assert_eq!(cfg.max_attempts, 10);
         assert_eq!(cfg.initial_backoff, Duration::from_secs(1));
-        assert_eq!(cfg.max_backoff, Duration::from_secs(4));
+        assert_eq!(cfg.max_backoff, Duration::from_secs(30));
+        assert!(cfg.jitter);
+        // Un-jittered runway across the full budget: 1+2+4+8+16+30*4
+        // = 151 s of sleep, plus per-attempt connect time. Pins the
+        // "minutes, not seconds" envelope.
+        let total: Duration = (1..cfg.max_attempts)
+            .map(|a| cfg.backoff_for_attempt(a))
+            .sum();
+        assert!(
+            total >= Duration::from_secs(120),
+            "flatfile retry runway must span minutes; got {total:?}"
+        );
     }
 
     #[test]
@@ -102,8 +126,30 @@ mod tests {
         assert_eq!(cfg.backoff_for_attempt(1), Duration::from_secs(1));
         assert_eq!(cfg.backoff_for_attempt(2), Duration::from_secs(2));
         assert_eq!(cfg.backoff_for_attempt(3), Duration::from_secs(4));
-        // Capped at max_backoff.
-        assert_eq!(cfg.backoff_for_attempt(4), Duration::from_secs(4));
-        assert_eq!(cfg.backoff_for_attempt(31), Duration::from_secs(4));
+        assert_eq!(cfg.backoff_for_attempt(4), Duration::from_secs(8));
+        assert_eq!(cfg.backoff_for_attempt(5), Duration::from_secs(16));
+        // Capped at max_backoff from attempt 6 onward.
+        assert_eq!(cfg.backoff_for_attempt(6), Duration::from_secs(30));
+        assert_eq!(cfg.backoff_for_attempt(31), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn jittered_delay_bounded_by_ladder() {
+        let cfg = FlatFilesConfig::default();
+        for attempt in 1..=12 {
+            let ceiling = cfg.backoff_for_attempt(attempt);
+            for _ in 0..32 {
+                assert!(cfg.delay_for_attempt(attempt) <= ceiling);
+            }
+        }
+        let deterministic = FlatFilesConfig {
+            jitter: false,
+            ..FlatFilesConfig::default()
+        };
+        assert_eq!(
+            deterministic.delay_for_attempt(3),
+            deterministic.backoff_for_attempt(3),
+            "jitter=false must return the exact ladder value"
+        );
     }
 }

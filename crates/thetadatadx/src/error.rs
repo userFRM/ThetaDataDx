@@ -325,6 +325,13 @@ pub enum Error {
     Grpc {
         kind: GrpcStatusKind,
         message: String,
+        /// Server-supplied minimum backoff before the next retry,
+        /// decoded from the `google.rpc.RetryInfo` status detail when
+        /// the server attached one. The retry loop raises its computed
+        /// delay to at least this value so a server-instructed
+        /// cooldown is honoured in full; `None` (the common case)
+        /// leaves the client-side backoff schedule unchanged.
+        retry_after: Option<std::time::Duration>,
     },
 
     /// Decompression failure (zstd, gzip, etc.).
@@ -643,6 +650,7 @@ impl From<crate::grpc::Status> for Error {
         Self::Grpc {
             kind,
             message: s.message().to_string(),
+            retry_after: s.retry_delay(),
         }
     }
 }
@@ -922,9 +930,14 @@ mod tests {
         let status = crate::grpc::Status::new(7, "tier insufficient");
         let err: Error = status.into();
         match err {
-            Error::Grpc { kind, message } => {
+            Error::Grpc {
+                kind,
+                message,
+                retry_after,
+            } => {
                 assert_eq!(kind, GrpcStatusKind::PermissionDenied);
                 assert!(message.contains("tier insufficient"));
+                assert_eq!(retry_after, None, "no RetryInfo detail on this status");
             }
             other => panic!("expected Error::Grpc, got {other:?}"),
         }
@@ -954,7 +967,7 @@ mod tests {
         let status = crate::grpc::Status::new(13, "internal");
         let err: Error = crate::grpc::ChannelError::Rpc { status }.into();
         match err {
-            Error::Grpc { kind, message } => {
+            Error::Grpc { kind, message, .. } => {
                 assert_eq!(kind, GrpcStatusKind::Internal);
                 assert!(message.contains("internal"));
             }

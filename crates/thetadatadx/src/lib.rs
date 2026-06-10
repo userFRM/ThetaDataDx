@@ -71,6 +71,7 @@
 // ─── Internal module tree ────────────────────────────────────────────────────
 
 pub mod auth;
+pub mod backoff;
 pub(crate) mod client;
 pub mod config;
 pub mod error;
@@ -208,10 +209,11 @@ pub use mdds::{MddsClient, SubscriptionTier};
 // ─── Curated public client surface ───────────────────────────────────────────
 
 pub use auth::Credentials;
+pub use backoff::JitterMode;
 pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDxClient};
 pub use config::{
-    DirectConfig, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits,
-    ReconnectPolicy, RetryPolicy, RuntimeConfig,
+    DirectConfig, FlatFilesConfig, FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,

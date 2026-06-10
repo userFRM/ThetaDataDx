@@ -67,25 +67,16 @@ const RECONNECT_BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// pool pick when this budget is exhausted.
 const RECONNECT_MAX_ATTEMPTS: u32 = 8;
 
-/// Apply +/-10% decorrelated jitter to a reconnect backoff window.
+/// Apply +/-10% hash-stable jitter to a reconnect backoff window.
 ///
-/// Uses a `DefaultHasher` over `(host, port, attempt)` so the per-client
-/// schedule is stable across runs (useful for tests) while diverging
-/// across deployments. The output is clamped to `[base * 0.9, base * 1.1]`
-/// so the budget cap from [`RECONNECT_BACKOFF_MAX`] still holds within
-/// ~10%.
+/// Delegates to the shared [`crate::backoff::hash_stable_jitter`]
+/// sampler (one jitter implementation for every retry surface). The
+/// per-client schedule is stable across runs (useful for tests) while
+/// diverging across deployments; the output is clamped to
+/// `[base * 0.9, base * 1.1]` so the budget cap from
+/// [`RECONNECT_BACKOFF_MAX`] still holds within ~10%.
 fn apply_reconnect_jitter(base: Duration, host: &str, port: u16, attempt: u32) -> Duration {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    host.hash(&mut hasher);
-    port.hash(&mut hasher);
-    attempt.hash(&mut hasher);
-    // Map hash low bits to a [-1.0, 1.0) signed offset.
-    let raw = (hasher.finish() as u32) as f64 / u32::MAX as f64;
-    let signed = raw * 2.0 - 1.0;
-    let factor = 1.0 + signed * 0.1; // +/- 10%
-    let ms = (base.as_millis() as f64 * factor).max(1.0);
-    Duration::from_millis(ms as u64)
+    crate::backoff::hash_stable_jitter(base, host, port, attempt)
 }
 
 /// Errors raised by [`Channel`] construction and RPC dispatch.

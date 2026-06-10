@@ -46,6 +46,13 @@ struct PoolInner {
     channels: Vec<Arc<Channel>>,
     /// Round-robin cursor. Wraps at `usize::MAX` — the modulo by
     /// `channels.len()` makes the wraparound transparent to callers.
+    ///
+    /// Seeded with a per-process random offset (see
+    /// [`seeded_cursor`]) rather than `0`: with a zero seed, every
+    /// freshly-started process pins its first RPC to channel index 0
+    /// — i.e. the same upstream connection across an entire fleet
+    /// restarting after an outage. The random offset spreads
+    /// first-RPC fan-out across the channel set immediately.
     cursor: AtomicUsize,
     /// Dedicated decoder pool shared across all channels in this
     /// pool. Held here (rather than only on each `Channel` via the
@@ -97,10 +104,11 @@ impl ChannelPool {
                 arc
             })
             .collect();
+        let cursor = seeded_cursor(channels.len());
         Self {
             inner: Arc::new(PoolInner {
                 channels,
-                cursor: AtomicUsize::new(0),
+                cursor,
                 _decoder_pool: None,
             }),
         }
@@ -136,10 +144,11 @@ impl ChannelPool {
                 arc
             })
             .collect();
+        let cursor = seeded_cursor(channels.len());
         Self {
             inner: Arc::new(PoolInner {
                 channels,
-                cursor: AtomicUsize::new(0),
+                cursor,
                 _decoder_pool: Some(decoder_pool),
             }),
         }
@@ -273,6 +282,22 @@ impl ChannelPool {
     }
 }
 
+/// Build the pool's round-robin cursor with a per-instance random
+/// starting offset in `[0, len)`.
+///
+/// The cursor is a `usize` that only ever increments; callers reduce
+/// it modulo `channels.len()`, so any starting offset is equivalent to
+/// rotating the channel order. Randomising the rotation per pool
+/// instance spreads each process's first RPCs across the channel set
+/// instead of pinning them to index 0 — without it, a fleet restarting
+/// together after an outage lands its entire first burst on the same
+/// upstream connection.
+fn seeded_cursor(len: usize) -> AtomicUsize {
+    let seed = crate::backoff::entropy_u64();
+    let offset = (seed as usize) % len.max(1);
+    AtomicUsize::new(offset)
+}
+
 /// Pre-dispatch reservation on a pooled [`Channel`].
 ///
 /// Returned from [`ChannelPool::next`]. The lease bumps the picked
@@ -336,5 +361,27 @@ mod tests {
     #[should_panic(expected = "ChannelPool must hold at least one Channel")]
     fn empty_pool_panics() {
         let _ = ChannelPool::from_channels(Vec::new());
+    }
+
+    /// The cursor seed must stay inside `[0, len)` so the very first
+    /// `next()` pick is a valid index, and repeated pool constructions
+    /// must not all land on the same offset (the offset is the whole
+    /// point of the seed).
+    #[test]
+    fn seeded_cursor_offsets_spread_within_bounds() {
+        let len = 8;
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..64 {
+            let cursor = seeded_cursor(len);
+            let offset = cursor.load(Ordering::Relaxed);
+            assert!(offset < len, "seed offset must be reduced modulo len");
+            seen.insert(offset);
+        }
+        assert!(
+            seen.len() > 1,
+            "64 pool constructions must not all seed the same cursor offset"
+        );
+        // Degenerate single-channel pool: offset must be 0.
+        assert_eq!(seeded_cursor(1).load(Ordering::Relaxed), 0);
     }
 }

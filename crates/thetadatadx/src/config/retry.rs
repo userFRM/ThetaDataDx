@@ -8,13 +8,32 @@ use std::time::Duration;
 /// `ResourceExhausted`. Permission / credential failures route through
 /// the separate auto-refresh path and are never retried by this policy.
 ///
+/// # Budget shape
+///
+/// Two independent stop conditions bound a retry sequence; whichever
+/// trips first ends it:
+///
+/// * `max_attempts` — total attempt count, including the first call.
+/// * `max_elapsed` — wall-clock envelope measured from the first
+///   attempt. With the default 30 s `max_delay` cap, an attempt-count
+///   budget alone is hard to reason about in wall-clock terms;
+///   `max_elapsed` lets operators state "retry for up to five minutes"
+///   directly. [`Duration::ZERO`] disables the envelope (attempt
+///   budget only).
+///
+/// The defaults (20 attempts, 5 minute envelope) ride through a
+/// multi-minute upstream outage: the ladder reaches the 30 s cap at
+/// attempt 8 and the envelope cuts the sequence off at five minutes of
+/// wall clock.
+///
 /// # Jitter
 ///
 /// With `jitter = true` (default) the sleep duration follows AWS's
 /// *full jitter* pattern: `delay = rand(0, min(max_delay, initial *
 /// 2^attempt))`. Full jitter provably minimises retry-storm contention
 /// relative to equal jitter or no jitter; see
-/// <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>.
+/// <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>
+/// and [`crate::backoff`] for the shared sampler.
 ///
 /// With `jitter = false` the delay is the deterministic backoff
 /// `min(max_delay, initial * 2^attempt)`. Useful for tests that
@@ -29,6 +48,11 @@ pub struct RetryPolicy {
     /// Total attempt budget. `1` disables retry (single call only);
     /// `0` still permits the initial call but allows no retries.
     pub max_attempts: u32,
+    /// Wall-clock envelope for one retry sequence, measured from the
+    /// first attempt. Once exceeded, the next transient failure
+    /// surfaces to the caller instead of scheduling another retry.
+    /// [`Duration::ZERO`] disables the envelope. Default `300 s`.
+    pub max_elapsed: Duration,
     /// Apply AWS-style full jitter to each retry delay.
     pub jitter: bool,
 }
@@ -38,7 +62,8 @@ impl Default for RetryPolicy {
         Self {
             initial_delay: Duration::from_millis(250),
             max_delay: Duration::from_secs(30),
-            max_attempts: 5,
+            max_attempts: 20,
+            max_elapsed: Duration::from_secs(300),
             jitter: true,
         }
     }
@@ -52,6 +77,7 @@ impl RetryPolicy {
             initial_delay: Duration::ZERO,
             max_delay: Duration::ZERO,
             max_attempts: 1,
+            max_elapsed: Duration::ZERO,
             jitter: false,
         }
     }
@@ -72,7 +98,7 @@ impl RetryPolicy {
     pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
         let capped = self.capped_backoff(attempt);
         if self.jitter {
-            jitter_sample(capped)
+            crate::backoff::uniform_duration(Duration::ZERO, capped)
         } else {
             capped
         }
@@ -82,52 +108,88 @@ impl RetryPolicy {
     /// need to assert the upper-bound envelope for a given attempt.
     #[must_use]
     pub fn capped_backoff(&self, attempt: u32) -> Duration {
-        if attempt == 0 {
-            return Duration::ZERO;
-        }
-        // `shift = attempt - 1` so attempt 1 = base, attempt 2 = base*2,
-        // attempt 3 = base*4. `u32::checked_shl(shift)` overflows
-        // exactly when `shift >= 32`; clamp before shifting.
-        let shift = (attempt - 1).min(31);
-        let base_nanos = self.initial_delay.as_nanos();
-        let scaled_nanos = base_nanos.checked_shl(shift).unwrap_or(u128::MAX);
-        let max_nanos = self.max_delay.as_nanos();
-        let nanos = scaled_nanos.min(max_nanos);
-        // `Duration::from_nanos` takes u64 — clamp rather than truncate.
-        Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
+        crate::backoff::capped_exponential(self.initial_delay, self.max_delay, attempt)
+    }
+
+    /// Whether a retry sequence that started `elapsed` ago is still
+    /// inside the wall-clock envelope. Always `true` when the envelope
+    /// is disabled (`max_elapsed == 0`).
+    #[must_use]
+    pub fn within_elapsed_budget(&self, elapsed: Duration) -> bool {
+        self.max_elapsed.is_zero() || elapsed <= self.max_elapsed
     }
 }
 
-/// Full-jitter sampler: uniform on `[0, ceiling]`. Uses the `Instant`-
-/// derived nanosecond clock as an entropy source so we do not pull in
-/// a dedicated RNG crate — sufficient for jitter randomisation where
-/// the statistical quality requirement is "any non-pathological spread
-/// across callers", not cryptographic randomness.
-fn jitter_sample(ceiling: Duration) -> Duration {
-    let ceiling_nanos = ceiling.as_nanos();
-    if ceiling_nanos == 0 {
-        return Duration::ZERO;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_budget_covers_a_multi_minute_outage() {
+        let policy = RetryPolicy::default();
+        assert_eq!(policy.max_attempts, 20);
+        assert_eq!(policy.max_elapsed, Duration::from_secs(300));
+        assert!(policy.jitter);
+        // The deterministic ladder reaches the 30s cap at attempt 8;
+        // attempts 8..20 ride the cap. The un-jittered total exceeds
+        // the 5-minute envelope, so `max_elapsed` is the effective
+        // bound — exactly the operator-facing contract.
+        let total: Duration = (1..policy.max_attempts)
+            .map(|a| policy.capped_backoff(a))
+            .sum();
+        assert!(
+            total >= Duration::from_secs(300),
+            "attempt budget must outlast the wall-clock envelope so \
+             max_elapsed is the binding constraint; got {total:?}"
+        );
     }
-    // `Instant::elapsed` inside a test might return 0 on some CI
-    // schedulers; folding both `elapsed` and a process-local counter
-    // guarantees the sampler advances even then.
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let tick = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let now_nanos = u64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos()),
-    )
-    .unwrap_or(u64::MAX);
-    // Reason: splitmix64 constants — documented mixer, fine for jitter.
-    let mut seed = now_nanos ^ tick.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    seed ^= seed >> 30;
-    seed = seed.wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    seed ^= seed >> 27;
-    seed = seed.wrapping_mul(0x94D0_49BB_1331_11EB);
-    seed ^= seed >> 31;
-    let ceiling_u128 = ceiling_nanos;
-    let bounded = u128::from(seed) % (ceiling_u128 + 1);
-    Duration::from_nanos(u64::try_from(bounded).unwrap_or(u64::MAX))
+
+    #[test]
+    fn capped_backoff_ladder_shape() {
+        let policy = RetryPolicy::default();
+        assert_eq!(policy.capped_backoff(0), Duration::ZERO);
+        assert_eq!(policy.capped_backoff(1), Duration::from_millis(250));
+        assert_eq!(policy.capped_backoff(2), Duration::from_millis(500));
+        assert_eq!(policy.capped_backoff(3), Duration::from_secs(1));
+        assert_eq!(policy.capped_backoff(8), Duration::from_secs(30));
+        assert_eq!(policy.capped_backoff(20), Duration::from_secs(30));
+        assert_eq!(policy.capped_backoff(u32::MAX), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn jittered_delay_bounded_by_capped_backoff() {
+        let policy = RetryPolicy::default();
+        for attempt in 1..=24 {
+            let ceiling = policy.capped_backoff(attempt);
+            for _ in 0..32 {
+                assert!(policy.delay_for_attempt(attempt) <= ceiling);
+            }
+        }
+    }
+
+    #[test]
+    fn elapsed_budget_semantics() {
+        let policy = RetryPolicy::default();
+        assert!(policy.within_elapsed_budget(Duration::ZERO));
+        assert!(policy.within_elapsed_budget(Duration::from_secs(300)));
+        assert!(!policy.within_elapsed_budget(Duration::from_secs(301)));
+
+        let unbounded = RetryPolicy {
+            max_elapsed: Duration::ZERO,
+            ..RetryPolicy::default()
+        };
+        assert!(
+            unbounded.within_elapsed_budget(Duration::from_secs(86_400)),
+            "zero max_elapsed disables the envelope"
+        );
+    }
+
+    #[test]
+    fn disabled_policy_single_attempt() {
+        let policy = RetryPolicy::disabled();
+        assert_eq!(policy.max_attempts, 1);
+        assert_eq!(policy.max_elapsed, Duration::ZERO);
+        assert!(!policy.jitter);
+        assert_eq!(policy.delay_for_attempt(1), Duration::ZERO);
+    }
 }
