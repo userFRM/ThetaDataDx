@@ -277,6 +277,13 @@ fn resolve_range_sibling<'a>(
     }
 }
 
+/// `Retry-After` seconds advertised when the upstream reports
+/// `ResourceExhausted` after the SDK's retry budget is spent. Upstream
+/// tier slots free on a millisecond-to-second cadence, so one second is
+/// the honest "immediately retryable" hint without inviting a tight
+/// hammer loop.
+const UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS: u64 = 1;
+
 fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response {
     match error {
         EndpointError::InvalidParams(message) => {
@@ -284,6 +291,35 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
         }
         EndpointError::UnknownEndpoint(message) => {
             error_response(StatusCode::NOT_FOUND, "not_found", &message)
+        }
+        // Upstream capacity rejection that survived the SDK's retry
+        // budget (`ResourceExhausted` is classified transient and
+        // retried with backoff before it ever reaches this handler).
+        // 503 + Retry-After is the honest shape: the service is
+        // temporarily out of upstream slots and the request is safely
+        // retryable. 500 would imply a server fault; 429 would imply
+        // the CLIENT exceeded a local quota, which it did not.
+        EndpointError::Server(thetadatadx::Error::Grpc {
+            kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
+            message,
+        }) => {
+            tracing::warn!(
+                endpoint = ep.name,
+                error = %message,
+                "upstream capacity exhausted after retries"
+            );
+            let mut resp = error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "upstream_exhausted",
+                &format!("upstream is at capacity; retry shortly: {message}"),
+            );
+            if let Ok(value) = axum::http::HeaderValue::from_str(
+                &UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS.to_string(),
+            ) {
+                resp.headers_mut()
+                    .insert(axum::http::header::RETRY_AFTER, value);
+            }
+            resp
         }
         EndpointError::Server(error) => {
             tracing::warn!(endpoint = ep.name, error = %error, "request failed");
@@ -1053,6 +1089,53 @@ mod tests {
             parsed.get("error").is_none(),
             "nested error.message form must not be emitted: {body}"
         );
+    }
+
+    /// Upstream `ResourceExhausted` that survives the SDK retry budget
+    /// maps to 503 + `Retry-After`, not an opaque 500: the request is
+    /// safely retryable and the fault is capacity, not the server.
+    #[tokio::test]
+    async fn upstream_resource_exhausted_maps_to_503_with_retry_after() {
+        let ep = any_endpoint();
+        let resp = endpoint_error_response(
+            ep,
+            EndpointError::Server(thetadatadx::Error::Grpc {
+                kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
+                message: "stream quota exceeded".to_string(),
+            }),
+        );
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok()),
+            Some("1")
+        );
+        let body = read_body(resp).await;
+        assert!(
+            body.contains("\"error_type\":\"upstream_exhausted\""),
+            "envelope names the capacity condition: {body}"
+        );
+        assert!(
+            body.contains("stream quota exceeded"),
+            "upstream detail is preserved: {body}"
+        );
+    }
+
+    /// Other gRPC faults keep the 500 server_error shape — only the
+    /// capacity condition is retry-hinted.
+    #[tokio::test]
+    async fn other_grpc_faults_stay_500() {
+        let ep = any_endpoint();
+        let resp = endpoint_error_response(
+            ep,
+            EndpointError::Server(thetadatadx::Error::Grpc {
+                kind: thetadatadx::GrpcStatusKind::Internal,
+                message: "decode fault".to_string(),
+            }),
+        );
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(resp.headers().get(axum::http::header::RETRY_AFTER).is_none());
     }
 
     #[tokio::test]

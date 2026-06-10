@@ -65,6 +65,21 @@ use crate::state::AppState;
 /// At 256 simultaneous slow-client connections the server still has headroom
 /// for bursty health-check polling; beyond that, the tokio task pool is the
 /// next bottleneck and we'd rather return pressure at the edge.
+///
+/// # Semantics: queue, not reject
+///
+/// `tower::limit::ConcurrencyLimit` acquires a shared-semaphore permit in
+/// `poll_ready` — request 257 WAITS for a slot, it is never rejected, and
+/// the layer introduces no error of its own (its error type is the inner
+/// service's, `Infallible` under axum). Two queues therefore compose on
+/// every request path: this 256-wide admission queue at the HTTP edge,
+/// then the SDK's tier-sized request semaphore (`Semaphore::new(pool_size)`
+/// in the MDDS client) which serialises dispatch across the upstream gRPC
+/// channel pool. A burst larger than the upstream tier cap queues FIFO and
+/// drains as slots free; the caller's only deadline is its own client-side
+/// timeout (the future drops, releasing both permits). The full model is
+/// documented in `docs-site/docs/tools/server.md` under "Concurrency
+/// model".
 const GLOBAL_CONCURRENCY_LIMIT: usize = 256;
 
 /// Max request body size. 64 KB comfortably covers any realistic query

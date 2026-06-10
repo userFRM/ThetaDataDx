@@ -103,6 +103,16 @@ The WebSocket server at `/v1/events` uses the terminal streaming protocol:
 The WebSocket endpoint supports a single concurrent client connection. If a second client connects, the first connection will be dropped. For multi-client setups, run multiple server instances on different ports.
 :::
 
+## Concurrency Model
+
+Three admission gates compose on every historical request, and the first two **queue rather than reject**:
+
+1. **HTTP edge cap (256).** `tower::limit::ConcurrencyLimitLayer::new(256)` bounds in-flight requests across all routes. The layer acquires a semaphore permit before the request runs — request 257 *waits* for a free slot; it is never rejected and produces no error response. The cap exists to shed pressure at the edge before the async task pool becomes the bottleneck.
+2. **SDK tier semaphore.** Inside the SDK, every historical call acquires a permit from a semaphore sized to the resolved subscription tier's concurrency cap (the same size as the upstream channel pool). A burst larger than the tier cap queues FIFO and drains as upstream slots free — the same transparent queueing the legacy terminal performs. A client that disconnects (or applies its own timeout) drops the in-flight future, which releases both permits immediately.
+3. **Upstream capacity.** If the upstream itself reports it is out of capacity, the SDK classifies the status as transient and retries with backoff before surfacing anything. Only when that retry budget is spent does the server answer — with `503 Service Unavailable`, `error_type: "upstream_exhausted"`, and a `Retry-After` header — never a bare 500, and never a 429 (429 is reserved for the per-IP rate limiter on non-loopback binds).
+
+Practical consequence: a fan-out workload of hundreds of parallel requests against a loopback bind sees every request succeed, ordered by the two queues, with latency (not errors) absorbing the burst. There is no tuning knob equivalent to the legacy terminal's per-asset-class concurrency properties; the tier cap is detected from the subscription at startup.
+
 ## Security Hardening
 
 The REST and WebSocket routers share the same hardening stack
