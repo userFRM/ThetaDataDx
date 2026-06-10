@@ -108,7 +108,7 @@ Events are either **data** (market ticks) or **control** (lifecycle/protocol):
 
 | Mode | Behavior | Latency | Syscall overhead |
 |------|----------|---------|-----------------|
-| `Batched` (default) | Flush only on PING frames (~100ms) | Up to 100ms additional | Lower |
+| `Batched` (default) | Flush only on PING frames (one ping interval, default ~250ms) | Up to one ping interval additional | Lower |
 | `Immediate` | Flush after every frame write | Lowest possible | Higher |
 
 ## Quick Start

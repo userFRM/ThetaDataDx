@@ -126,7 +126,7 @@ const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 
 | Mode | Flush trigger | Added latency | Best for |
 |------|--------------|---------------|----------|
-| `Batched` (default) | PING frames every ~100ms | Up to 100ms | Production throughput |
+| `Batched` (default) | PING frames (one ping interval, default ~250ms) | Up to one ping interval | Production throughput |
 | `Immediate` | Every frame write | None | Lowest latency trading |
 
 ::: code-group
@@ -134,23 +134,23 @@ const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 use thetadatadx::config::FpssFlushMode;
 
 let mut config = DirectConfig::production();
-config.fpss_flush_mode = FpssFlushMode::Immediate; // lowest latency
+config.fpss.flush_mode = FpssFlushMode::Immediate; // lowest latency
 let client = ThetaDataDxClient::connect(&creds, config).await?;
 ```
 ```python [Python]
-# Flush mode cannot currently be changed from the Python SDK.
-# It defaults to Batched (flush on PING frames, ~100ms).
-# Use the Rust SDK directly if you need Immediate mode.
-client = ThetaDataDxClient(creds, Config.production())
+cfg = Config.production()
+cfg.flush_mode = "immediate"  # lowest latency
+client = ThetaDataDxClient(creds, cfg)
 ```
 ```cpp [C++]
 auto config = tdx::Config::production();
-config.set_flush_mode(tdx::FlushMode::Immediate);
+config.set_flush_mode(1);  // 0 = Batched (default), 1 = Immediate
 auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
-// Flush mode cannot currently be changed from the TypeScript SDK.
-// It defaults to Batched (flush on PING frames, ~100ms).
+// `Config.setFlushMode("immediate")` carries the knob; a
+// config-accepting connect factory is not yet exposed in the
+// TypeScript SDK — connectFromFile() uses production config.
 const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
@@ -228,11 +228,11 @@ tokio runtime
   +-- stock_history_*()  async, gRPC streaming
 
 std::thread (fpss-io)
-  +-- TLS read loop      blocking, 50ms timeout
+  +-- TLS read loop      blocking, 25ms read slice (configurable)
   +-- ring publish  lock-free, zero-alloc
 
 std::thread (fpss-ping)
-  +-- PING heartbeat     100ms sleep loop
+  +-- PING heartbeat     250ms sleep loop (configurable)
 
 ring-buffer consumer thread
   +-- your callback(FnMut(&FpssEvent))

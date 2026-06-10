@@ -161,7 +161,7 @@ The SDK's own overhead (`received_at_ns` capture, FIT decode, ring dispatch, cal
 For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
-2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
+2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to one ping interval (default ~250ms), but cannot beat physics
 3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying ring-buffer pipeline is identical (adds <1ms total at typical wire rates).
 
 ## Latency Histogram Example
