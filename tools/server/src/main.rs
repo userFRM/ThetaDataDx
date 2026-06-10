@@ -229,14 +229,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Step 6: Build HTTP REST server with CORS.
-    let allowed_origin = format!("http://{}:{}", args.bind, args.http_port);
+    //
+    // Permissive by design, matching the legacy terminal: browser-based
+    // dashboards on any local origin must be able to call both the GET
+    // data routes and the POST routes (`/v3/system/shutdown`,
+    // `/v3/flatfile/request`). The previous configuration pinned
+    // `allow_origin` to the server's own listener address — a client
+    // running on the server's origin IS the server, so the restriction
+    // blocked every real browser client while protecting nothing — and
+    // `allow_methods=[GET]` failed every POST preflight. Real protection
+    // for the mutating route is the `X-Shutdown-Token` header plus the
+    // route-scoped rate limiter, not CORS.
     let cors = CorsLayer::new()
-        .allow_origin(
-            allowed_origin
-                .parse::<axum::http::HeaderValue>()
-                .map_err(|e| format!("invalid CORS origin: {e}"))?,
-        )
-        .allow_methods([axum::http::Method::GET])
+        .allow_origin(tower_http::cors::Any)
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
     let http_app = router::build(state.clone()).layer(cors);
