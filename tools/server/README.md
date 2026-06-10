@@ -76,7 +76,9 @@ POST /v3/system/shutdown        # requires X-Shutdown-Token header
 
 ### Response format
 
-Responses use the terminal JSON envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
+Every registry endpoint accepts a `format` query parameter: `json` (default), `csv` (RFC 4180 with a header row), and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited, `Content-Type: application/x-ndjson; charset=utf-8`). Unknown `format` values return 400 with the supported set.
+
+JSON responses use the terminal envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
 
 ```json
 {

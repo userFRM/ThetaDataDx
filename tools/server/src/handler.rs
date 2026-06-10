@@ -297,24 +297,115 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
 //  Generic endpoint handler
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+//  Response format negotiation
+// ---------------------------------------------------------------------------
+
+/// Content type for NDJSON (newline-delimited JSON) responses. The
+/// `charset` parameter mirrors the flat-file route surface, which has
+/// always emitted it on JSONL bodies.
+pub(crate) const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson; charset=utf-8";
+
+/// Wire formats a registry endpoint can render its response in.
+///
+/// Parsed from the `format` query parameter; unknown values are a 400 —
+/// silently downgrading `format=parquet` to the JSON envelope made the
+/// caller's pipeline fail far from the cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResponseFormat {
+    /// Java terminal JSON envelope (default).
+    Json,
+    /// RFC 4180 CSV with a header row.
+    Csv,
+    /// One JSON object per row, `\n`-delimited.
+    Ndjson,
+}
+
+/// Parse the `format` query parameter. Absent means JSON.
+fn parse_response_format(params: &HashMap<String, String>) -> Result<ResponseFormat, EndpointError> {
+    let Some(raw) = params.get("format") else {
+        return Ok(ResponseFormat::Json);
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "json" => Ok(ResponseFormat::Json),
+        "csv" => Ok(ResponseFormat::Csv),
+        // `ndjson` and `jsonl` are the same line-delimited framing under
+        // two community names; accept both like the flat-file routes do.
+        "ndjson" | "jsonl" => Ok(ResponseFormat::Ndjson),
+        other => Err(EndpointError::InvalidParams(format!(
+            "unknown format: '{other}' (supported: json, csv, ndjson, jsonl)"
+        ))),
+    }
+}
+
+/// Render the `response` rows of a canonicalised envelope as NDJSON.
+///
+/// One JSON object per row, `\n`-delimited — the line-at-a-time framing
+/// Pandas / Polars / DuckDB ingest natively. An empty response renders
+/// as an empty body (zero lines), mirroring the CSV branch.
+fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
+    // Collapse non-finite leaves once across the whole tree, then
+    // serialise row-by-row; per-row serialisation cannot reintroduce
+    // non-canonical cells.
+    tdbe::json_canon::canonicalize(json_val);
+    let rows = json_val
+        .get("response")
+        .and_then(|v: &sonic_rs::Value| v.as_array());
+    let Some(rows) = rows else {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "serialization_error",
+            "response envelope is missing the response array",
+        );
+    };
+
+    let mut body = String::with_capacity(rows.len() * 128);
+    for row in rows.iter() {
+        match sonic_rs::to_string(row) {
+            Ok(line) => {
+                body.push_str(&line);
+                body.push('\n');
+            }
+            Err(err) => {
+                tracing::error!(error = %err, "NDJSON row serialisation failed");
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "serialization_error",
+                    &err.to_string(),
+                );
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)],
+        body,
+    )
+        .into_response()
+}
+
 /// Generic handler invoked for all registry endpoints.
 ///
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
 ///    URL parse so `?a=1&b=2&...` flood attacks can't force a multi-MB
 ///    HashMap allocation before the cap trips.
-/// 2. Re-dispatches `start_date`+`end_date` queries on a single-date path
+/// 2. Negotiates the response format (`json` default, `csv`,
+///    `ndjson`/`jsonl`); unknown `format` values are a 400.
+/// 3. Re-dispatches `start_date`+`end_date` queries on a single-date path
 ///    to the `_range` registry sibling (see [`resolve_range_sibling`]).
-/// 3. Validates required query params against `EndpointMeta.params`.
-/// 4. Invokes the shared endpoint runtime.
-/// 5. Returns JSON envelope or CSV depending on `format=csv`.
+/// 4. Validates required query params against `EndpointMeta.params`.
+/// 5. Invokes the shared endpoint runtime.
+/// 6. Renders the negotiated format.
 pub async fn generic(
     State(state): State<AppState>,
     BoundedQuery(params): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &EndpointMeta,
 ) -> Response {
-    let use_csv = params
-        .get("format")
-        .is_some_and(|v| v.eq_ignore_ascii_case("csv"));
+    let response_format = match parse_response_format(&params) {
+        Ok(f) => f,
+        Err(error) => return endpoint_error_response(ep, error),
+    };
 
     let ep = resolve_range_sibling(ep, &params);
 
@@ -329,30 +420,32 @@ pub async fn generic(
     };
 
     let mut json_val = format::output_envelope(&output);
-    if use_csv {
-        if let Some(arr) = json_val
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-        {
-            let items: Vec<sonic_rs::Value> = arr.iter().cloned().collect();
-            if let Some(csv) = format::json_to_csv(&items) {
-                return (
-                    StatusCode::OK,
-                    [("content-type", "text/csv; charset=utf-8")],
-                    csv,
-                )
-                    .into_response();
+    match response_format {
+        ResponseFormat::Json => json_response(&mut json_val),
+        ResponseFormat::Ndjson => ndjson_response(&mut json_val),
+        ResponseFormat::Csv => {
+            if let Some(arr) = json_val
+                .get("response")
+                .and_then(|v: &sonic_rs::Value| v.as_array())
+            {
+                let items: Vec<sonic_rs::Value> = arr.iter().cloned().collect();
+                if let Some(csv) = format::json_to_csv(&items) {
+                    return (
+                        StatusCode::OK,
+                        [("content-type", "text/csv; charset=utf-8")],
+                        csv,
+                    )
+                        .into_response();
+                }
             }
+            (
+                StatusCode::OK,
+                [("content-type", "text/csv; charset=utf-8")],
+                String::new(),
+            )
+                .into_response()
         }
-        return (
-            StatusCode::OK,
-            [("content-type", "text/csv; charset=utf-8")],
-            String::new(),
-        )
-            .into_response();
     }
-
-    json_response(&mut json_val)
 }
 
 // ---------------------------------------------------------------------------
@@ -725,6 +818,106 @@ mod tests {
         let body = resp.into_body();
         let bytes = to_bytes(body, usize::MAX).await.expect("body collect");
         String::from_utf8(bytes.to_vec()).expect("body utf8")
+    }
+
+    // -----------------------------------------------------------------------
+    //  Response-format negotiation + NDJSON rendering
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn response_format_defaults_to_json_and_parses_known_values() {
+        assert_eq!(
+            parse_response_format(&HashMap::new()).unwrap(),
+            ResponseFormat::Json
+        );
+        for (raw, expected) in [
+            ("json", ResponseFormat::Json),
+            ("csv", ResponseFormat::Csv),
+            ("CSV", ResponseFormat::Csv),
+            ("ndjson", ResponseFormat::Ndjson),
+            ("NDJSON", ResponseFormat::Ndjson),
+            ("jsonl", ResponseFormat::Ndjson),
+            ("JSONL", ResponseFormat::Ndjson),
+        ] {
+            let params = string_params(&[("format", raw)]);
+            assert_eq!(parse_response_format(&params).unwrap(), expected, "{raw}");
+        }
+    }
+
+    /// Unknown `format` values are a 400 listing the supported set —
+    /// silently downgrading to the JSON envelope made the caller's
+    /// pipeline fail far from the cause.
+    #[test]
+    fn response_format_rejects_unknown_values() {
+        for bad in ["parquet", "arrow", "xml", "nd-json"] {
+            let params = string_params(&[("format", bad)]);
+            let err = parse_response_format(&params).expect_err(bad);
+            match err {
+                EndpointError::InvalidParams(msg) => {
+                    assert!(msg.contains(bad), "message echoes the value: {msg}");
+                    for supported in ["json", "csv", "ndjson", "jsonl"] {
+                        assert!(
+                            msg.contains(supported),
+                            "message lists '{supported}': {msg}"
+                        );
+                    }
+                }
+                other => panic!("expected InvalidParams, got {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn ndjson_response_emits_one_object_per_row() {
+        let mut envelope = format::ok_envelope(vec![
+            sonic_rs::json!({"symbol": "AAPL", "close": 200.5}),
+            sonic_rs::json!({"symbol": "MSFT", "close": 470.0}),
+        ]);
+        let resp = ndjson_response(&mut envelope);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("application/x-ndjson; charset=utf-8")
+        );
+
+        let body = read_body(resp).await;
+        assert!(body.ends_with('\n'), "every row line is newline-terminated");
+        let lines: Vec<&str> = body.lines().collect();
+        assert_eq!(lines.len(), 2, "one line per response row: {body}");
+        for line in &lines {
+            let row: Value = sonic_rs::from_str(line).expect("each line is standalone JSON");
+            assert!(row.get("symbol").is_some(), "row carries its fields: {line}");
+        }
+        assert!(
+            !body.contains("\"header\""),
+            "NDJSON body must not carry the envelope wrapper: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn ndjson_response_renders_empty_response_as_empty_body() {
+        let mut envelope = format::ok_envelope(vec![]);
+        let resp = ndjson_response(&mut envelope);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp).await;
+        assert!(body.is_empty(), "zero rows render zero lines, got {body:?}");
+    }
+
+    #[tokio::test]
+    async fn ndjson_response_collapses_non_finite_cells_to_null() {
+        let mut row = sonic_rs::json!({"symbol": "AAPL", "vega": Value::new_null()});
+        if let Some(o) = row.as_object_mut() {
+            o.insert(&"vega", tdbe::json_canon::finite_or_null(f64::NAN));
+        }
+        let mut envelope = format::ok_envelope(vec![row]);
+        let resp = ndjson_response(&mut envelope);
+        let body = read_body(resp).await;
+        assert!(
+            body.contains("\"vega\":null"),
+            "non-finite cells collapse to null on the NDJSON path too: {body}"
+        );
     }
 
     // -----------------------------------------------------------------------

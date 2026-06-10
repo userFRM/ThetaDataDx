@@ -76,6 +76,8 @@ Responses use the terminal JSON envelope with `Content-Type: application/json` (
 }
 ```
 
+Every registry endpoint also accepts a `format` query parameter: `json` (default, the envelope above), `csv` (RFC 4180 with a header row), and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited, `Content-Type: application/x-ndjson; charset=utf-8`). Unknown `format` values return 400 with the supported set.
+
 Failures use one canonical error envelope across every route family (registry endpoints, flat files, rate-limit rejections), so a single error parser covers the whole surface:
 
 ```json
