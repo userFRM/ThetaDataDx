@@ -24,11 +24,11 @@ TEST_CASE("Config exposes FlatFilesConfig production defaults",
     std::uint32_t n = 0;
     std::uint64_t secs = 0;
     REQUIRE(cfg.get_flatfiles_max_attempts(&n) == 0);
-    REQUIRE(n == 3u);
+    REQUIRE(n == 10u);
     REQUIRE(cfg.get_flatfiles_initial_backoff_secs(&secs) == 0);
     REQUIRE(secs == 1u);
     REQUIRE(cfg.get_flatfiles_max_backoff_secs(&secs) == 0);
-    REQUIRE(secs == 4u);
+    REQUIRE(secs == 30u);
 }
 
 TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
