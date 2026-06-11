@@ -41,11 +41,13 @@ pub use extract::extract_text_column;
 #[cfg(feature = "__internal")]
 pub use extract::{extract_number_column, extract_price_column};
 // `decode_data_table` and `decompress_response` (non-`_with_max` variants)
-// are only used by workspace bindings. The `_with_max` variants are used by
-// `grpc/decoder_pool.rs` and `mdds/stream.rs` — keep them always-available.
+// plus `decompress_response_with_max` are only used by workspace
+// bindings and tests; gate them under `__internal`.
+// `decode_data_table_with_max` is the production per-chunk decode used
+// by `mdds/stream.rs` — keep it always-available.
+pub use transport::decode_data_table_with_max;
 #[cfg(feature = "__internal")]
-pub use transport::{decode_data_table, decompress_response};
-pub use transport::{decode_data_table_with_max, decompress_response_with_max};
+pub use transport::{decode_data_table, decompress_response, decompress_response_with_max};
 
 // Re-export the generated parser functions at this module's top level.
 // `cell.rs` handles the split: `__internal` builds get `pub use cell::*`

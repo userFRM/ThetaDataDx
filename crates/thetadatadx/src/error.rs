@@ -22,11 +22,12 @@ impl std::fmt::Display for AuthErrorKind {
 
 /// Classification of gRPC transport-level failures.
 ///
-/// Mirrors the `ChannelError` variants so callers can pattern-match on
-/// the concrete transport fault (TLS handshake, connection-level death,
-/// stream-level reset, etc.) without parsing `Display` strings. Each
-/// variant is `#[non_exhaustive]` at the enum level so future transport
-/// failure modes can be added without breaking exhaustive matches.
+/// Mirrors the transport's `ChannelError` variants so callers can
+/// pattern-match on the concrete transport fault (TLS handshake,
+/// connection-level death, stream-level reset, etc.) without parsing
+/// `Display` strings. Each variant is `#[non_exhaustive]` at the enum
+/// level so future transport failure modes can be added without
+/// breaking exhaustive matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TransportErrorKind {
@@ -36,26 +37,15 @@ pub enum TransportErrorKind {
     Tls,
     /// The host string was not a valid DNS name for rustls.
     InvalidServerName,
-    /// h2 protocol handshake failed.
+    /// HTTP/2 session establishment failed over an already-connected
+    /// transport.
     H2Handshake,
     /// h2 stream-level error scoped to a single RPC.
     H2Stream,
     /// Connection-level death (GOAWAY, IO failure, open-phase drop).
     ConnectionClosed,
-    /// Server returned a non-200 HTTP status — invariant violation
-    /// per the gRPC HTTP/2 contract.
-    UnexpectedHttpStatus,
-    /// Server's HTTP/2 response carried no body.
-    EmptyResponse,
-    /// `:path` URI for the RPC could not be built.
+    /// The request URI or `:path` for the RPC could not be built.
     InvalidPath,
-    /// Codec-layer failure surfaced through the channel.
-    Codec,
-    /// Decoder pool poisoned by a worker-thread panic.
-    DecoderPoisoned,
-    /// Decoder pool's response channel was dropped before the result
-    /// arrived.
-    DecoderReplyDropped,
 }
 
 impl TransportErrorKind {
@@ -71,12 +61,7 @@ impl TransportErrorKind {
             Self::H2Handshake => "h2_handshake",
             Self::H2Stream => "h2_stream",
             Self::ConnectionClosed => "connection_closed",
-            Self::UnexpectedHttpStatus => "unexpected_http_status",
-            Self::EmptyResponse => "empty_response",
             Self::InvalidPath => "invalid_path",
-            Self::Codec => "codec",
-            Self::DecoderPoisoned => "decoder_poisoned",
-            Self::DecoderReplyDropped => "decoder_reply_dropped",
         }
     }
 }
@@ -639,13 +624,10 @@ impl From<crate::decode::DecodeError> for Error {
 
 impl From<crate::grpc::Status> for Error {
     fn from(s: crate::grpc::Status) -> Self {
-        // The in-house transport carries the canonical `grpc-status` and
-        // `grpc-message` trailers directly. ThetaData-specific
-        // `http_status_code` metadata enrichment previously rode on the old transport's
-        // metadata map; the in-house path can recover it the same way
-        // once trailer-metadata propagation lands in `grpc::Status`. For
-        // now, surface the numeric code + UTF-8 message as-is so
-        // callers still get `GrpcStatusKind` pattern-matching.
+        // The transport carries the canonical `grpc-status` /
+        // `grpc-message` pair plus the decoded `google.rpc.RetryInfo`
+        // hint. Surface the numeric code + UTF-8 message as-is so
+        // callers get `GrpcStatusKind` pattern-matching.
         let kind = GrpcStatusKind::from_u32(s.code());
         Self::Grpc {
             kind,
@@ -673,12 +655,6 @@ impl From<crate::grpc::ChannelError> for Error {
                     ChannelError::H2Handshake(_) => TransportErrorKind::H2Handshake,
                     ChannelError::H2Stream(_) => TransportErrorKind::H2Stream,
                     ChannelError::InvalidPath { .. } => TransportErrorKind::InvalidPath,
-                    ChannelError::Codec(_) => TransportErrorKind::Codec,
-                    ChannelError::StatusParse(_) => TransportErrorKind::Codec,
-                    ChannelError::EmptyResponse => TransportErrorKind::EmptyResponse,
-                    ChannelError::UnexpectedHttpStatus(_) => {
-                        TransportErrorKind::UnexpectedHttpStatus
-                    }
                     ChannelError::ConnectionClosed(_) => TransportErrorKind::ConnectionClosed,
                     // Rpc / DeadlineExceeded handled above — keep compiler
                     // exhaustiveness happy without a runtime branch.
@@ -1017,14 +993,6 @@ mod tests {
                     message: "e".into(),
                 },
                 TransportErrorKind::InvalidPath,
-            ),
-            (
-                ChannelError::EmptyResponse,
-                TransportErrorKind::EmptyResponse,
-            ),
-            (
-                ChannelError::UnexpectedHttpStatus(500),
-                TransportErrorKind::UnexpectedHttpStatus,
             ),
             (
                 ChannelError::ConnectionClosed("e".into()),

@@ -989,17 +989,6 @@ public:
     }
 
     /**
-     * Set the per-thread decoder ring size.
-     *
-     * Must be a power of two, >= 64. Invalid values are rejected at
-     * the setter; check `tdx_last_error()` if the value seems to
-     * have been ignored. Default is 256.
-     */
-    void set_decoder_ring_size(std::uint32_t n) {
-        tdx_config_set_decoder_ring_size(handle_.get(), n);
-    }
-
-    /**
      * Set the warn_on_buffered_threshold_bytes ceiling.
      *
      * Pre-stream-API endpoints log a `tracing::warn!` when a buffered
@@ -1023,104 +1012,6 @@ public:
         std::size_t n = 0;
         tdx_config_get_warn_on_buffered_threshold_bytes(handle_.get(), &n);
         return n;
-    }
-
-    // ── MDDS two-stage decode pipeline ──
-
-    /**
-     * Set the stage-2 worker thread count for the two-stage MDDS
-     * decode pipeline.
-     *
-     * Stage-2 runs prost decode + Tick build off a bounded MPSC queue
-     * fed by the stage-1 per-channel decompress threads. Pass
-     * @c std::nullopt for the auto-sized default
-     * (@c available_parallelism() on the Rust side); pass an explicit
-     * @c std::size_t for a pinned worker count. The pool clamps
-     * internally to a minimum of 1; @c std::optional{0} clamps to 1
-     * but is preserved on the config (round-trips as @c Some(0)),
-     * matching the Python / TS binding contract.
-     *
-     * Throws @c std::runtime_error if the underlying FFI handle is
-     * null (the caller should not be able to reach this with a
-     * destroyed @c Config -- the move-only RAII contract makes that
-     * a use-after-move bug at the call site).
-     */
-    void set_decode_threads(std::optional<std::size_t> n) {
-        const bool has_value = n.has_value();
-        const std::size_t arg = n.value_or(0);
-        const std::int32_t rc =
-            tdx_config_set_decode_threads_explicit(handle_.get(), has_value, arg);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_decode_threads failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
-        }
-    }
-
-    /**
-     * Set the bounded queue depth between stage-1 and stage-2 of the
-     * two-stage MDDS decode pipeline.
-     *
-     * When stage-2 cannot keep up, stage-1 parks rather than drops --
-     * silent drops on a market-data feed are unacceptable. Pass
-     * @c std::nullopt for the auto-sized default
-     * (@c concurrent_requests * 64 with a floor of @c 64); pass an
-     * explicit @c std::size_t for a pinned depth.
-     *
-     * Throws @c std::runtime_error on null-handle FFI failure.
-     */
-    void set_decode_queue_depth(std::optional<std::size_t> n) {
-        const bool has_value = n.has_value();
-        const std::size_t arg = n.value_or(0);
-        const std::int32_t rc =
-            tdx_config_set_decode_queue_depth_explicit(handle_.get(), has_value, arg);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_decode_queue_depth failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
-        }
-    }
-
-    /**
-     * Read the current decode_threads setting. Returns @c std::nullopt
-     * for the auto-size sentinel (`None` on the Rust side); returns
-     * the wrapped @c std::size_t when the setter pinned an explicit
-     * value.
-     *
-     * Throws @c std::runtime_error on null-handle FFI failure.
-     */
-    std::optional<std::size_t> get_decode_threads() const {
-        bool has_value = false;
-        std::size_t n = 0;
-        const std::int32_t rc =
-            tdx_config_get_decode_threads(handle_.get(), &has_value, &n);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_get_decode_threads failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
-        }
-        return has_value ? std::optional<std::size_t>{n} : std::nullopt;
-    }
-
-    /**
-     * Read the current decode_queue_depth setting. Same semantics as
-     * @c get_decode_threads.
-     */
-    std::optional<std::size_t> get_decode_queue_depth() const {
-        bool has_value = false;
-        std::size_t n = 0;
-        const std::int32_t rc =
-            tdx_config_get_decode_queue_depth(handle_.get(), &has_value, &n);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_get_decode_queue_depth failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
-        }
-        return has_value ? std::optional<std::size_t>{n} : std::nullopt;
     }
 
     /** Get the raw handle. */

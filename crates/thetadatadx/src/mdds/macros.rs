@@ -1038,11 +1038,6 @@ mod classify_error_tests {
             TransportErrorKind::H2Handshake,
             TransportErrorKind::H2Stream,
             TransportErrorKind::InvalidPath,
-            TransportErrorKind::Codec,
-            TransportErrorKind::EmptyResponse,
-            TransportErrorKind::UnexpectedHttpStatus,
-            TransportErrorKind::DecoderPoisoned,
-            TransportErrorKind::DecoderReplyDropped,
         ];
         for kind in kinds {
             let err = Error::Transport {

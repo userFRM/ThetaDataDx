@@ -37,7 +37,6 @@ set(THETADX_CPP_TEST_SOURCES
     config_reconnect.cpp
     # MDDS two-stage decode pipeline setters on tdx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
-    config_decode_pipeline.cpp
     # FlatFilesConfig setters on tdx::Config — cross-binding parity
     # with Python / TypeScript / FFI (issue #594).
     flatfiles_config.cpp

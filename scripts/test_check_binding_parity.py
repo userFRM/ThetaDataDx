@@ -256,23 +256,23 @@ def test_orphan_rust_field_trips(tmpdir: pathlib.Path) -> None:
 
 
 def test_explicit_widened_abi_accepted() -> None:
-    """FFI emits `tdx_config_set_decode_threads_explicit` for the
+    """FFI emits `tdx_config_set_tokio_worker_threads_explicit` for the
     widened `(has_value, n)` ABI shape; the parity row uses the bare
-    `decode_threads` name. The gate must accept the `_explicit`
+    `tokio_worker_threads` name. The gate must accept the `_explicit`
     suffix as equivalent.
     """
     rows = [
         {
-            "name": "MddsConfig.decode_threads",
+            "name": "RuntimeConfig.tokio_worker_threads",
             "python": True,
             "typescript": True,
             "cpp": True,
         }
     ]
-    ffi_setters = {"decode_threads_explicit", "decode_threads"}
-    py_setters = {"decode_threads"}
-    ts_setters = {"decode_threads"}
-    cpp_setters = {"decode_threads"}
+    ffi_setters = {"tokio_worker_threads_explicit", "tokio_worker_threads"}
+    py_setters = {"tokio_worker_threads"}
+    ts_setters = {"tokio_worker_threads"}
+    cpp_setters = {"tokio_worker_threads"}
     errors = cbp._check_dotted_rows(
         rows, py_setters, ts_setters, cpp_setters, ffi_setters
     )

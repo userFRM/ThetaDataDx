@@ -1,15 +1,15 @@
 //! MDDS (gRPC) sub-configuration.
 //!
-//! Three knobs control SDK-side throughput on large historical pulls
-//! (multi-day backfills, wide `strike_range`, `interval = 1s` /
+//! `concurrent_requests` is the throughput knob for large historical
+//! pulls (multi-day backfills, wide `strike_range`, `interval = 1s` /
 //! `tick`):
 //!
-//! | Workload                                        | `concurrent_requests` | `decode_threads` | `decoder_ring_size` |
-//! |-------------------------------------------------|-----------------------|------------------|---------------------|
-//! | One-shot single-day single-strike query         | `1`                   | auto             | default (256)       |
-//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             | auto             | default (256)       |
-//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         | `8`              | default (256)       |
-//! | Server-side tier caps                           | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |  |                     |
+//! | Workload                                        | `concurrent_requests` |
+//! |-------------------------------------------------|-----------------------|
+//! | One-shot single-day single-strike query         | `1`                   |
+//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             |
+//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         |
+//! | Server-side tier caps                           | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |
 //!
 //! `concurrent_requests` is clamped to the resolved subscription
 //! tier cap at connect time (a setting of `32` on a PRO tier opens
@@ -45,21 +45,28 @@ pub struct MddsConfig {
     pub max_message_size: usize,
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
+    ///
+    /// Sets the HTTP/2 keepalive PING cadence on every MDDS channel.
     pub keepalive_secs: u64,
 
     /// gRPC keepalive timeout in seconds (`keepAliveTimeout(10, SECONDS)`).
+    ///
+    /// How long an unanswered keepalive PING is tolerated before the
+    /// connection is declared dead and recycled.
     pub keepalive_timeout_secs: u64,
 
     /// gRPC flow control: initial stream window size in KB.
     ///
-    /// Maps to the underlying transport's initial_stream_window_size`.
-    /// Default 64 KB matches HTTP/2 spec default.
+    /// Sets the per-stream HTTP/2 flow-control window on every MDDS
+    /// channel. Default 64 KB matches the HTTP/2 spec default;
+    /// validation clamps to `[64, 1024]`.
     pub window_size_kb: usize,
 
     /// gRPC flow control: initial connection window size in KB.
     ///
-    /// Maps to the underlying transport's initial_connection_window_size`.
-    /// Default 64 KB. Increase for high-throughput bulk queries.
+    /// Sets the connection-level HTTP/2 flow-control window on every
+    /// MDDS channel. Default 64 KB; validation clamps to `[64, 1024]`.
+    /// Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
     /// TCP connect timeout for the MDDS channel, in seconds.
@@ -70,46 +77,6 @@ pub struct MddsConfig {
     /// can raise this to absorb slow handshakes without altering keepalive
     /// cadence.
     pub connect_timeout_secs: u64,
-
-    /// Stage-2 worker thread count for the two-stage decode
-    /// pipeline. Stage-2 runs `prost::Message::decode` and the
-    /// downstream Tick build off a bounded MPSC queue fed by the
-    /// stage-1 decoder threads.
-    ///
-    /// `None` (the default) sizes the pool to
-    /// [`std::thread::available_parallelism`] with a minimum of `1`,
-    /// fanning parsing work across every logical core when the
-    /// workload is parser-bound rather than IO-bound. `Some(0)` clamps
-    /// to `1` (a zero-worker
-    /// pool would deadlock stage-1 on the first push). `Some(n)`
-    /// pins the worker count to `n` regardless of the available
-    /// core count — useful on shared hosts where
-    /// `available_parallelism` reads the wrong number from `/proc`.
-    pub decode_threads: Option<usize>,
-
-    /// Bounded queue depth between stage-1 (zstd decompress) and
-    /// stage-2 (prost decode + Tick build). When stage-2 cannot
-    /// keep up, stage-1's `send()` parks the decoder thread rather
-    /// than dropping the payload — silent drops on a market data
-    /// feed are unacceptable, so the queue prefers backpressure.
-    ///
-    /// `None` (the default) sizes the queue to
-    /// `concurrent_requests * 64`, picked so a 64-way burst on
-    /// every configured channel pool has a chunk-worth of headroom
-    /// without leaving stage-2 starved. `Some(n)` pins the depth to
-    /// `n` slots; `Some(0)` clamps to `1` (a zero-slot queue
-    /// degenerates to a rendezvous channel — still backpressure-
-    /// preserving but no buffer).
-    pub decode_queue_depth: Option<usize>,
-
-    /// Per-thread decoder ring size. Must be a power of two `>= 64`.
-    ///
-    /// Larger rings absorb burstier IO without back-pressuring the
-    /// h2 receive task; smaller rings reduce memory footprint. `256`
-    /// is the production default — enough headroom for a 64-way
-    /// burst across 4 channels to land on the same decoder thread
-    /// without queue-full back-pressure.
-    pub decoder_ring_size: usize,
 
     /// Estimated-bytes threshold above which the buffered `.await`
     /// path on a `parsed_endpoint!` builder emits a single
@@ -170,9 +137,6 @@ impl MddsConfig {
             window_size_kb: 64,
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
-            decode_threads: None,
-            decode_queue_depth: None,
-            decoder_ring_size: 256,
             // 100 MiB — empirically catches bulk pulls (multi-million
             // row option-chain or multi-day backfill responses) while
             // staying silent on ad-hoc single-day quote / OHLC pulls

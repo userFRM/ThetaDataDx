@@ -141,8 +141,8 @@ pub(crate) struct RingEvent {
 // is safe; the `unsafe impl Sync` records the contract.
 unsafe impl Sync for RingEvent {}
 
-// Ring-size validation lives in [`crate::util::ring`] so the gRPC
-// decoder pool can share the same contract. Re-export the items here
+// Ring-size validation lives in [`crate::util::ring`] so any other
+// ring consumer can share the same contract. Re-export the items here
 // under their historical FPSS paths so existing consumers do not have
 // to change.
 #[cfg(test)]

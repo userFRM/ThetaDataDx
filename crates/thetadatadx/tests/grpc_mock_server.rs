@@ -923,11 +923,14 @@ async fn channel_sets_http_scheme_for_h2c_transport() {
 // ─── Finding 2: codec max_message_size threaded through Channel ──────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn channel_decodes_oversized_frame_to_codec_error() {
+async fn channel_rejects_oversized_frame_at_decode_ceiling() {
     // Send back a single response chunk whose framed protobuf payload
-    // exceeds a 1 KiB codec ceiling. The codec must surface
-    // `FrameTooLarge` so the configured `mdds.max_message_size` is
-    // load-bearing, not decoration.
+    // exceeds a 1 KiB decode ceiling. The transport must reject the
+    // frame so the configured `mdds.max_message_size` is load-bearing,
+    // not decoration. The canonical rejection is the `OutOfRange`
+    // status the gRPC decode layer emits for over-limit messages —
+    // terminal for the retry shell, same as the previous transport's
+    // codec-level rejection.
     let payload_size: usize = 16 * 1024;
     let big_chunk = ResponseData {
         compressed_data: vec![0u8; payload_size],
@@ -937,7 +940,7 @@ async fn channel_decodes_oversized_frame_to_codec_error() {
 
     let channel = Channel::connect_h2c_with_max_message_size("127.0.0.1", mock.addr.port(), 1024)
         .await
-        .expect("h2c connect with bounded codec");
+        .expect("h2c connect with bounded decode ceiling");
 
     let stream = channel
         .server_streaming::<DataValueList, ResponseData>(
@@ -949,13 +952,18 @@ async fn channel_decodes_oversized_frame_to_codec_error() {
 
     let err = collect(stream)
         .await
-        .expect_err("oversized frame must surface CodecError");
+        .expect_err("oversized frame must be rejected at the decode ceiling");
     match err {
-        ChannelError::Codec(thetadatadx::grpc::CodecError::FrameTooLarge { length, max }) => {
-            assert!(length > max, "wire length {length} must exceed max {max}");
-            assert_eq!(max, 1024, "codec ceiling threaded through");
+        ChannelError::Rpc { status } => {
+            // 11 = OutOfRange on the canonical gRPC code table.
+            assert_eq!(status.code(), 11, "over-limit frames map to OutOfRange");
+            assert!(
+                status.message().contains("length too large"),
+                "diagnostic names the limit violation: {:?}",
+                status.message()
+            );
         }
-        other => panic!("expected Codec(FrameTooLarge), got {other:?}"),
+        other => panic!("expected Rpc(OutOfRange), got {other:?}"),
     }
 }
 

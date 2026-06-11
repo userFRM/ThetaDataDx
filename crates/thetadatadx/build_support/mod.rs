@@ -13,13 +13,6 @@ mod grpc;
 mod ticks;
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-    // The `bench_internals` cfg gates `Stage2Pool::submit_for_bench`
-    // and the `bench_stage_pipeline.rs` criterion harness. Declare it
-    // here so rustc's check-cfg lint accepts the conditional under
-    // `-D unexpected-cfgs`. Activate via
-    // `RUSTFLAGS='--cfg bench_internals' cargo bench
-    // --bench bench_stage_pipeline`.
-    println!("cargo:rustc-check-cfg=cfg(bench_internals)");
     grpc::run()?;
     // Drift check runs unconditionally: prost-build re-emits the
     // generated stubs into `$OUT_DIR/beta_endpoints.rs`, and we

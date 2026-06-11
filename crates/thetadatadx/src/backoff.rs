@@ -214,30 +214,6 @@ pub(crate) fn splitmix64(mut seed: u64) -> u64 {
     seed
 }
 
-/// Apply hash-stable decorrelated jitter (±10 %) to a transport
-/// reconnect backoff window.
-///
-/// Uses a `DefaultHasher` over `(host, port, attempt)` so the
-/// per-client schedule is stable across runs (useful for tests) while
-/// diverging across deployments. The output is clamped to
-/// `[base * 0.9, base * 1.1]`, so a budget cap on `base` still holds
-/// within ~10 %. The historical-channel transport reconnect uses this
-/// shape; surfaces that need fleet-level de-synchronisation should
-/// prefer [`JitterMode::Full`].
-pub(crate) fn hash_stable_jitter(base: Duration, host: &str, port: u16, attempt: u32) -> Duration {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    host.hash(&mut hasher);
-    port.hash(&mut hasher);
-    attempt.hash(&mut hasher);
-    // Map hash low bits to a [-1.0, 1.0) signed offset.
-    let raw = f64::from(hasher.finish() as u32) / f64::from(u32::MAX);
-    let signed = raw * 2.0 - 1.0;
-    let factor = 1.0 + signed * 0.1; // +/- 10%
-    let scaled = (base.as_millis() as f64 * factor).max(1.0);
-    Duration::from_millis(scaled as u64)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,20 +311,6 @@ mod tests {
         assert_eq!(JitterMode::parse("FULL"), Some(JitterMode::Full));
         assert_eq!(JitterMode::parse("bogus"), None);
         assert_eq!(JitterMode::default(), JitterMode::Full);
-    }
-
-    #[test]
-    fn hash_stable_jitter_is_reproducible_and_bounded() {
-        let base = Duration::from_secs(10);
-        let a = hash_stable_jitter(base, "host-a", 443, 3);
-        let b = hash_stable_jitter(base, "host-a", 443, 3);
-        assert_eq!(a, b, "same inputs must yield the same jitter");
-        let other = hash_stable_jitter(base, "host-b", 443, 3);
-        // Bounded to +/- 10% (plus the 1ms floor).
-        for v in [a, other] {
-            assert!(v >= Duration::from_millis(9_000));
-            assert!(v <= Duration::from_millis(11_000));
-        }
     }
 
     #[test]

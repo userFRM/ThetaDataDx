@@ -84,8 +84,8 @@ pub mod frames;
 pub(crate) mod lifecycle;
 
 // The `grpc` module hosts the transport infrastructure (Channel, ChannelPool,
-// DecoderPool, Stage2Pool, Codec, Status, ServerStreaming). The user-facing
-// path is `MddsClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
+// Status, ServerStreaming). The user-facing path is
+// `MddsClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
 // consumed by the SDK's own integration tests and benches.
 //
 // In shipped builds (default features) the module is `pub(crate)` so none
@@ -95,8 +95,8 @@ pub(crate) mod lifecycle;
 // [`crate::Error`] only.
 //
 // The `__test-helpers` feature re-opens the module to integration tests and
-// bench harnesses that need to drive the raw `Channel` / `Pool` /
-// `DecoderPool` surface against synthetic frames. This feature is private and
+// bench harnesses that need to drive the raw `Channel` / `ChannelPool`
+// surface against synthetic frames. This feature is private and
 // unsupported for downstream consumers.
 #[cfg(not(feature = "__test-helpers"))]
 pub(crate) mod grpc;

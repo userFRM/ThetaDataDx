@@ -19,7 +19,7 @@ use std::time::Duration;
 use crate::auth::{self, Credentials, SessionToken};
 use crate::config::DirectConfig;
 use crate::error::Error;
-use crate::grpc::{default_decoder_thread_count, Channel, ChannelPool, DecoderPool};
+use crate::grpc::{Channel, ChannelPool, ChannelTuning};
 use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
 
@@ -52,9 +52,10 @@ pub struct MddsClient {
     /// single-shot refresh that swaps the UUID in place. See
     /// `crate::auth::SessionToken`.
     session: SessionToken,
-    /// Pool of in-house gRPC channels to the MDDS server. Round-robin
+    /// Pool of gRPC channels to the MDDS server. Least-loaded
     /// dispatch lets workloads exceed the per-connection
-    /// `MAX_CONCURRENT_STREAMS` ceiling.
+    /// `MAX_CONCURRENT_STREAMS` ceiling and gives each in-flight
+    /// request its own connection-level flow-control window.
     channels: ChannelPool,
     /// Configuration snapshot (retained for diagnostics/reconnect).
     config: DirectConfig,
@@ -209,7 +210,7 @@ impl MddsClient {
         &self.session
     }
 
-    /// Pick the next in-house gRPC channel for an outbound RPC.
+    /// Pick the next gRPC channel for an outbound RPC.
     ///
     /// Each call advances the round-robin cursor in the underlying
     /// [`ChannelPool`], spreading load across multiple HTTP/2
@@ -383,17 +384,14 @@ fn effective_pool_size(
 ///
 /// Each channel is built with `config.mdds.max_message_size` so the
 /// configured per-frame ceiling propagates to every RPC dispatched on
-/// the pool — oversized response frames surface as
-/// [`crate::grpc::CodecError::FrameTooLarge`] rather than the codec
-/// module's hardcoded 4 MiB default.
+/// the pool — oversized response frames are rejected by the decode
+/// layer rather than buffered past the configured bound.
 ///
-/// A dedicated [`DecoderPool`] is attached to the channel pool
-/// so every RPC's zstd + protobuf decode runs on a worker thread
-/// rather than the tokio reactor. Stage-1 (zstd decompress) sizing
-/// is driven by [`default_decoder_thread_count`]; stage-2
-/// (prost-decode + Tick-build) sizing is driven by
-/// [`crate::config::MddsConfig::decode_threads`] /
-/// [`crate::config::MddsConfig::decode_queue_depth`].
+/// Per-chunk payload decode (zstd + protobuf) runs inline on each
+/// request's task — measured faster than a dedicated decode pool at
+/// every production-reachable concurrency, including multi-chunk
+/// fan-in (see `docs/architecture/in-house-grpc-transport.md`,
+/// "Migration").
 async fn open_channel_pool(
     host: &str,
     port: u16,
@@ -403,6 +401,20 @@ async fn open_channel_pool(
 ) -> Result<ChannelPool, Error> {
     let connect_timeout = Duration::from_secs(config.mdds.connect_timeout_secs);
     let max_message_size = config.mdds.max_message_size;
+    // HTTP/2 session tuning from the operator's config: flow-control
+    // windows (`window_size_kb` / `connection_window_size_kb`, already
+    // clamped to [64, 1024] KB by `DirectConfig::validate`) and the
+    // keepalive cadence (`keepalive_secs` / `keepalive_timeout_secs`).
+    let tuning = ChannelTuning {
+        initial_stream_window_size: u32::try_from(config.mdds.window_size_kb.saturating_mul(1024))
+            .unwrap_or(u32::MAX),
+        initial_connection_window_size: u32::try_from(
+            config.mdds.connection_window_size_kb.saturating_mul(1024),
+        )
+        .unwrap_or(u32::MAX),
+        keepalive_interval: Duration::from_secs(config.mdds.keepalive_secs.max(1)),
+        keepalive_timeout: Duration::from_secs(config.mdds.keepalive_timeout_secs.max(1)),
+    };
     // `rustls::ClientConfig` is designed for `Arc` sharing across
     // connections — the root store + ALPN list are immutable after
     // construction. Build once and clone the `Arc` into every
@@ -418,11 +430,12 @@ async fn open_channel_pool(
         let channel = if let Some(tls_config) = tls_config.as_ref() {
             tokio::time::timeout(
                 connect_timeout,
-                Channel::connect_tls_with_max_message_size(
+                Channel::connect_tls_tuned(
                     host,
                     port,
                     tls_config.clone(),
                     max_message_size,
+                    tuning,
                 ),
             )
             .await
@@ -438,7 +451,7 @@ async fn open_channel_pool(
         } else {
             tokio::time::timeout(
                 connect_timeout,
-                Channel::connect_h2c_with_max_message_size(host, port, max_message_size),
+                Channel::connect_h2c_tuned(host, port, max_message_size, tuning),
             )
             .await
             .map_err(|_| {
@@ -454,14 +467,13 @@ async fn open_channel_pool(
         .map_err(|e| {
             // Route through the canonical `From<ChannelError> for Error`
             // so every transport-fault category (TCP / TLS /
-            // InvalidServerName / H2Handshake / H2Stream / Codec /
-            // EmptyResponse / UnexpectedHttpStatus / ConnectionClosed)
-            // maps to the right `TransportErrorKind` without a local
-            // duplicate match. Preserve the channel-index hint by
-            // re-wrapping the `Transport`-shaped output's message —
-            // other variants (Timeout / Grpc) keep their original
-            // shape so retry classifiers downstream still dispatch
-            // correctly. SSOT for the kind-map lives in
+            // InvalidServerName / H2Handshake / H2Stream /
+            // ConnectionClosed) maps to the right `TransportErrorKind`
+            // without a local duplicate match. Preserve the
+            // channel-index hint by re-wrapping the `Transport`-shaped
+            // output's message — other variants (Timeout / Grpc) keep
+            // their original shape so retry classifiers downstream
+            // still dispatch correctly. SSOT for the kind-map lives in
             // `error::From<ChannelError> for Error`.
             match Error::from(e) {
                 Error::Transport { kind, message } => Error::Transport {
@@ -473,55 +485,7 @@ async fn open_channel_pool(
         })?;
         channels.push(channel);
     }
-    let stage1_threads = default_decoder_thread_count();
-    let stage2_threads = config
-        .mdds
-        .decode_threads
-        .map_or_else(default_stage2_thread_count, |n| n.max(1));
-    let queue_depth = config
-        .mdds
-        .decode_queue_depth
-        .map_or_else(|| default_stage2_queue_depth(pool_size), |n| n.max(1));
-    let decoder_pool = DecoderPool::new_two_stage(
-        stage1_threads,
-        config.mdds.decoder_ring_size,
-        stage2_threads,
-        queue_depth,
-    )
-    .map_err(Error::from)?;
-    tracing::debug!(
-        stage1_threads = decoder_pool.len(),
-        stage2_threads,
-        decoder_ring_size = config.mdds.decoder_ring_size,
-        queue_depth,
-        "MDDS two-stage decode pipeline initialised"
-    );
-    Ok(ChannelPool::from_channels_with_decoders(
-        channels,
-        decoder_pool,
-    ))
-}
-
-/// Default stage-2 worker count when [`crate::config::MddsConfig::decode_threads`]
-/// is `None`. Uses [`std::thread::available_parallelism`] with a
-/// minimum of `1` — stage-2 is parser-bound, so the full core
-/// count is the right starting point (unlike stage-1 which is
-/// capped against the per-channel decoder count).
-#[must_use]
-fn default_stage2_thread_count() -> usize {
-    std::thread::available_parallelism()
-        .map(std::num::NonZero::get)
-        .unwrap_or(2)
-        .max(1)
-}
-
-/// Default queue depth between stage-1 and stage-2 when
-/// [`crate::config::MddsConfig::decode_queue_depth`] is `None`.
-/// Sizes to `pool_size * 64` so a 64-way burst on every channel
-/// has headroom without exhausting buffer memory.
-#[must_use]
-fn default_stage2_queue_depth(pool_size: usize) -> usize {
-    pool_size.saturating_mul(64).max(64)
+    Ok(ChannelPool::from_channels(channels))
 }
 
 /// Build a `rustls::ClientConfig` with webpki roots and `h2` advertised

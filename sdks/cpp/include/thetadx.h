@@ -1137,7 +1137,7 @@ int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitte
  *     is ignored. Defers to tokio's default sizing.
  *   has_value=true: encodes `Some(n)`. RuntimeConfig::build_runtime
  *     clamps `n=0` to `1`, but the explicit `Some(0)` is preserved
- *     across the C boundary matching the decode_threads shape so
+ *     across the C boundary matching the widened Option shape so
  *     Python / TS / C++ bindings agree.
  *
  * Returns 0 on success, -1 if `config` is NULL.
@@ -1146,7 +1146,7 @@ int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has
 
 /**
  * Read the current RuntimeConfig.tokio_worker_threads setting. Same
- * (has_value, n) shape as tdx_config_get_decode_threads:
+ * widened (has_value, n) shape:
  *
  *   *out_has_value=false: config holds `None` (auto-size). *out_n=0.
  *   *out_has_value=true:  config holds `Some(*out_n)`.
@@ -1265,7 +1265,7 @@ char* tdx_config_get_client_type(const TdxConfig* config);
 
 /**
  * Set the Prometheus exporter port on a config handle. Uses the
- * widened (has_value, port) shape mirroring tdx_config_get_decode_threads:
+ * widened (has_value, port) shape:
  *
  *   has_value=false: encodes `None` (exporter disabled). `port` ignored.
  *   has_value=true:  encodes `Some(port)`. The exporter binds an HTTP
@@ -1336,83 +1336,6 @@ void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n
  * -1 if either pointer is null.
  */
 int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config, size_t* out_n);
-
-/**
- * Set the per-thread decoder ring size.
- *
- * Must be a power of two, >= 64. Invalid values are rejected at the
- * setter: the config is left unchanged and the failure reason is
- * written to thread-local storage retrievable via tdx_last_error().
- * Default is 256.
- */
-void tdx_config_set_decoder_ring_size(TdxConfig* config, uint32_t n);
-
-/* ── Decode pipeline ── */
-
-/**
- * Set the stage-2 worker thread count for the two-stage decode
- * pipeline.
- *
- * Stage-2 runs prost decode + Tick build off a bounded MPSC queue
- * fed by the stage-1 per-channel decompress threads.
- *
- *   has_value=false: encodes the auto-size sentinel (`None`); `n`
- *     is ignored. Pool sizes from available_parallelism() at
- *     connect time.
- *   has_value=true: encodes `Some(n)`. The pool clamps internally
- *     to a minimum of 1; explicit 0 clamps but is preserved as
- *     `Some(0)` so Python / TS / C++ bindings agree on the shape.
- *
- * Returns 0 on success, -1 if `config` is NULL.
- */
-int32_t tdx_config_set_decode_threads_explicit(TdxConfig* config, bool has_value, size_t n);
-
-/**
- * Set the bounded queue depth between stage-1 and stage-2 of the
- * two-stage decode pipeline.
- *
- * When stage-2 cannot keep up, stage-1 parks rather than drops --
- * silent drops on a market-data feed are unacceptable.
- *
- *   has_value=false: encodes the auto-size sentinel (`None`); `n`
- *     is ignored. Queue sizes to `concurrent_requests * 64` (floor
- *     of 64) at connect time.
- *   has_value=true: encodes `Some(n)`. The queue clamps internally
- *     to a minimum of 1.
- *
- * Returns 0 on success, -1 if `config` is NULL.
- */
-int32_t tdx_config_set_decode_queue_depth_explicit(TdxConfig* config, bool has_value, size_t n);
-
-/**
- * Read the current decode_threads setting.
- *
- * On return:
- *   *out_has_value=0: config holds None (auto-size); *out_n=0.
- *   *out_has_value=1: config holds Some(*out_n).
- *
- * Returns 0 on success, -1 if any pointer is NULL.
- */
-int32_t tdx_config_get_decode_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
-
-/**
- * Read the current decode_queue_depth setting. Same semantics as
- * tdx_config_get_decode_threads.
- */
-int32_t tdx_config_get_decode_queue_depth(const TdxConfig* config, bool* out_has_value, size_t* out_n);
-
-/**
- * Legacy n-only setter for decode_threads (n=0 maps to None, n>0
- * maps to Some(n)). Prefer `tdx_config_set_decode_threads_explicit`
- * for new code.
- */
-int32_t tdx_config_set_decode_threads(TdxConfig* config, size_t n);
-
-/**
- * Legacy n-only setter for decode_queue_depth. Prefer
- * `tdx_config_set_decode_queue_depth_explicit` for new code.
- */
-int32_t tdx_config_set_decode_queue_depth(TdxConfig* config, size_t n);
 
 /* ── Client ── */
 

@@ -1,44 +1,37 @@
-//! Closed-loop comparison of the in-house h2 transport against the
-//! reference Rust gRPC stack (tonic + tokio) over the identical wire
-//! exchange.
+//! Closed-loop measurement of the MDDS gRPC transport over a loopback
+//! mock h2 server — the regression pin for the transport.
 //!
-//! Both clients issue `GetStockHistoryEod`-shaped RPCs against the same
-//! in-process loopback mock h2 server, send the same prost-encoded
-//! request message, receive the same zstd-compressed `ResponseData`
-//! frame, and perform the same decode work (zstd decompress + prost
-//! `DataTable` decode + row merge):
+//! The client issues `GetStockHistoryEod`-shaped RPCs through the
+//! production transport surface (`Channel` / `ChannelPool` +
+//! `bench_support::stock_history_eod`, exactly the dispatch + merge
+//! shape `MddsClient` wires), sends the same prost-encoded request the
+//! SDK sends, receives zstd-compressed `ResponseData` frames, and
+//! performs the production decode work (zstd decompress + prost
+//! `DataTable` decode + row merge) inline on the request task.
 //!
-//! - **in_house** — `Channel` / `ChannelPool` with the production
-//!   two-stage decoder pipeline attached, exactly as
-//!   `MddsClient::connect` wires it (stage-1 zstd threads, stage-2
-//!   prost workers, 256-slot rings, `pool_size * 64` queue depth).
-//! - **reference** — `tonic::client::Grpc<tonic::transport::Channel>`
-//!   with `tonic_prost::ProstCodec`, decoding each chunk inline on the
-//!   request task. This is the canonical shape a generated tonic client
-//!   produces — the ~200-LOC replacement the transport ADR weighs.
+//! Compare runs against the measured tables recorded in
+//! `docs/architecture/in-house-grpc-transport.md` ("Measured
+//! comparison" + "Migration") — those numbers are the baseline this
+//! harness pins the transport against.
 //!
-//! Fairness controls:
+//! Topology controls:
 //!
-//! - `min(concurrency, 16)` TCP connections on both sides: one per
-//!   worker at production-reachable levels (mirrors the pool shape
-//!   where `pool_size == semaphore size`), capped at 16 with workers
+//! - `min(concurrency, 16)` TCP connections: one per worker at
+//!   production-reachable levels (mirrors the pool shape where
+//!   `pool_size == semaphore size`), capped at 16 with workers
 //!   multiplexed across connections at the synthetic headroom levels
-//!   (100/1000) so neither stack runs a connection fan-out the
-//!   production tier ceiling makes unreachable.
-//! - The reference endpoint pins `initial_stream_window_size` and
-//!   `initial_connection_window_size` to 65 535 — the h2-crate defaults
-//!   the in-house handshake uses — and disables adaptive windows.
-//! - Identical per-frame decode ceilings on both stacks
-//!   (`max_message_size` / `max_decoding_message_size`).
-//! - The mock pre-frames the response once and clones a refcounted
-//!   `Bytes` per request, so server-side cost is constant and equal.
+//!   (100/1000).
+//! - h2 flow-control windows ride the channel default (the HTTP/2
+//!   spec 64 KiB initial windows — the production config default).
+//! - The mock pre-frames each response chunk once and clones
+//!   refcounted `Bytes` per request, so server-side cost is constant.
 //!
 //! All traffic stays on 127.0.0.1. The harness never dials a production
 //! host, never performs the Nexus auth handshake, and never reads a
 //! credentials file.
 //!
 //! Run the full matrix (concurrency 1/2/4/8/16 + synthetic 100/1000,
-//! ~1 KB and ~10 MB frames):
+//! ~1 KB and ~10 MB frames plus the 16-chunk fan-in shape):
 //!
 //! ```text
 //! cargo bench -p thetadatadx --features __test-helpers \
@@ -53,18 +46,12 @@
 //! - `THETADATADX_BENCH_SIZES=small,large,multi` — override the frame
 //!   shapes. `multi` streams 16 chunks of ~640 KiB per RPC on one
 //!   stream — the fan-in shape where many response chunks land on one
-//!   decode path (the decoder-pool rationale's home turf).
+//!   decode path.
 //! - `THETADATADX_BENCH_REPEATS=3` — repeats per cell.
 //! - `THETADATADX_BENCH_CONNS=1` — pin the TCP connection count per
 //!   side instead of `min(concurrency, 16)`. `1` measures a single
-//!   multiplexed connection carrying every worker (the pool-vs-single
-//!   question); unset keeps the production pool shape.
-//! - `THETADATADX_BENCH_TRANSPORTS=reference` — run a subset of the
-//!   transports (comma-separated `in_house` / `reference`).
-//!
-//! The shipped dependency graph stays free of the reference stack: it
-//! is a `[dev-dependencies]` entry only, and
-//! `cargo tree --edges normal -p thetadatadx` must never list it.
+//!   multiplexed connection carrying every worker; unset keeps the
+//!   production pool shape.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::Write as _;
@@ -74,7 +61,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use http::uri::PathAndQuery;
 use http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode};
 use prost::Message;
 use rand::rngs::StdRng;
@@ -84,12 +70,8 @@ use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
-use thetadatadx::decode;
 use thetadatadx::grpc::endpoints::bench_support;
-use thetadatadx::grpc::{default_decoder_thread_count, Channel, ChannelPool, DecoderPool};
-use thetadatadx::wire::test_requests::{
-    AuthToken, QueryInfo, StockHistoryEodRequest, StockHistoryEodRequestQuery,
-};
+use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::wire::{
     data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
     ResponseData,
@@ -97,12 +79,11 @@ use thetadatadx::wire::{
 
 // ─── Counting allocator ─────────────────────────────────────────────
 //
-// Same pattern as `grpc_channel.rs` / `grpc_concurrent_burst.rs`: wrap
-// the system allocator and tally bytes allocated / deallocated so each
-// measured window can report bytes-allocated-per-request. The mock
+// Wrap the system allocator and tally bytes allocated / deallocated so
+// each measured window can report bytes-allocated-per-request. The mock
 // server runs in-process, so the absolute number includes the server
-// side of every RPC; the in-house vs reference DELTA is the meaningful
-// signal because both phases pay the identical server cost.
+// side of every RPC — comparable across runs of this harness, which
+// all pay the identical server cost.
 
 struct CountingAllocator;
 
@@ -153,8 +134,8 @@ fn alloc_snapshot() -> (u64, u64) {
 
 /// Process CPU time (user + system) in microseconds via
 /// `getrusage(RUSAGE_SELF)`. Includes the in-process mock server and
-/// every runtime/decoder thread — identical accounting for both
-/// transports, so the per-request delta is comparable.
+/// every runtime thread — identical accounting across runs, so the
+/// per-request delta is comparable.
 #[cfg(unix)]
 fn process_cpu_micros() -> u64 {
     // SAFETY: `getrusage` writes a fully-initialised `rusage` into the
@@ -181,8 +162,8 @@ fn process_cpu_micros() -> u64 {
 
 // ─── Mock h2 server ─────────────────────────────────────────────────
 //
-// Same harness shape as `grpc_concurrent_burst.rs`: one listener, one
-// task per accepted connection, one task per multiplexed request. The
+// One listener, one task per accepted connection, one task per
+// multiplexed request. The
 // response frame is pre-encoded once; each request clones the
 // refcounted `Bytes`, so per-request server cost is the h2 send only.
 
@@ -419,117 +400,19 @@ fn frame(msg: &ResponseData) -> Bytes {
     buf.freeze()
 }
 
-// ─── Request construction ───────────────────────────────────────────
+// ─── Request constants ──────────────────────────────────────────────
 
 const SESSION_UUID: &str = "00000000-0000-0000-0000-000000000000";
 const CLIENT_TYPE: &str = "rust-thetadatadx-grpc";
-const EOD_PATH: &str = "/BetaEndpoints.BetaThetaTerminal/GetStockHistoryEod";
-
-/// The same request message `bench_support::stock_history_eod` builds,
-/// constructed explicitly so the reference client sends identical
-/// bytes.
-fn make_eod_request() -> StockHistoryEodRequest {
-    let mut query_parameters = std::collections::HashMap::with_capacity(1);
-    query_parameters.insert("client".to_string(), "terminal".to_string());
-    StockHistoryEodRequest {
-        query_info: Some(QueryInfo {
-            auth_token: Some(AuthToken {
-                session_uuid: SESSION_UUID.to_string(),
-            }),
-            query_parameters,
-            client_type: CLIENT_TYPE.to_string(),
-            terminal_git_commit: String::new(),
-            terminal_version: env!("CARGO_PKG_VERSION").to_string(),
-        }),
-        params: Some(StockHistoryEodRequestQuery {
-            symbol: "AAPL".to_string(),
-            start_date: "20240101".to_string(),
-            end_date: "20240329".to_string(),
-        }),
-    }
-}
-
-// ─── Reference client ───────────────────────────────────────────────
 
 /// Connection ceiling on both sides. Matches the upstream per-account
 /// concurrency ceiling; the production pool never exceeds the Pro tier
 /// cap of 8 channels, so 16 already carries headroom.
 const MAX_CONNECTIONS_PER_SIDE: usize = 16;
 
-/// One reference-stack TCP connection, h2 windows pinned to the
-/// h2-crate defaults the in-house handshake uses.
-async fn connect_reference_channel(addr: SocketAddr) -> tonic::transport::Channel {
-    let endpoint = tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
-        .expect("endpoint uri")
-        .initial_stream_window_size(Some(65_535))
-        .initial_connection_window_size(Some(65_535))
-        .tcp_nodelay(true);
-    endpoint.connect().await.expect("reference connect")
-}
-
-/// Issue one `GetStockHistoryEod` through the reference stack and
-/// merge the streamed chunks exactly the way the in-house
-/// `collect_stream` does: reserve from `original_size`, check header
-/// drift, extend rows. Decode runs inline on this task — the canonical
-/// generated-client shape.
-async fn reference_stock_history_eod(
-    grpc: &mut tonic::client::Grpc<tonic::transport::Channel>,
-    max_message_size: usize,
-) -> DataTable {
-    grpc.ready().await.expect("reference ready");
-    let codec = tonic_prost::ProstCodec::<StockHistoryEodRequest, ResponseData>::default();
-    let path = PathAndQuery::from_static(EOD_PATH);
-    let response = grpc
-        .server_streaming(tonic::Request::new(make_eod_request()), path, codec)
-        .await
-        .expect("reference rpc open");
-    let mut streaming = response.into_inner();
-
-    let mut all_rows: Vec<DataValueList> = Vec::new();
-    let mut headers: Vec<String> = Vec::new();
-    while let Some(mut chunk) = streaming.message().await.expect("reference chunk") {
-        if all_rows.is_empty() && chunk.original_size > 0 {
-            let hint = usize::try_from(chunk.original_size).unwrap_or(0);
-            let bounded = hint.min(max_message_size);
-            all_rows.reserve(bounded / 64);
-        }
-        let table =
-            decode::decode_data_table_with_max(&mut chunk, max_message_size).expect("decode chunk");
-        if headers.is_empty() {
-            headers = table.headers;
-        } else {
-            assert!(
-                table.headers.is_empty() || table.headers == headers,
-                "chunk header drift in bench payload"
-            );
-        }
-        all_rows.extend(table.data_table);
-    }
-    DataTable {
-        headers,
-        data_table: all_rows,
-    }
-}
-
 // ─── Measurement core ───────────────────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Transport {
-    InHouse,
-    Reference,
-}
-
-impl Transport {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::InHouse => "in_house",
-            Self::Reference => "reference",
-        }
-    }
-}
-
 struct CellSpec {
-    transport: Transport,
     concurrency: usize,
     payload_name: &'static str,
     framed_len: usize,
@@ -558,10 +441,10 @@ fn percentile(sorted: &[u64], q: f64) -> u64 {
     sorted[rank.clamp(1, sorted.len()) - 1]
 }
 
-/// One measured window over the in-house transport: `concurrency`
-/// workers, each looping request-after-request (closed loop) until the
-/// shared deadline. Returns per-request latencies and the wall time.
-async fn run_window_in_house(
+/// One measured window: `concurrency` workers, each looping
+/// request-after-request (closed loop) until the shared deadline.
+/// Returns per-request latencies and the wall time.
+async fn run_window(
     pool: &Arc<ChannelPool>,
     spec: &CellSpec,
     window: Duration,
@@ -610,57 +493,9 @@ async fn run_window_in_house(
     (all, started.elapsed())
 }
 
-type ReferenceClient = tonic::client::Grpc<tonic::transport::Channel>;
-
-/// Same window shape for the reference stack. Workers move their client
-/// in and hand it back at the end so the one warmed connection set
-/// serves every window of the cell — symmetric with the in-house pool,
-/// which stays warm by construction.
-async fn run_window_reference(
-    clients: Vec<ReferenceClient>,
-    spec: &CellSpec,
-    window: Duration,
-    record: bool,
-) -> (Vec<u64>, Duration, Vec<ReferenceClient>) {
-    let concurrency = clients.len();
-    let gate = Arc::new(tokio::sync::Barrier::new(concurrency + 1));
-    let mut tasks = Vec::with_capacity(concurrency);
-    for mut grpc in clients {
-        let gate = Arc::clone(&gate);
-        let expected_rows = spec.expected_rows;
-        let max_message_size = spec.max_message_size;
-        tasks.push(tokio::spawn(async move {
-            let mut latencies = Vec::new();
-            gate.wait().await;
-            let deadline = Instant::now() + window;
-            while Instant::now() < deadline {
-                let started = Instant::now();
-                let table = reference_stock_history_eod(&mut grpc, max_message_size).await;
-                let elapsed = started.elapsed();
-                assert_eq!(table.data_table.len(), expected_rows, "row count drift");
-                if record {
-                    latencies.push(u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX));
-                }
-            }
-            (latencies, grpc)
-        }));
-    }
-
-    gate.wait().await;
-    let started = Instant::now();
-    let mut all = Vec::new();
-    let mut returned = Vec::with_capacity(concurrency);
-    for task in tasks {
-        let (mut latencies, grpc) = task.await.expect("worker join");
-        all.append(&mut latencies);
-        returned.push(grpc);
-    }
-    (all, started.elapsed(), returned)
-}
-
-/// Build the per-transport client state, run warmup + measured repeats,
-/// and aggregate. Fresh runtime, mock, connections, and decoder pool
-/// per cell so no state crosses cells.
+/// Build the client state, run warmup + measured repeats, and
+/// aggregate. Fresh runtime, mock, and connections per cell so no
+/// state crosses cells.
 fn run_cell(spec: &CellSpec, payload: &[ResponseData]) -> CellResult {
     let rt = Runtime::new().expect("tokio runtime");
     let config = ServerConfig {
@@ -684,8 +519,7 @@ fn run_cell(spec: &CellSpec, payload: &[ResponseData]) -> CellResult {
         result.cpu_micros += cpu_delta;
         result.latencies_ns.append(&mut latencies);
         eprintln!(
-            "  [{}/{} c={} {}] repeat {}/{}: {} reqs in {:.2?}",
-            spec.transport.label(),
+            "  [{} c={} {}] repeat {}/{}: {} reqs in {:.2?}",
             spec.payload_name,
             spec.concurrency,
             human_bytes(spec.framed_len),
@@ -698,100 +532,40 @@ fn run_cell(spec: &CellSpec, payload: &[ResponseData]) -> CellResult {
 
     // One connection per worker up to the production pool ceiling;
     // synthetic levels above it multiplex workers over 16 connections
-    // on both sides (h2 streams carry the fan-in). The
-    // `THETADATADX_BENCH_CONNS` override pins the count instead —
-    // `1` measures every worker multiplexed onto a single connection
-    // (the pool-vs-single-channel question).
+    // (h2 streams carry the fan-in). The `THETADATADX_BENCH_CONNS`
+    // override pins the count instead — `1` measures every worker
+    // multiplexed onto a single connection.
     let connections = std::env::var("THETADATADX_BENCH_CONNS")
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .filter(|n| *n > 0)
         .unwrap_or_else(|| spec.concurrency.min(MAX_CONNECTIONS_PER_SIDE));
 
-    match spec.transport {
-        Transport::InHouse => {
-            // Production decoder-pipeline shape, mirroring
-            // `MddsClient::connect`: stage-1 = decoder threads with
-            // 256-slot rings; stage-2 = available cores; queue depth =
-            // pool_size * 64. One channel per concurrent worker, the
-            // same 1:1 shape `effective_pool_size` produces.
-            let mut channels = Vec::with_capacity(connections);
-            rt.block_on(async {
-                for _ in 0..connections {
-                    let channel = Channel::connect_h2c_with_max_message_size(
-                        "127.0.0.1",
-                        addr.port(),
-                        spec.max_message_size,
-                    )
-                    .await
-                    .expect("in-house connect");
-                    channels.push(channel);
-                }
-            });
-            let stage2_threads = std::thread::available_parallelism()
-                .map(std::num::NonZero::get)
-                .unwrap_or(2)
-                .max(1);
-            let decoder_pool = DecoderPool::new_two_stage(
-                default_decoder_thread_count(),
-                256,
-                stage2_threads,
-                connections.saturating_mul(64).max(64),
+    let mut channels = Vec::with_capacity(connections);
+    rt.block_on(async {
+        for _ in 0..connections {
+            let channel = Channel::connect_h2c_with_max_message_size(
+                "127.0.0.1",
+                addr.port(),
+                spec.max_message_size,
             )
-            .expect("decoder pool");
-            let pool = Arc::new(ChannelPool::from_channels_with_decoders(
-                channels,
-                decoder_pool,
-            ));
-
-            rt.block_on(run_window_in_house(&pool, spec, spec.warmup, false));
-            for repeat in 0..spec.repeats {
-                let alloc_before = alloc_snapshot();
-                let cpu_before = process_cpu_micros();
-                let (latencies, wall) =
-                    rt.block_on(run_window_in_house(&pool, spec, spec.measure, true));
-                let cpu_delta = process_cpu_micros().saturating_sub(cpu_before);
-                let alloc_delta = alloc_snapshot().0.saturating_sub(alloc_before.0);
-                record_repeat(&mut result, repeat, latencies, wall, alloc_delta, cpu_delta);
-            }
-            drop(pool);
+            .await
+            .expect("transport connect");
+            channels.push(channel);
         }
-        Transport::Reference => {
-            // `connections` endpoints; each worker holds a `Grpc` over a
-            // clone of connection `i % connections` — clones share the
-            // underlying h2 connection, mirroring the in-house pool's
-            // stream multiplexing at the synthetic levels.
-            let mut clients = rt.block_on(async {
-                let mut conns = Vec::with_capacity(connections);
-                for _ in 0..connections {
-                    conns.push(connect_reference_channel(addr).await);
-                }
-                let mut clients = Vec::with_capacity(spec.concurrency);
-                for worker in 0..spec.concurrency {
-                    clients.push(
-                        tonic::client::Grpc::new(conns[worker % connections].clone())
-                            .max_decoding_message_size(spec.max_message_size),
-                    );
-                }
-                clients
-            });
+    });
+    let pool = Arc::new(ChannelPool::from_channels(channels));
 
-            let (_, _, warmed) =
-                rt.block_on(run_window_reference(clients, spec, spec.warmup, false));
-            clients = warmed;
-            for repeat in 0..spec.repeats {
-                let alloc_before = alloc_snapshot();
-                let cpu_before = process_cpu_micros();
-                let (latencies, wall, returned) =
-                    rt.block_on(run_window_reference(clients, spec, spec.measure, true));
-                clients = returned;
-                let cpu_delta = process_cpu_micros().saturating_sub(cpu_before);
-                let alloc_delta = alloc_snapshot().0.saturating_sub(alloc_before.0);
-                record_repeat(&mut result, repeat, latencies, wall, alloc_delta, cpu_delta);
-            }
-            drop(clients);
-        }
+    rt.block_on(run_window(&pool, spec, spec.warmup, false));
+    for repeat in 0..spec.repeats {
+        let alloc_before = alloc_snapshot();
+        let cpu_before = process_cpu_micros();
+        let (latencies, wall) = rt.block_on(run_window(&pool, spec, spec.measure, true));
+        let cpu_delta = process_cpu_micros().saturating_sub(cpu_before);
+        let alloc_delta = alloc_snapshot().0.saturating_sub(alloc_before.0);
+        record_repeat(&mut result, repeat, latencies, wall, alloc_delta, cpu_delta);
     }
+    drop(pool);
 
     drop(mock);
     result
@@ -927,7 +701,7 @@ fn main() {
         payloads.retain(|p| sizes.iter().any(|s| s == p.name));
     }
 
-    println!("# gRPC transport comparison — closed loop, loopback mock, warmed");
+    println!("# gRPC transport measurement — closed loop, loopback mock, warmed");
     println!();
     println!(
         "levels={levels:?} repeats={repeats} host_cores={}",
@@ -953,22 +727,9 @@ fn main() {
         );
         println!();
         println!(
-            "| concurrency | transport | p50 | p99 | p99.9 | mean | req/s (min..max) | wire MB/s | alloc/req | cpu/req |"
+            "| concurrency | p50 | p99 | p99.9 | mean | req/s (min..max) | wire MB/s | alloc/req | cpu/req |"
         );
-        println!("|---|---|---|---|---|---|---|---|---|---|");
-
-        let transports: Vec<Transport> = env_list("THETADATADX_BENCH_TRANSPORTS")
-            .map(|names| {
-                names
-                    .iter()
-                    .map(|name| match name.as_str() {
-                        "in_house" => Transport::InHouse,
-                        "reference" => Transport::Reference,
-                        other => panic!("unknown transport filter {other:?}"),
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| vec![Transport::InHouse, Transport::Reference]);
+        println!("|---|---|---|---|---|---|---|---|---|");
 
         for &concurrency in &levels {
             if concurrency > payload_spec.max_concurrency {
@@ -978,9 +739,8 @@ fn main() {
                 );
                 continue;
             }
-            for &transport in &transports {
+            {
                 let spec = CellSpec {
-                    transport,
                     concurrency,
                     payload_name: payload_spec.name,
                     framed_len: synth.framed_len,
@@ -1008,9 +768,8 @@ fn main() {
                 let mean_ns = cell.latencies_ns.iter().sum::<u64>() / denom;
 
                 println!(
-                    "| {} | {} | {} | {} | {} | {} | {:.0} ({:.0}..{:.0}) | {:.1} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {:.0} ({:.0}..{:.0}) | {:.1} | {} | {} |",
                     concurrency,
-                    transport.label(),
                     human_ns(percentile(&cell.latencies_ns, 0.50)),
                     human_ns(percentile(&cell.latencies_ns, 0.99)),
                     human_ns(percentile(&cell.latencies_ns, 0.999)),

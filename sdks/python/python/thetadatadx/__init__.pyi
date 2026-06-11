@@ -63,23 +63,13 @@ class Config:
     mdds_port: int
     # MDDS pool sizing. `concurrent_requests = 0` auto-detects from
     # the tier; explicit values above the tier cap are clamped at
-    # connect time with a warn. `decoder_ring_size` must be a power
-    # of two >= 64; the setter raises ValueError otherwise.
+    # connect time with a warn.
     concurrent_requests: int
-    decoder_ring_size: int
     # Byte ceiling above which a buffered (non-`.stream()`) historical
     # response emits a Rust-side `tracing::warn!` pointing the caller
     # at the streaming surface. `0` disables the warning; the default
     # is `100 * 1024 * 1024` (100 MiB). The data is still delivered.
     warn_on_buffered_threshold_bytes: int
-    # MDDS two-stage decode pipeline. `decode_threads` sizes the
-    # stage-2 prost-decode + Tick-build worker pool;
-    # `decode_queue_depth` sizes the bounded MPSC queue between
-    # stage-1 (per-channel zstd decompress) and stage-2. `None`
-    # auto-sizes at connect time; `int` overrides. `0` clamps to
-    # `1` internally so a zero-worker pool cannot deadlock stage-1.
-    decode_threads: Optional[int]
-    decode_queue_depth: Optional[int]
     # Reconnect tunables. `reconnect_max_attempts` (default 30) and
     # `reconnect_max_elapsed_secs` (default 300; 0 disables) bound a
     # consecutive-reconnect sequence on the generic-transient class;

@@ -21,8 +21,7 @@ pub struct RuntimeConfig {
     ///   CPUs visible to the process).
     /// * `Some(0)` — clamps to 1 inside [`Self::build_runtime`] so the
     ///   runtime always has at least one worker; the explicit `Some(0)`
-    ///   sentinel survives across binding boundaries and matches the
-    ///   `decode_threads`/`decode_queue_depth` cross-binding pattern.
+    ///   sentinel survives across binding boundaries.
     /// * `Some(n)` for `n >= 1` — pins the worker pool to exactly `n`.
     ///
     /// JVM equivalent: `-Xmx` + `HTTP_CONCURRENCY` thread pool sizing.
