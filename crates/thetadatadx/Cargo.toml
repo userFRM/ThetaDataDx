@@ -83,11 +83,11 @@ tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # Protobuf message types for the MDDS wire contract; the gRPC client
 # in `src/grpc/` consumes these directly.
-prost = "=0.14.3"
+prost = "=0.14.4"
 # Referenced from the prost-build-generated `proto/`-derived modules
 # (e.g. `google.protobuf.Timestamp` and oneof scaffolding). Pinned to
 # the same version as `prost` so the derive paths resolve.
-prost-types = "=0.14.3"
+prost-types = "=0.14.4"
 
 # Historical-channel gRPC transport. `channel` is the client-side
 # transport only — no server, router, codegen, or TLS features (TLS
@@ -213,7 +213,7 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 # Optional prost-build for the `refresh_grpc_snapshot` developer
 # binary. Stays out of the default dep graph (the build script keeps
 # its own copy under `[build-dependencies]`).
-prost-build = { version = "=0.14.3", optional = true }
+prost-build = { version = "=0.14.4", optional = true }
 
 [dev-dependencies]
 # `tracing_subscriber::Layer` lets the warn-on-buffered-response unit
@@ -253,7 +253,7 @@ libc = "0.2"
 # the in-house client stubs are emitted by a custom service
 # generator under `build_support/grpc/`, replacing the old code generator # VOCAB-OK: dep history
 # entirely.
-prost-build = "=0.14.3"
+prost-build = "=0.14.4"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
