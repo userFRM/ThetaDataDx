@@ -1,9 +1,9 @@
 # ThetaDataDx
 
-Native Rust SDK for [ThetaData](https://thetadata.us) market data with
-first-class Rust, Python, TypeScript, and C++ bindings. One Rust core,
-three transports: gRPC historical, TCP streaming, and daily blob files.
-No JVM, no subprocess, no IPC serialization.
+Market data SDKs for [ThetaData](https://thetadata.us) — Rust, Python,
+TypeScript, and C++, all powered by one Rust core. Historical queries,
+real-time streaming, and bulk flat-file downloads through a single
+authenticated client. No JVM, no local terminal.
 
 [![Rust CI](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Python SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml)
@@ -205,9 +205,8 @@ tdx.subscribe(stock.quote())?;
 tdx.subscribe(option.trade())?;
 ```
 
-For streaming-only workloads (no MDDS / Nexus session), build an
-`FpssClient` directly and iterate the ring on the caller's own
-thread:
+For streaming-only workloads, build an `FpssClient` directly and
+iterate events on the caller's own thread:
 
 ```rust
 use thetadatadx::auth::Credentials;
@@ -231,8 +230,8 @@ for event in &client {
 }
 ```
 
-`next_event` blocks until the next event arrives or the ring shuts
-down. `try_next_event` is the non-blocking cousin. `poll_batch(FnMut)`
+`next_event` blocks until the next event arrives or the stream ends.
+`try_next_event` is the non-blocking cousin. `poll_batch(FnMut)`
 and `for_each(FnMut)` are available for the closure-driven shapes.
 
 ### Buffered vs streaming for historical pulls
@@ -271,54 +270,31 @@ Greeks calculator.
 | Interest rate | 1 | EOD rate history |
 
 The full method list across all four languages lives in the
-[API Reference](docs/api-reference.md).
+[API Reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
-Additional surfaces beyond historical gRPC: real-time streaming
+Beyond historical queries: real-time streaming
 (subscribe and unsubscribe per contract and per full-stream type)
 plus a local Greeks calculator (22 Black-Scholes Greeks plus an IV
 solver, callable individually or batched).
 
-## Architecture
+## Repository layout
 
-```mermaid
-flowchart TB
-    rust_sdk["<b>thetadatadx</b><br/>Rust SDK"]
-    tdbe["<b>tdbe</b><br/>types · codec · Greeks · Price"]
-    rust_sdk --> tdbe
-
-    ffi["<b>ffi</b><br/>stable C ABI · panic boundary"]
-    rust_sdk --> ffi
-
-    rust_sdk -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
-    ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
-    ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
-    rust_sdk -->|cargo add thetadatadx| rust["Rust consumer"]
-
-    classDef sdkCore fill:#1e3a8a,stroke:#0c1e5c,color:#fff
-    classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff
-    classDef sdkBinding fill:#14532d,stroke:#052e16,color:#fff
-    class rust_sdk,tdbe sdkCore
-    class ffi ffiStyle
-    class python,ts,cpp,rust sdkBinding
-```
-
-| Layer | Crate / package | Purpose |
+| Path | Package | Purpose |
 |---|---|---|
-| Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, codecs, Greeks, Price |
-| Rust SDK | [`crates/thetadatadx`](crates/thetadatadx/) | Public Rust API published to crates.io |
-| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer |
-| Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow adapter |
-| TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
-| C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
-| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI |
-| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
-| Server | [`tools/server`](tools/server/) | REST + WebSocket terminal replacement |
-| Docs site | [`docs-site`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
+| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK |
+| [`crates/tdbe`](crates/tdbe/) | `tdbe` | Shared tick types, Greeks, and price math |
+| [`sdks/python`](sdks/python/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
+| [`sdks/typescript`](sdks/typescript/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
+| [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
+| [`ffi/`](ffi/) | release artifacts | C ABI for embedders |
+| [`tools/cli`](tools/cli/) | `tdx` | Command-line client |
+| [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server (drop-in terminal replacement) |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
+| [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
 
-- [API Reference](docs/api-reference.md)
-- [Architecture](docs/architecture.md)
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, server, MCP
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
