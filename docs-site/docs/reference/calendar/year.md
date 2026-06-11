@@ -58,10 +58,10 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-calendarYear(year: string, timeoutMs?: number): Array<CalendarDay>
+calendarYear(year: string, options?: { ... }): Array<CalendarDay>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 
@@ -126,9 +126,9 @@ Rows of `CalendarDay`:
 
 | Field | Type | Description |
 |---|---|---|
-| `date` | i32 | Calendar date as a YYYYMMDD integer. |
-| `is_open` | i32 | 1 if the market is open on this date, 0 otherwise. |
+| `date` | i32 | Calendar date as a YYYYMMDD integer. 0 when the server omits the column (single-day endpoints). |
+| `is_open` | bool | Whether the market trades at all on this date (true for open and early-close days). |
 | `open_time` | i32 | Market open time, milliseconds since midnight ET. |
 | `close_time` | i32 | Market close time, milliseconds since midnight ET. |
-| `status` | i32 | Schedule status code for the date. |
+| `status` | string | Vendor day classification: open, early_close, full_close, or weekend. |
 

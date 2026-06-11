@@ -61,11 +61,11 @@ for t in rows:
 
 ```typescript
 indexSnapshotMarketValue(
-  symbols: Array<string>, minTime?: string | Date, timeoutMs?: number,
+  symbols: Array<string>, options?: { ... },
 ): Array<MarketValueTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `minTime?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 

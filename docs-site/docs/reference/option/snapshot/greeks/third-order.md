@@ -69,19 +69,16 @@ for t in rows:
 
 ```typescript
 optionSnapshotGreeksThirdOrder(
-  symbol: string, expiration: string | Date, strike?: string, right?: string,
-  annualDividend?: number, rateType?: string, rateValue?: number,
-  stockPrice?: number, version?: string, maxDTE?: number, strikeRange?: number,
-  minTime?: string | Date, useMarketValue?: boolean, timeoutMs?: number,
+  symbol: string, expiration: string | Date, options?: { ... },
 ): Array<GreeksThirdOrderTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `stockPrice?: number`, `version?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `useMarketValue?: boolean`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotGreeksThirdOrder('SPY', '20250321', '570', 'C');
+const rows = tdx.optionSnapshotGreeksThirdOrder('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.speed, t.zomma, t.color);
 }
@@ -172,5 +169,5 @@ Rows of `GreeksThirdOrderTick`:
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration`, `strike`, and `right` on every row to identify the contract; on single-contract requests these are 0.
+Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

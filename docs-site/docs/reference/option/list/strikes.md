@@ -61,11 +61,11 @@ for value in rows:
 
 ```typescript
 optionListStrikes(
-  symbol: string, expiration: string | Date, timeoutMs?: number,
+  symbol: string, expiration: string | Date, options?: { ... },
 ): Array<string>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 

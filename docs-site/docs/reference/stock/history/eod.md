@@ -66,11 +66,11 @@ for t in rows:
 ```typescript
 stockHistoryEOD(
   symbol: string, startDate: string | Date, endDate: string | Date,
-  timeoutMs?: number,
+  options?: { ... },
 ): Array<EodTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 
@@ -139,12 +139,12 @@ Rows of `EodTick`:
 
 | Field | Type | Description |
 |---|---|---|
-| `ms_of_day` | i32 | EOD report creation time, milliseconds since midnight ET. |
-| `ms_of_day2` | i32 | Time of the last trade, milliseconds since midnight ET. |
-| `open` | f64 | Opening trade price. |
-| `high` | f64 | Highest traded price. |
-| `low` | f64 | Lowest traded price. |
-| `close` | f64 | Closing traded price. |
+| `created_ms_of_day` | i32 | EOD report creation time (NOT a trade time), milliseconds since midnight ET. |
+| `last_trade_ms_of_day` | i32 | Time of the day's last trade, milliseconds since midnight ET. 0 when no trades printed that day. |
+| `open` | f64 | Opening trade price. 0.0 when no trades printed that day. |
+| `high` | f64 | Highest traded price. 0.0 when no trades printed that day. |
+| `low` | f64 | Lowest traded price. 0.0 when no trades printed that day. |
+| `close` | f64 | Closing traded price. 0.0 when no trades printed that day. |
 | `volume` | i64 | Number of contracts or shares traded. |
 | `count` | i64 | Number of trades. |
 | `bid_size` | i32 | Last NBBO bid size. |
@@ -159,7 +159,7 @@ Rows of `EodTick`:
 
 ### Example response
 
-| `ms_of_day` | `ms_of_day2` | `open` | `high` | `low` | `close` | `volume` | `count` | `bid_size` | `bid_exchange` | `bid` | `bid_condition` | `ask_size` | `ask_exchange` | `ask` | `ask_condition` | `date` |
+| `created_ms_of_day` | `last_trade_ms_of_day` | `open` | `high` | `low` | `close` | `volume` | `count` | `bid_size` | `bid_exchange` | `bid` | `bid_condition` | `ask_size` | `ask_exchange` | `ask` | `ask_condition` | `date` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 62273606 | 62271877 | 187.03 | 188.44 | 183.885 | 185.64 | 80680243 | 1003582 | 2 | 7 | 185.34 | 0 | 2 | 1 | 185.36 | 0 | 20240102 |
 | 62189883 | 62188586 | 184.2 | 185.88 | 183.43 | 184.25 | 58308345 | 654127 | 5 | 7 | 184.05 | 0 | 2 | 1 | 184.1 | 0 | 20240103 |

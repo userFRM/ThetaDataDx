@@ -61,13 +61,10 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-stockSnapshotQuote(
-  symbols: Array<string>, venue?: string, minTime?: string | Date,
-  timeoutMs?: number,
-): Array<QuoteTick>
+stockSnapshotQuote(symbols: Array<string>, options?: { ... }): Array<QuoteTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `venue?: string`, `minTime?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 

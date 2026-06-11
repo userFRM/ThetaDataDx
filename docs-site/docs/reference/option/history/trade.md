@@ -74,18 +74,16 @@ for t in rows:
 ```typescript
 optionHistoryTrade(
   symbol: string, expiration: string | Date, date: string | Date,
-  strike?: string, right?: string, startTime?: string | Date,
-  endTime?: string | Date, maxDTE?: number, strikeRange?: number,
-  startDate?: string | Date, endDate?: string | Date, timeoutMs?: number,
+  options?: { ... },
 ): Array<TradeTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `maxDTE?: number`, `strikeRange?: number`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryTrade('SPY', '20250321', '20250303', '570', 'C');
+const rows = tdx.optionHistoryTrade('SPY', '20250321', '20250303', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }
@@ -179,7 +177,7 @@ Rows of `TradeTick`:
 | `records_back` | i32 | Offset of this record behind the most recent record. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration`, `strike`, and `right` on every row to identify the contract; on single-contract requests these are 0.
+Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 
 ### Example response
 

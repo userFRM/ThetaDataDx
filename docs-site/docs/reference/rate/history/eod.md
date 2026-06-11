@@ -37,7 +37,7 @@ Execute with `.await` → `Result<Vec<InterestRateTick>, Error>`, or decode chun
 ```rust
 let rows = tdx.interest_rate_history_eod("SOFR", "20250303", "20250306").await?;
 for t in &rows {
-    println!("created={} rate={}", t.created, t.rate);
+    println!("date={} rate={}", t.date, t.rate);
 }
 ```
 
@@ -60,7 +60,7 @@ ThetaDataDxClient.interest_rate_history_eod(
 ```python
 rows = tdx.interest_rate_history_eod("SOFR", "20250303", "20250306")
 for t in rows:
-    print(t.created, t.rate)
+    print(t.date, t.rate)
 ```
 
 </template>
@@ -70,18 +70,18 @@ for t in rows:
 ```typescript
 interestRateHistoryEOD(
   symbol: string, startDate: string | Date, endDate: string | Date,
-  timeoutMs?: number,
+  options?: { ... },
 ): Array<InterestRateTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
 const rows = tdx.interestRateHistoryEOD('SOFR', '20250303', '20250306');
 for (const t of rows) {
-  console.log(t.created, t.rate);
+  console.log(t.date, t.rate);
 }
 ```
 
@@ -104,7 +104,7 @@ Throws `tdx::Error` on failure.
 ```cpp
 auto rows = client.interest_rate_history_eod("SOFR", "20250303", "20250306");
 for (const auto& t : rows) {
-    std::cout << t.created << ' ' << t.rate << "\n";
+    std::cout << t.date << ' ' << t.rate << "\n";
 }
 ```
 
