@@ -187,3 +187,22 @@ The harness now drives the production transport surface (`Channel` / `ChannelPoo
 | **16** | **124.36 ms** | **144.22 ms** | **154.02 ms** | **125.21 ms** | **102 (102..102)** | **1 067.8** | **90.8 MiB** | **146 204 us** |
 
 Reading against the recorded in-house baselines above: the migrated transport is at parity or ahead in every cell. At the 16-concurrent ceiling: small frames +17.1% throughput / -18.3% p50 (104 952 vs 89 592 req/s; 140.0 vs 171.4 us), large frames +39% throughput / -25.8% p50 (1 153.9 vs 827.7 MB/s; 125.13 vs 168.59 ms), allocation 2.3x lower per small request and 1.34x lower per large request. The small-frame cells reproduce the recorded reference-arm numbers within ~0.5% — the wrapper (pool accounting, error mapping, per-chunk merge) adds no measurable cost. The large-frame cells land 25-35% above the recorded reference-arm numbers; large-allocation cells on this shared box swing run to run (the recorded comparison already noted a 58.3-67.7 ms p50 band for in-house large/c1 across invocations), and the production pool's least-loaded picks replace the recorded run's static worker-to-connection pinning, so treat the large-frame rows as this run's pin rather than a like-for-like delta against the reference arm. The verdict cell (at-or-ahead of the in-house transport everywhere) holds in every run observed.
+
+### Decode stage: typed tick build + bulk column extraction (2026-06-11)
+
+Two changes after the baseline above was recorded, measured together on the same box and protocol.
+
+**The harness now carries the full decode shape.** The measured loop runs the typed `EodTick` build on the merged table inside every request — the same parse call the generated `stock_history_eod` endpoint performs — so the per-frame tick decode is part of every cell going forward. The synthetic payload is valid tick input for it (`ms_of_day` inside the `i32` milliseconds-of-day window, real `YYYYMMDD` dates, both randomized so neither column compresses away), which moves the 10.0 MiB large cell from 130 926 to 148 052 rows. The baseline tables above predate both changes and are not directly comparable to the rows below.
+
+**Bulk column extraction in the generated parsers.** The tick parsers switched from per-cell type dispatch (row-shaped loop, per-cell accept-set selection, `collect` into an unsized `Vec`) to schema-validated bulk column extraction (`decode/column.rs`): column layout resolved once per table, then per-column monomorphic extraction in 256-row blocks into an exact-size seeded output. Large cell (10.0 MiB wire, 148 052 rows), before → after on the full-decode harness:
+
+| cell | metric | per-cell decode | bulk extraction | delta |
+|---|---|---|---|---|
+| large c=1 | p50 (median of runs) | 75.99 ms (75.40..76.91, 4 runs) | 70.76 ms (69.03..70.94, 3 runs) | -6.9% |
+| large c=1 | cpu/req (mean) | 78 080 us | 72 361 us | -7.3% |
+| large c=1 | alloc/req | 169.4 MiB | 123.5 MiB | -27.1% |
+| large c=16 (interleaved A/B, 3 pairs) | p50 (median of pairs) | 229.64 ms (225.09..231.92) | 222.48 ms (208.11..223.14) | -3.1% |
+| large c=16 (interleaved A/B, 3 pairs) | req/s (mean) | 66.7 | 70.3 | +5.5% |
+| large c=16 (interleaved A/B, 3 pairs) | cpu/req (mean) | 212 298 us | 199 674 us | -5.9% |
+
+The c=16 cell swings run to run on this shared box (both arms degraded together in one interleaved pair), so the c=16 rows come from back-to-back A/B runs of the two pinned binaries rather than separate sessions. The allocation drop is the exact-size output: collecting `Result` rows defeats the iterator's size hint, so the old parser grew the 28 MiB tick `Vec` geometrically; the bulk path allocates it once. Isolated to the parse stage alone (criterion, 100-row tables), trade ticks decode 3.4x faster, NBBO quotes 2.9x, OHLC bars 1.8x; on the memory-bound 130K-row EOD shape the parse stage alone improves ~8%, and whole-table column passes without the row blocking measured 2.1x slower than the row-shaped decode — the cache rationale for the 256-row blocks (see `decode/column.rs`).

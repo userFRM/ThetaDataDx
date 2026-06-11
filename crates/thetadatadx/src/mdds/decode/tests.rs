@@ -890,14 +890,14 @@ fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases(
     let t = &ticks[0];
 
     // Non-zero IV proves the `implied_vol` alias resolved; a broken
-    // alias would produce 0.0 from the `opt_float(None)` arm.
+    // alias would leave the 0.0 seed in place.
     assert!(
         (t.implied_volatility - 0.42).abs() < 1e-9,
         "implied_vol alias did not resolve: got {}",
         t.implied_volatility,
     );
     // Non-zero ms-of-day proves the `underlying_timestamp` alias
-    // resolved; a broken alias would produce 0 from `opt_number(None)`.
+    // resolved; a broken alias would leave the 0 seed in place.
     assert_eq!(t.underlying_ms_of_day, 34_200_000);
 }
 
@@ -1278,7 +1278,7 @@ fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
 // canonical shape these tests exercise.
 //
 // This pair of tests pins that behaviour so a future regression in
-// `find_header` / the generator's `opt_number(idx)` arm surfaces
+// `find_header` / the generated parser's absent-column seed surfaces
 // here.
 
 /// A `DataTable` whose headers match the subset NBBO shape
@@ -1316,8 +1316,8 @@ fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
     assert!((t.ask - 1.5041).abs() < 1e-9);
     assert_eq!(t.date, 20_220_414);
 
-    // Wire-absent columns zero-fill: mirrors the gRPC decoder's
-    // `opt_number(row, None) -> 0` contract.
+    // Wire-absent columns zero-fill: the generated parser skips their
+    // column pass and the `0` seed stands.
     assert_eq!(t.bid_exchange, 0);
     assert_eq!(t.bid_condition, 0);
     assert_eq!(t.ask_exchange, 0);
@@ -1923,9 +1923,10 @@ fn parse_quote_ticks_rejects_numeric_right_overflowing_i32() {
     );
 }
 
-// Generic integer wire arms (`row_number`, `eod_num`) bounds-check
-// the wire `int64` against `i32`; out-of-range payloads surface as
-// `DecodeError::NumericOverflow` with the raw value captured.
+// Generic integer wire arms (`row_number`, `row_eod_number`)
+// bounds-check the wire `int64` against `i32`; out-of-range payloads
+// surface as `DecodeError::NumericOverflow` with the raw value
+// captured.
 
 #[test]
 fn row_number_rejects_int64_above_i32_range() {
