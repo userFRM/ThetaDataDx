@@ -41,11 +41,14 @@
 //! intervals (~100us during active trading).
 
 use std::hint;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
 use std::thread;
 
-use disruptor::Sequence;
+use disruptor::{Producer, RingBufferFull, Sequence};
 
 use super::events::FpssEventInternal;
+use crate::util::cache_padded::CachePadded;
 
 /// Adaptive wait strategy for the FPSS event ring consumer.
 ///
@@ -140,6 +143,161 @@ pub(crate) struct RingEvent {
 // in-flight write, so the lack of an internal lock on `RingEvent`
 // is safe; the `unsafe impl Sync` records the contract.
 unsafe impl Sync for RingEvent {}
+
+// ---------------------------------------------------------------------------
+// Ring producer surface -- the publishing seam the I/O thread drives
+// ---------------------------------------------------------------------------
+
+/// The event-ring publishing surface the I/O thread (and the test
+/// harness) drives: `Send` (moved into the spawned I/O thread) and
+/// `'static` (outlives the thread it is moved into).
+///
+/// This is the crate's own seam over the underlying
+/// [`Producer<RingEvent>`] so every publish path can be instrumented
+/// uniformly — the shape returned by
+/// [`super::io_loop::build_poller_producer`] records the published
+/// ring sequence into [`RingCursors`] on each successful
+/// `try_publish`, which feeds the public
+/// `FpssClient::ring_occupancy` sample without touching any call
+/// site.
+pub(in crate::fpss) trait RingProducer: Send + 'static {
+    /// Non-blocking publish. Returns the published slot's ring
+    /// sequence, or an error when the ring is full (the event is NOT
+    /// enqueued and the caller decides drop policy).
+    ///
+    /// This is the only publish path the I/O thread uses: a slow
+    /// consumer that lets the ring fill must never wedge the TLS
+    /// reader (see the publish-policy contract in the module header).
+    fn try_publish<F>(&mut self, update: F) -> Result<Sequence, RingBufferFull>
+    where
+        F: FnOnce(&mut RingEvent);
+
+    /// Blocking publish: spins until a slot frees. Test-harness
+    /// pre-fill only — never called on the I/O thread, so the method
+    /// only exists on test builds.
+    #[cfg(any(test, feature = "__test-helpers"))]
+    fn publish<F>(&mut self, update: F)
+    where
+        F: FnOnce(&mut RingEvent);
+}
+
+/// [`RingProducer`] adapter that records each successfully published
+/// ring sequence into the shared [`RingCursors`].
+///
+/// The store is one plain `Relaxed` write of a value `try_publish`
+/// already returns in a register — no read-modify-write, no local
+/// counter, no branch beyond the existing `Result` discriminant. The
+/// cursor pair is cache-padded so this producer-side store stream
+/// never shares a line with the consumer's cursor.
+///
+/// The blocking `publish` path deliberately does not advance the
+/// published cursor: the underlying ring's blocking publish does not
+/// return the slot sequence, and the only blocking callers are
+/// harness pre-fills — immaterial to occupancy, and the next
+/// `try_publish` store re-synchronises the cursor because ring
+/// sequences are globally monotone.
+pub(in crate::fpss) struct SequencedProducer<P> {
+    inner: P,
+    cursors: Arc<RingCursors>,
+}
+
+impl<P> SequencedProducer<P> {
+    pub(in crate::fpss) fn new(inner: P, cursors: Arc<RingCursors>) -> Self {
+        Self { inner, cursors }
+    }
+}
+
+impl<P> RingProducer for SequencedProducer<P>
+where
+    P: Producer<RingEvent> + Send + 'static,
+{
+    #[inline]
+    fn try_publish<F>(&mut self, update: F) -> Result<Sequence, RingBufferFull>
+    where
+        F: FnOnce(&mut RingEvent),
+    {
+        let seq = self.inner.try_publish(update)?;
+        self.cursors.record_published(seq);
+        Ok(seq)
+    }
+
+    #[cfg(any(test, feature = "__test-helpers"))]
+    #[inline]
+    fn publish<F>(&mut self, update: F)
+    where
+        F: FnOnce(&mut RingEvent),
+    {
+        self.inner.publish(update);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ring cursors -- producer/consumer progress for occupancy sampling
+// ---------------------------------------------------------------------------
+
+/// Producer and consumer progress cursors for the FPSS event ring,
+/// sampled by the public occupancy surface
+/// ([`crate::fpss::FpssClient::ring_occupancy`]).
+///
+/// Both cursors hold the ring sequence (`i64`, `-1` = nothing yet) of
+/// the most recent slot the respective side has finished with:
+///
+/// * `published` — written by the I/O thread with one plain `Relaxed`
+///   store per successful publish. The sequence is already in a
+///   register when `try_publish` returns, so there is no
+///   read-modify-write and no local counter on the hot path.
+/// * `consumed` — written by the consumer with one plain `Relaxed`
+///   store per **drained batch** (never per event), carrying the
+///   sequence of the last slot the batch released.
+///
+/// Each cursor is padded to its own cache line so the producer's
+/// store stream never contends with the consumer's
+/// ([`CachePadded`]). Reads are cold: only operator polling touches
+/// them.
+#[derive(Debug)]
+pub(crate) struct RingCursors {
+    /// Sequence of the most recently published slot (`-1` = none).
+    published: CachePadded<AtomicI64>,
+    /// Sequence of the most recently consumed slot (`-1` = none).
+    consumed: CachePadded<AtomicI64>,
+}
+
+impl RingCursors {
+    /// Fresh cursor pair: nothing published, nothing consumed.
+    pub(crate) const fn new() -> Self {
+        Self {
+            published: CachePadded::new(AtomicI64::new(-1)),
+            consumed: CachePadded::new(AtomicI64::new(-1)),
+        }
+    }
+
+    /// Record the sequence returned by a successful publish. One plain
+    /// store of a register-resident value; producer-thread only.
+    #[inline]
+    pub(crate) fn record_published(&self, seq: Sequence) {
+        self.published.store(seq, Ordering::Relaxed);
+    }
+
+    /// Record the last sequence released by a drained batch. One plain
+    /// store per batch; consumer-thread only.
+    #[inline]
+    pub(crate) fn record_consumed(&self, seq: Sequence) {
+        self.consumed.store(seq, Ordering::Relaxed);
+    }
+
+    /// Point-in-time count of published-but-not-yet-consumed slots.
+    ///
+    /// The two loads are independent `Relaxed` reads, so a sample
+    /// racing a concurrent drain can observe the consumed cursor
+    /// ahead of the published cursor it paired with; the difference
+    /// is clamped to zero rather than wrapping. The value is a
+    /// monitoring sample, not a synchronisation primitive.
+    pub(crate) fn occupancy(&self) -> usize {
+        let published = self.published.load(Ordering::Relaxed);
+        let consumed = self.consumed.load(Ordering::Relaxed);
+        usize::try_from(published.saturating_sub(consumed).max(0)).unwrap_or(0)
+    }
+}
 
 // Ring-size validation lives in [`crate::util::ring`] so any other
 // ring consumer can share the same contract. Re-export the items here
@@ -438,5 +596,51 @@ mod tests {
 
         handle.join().unwrap();
         assert_eq!(counter.load(Ordering::Relaxed), 5);
+    }
+
+    /// Fresh cursors report an empty ring: both sides at `-1`.
+    #[test]
+    fn ring_cursors_start_empty() {
+        let cursors = RingCursors::new();
+        assert_eq!(cursors.occupancy(), 0);
+    }
+
+    /// `occupancy = published - consumed` over the plain cursor stores.
+    #[test]
+    fn ring_cursors_track_published_minus_consumed() {
+        let cursors = RingCursors::new();
+        cursors.record_published(9); // sequences 0..=9 published
+        assert_eq!(cursors.occupancy(), 10);
+        cursors.record_consumed(3); // sequences 0..=3 consumed
+        assert_eq!(cursors.occupancy(), 6);
+        cursors.record_consumed(9); // fully drained
+        assert_eq!(cursors.occupancy(), 0);
+    }
+
+    /// The transient race: two independent `Relaxed` loads can pair a
+    /// stale published cursor with a fresher consumed cursor. The
+    /// negative difference must clamp to zero, never wrap into a huge
+    /// unsigned value.
+    #[test]
+    fn ring_cursors_clamp_when_consumed_reads_ahead() {
+        let cursors = RingCursors::new();
+        cursors.record_published(5);
+        cursors.record_consumed(7); // simulated racy read: consumed ahead
+        assert_eq!(cursors.occupancy(), 0);
+        // Initial state half-race: consumer stored, published load
+        // still sees the -1 sentinel.
+        let cursors = RingCursors::new();
+        cursors.record_consumed(0);
+        assert_eq!(cursors.occupancy(), 0);
+    }
+
+    /// Saturating arithmetic on the extreme cursor values: the
+    /// difference must not overflow `i64` when published is at the
+    /// type's ceiling while consumed still holds the `-1` sentinel.
+    #[test]
+    fn ring_cursors_saturate_at_extremes() {
+        let cursors = RingCursors::new();
+        cursors.record_published(i64::MAX);
+        assert_eq!(cursors.occupancy(), usize::try_from(i64::MAX).unwrap());
     }
 }

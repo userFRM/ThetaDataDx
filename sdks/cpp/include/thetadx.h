@@ -1509,6 +1509,21 @@ int tdx_fpss_reconnect(const TdxFpssHandle* h);
  *  installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
+/** Point-in-time count of streaming events published into the event ring
+ *  but not yet drained into the registered callback — the in-flight depth
+ *  between the I/O thread and the dispatcher. Rising occupancy that
+ *  approaches tdx_fpss_ring_capacity predicts drops before
+ *  tdx_fpss_dropped_events moves; sampling never blocks the feed and is
+ *  safe from any thread. Returns 0 if the handle is null or has been shut
+ *  down. */
+uint64_t tdx_fpss_ring_occupancy(const TdxFpssHandle* h);
+
+/** Configured capacity of the streaming event ring in slots (the
+ *  fpss_ring_size setting, a power of two) — the fixed denominator for
+ *  tdx_fpss_ring_occupancy. Returns 0 if the handle is null or has been
+ *  shut down. */
+uint64_t tdx_fpss_ring_capacity(const TdxFpssHandle* h);
+
 /**
  * Milliseconds since the most recent inbound streaming frame of any
  * kind on this FPSS handle. Returns 0 on success with the value in
@@ -1697,6 +1712,21 @@ int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
  *  was full. Returns 0 if the handle is null or no callback has been
  *  installed yet. */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
+
+/** Point-in-time count of streaming events published into the event ring
+ *  but not yet drained into the registered callback — the in-flight depth
+ *  between the I/O thread and the dispatcher. Rising occupancy that
+ *  approaches tdx_unified_ring_capacity predicts drops before
+ *  tdx_unified_dropped_events moves; sampling never blocks the feed and is
+ *  safe from any thread. Returns 0 if the handle is null or no callback
+ *  has been installed yet. */
+uint64_t tdx_unified_ring_occupancy(const TdxUnified* handle);
+
+/** Configured capacity of the streaming event ring in slots (the
+ *  fpss_ring_size setting, a power of two) — the fixed denominator for
+ *  tdx_unified_ring_occupancy. Returns 0 if the handle is null or no
+ *  callback has been installed yet. */
+uint64_t tdx_unified_ring_capacity(const TdxUnified* handle);
 
 /**
  * Milliseconds since the most recent inbound streaming frame of any

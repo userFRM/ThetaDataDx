@@ -793,6 +793,20 @@ cpp = true
 
 [[method]]
 class = "ThetaDataDxClient"
+name = "ringOccupancy"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "ringCapacity"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
 name = "panicCount"
 python = true
 typescript = true
@@ -934,6 +948,20 @@ cpp = false  # C++ method is `dropped_events`, declared separately below
 class = "FpssClient"
 name = "droppedEvents"
 python = false
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "ringOccupancy"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "ringCapacity"
+python = true
 typescript = false
 cpp = true
 
