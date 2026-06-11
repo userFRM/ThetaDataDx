@@ -1090,6 +1090,17 @@ class = "ContractRef"
 name = "right"
 python = "Option<String>"
 
+# OptionContract list rows carry the logical right character on every
+# binding, including the hand-written C++ value struct. The `cpp` key
+# pins the header type so a regression back to the raw wire integer
+# trips the gate.
+[[value_field]]
+class = "OptionContract"
+name = "right"
+python = "String"
+typescript = "String"
+cpp = "char"
+
 [[value_field]]
 class = "EodTick"
 name = "created_ms_of_day"

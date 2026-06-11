@@ -98,7 +98,7 @@ struct OptionContract {
     std::string symbol;
     int32_t expiration;
     double strike;
-    int32_t right;
+    char right;
 };
 
 /// Active FPSS subscription descriptor.
