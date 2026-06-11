@@ -1,0 +1,78 @@
+code,name,symbol
+1,Nasdaq Exchange,NQEX
+2,Nasdaq Alternative Display Facility,NQAD
+3,New York Stock Exchange,NYSE
+4,American Stock Exchange,AMEX
+5,Chicago Board Options Exchange,CBOE
+6,International Securities Exchange,ISEX
+7,NYSE ARCA (Pacific),PACF
+8,National Stock Exchange (Cincinnati),CINC
+9,Philadelphia Stock Exchange,PHIL
+10,Options Pricing Reporting Authority,OPRA
+11,Boston Stock/Options Exchange,BOST
+12,Nasdaq Global+Select Market (NMS),NQNM
+13,Nasdaq Capital Market (SmallCap),NQSC
+14,Nasdaq Bulletin Board,NQBB
+15,Nasdaq OTC,NQPK
+16,Nasdaq Indexes (GIDS),NQIX
+17,Chicago Stock Exchange,CHIC
+18,Toronto Stock Exchange,TSE
+19,Canadian Venture Exchange,CDNX
+20,Chicago Mercantile Exchange,CME
+21,New York Board of Trade,NYBT
+22,ISE Mercury,MRCY
+23,COMEX (division of NYMEX),COMX
+24,Chicago Board of Trade,CBOT
+25,New York Mercantile Exchange,NYMX
+26,Kansas City Board of Trade,KCBT
+27,Minneapolis Grain Exchange,MGEX
+28,NYSE/ARCA Bonds,NYBO
+29,Nasdaq Basic,NQBS
+30,Dow Jones Indices,DOWJ
+31,ISE Gemini,GEMI
+32,Singapore International Monetary Exchange,SIMX
+33,London Stock Exchange,FTSE
+34,Eurex,EURX
+35,Implied Price,IMPL
+36,Data Transmission Network,DTN
+37,London Metals Exchange Matched Trades,LMT
+38,London Metals Exchange,LME
+39,Intercontinental Exchange (IPE),IPEX
+40,Nasdaq Mutual Funds (MFDS),NQMF
+41,COMEX Clearport,fcec
+42,CBOE C2 Option Exchange,C2
+43,Miami Exchange,MIAX
+44,NYMEX Clearport,CLRP
+45,Barclays,BARK
+46,Miami Emerald Options Exchange,EMLD
+47,NASDAQ Boston,NQBX
+48,HotSpot Eurex US,HOTS
+49,Eurex US,EUUS
+50,Eurex EU,EUEU
+51,Euronext Commodities,ENCM
+52,Euronext Index Derivatives,ENID
+53,Euronext Interest Rates,ENIR
+54,CBOE Futures Exchange,CFE
+55,Philadelphia Board of Trade,PBOT
+56,FCME,CME Floor
+57,FINRA/NASDAQ Trade Reporting Facility,NQNX
+58,BSE Trade Reporting Facility,BTRF
+59,NYSE Trade Reporting Facility,NTRF
+60,BATS Trading,BATS
+61,CBOT Floor,FCBT
+62,Pink Sheets,PINK
+63,BATS Y Exchange,BATY
+64,Direct Edge A,EDGE
+65,Direct Edge X,EDGX
+66,Russell Indexes,RUSL
+67,CME Indexes,CMEX
+68,Investors Exchange,IEX
+69,Miami Pearl Options Exchange,PERL
+70,London Stock Exchange,LSE
+71,NYSE Global Index Feed,GIF
+72,TSX Indexes,TSIX
+73,Members Exchange,MEMX
+74,EMPTY,EMPT
+75,Long-Term Stock Exchange,LTSE
+76,EMPTY,EMPT
+77,24X National Exchange,24X

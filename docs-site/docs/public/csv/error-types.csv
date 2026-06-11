@@ -1,0 +1,10 @@
+condition,rust_variant,python_exception,cpp_exception
+Bad or expired credentials,Auth,AuthenticationError / InvalidCredentialsError,tdx::AuthenticationError / tdx::InvalidCredentialsError
+Endpoint needs a higher tier,Grpc (permission),SubscriptionError,tdx::SubscriptionError
+Too many requests in flight upstream,Grpc (resource exhausted),RateLimitError,tdx::RateLimitError
+Request returned no rows,NoData,NoDataFoundError,tdx::Error (kind == NoData)
+Per-request deadline elapsed,Timeout,TimeoutError,tdx::Error (kind == Timeout)
+Connection / TLS / protocol fault,Transport,NetworkError,tdx::NetworkError
+Response shape unexpected,Decode,SchemaMismatchError,tdx::SchemaMismatchError
+Streaming session fault,Fpss,StreamError,tdx::StreamError
+Invalid parameters / configuration,Config,ThetaDataError,tdx::ThetaDataError
