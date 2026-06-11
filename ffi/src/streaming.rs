@@ -401,6 +401,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
     config: *const TdxConfig,
 ) -> *mut TdxUnified {
     ffi_boundary!(ptr::null_mut(), {
+        crate::ensure_crypto_provider();
         if creds.is_null() {
             set_error("credentials handle is null");
             return ptr::null_mut();
@@ -1332,6 +1333,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
     config: *const TdxConfig,
 ) -> *mut TdxFpssHandle {
     ffi_boundary!(std::ptr::null_mut(), {
+        crate::ensure_crypto_provider();
         if creds.is_null() {
             set_error("credentials handle is null");
             return ptr::null_mut();

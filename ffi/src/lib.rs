@@ -56,6 +56,23 @@ pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+// ── rustls provider install (no module-init hook on a C ABI) ──
+
+/// Seat the ring `CryptoProvider` as the process-wide rustls default before
+/// the first TLS handshake.
+///
+/// The Python and TypeScript bindings install it from their module-init
+/// hooks and the CLI / server binaries from `main`; a C ABI library has no
+/// equivalent load-time entrypoint, so every connect function seats the
+/// provider here instead. Guarded by `Once` so the cost is paid once and
+/// concurrent first-connects from multiple threads serialise cleanly.
+pub(crate) fn ensure_crypto_provider() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let _ = thetadatadx::__internal_install_ring_crypto_provider();
+    });
+}
+
 // ── Module layout ──
 //
 // Macros must be declared before the modules that use them, hence `#[macro_use]`
