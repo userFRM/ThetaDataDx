@@ -24,6 +24,13 @@ pub(super) mod parser;
 #[path = "../../build_support/endpoints/proto_parser.rs"]
 pub(super) mod proto_parser;
 
+// Dead-code allowance mirrors the bin-side mod declarations: when
+// `generate_sdk_surfaces` is compiled with the `__internal` feature in
+// the same invocation as `generate_docs_site`, this module is present
+// in a compile unit that never calls it.
+#[cfg(feature = "__internal")]
+#[allow(dead_code)]
+mod docs_render;
 mod enum_projection;
 mod fixture_validation;
 mod modes;
@@ -32,6 +39,9 @@ mod sdk_render;
 mod test_fixtures;
 
 use std::path::Path;
+
+#[cfg(feature = "__internal")]
+pub use docs_render::{check_docs_site_files, write_docs_site_files};
 
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     sdk_render::write_sdk_generated_files(repo_root)
