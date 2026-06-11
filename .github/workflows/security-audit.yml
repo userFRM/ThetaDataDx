@@ -51,3 +51,10 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Mirror the documented deferral in deny.toml: RUSTSEC-2026-0176
+          # (PyList/PyTuple `nth` out-of-bounds read) is fixed in pyo3 0.29,
+          # but pyo3-async-runtimes and pyo3-arrow still cap at `pyo3 ^0.28`,
+          # so 0.29 cannot resolve yet. Exposure is nil — the workspace never
+          # calls the affected methods. Remove with the deny.toml entry when
+          # the bump lands. Tracked in #684.
+          ignore: RUSTSEC-2026-0176
