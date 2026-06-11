@@ -195,6 +195,12 @@ python = true
 typescript = true
 cpp = true
 
+[[class]]
+name = "FlatFilesConfig.jitter"
+python = true
+typescript = true
+cpp = true
+
 # ─── MddsConfig cross-binding setters ──────────────────────────────────
 #
 # Tuning knobs on the MDDS sub-config exposed across every binding.
@@ -285,6 +291,48 @@ python = true
 typescript = true
 cpp = true
 
+[[class]]
+name = "ReconnectConfig.wait_max_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_server_restart_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_elapsed_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_server_restart_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.replay_burst_size"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.replay_pace_ms"
+python = true
+typescript = true
+cpp = true
+
 # ─── RuntimeConfig cross-binding setters ───────────────────────────────
 #
 # Async-runtime sub-config knobs honoured by embedded bindings that own
@@ -333,6 +381,12 @@ cpp = true
 
 [[class]]
 name = "RetryPolicy.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_elapsed_secs"
 python = true
 typescript = true
 cpp = true
@@ -504,37 +558,77 @@ cpp = false
 rust_only = true
 issue = "#595"
 
-[[class]]
-name = "FpssConfig.timeout_ms"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+# FPSS transport knobs are bound on every binding under `fpss_`-prefixed
+# canonical names (Python `Config.fpss_*`, TypeScript `Config.setFpss*`,
+# C++ `set_fpss_*`, FFI `tdx_config_set_fpss_*`). The prefix
+# disambiguates the generic field names (`timeout_ms`, `ring_size`)
+# against sibling sub-configs at the binding surface.
 
 [[class]]
-name = "FpssConfig.ring_size"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+name = "FpssConfig.fpss_timeout_ms"
+python = true
+typescript = true
+cpp = true
 
 [[class]]
-name = "FpssConfig.ping_interval_ms"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+name = "FpssConfig.fpss_ring_size"
+python = true
+typescript = true
+cpp = true
 
 [[class]]
-name = "FpssConfig.connect_timeout_ms"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+name = "FpssConfig.fpss_ping_interval_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_connect_timeout_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_io_read_slice_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_data_watchdog_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_keepalive_idle_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_keepalive_interval_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_keepalive_retries"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_host_selection"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FpssConfig.fpss_host_shuffle_seed"
+python = true
+typescript = true
+cpp = true
 
 # `FpssConfig.flush_mode` is exposed on every binding:
 # C ABI (`tdx_config_set_flush_mode`), C++ (`set_flush_mode`),
@@ -731,6 +825,27 @@ cpp = true
 
 [[method]]
 class = "ThetaDataDxClient"
+name = "millisSinceLastEvent"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "lastEventReceivedAtUnixNanos"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
+name = "lastConnectedAddr"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "ThetaDataDxClient"
 name = "setCallback"
 python = false  # Python uses `startStreaming(callback)` for the same role
 typescript = false  # TypeScript uses `startStreaming(callback)` likewise
@@ -856,6 +971,27 @@ cpp = true
 
 [[method]]
 class = "FpssClient"
+name = "millisSinceLastEvent"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "lastEventReceivedAtUnixNanos"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
+name = "lastConnectedAddr"
+python = true
+typescript = false
+cpp = true
+
+[[method]]
+class = "FpssClient"
 name = "setCallback"
 python = false
 typescript = false
@@ -922,3 +1058,15 @@ name = "flushMode"
 python = true
 typescript = true
 cpp = false  # follow-up — mirror getter in sdks/cpp/include/thetadx.hpp
+
+# Custom reconnect-policy callback registration. A field-shaped getter
+# is meaningless for a callback, so the registration is tracked as a
+# method row (Python `config.reconnect_callback = fn` setter, TS
+# `setReconnectCallback`, C++ `set_reconnect_callback` over the FFI
+# `tdx_config_set_reconnect_callback` symbol).
+[[method]]
+class = "Config"
+name = "setReconnectCallback"
+python = true
+typescript = true
+cpp = true

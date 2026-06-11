@@ -24,9 +24,9 @@ const { Config } = mod;
 describe('Config.flatFiles* — defaults mirror FlatFilesConfig::production_defaults', () => {
   it('expose the three FlatFilesConfig field defaults', () => {
     const cfg = Config.production();
-    assert.equal(cfg.flatFilesMaxAttempts, 3);
+    assert.equal(cfg.flatFilesMaxAttempts, 10);
     assert.equal(cfg.flatFilesInitialBackoffSecs, 1n);
-    assert.equal(cfg.flatFilesMaxBackoffSecs, 4n);
+    assert.equal(cfg.flatFilesMaxBackoffSecs, 30n);
   });
 });
 

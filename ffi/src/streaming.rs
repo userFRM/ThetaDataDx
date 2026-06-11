@@ -172,21 +172,44 @@ pub struct TdxFpssHandle {
 /// Saved FPSS connection parameters for FFI-safe (re)connection.
 struct FpssConnectParams {
     creds: thetadatadx::Credentials,
-    hosts: Vec<(String, u16)>,
-    ring_size: usize,
-    flush_mode: thetadatadx::FpssFlushMode,
-    reconnect_policy: thetadatadx::config::ReconnectPolicy,
-    /// Mirror of `ReconnectConfig::wait_ms` snapshotted at
-    /// `tdx_*_set_callback` time so the auto-reconnect path inside
-    /// `io_loop` honours caller-tuned cadences.
-    reconnect_wait_ms: u64,
-    /// Mirror of `ReconnectConfig::wait_rate_limited_ms` — see
-    /// `reconnect_wait_ms` above.
-    reconnect_wait_rate_limited_ms: u64,
-    derive_ohlcvc: bool,
-    connect_timeout_ms: u64,
-    read_timeout_ms: u64,
-    ping_interval_ms: u64,
+    /// Snapshot of `DirectConfig.fpss` at handle-construction time —
+    /// hosts, ring size, timeouts, keepalive schedule, host-selection
+    /// policy, watchdog, flush mode.
+    fpss: thetadatadx::config::FpssConfig,
+    /// Snapshot of `DirectConfig.reconnect` at handle-construction
+    /// time — policy, per-class cadences, jitter, replay pacing.
+    reconnect: thetadatadx::config::ReconnectConfig,
+}
+
+/// Thread every connection-side knob from a [`FpssConnectParams`]
+/// snapshot into an [`thetadatadx::fpss::FpssClientBuilder`].
+///
+/// The single source of truth for the FFI's two build sites (initial
+/// `set_callback` connect and `tdx_fpss_reconnect`) so a future knob
+/// cannot be wired into one and silently dropped from the other.
+fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::FpssClientBuilder<'_> {
+    thetadatadx::fpss::FpssClient::builder(&params.creds, &params.fpss.hosts)
+        .ring_size(params.fpss.ring_size)
+        .flush_mode(params.fpss.flush_mode)
+        .reconnect_policy(params.reconnect.policy.clone())
+        .reconnect_wait_ms(params.reconnect.wait_ms)
+        .reconnect_wait_max_ms(params.reconnect.wait_max_ms)
+        .reconnect_wait_rate_limited_ms(params.reconnect.wait_rate_limited_ms)
+        .reconnect_wait_server_restart_ms(params.reconnect.wait_server_restart_ms)
+        .reconnect_jitter(params.reconnect.jitter)
+        .reconnect_replay_burst_size(params.reconnect.replay_burst_size)
+        .reconnect_replay_pace_ms(params.reconnect.replay_pace_ms)
+        .derive_ohlcvc(params.fpss.derive_ohlcvc)
+        .connect_timeout_ms(params.fpss.connect_timeout_ms)
+        .read_timeout_ms(params.fpss.timeout_ms)
+        .ping_interval_ms(params.fpss.ping_interval_ms)
+        .io_read_slice_ms(params.fpss.io_read_slice_ms)
+        .data_watchdog_ms(params.fpss.data_watchdog_ms)
+        .keepalive_idle_secs(params.fpss.keepalive_idle_secs)
+        .keepalive_interval_secs(params.fpss.keepalive_interval_secs)
+        .keepalive_retries(params.fpss.keepalive_retries)
+        .host_selection(params.fpss.host_selection)
+        .host_shuffle_seed(params.fpss.host_shuffle_seed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -827,73 +850,23 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
             return -1;
         }
 
-        // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
-        // but MUST be surfaced through tracing so ops can see silent re-subscription
-        // failures across a reconnect boundary — a dropped subscription here would
-        // otherwise manifest as "the stream is up but no ticks for AAPL" with no log
-        // trail to diagnose it).
-        for (kind, contract) in &saved_subs {
-            let result =
-                match kind {
-                    thetadatadx::fpss::protocol::SubscriptionKind::Quote => handle.inner.subscribe(
-                        thetadatadx::fpss::protocol::Subscription::Contract {
-                            contract: contract.clone(),
-                            kind: thetadatadx::fpss::protocol::SubscriptionKind::Quote,
-                        },
-                    ),
-                    thetadatadx::fpss::protocol::SubscriptionKind::Trade => handle.inner.subscribe(
-                        thetadatadx::fpss::protocol::Subscription::Contract {
-                            contract: contract.clone(),
-                            kind: thetadatadx::fpss::protocol::SubscriptionKind::Trade,
-                        },
-                    ),
-                    thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => handle
-                        .inner
-                        .subscribe(thetadatadx::fpss::protocol::Subscription::Contract {
-                            contract: contract.clone(),
-                            kind: thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest,
-                        }),
-                    _ => continue,
-                };
-            if let Err(e) = result {
-                tracing::warn!(
-                    target: "thetadatadx::ffi::reconnect",
-                    error = %e,
-                    kind = ?kind,
-                    root = %contract.symbol,
-                    "resubscribe failed after reconnect"
-                );
-            }
-        }
-
-        for (kind, sec_type) in &saved_full_subs {
-            let result = match kind {
-                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                    handle
-                        .inner
-                        .subscribe(thetadatadx::fpss::protocol::Subscription::Full {
-                            sec_type: *sec_type,
-                            kind: thetadatadx::fpss::protocol::FullSubscriptionKind::Trades,
-                        })
-                }
-                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => handle
-                    .inner
-                    .subscribe(thetadatadx::fpss::protocol::Subscription::Full {
-                        sec_type: *sec_type,
-                        kind: thetadatadx::fpss::protocol::FullSubscriptionKind::OpenInterest,
-                    }),
-                thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
-                _ => continue,
-            };
-            if let Err(e) = result {
-                tracing::warn!(
-                    target: "thetadatadx::ffi::reconnect",
-                    error = %e,
-                    kind = ?kind,
-                    sec_type = ?sec_type,
-                    "full-stream resubscribe failed after reconnect"
-                );
-            }
+        // Re-subscribe all previous subscriptions through the core's
+        // paced replay engine (best-effort; failures are non-fatal but
+        // surfaced through tracing so ops can see silent
+        // re-subscription failures across a reconnect boundary — a
+        // dropped subscription here would otherwise manifest as "the
+        // stream is up but no ticks for AAPL" with no log trail).
+        // Pacing spreads a large saved set over wall-clock time
+        // instead of firing it at a recovering upstream back-to-back.
+        if let Err(e) = handle
+            .inner
+            .restore_subscriptions(&saved_subs, &saved_full_subs)
+        {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                "subscription replay reported failures after reconnect"
+            );
         }
 
         0
@@ -1031,6 +1004,97 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         handle.inner.stop_streaming();
+    })
+}
+
+/// Milliseconds since the most recent inbound streaming frame of any
+/// kind (data tick, heartbeat, control) on this unified handle.
+///
+/// The operator-facing staleness clock: a healthy session stays in
+/// the low hundreds of milliseconds (the upstream heartbeats even
+/// when no market data flows), so a steadily growing value is the
+/// earliest external signal of a dead or wedged connection.
+///
+/// Writes the value into `*out_ms`. Returns `0` on success, `1` when
+/// streaming has not started or no frame has been received yet
+/// (`*out_ms` is left `0`), `-1` on a null pointer.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_millis_since_last_event(
+    handle: *const TdxUnified,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() || out_ms.is_null() {
+            set_error("handle or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        match handle.inner.millis_since_last_event() {
+            Some(ms) => {
+                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
+                unsafe {
+                    *out_ms = ms;
+                }
+                0
+            }
+            None => {
+                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
+                unsafe {
+                    *out_ms = 0;
+                }
+                1
+            }
+        }
+    })
+}
+
+/// UNIX-nanosecond receive timestamp of the most recent inbound
+/// streaming frame of any kind on this unified handle. Returns `0`
+/// when the handle is null, streaming has not started, or no frame
+/// has been received yet. Raw feed for
+/// `tdx_unified_millis_since_last_event`, exposed for callers
+/// correlating against their own pipeline timestamps.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_last_event_received_at_unix_nanos(
+    handle: *const TdxUnified,
+) -> i64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        unsafe { (*handle).inner.last_event_received_at_unix_nanos() }
+    })
+}
+
+/// Address (`host:port`) of the streaming server the current session
+/// is connected to, following the session across auto-reconnects.
+///
+/// Returns a heap-owned C string the caller must release with
+/// `tdx_string_free`, or null when streaming has not started (or the
+/// handle is null).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_last_connected_addr(
+    handle: *const TdxUnified,
+) -> *mut std::os::raw::c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        match handle.inner.last_connected_addr() {
+            Some(addr) => match std::ffi::CString::new(addr) {
+                Ok(c) => c.into_raw(),
+                Err(e) => {
+                    set_error(&format!("connected address contains an interior NUL: {e}"));
+                    ptr::null_mut()
+                }
+            },
+            None => ptr::null_mut(),
+        }
     })
 }
 
@@ -1242,16 +1306,8 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             inner: Arc::new(Mutex::new(None)),
             connect_params: FpssConnectParams {
                 creds: creds.inner.clone(),
-                hosts: config.inner.fpss.hosts.clone(),
-                ring_size: config.inner.fpss.ring_size,
-                flush_mode: config.inner.fpss.flush_mode,
-                reconnect_policy: config.inner.reconnect.policy.clone(),
-                reconnect_wait_ms: config.inner.reconnect.wait_ms,
-                reconnect_wait_rate_limited_ms: config.inner.reconnect.wait_rate_limited_ms,
-                derive_ohlcvc: config.inner.fpss.derive_ohlcvc,
-                connect_timeout_ms: config.inner.fpss.connect_timeout_ms,
-                read_timeout_ms: config.inner.fpss.timeout_ms,
-                ping_interval_ms: config.inner.fpss.ping_interval_ms,
+                fpss: config.inner.fpss.clone(),
+                reconnect: config.inner.reconnect.clone(),
             },
             callback: Mutex::new(None),
             state: AtomicU8::new(FPSS_STATE_FRESH),
@@ -1339,18 +1395,7 @@ where
         );
         return Err(());
     }
-    let params = &handle.connect_params;
-    let build_result = thetadatadx::fpss::FpssClient::builder(&params.creds, &params.hosts)
-        .ring_size(params.ring_size)
-        .flush_mode(params.flush_mode)
-        .reconnect_policy(params.reconnect_policy.clone())
-        .reconnect_wait_ms(params.reconnect_wait_ms)
-        .reconnect_wait_rate_limited_ms(params.reconnect_wait_rate_limited_ms)
-        .derive_ohlcvc(params.derive_ohlcvc)
-        .connect_timeout_ms(params.connect_timeout_ms)
-        .read_timeout_ms(params.read_timeout_ms)
-        .ping_interval_ms(params.ping_interval_ms)
-        .build();
+    let build_result = fpss_builder(&handle.connect_params).build();
     match build_result {
         Ok(client) => {
             let client_arc = std::sync::Arc::new(client);
@@ -1816,17 +1861,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
 
         // 3. Build the new client + spawn a fresh dispatcher thread
         // bound to the same C callback.
-        let connect_result = thetadatadx::fpss::FpssClient::builder(&params.creds, &params.hosts)
-            .ring_size(params.ring_size)
-            .flush_mode(params.flush_mode)
-            .reconnect_policy(params.reconnect_policy.clone())
-            .reconnect_wait_ms(params.reconnect_wait_ms)
-            .reconnect_wait_rate_limited_ms(params.reconnect_wait_rate_limited_ms)
-            .derive_ohlcvc(params.derive_ohlcvc)
-            .connect_timeout_ms(params.connect_timeout_ms)
-            .read_timeout_ms(params.read_timeout_ms)
-            .ping_interval_ms(params.ping_interval_ms)
-            .build();
+        let connect_result = fpss_builder(params).build();
 
         let new_client = match connect_result {
             Ok(c) => Arc::new(c),
@@ -1900,51 +1935,19 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
         }
 
-        // 4. Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
-        // but MUST be surfaced through tracing so ops can see silent re-subscription
-        // failures across a reconnect boundary — mirrors the same diagnostic the
-        // unified reconnect path above emits).
-        for (kind, contract) in &saved_subs {
-            let result =
-                new_client.subscribe(thetadatadx::fpss::protocol::Subscription::Contract {
-                    contract: contract.clone(),
-                    kind: *kind,
-                });
-            if let Err(e) = result {
-                tracing::warn!(
-                    target: "thetadatadx::ffi::reconnect",
-                    error = %e,
-                    kind = ?kind,
-                    root = %contract.symbol,
-                    "resubscribe failed after reconnect"
-                );
-            }
-        }
-
-        for (kind, sec_type) in &saved_full_subs {
-            let full_kind = match kind {
-                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                    thetadatadx::fpss::protocol::FullSubscriptionKind::Trades
-                }
-                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
-                    thetadatadx::fpss::protocol::FullSubscriptionKind::OpenInterest
-                }
-                thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
-                _ => continue,
-            };
-            let result = new_client.subscribe(thetadatadx::fpss::protocol::Subscription::Full {
-                sec_type: *sec_type,
-                kind: full_kind,
-            });
-            if let Err(e) = result {
-                tracing::warn!(
-                    target: "thetadatadx::ffi::reconnect",
-                    error = %e,
-                    kind = ?kind,
-                    sec_type = ?sec_type,
-                    "full-stream resubscribe failed after reconnect"
-                );
-            }
+        // 4. Re-subscribe all previous subscriptions through the core's
+        // paced replay engine (best-effort; failures are non-fatal but
+        // surfaced through tracing so ops can see silent
+        // re-subscription failures across a reconnect boundary). The
+        // engine paces submissions in bursts so a large saved set is
+        // not fired at a recovering upstream back-to-back; per-item
+        // diagnostics are emitted by the engine itself.
+        if let Err(e) = new_client.restore_subscriptions(&saved_subs, &saved_full_subs) {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                "subscription replay reported failures after reconnect"
+            );
         }
 
         // The new client was already published into `handle.inner`
@@ -1993,6 +1996,108 @@ fn downcast_ffi_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String 
         return s.clone();
     }
     "dispatcher panicked with non-string payload".to_owned()
+}
+
+/// Milliseconds since the most recent inbound streaming frame of any
+/// kind on this FPSS handle. Same contract as
+/// `tdx_unified_millis_since_last_event`: returns `0` on success with
+/// the value in `*out_ms`, `1` when no session is live or no frame
+/// has been received yet, `-1` on a null pointer.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_millis_since_last_event(
+    handle: *const TdxFpssHandle,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() || out_ms.is_null() {
+            set_error("handle or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        let value = {
+            let guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.as_ref().and_then(|c| c.millis_since_last_event())
+        };
+        match value {
+            Some(ms) => {
+                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
+                unsafe {
+                    *out_ms = ms;
+                }
+                0
+            }
+            None => {
+                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
+                unsafe {
+                    *out_ms = 0;
+                }
+                1
+            }
+        }
+    })
+}
+
+/// UNIX-nanosecond receive timestamp of the most recent inbound
+/// streaming frame of any kind on this FPSS handle. Returns `0` when
+/// the handle is null, no session is live, or no frame has been
+/// received yet.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_last_event_received_at_unix_nanos(
+    handle: *const TdxFpssHandle,
+) -> i64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard
+            .as_ref()
+            .map_or(0, |c| c.last_event_received_at_unix_nanos())
+    })
+}
+
+/// Address (`host:port`) of the streaming server the current FPSS
+/// session is connected to, following the session across
+/// auto-reconnects. Returns a heap-owned C string the caller must
+/// release with `tdx_string_free`, or null when no session is live.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_last_connected_addr(
+    handle: *const TdxFpssHandle,
+) -> *mut std::os::raw::c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        let addr = {
+            let guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.as_ref().map(|c| c.last_connected_addr())
+        };
+        match addr {
+            Some(addr) => match std::ffi::CString::new(addr) {
+                Ok(c) => c.into_raw(),
+                Err(e) => {
+                    set_error(&format!("connected address contains an interior NUL: {e}"));
+                    ptr::null_mut()
+                }
+            },
+            None => ptr::null_mut(),
+        }
+    })
 }
 
 /// Cumulative count of FPSS events the TLS reader could not publish

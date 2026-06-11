@@ -80,36 +80,67 @@ class Config:
     # `1` internally so a zero-worker pool cannot deadlock stage-1.
     decode_threads: Optional[int]
     decode_queue_depth: Optional[int]
-    # Reconnect tunables.
+    # Reconnect tunables. `reconnect_max_attempts` (default 30) and
+    # `reconnect_max_elapsed_secs` (default 300; 0 disables) bound a
+    # consecutive-reconnect sequence on the generic-transient class;
+    # the rate-limited class rides `reconnect_max_rate_limited_attempts`
+    # alone and `reconnect_max_server_restart_attempts` (default 60)
+    # budgets pool bounces.
     reconnect_policy: str
     reconnect_max_attempts: int
     reconnect_max_rate_limited_attempts: int
+    reconnect_max_server_restart_attempts: int
+    reconnect_max_elapsed_secs: int
     reconnect_stable_window_secs: int
-    # Reconnect cadence (ms) per failure class. Default
-    # `wait_ms=2_000` (generic transient) / `wait_rate_limited_ms=130_000`
-    # (TooManyRequests). Plumbed through to the FPSS I/O loop at
-    # connect time.
+    # Reconnect cadence (ms) per failure class. `wait_ms` (default 250)
+    # is the initial delay of the generic-transient exponential ladder,
+    # doubling up to `wait_max_ms` (default 30_000);
+    # `wait_rate_limited_ms` (default 130_000) is the TooManyRequests
+    # floor; `wait_server_restart_ms` (default 5_000) is the flat
+    # ServerRestarting cadence. Every delay is jittered per
+    # `reconnect_jitter` ("full" default / "equal" / "decorrelated" /
+    # "none").
     reconnect_wait_ms: int
+    reconnect_wait_max_ms: int
     reconnect_wait_rate_limited_ms: int
+    reconnect_wait_server_restart_ms: int
+    reconnect_jitter: Literal["full", "equal", "decorrelated", "none"]
+    # Subscription replay pacing after auto-reconnect: frames per burst
+    # (default 50, minimum 1) and the jittered pause between bursts in
+    # ms (default 5; 0 removes the pause).
+    reconnect_replay_burst_size: int
+    reconnect_replay_pace_ms: int
+    # Custom reconnect policy: a callable `(reason: int, attempt: int)
+    # -> Optional[int]` returning the reconnect delay in ms, or `None`
+    # to stop (the stream then emits the terminal ReconnectsExhausted
+    # event). Runs on the streaming I/O thread; permanent disconnect
+    # reasons never reach it. Assign `None` to restore the Auto policy.
+    # Write-only: reading the configured callable back is not
+    # supported (`reconnect_policy` reports "custom").
+    reconnect_callback: Optional[Callable[[int, int], Optional[int]]]
     # Tokio worker-thread count for embedded runtimes built via
     # `RuntimeConfig::build_runtime`. `None` defers to tokio's default
     # sizing; `int` (including `0`, which clamps to `1` inside the
     # builder) pins worker count.
     tokio_worker_threads: Optional[int]
     # RetryPolicy fields — per-field access on `DirectConfig.retry`.
-    # Defaults: `initial=250ms`, `max=30s`, `attempts=5`, `jitter=True`.
-    # Methods `delay_for_attempt` / `capped_backoff` stay Rust-only.
+    # Defaults: `initial=250ms`, `max=30s`, `attempts=20`,
+    # `max_elapsed_secs=300` (0 disables the wall-clock envelope),
+    # `jitter=True`. Methods `delay_for_attempt` / `capped_backoff`
+    # stay Rust-only.
     retry_initial_delay_ms: int
     retry_max_delay_ms: int
     retry_max_attempts: int
+    retry_max_elapsed_secs: int
     retry_jitter: bool
     # FlatFilesConfig fields — per-field access on
     # `DirectConfig.flatfiles`. Tunes the legacy flatfile driver's
-    # retry loop. Defaults: `max_attempts=3` (validated 1..=10),
-    # `initial_backoff_secs=1`, `max_backoff_secs=4`.
+    # retry loop. Defaults: `max_attempts=10` (validated 1..=100),
+    # `initial_backoff_secs=1`, `max_backoff_secs=30`, `jitter=True`.
     flatfiles_max_attempts: int
     flatfiles_initial_backoff_secs: int
     flatfiles_max_backoff_secs: int
+    flatfiles_jitter: bool
     # AuthConfig fields — per-field access on `DirectConfig.auth`.
     # `nexus_url` defaults to the upstream production endpoint;
     # `client_type` defaults to `"rust-thetadatadx"`.
@@ -121,7 +152,25 @@ class Config:
     # in; an `int` binds an HTTP listener on `0.0.0.0:<port>`. The
     # setter raises ValueError for values outside `0..=65535`.
     metrics_port: Optional[int]
-    # FPSS tunables.
+    # FPSS tunables. `fpss_timeout_ms` (default 3_000) is the
+    # no-frames deadline; `fpss_data_watchdog_ms` (default 30_000; 0
+    # disables) is the hard wall-clock backstop above it. The keepalive
+    # trio arms kernel-side half-open detection (defaults 5 s idle /
+    # 2 s interval / 2 probes). `fpss_host_selection` is "shuffled"
+    # (fault-domain-aware per-client shuffle, seedable via
+    # `fpss_host_shuffle_seed`) or "fixed_order". `fpss_ring_size`
+    # must be a power of two >= 64.
+    fpss_timeout_ms: int
+    fpss_connect_timeout_ms: int
+    fpss_ping_interval_ms: int
+    fpss_ring_size: int
+    fpss_io_read_slice_ms: int
+    fpss_data_watchdog_ms: int
+    fpss_keepalive_idle_secs: int
+    fpss_keepalive_interval_secs: int
+    fpss_keepalive_retries: int
+    fpss_host_selection: Literal["shuffled", "fixed_order"]
+    fpss_host_shuffle_seed: Optional[int]
     derive_ohlcvc: bool
     # Streaming write-flush policy. `"batched"` (default) flushes on the
     # PING heartbeat (~100 ms); `"immediate"` flushes after every wire
@@ -463,6 +512,29 @@ class Reconnecting:
 
 
 @final
+class ReconnectsExhausted:
+    """Auto-reconnect stopped without a user-initiated shutdown —
+    terminal for the session. Emitted on budget / wall-clock-envelope
+    exhaustion, a permanent disconnect reason, a manual policy, or a
+    custom policy returning ``None``. ``attempts`` is the number of
+    consecutive reconnect attempts consumed (0 when no reconnect was
+    attempted)."""
+
+    reason: int
+    attempts: int
+
+    @property
+    def kind(self) -> str: ...
+
+    @property
+    def reason_name(self) -> str:
+        """Resolved `RemoveReason` variant name."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
 class ReqResponse:
     """FPSS subscription response (wire code 40)."""
 
@@ -559,8 +631,19 @@ class ThetaDataDxClient:
     def active_subscriptions(self) -> List[Subscription]: ...
     def active_full_subscriptions(self) -> List[Subscription]: ...
 
-    # Metrics.
+    # Metrics + connection observability.
     def dropped_event_count(self) -> int: ...
+    def millis_since_last_event(self) -> Optional[int]:
+        """Milliseconds since the most recent inbound streaming frame
+        of any kind, or ``None`` before streaming starts. A steadily
+        growing value is the earliest external signal of a dead or
+        wedged connection."""
+        ...
+    def last_event_received_at_unix_nanos(self) -> int: ...
+    def last_connected_addr(self) -> Optional[str]:
+        """``host:port`` of the live streaming server, following the
+        session across auto-reconnects."""
+        ...
 
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
@@ -639,6 +722,9 @@ class FpssClient:
 
     def dropped_event_count(self) -> int: ...
     def panic_count(self) -> int: ...
+    def millis_since_last_event(self) -> Optional[int]: ...
+    def last_event_received_at_unix_nanos(self) -> int: ...
+    def last_connected_addr(self) -> Optional[str]: ...
 
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
 

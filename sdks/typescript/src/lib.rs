@@ -259,6 +259,39 @@ impl ThetaDataDxClient {
         napi::bindgen_prelude::BigInt::from(self.tdx.dropped_event_count())
     }
 
+    /// Milliseconds since the most recent inbound streaming frame of
+    /// any kind (data tick, heartbeat, control), or `null` when
+    /// streaming has not started or no frame has been received yet.
+    ///
+    /// The operator-facing staleness clock: a healthy session stays in
+    /// the low hundreds of milliseconds (the upstream heartbeats even
+    /// when no market data flows), so a steadily growing value is the
+    /// earliest external signal of a dead or wedged connection.
+    #[napi(js_name = "millisSinceLastEvent")]
+    pub fn millis_since_last_event(&self) -> Option<napi::bindgen_prelude::BigInt> {
+        self.tdx
+            .millis_since_last_event()
+            .map(napi::bindgen_prelude::BigInt::from)
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// streaming frame of any kind. Returns `0n` when streaming has
+    /// not started or no frame has been received yet. Raw feed for
+    /// `millisSinceLastEvent`, exposed for callers correlating against
+    /// their own pipeline timestamps.
+    #[napi(js_name = "lastEventReceivedAtUnixNanos")]
+    pub fn last_event_received_at_unix_nanos(&self) -> napi::bindgen_prelude::BigInt {
+        napi::bindgen_prelude::BigInt::from(self.tdx.last_event_received_at_unix_nanos())
+    }
+
+    /// Address (`host:port`) of the streaming server the current
+    /// session is connected to, following the session across
+    /// auto-reconnects. `null` when streaming has not started.
+    #[napi(js_name = "lastConnectedAddr")]
+    pub fn last_connected_addr(&self) -> Option<String> {
+        self.tdx.last_connected_addr()
+    }
+
     /// Cumulative count of user-callback panics caught by the
     /// per-invocation `catch_unwind` boundary since the current stream
     /// started.

@@ -1423,7 +1423,7 @@ impl std::ops::Deref for ThetaDataDxClient {
 /// full-type subscriptions, and `None` for kinds that are not (currently
 /// only `SubscriptionKind::Quote` is excluded). A `None` triggers the same
 /// "skipping" warning the previous in-line loop emitted.
-fn restore_subscriptions<P, F>(
+pub(crate) fn restore_subscriptions<P, F>(
     per_contract: &[(SubscriptionKind, Contract)],
     full_type: &[(SubscriptionKind, SecType)],
     pacing: ReplayPacing,
@@ -1502,9 +1502,9 @@ where
 /// [`crate::config::ReconnectConfig::replay_burst_size`] /
 /// [`crate::config::ReconnectConfig::replay_pace_ms`].
 #[derive(Debug, Clone, Copy)]
-struct ReplayPacing {
-    burst_size: u32,
-    pace_ms: u64,
+pub(crate) struct ReplayPacing {
+    pub(crate) burst_size: u32,
+    pub(crate) pace_ms: u64,
 }
 
 impl ReplayPacing {

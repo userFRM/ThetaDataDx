@@ -213,7 +213,10 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
     // Populate the synthetic `reason_name` field on RemoveReason-bearing
     // control variants so the TS surface mirrors the Python pyclass
     // accessor.
-    if matches!(event_name, "Disconnected" | "Reconnecting") {
+    if matches!(
+        event_name,
+        "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
+    ) {
         out.push_str("                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),\n");
     }
     out.push_str("            });\n        }\n");
@@ -254,7 +257,10 @@ fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
     // column is the wire encoding of `tdbe::types::enums::RemoveReason`.
     // TS users branch on the variant name (`event.disconnected.reasonName
     // === "TooManyRequests"`) instead of looking up the integer.
-    if matches!(event_name, "Disconnected" | "Reconnecting") {
+    if matches!(
+        event_name,
+        "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
+    ) {
         out.push_str("    /// Resolved `RemoveReason` variant name (e.g. `\"TooManyRequests\"`,\n");
         out.push_str("    /// `\"InvalidCredentials\"`, `\"Unspecified\"` for unknown codes).\n");
         out.push_str("    /// Derived from the wire-level `reason` integer.\n");

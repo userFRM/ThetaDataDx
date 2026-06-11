@@ -311,6 +311,14 @@ impl ReconnectsExhausted {
 
     #[getter]
     fn kind(&self) -> &'static str { "reconnects_exhausted" }
+
+    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
+    /// Derived from the wire-level `reason` integer.
+    #[getter]
+    fn reason_name(&self) -> &'static str {
+        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
+    }
 }
 
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).

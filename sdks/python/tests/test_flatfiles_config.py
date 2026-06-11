@@ -31,9 +31,9 @@ def test_flatfiles_defaults_mirror_production_defaults() -> None:
     """
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.flatfiles_max_attempts == 3
+    assert cfg.flatfiles_max_attempts == 10
     assert cfg.flatfiles_initial_backoff_secs == 1
-    assert cfg.flatfiles_max_backoff_secs == 4
+    assert cfg.flatfiles_max_backoff_secs == 30
 
 
 # ─── Round-trip ─────────────────────────────────────────────────────

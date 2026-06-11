@@ -144,6 +144,195 @@ export declare class Config {
   /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
   get reconnectWaitRateLimitedMs(): bigint
   /**
+   * Set the cap (ms) on the exponential generic-transient reconnect
+   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
+   * consecutive attempt up to this value. Default `30_000n`.
+   */
+  setReconnectWaitMaxMs(ms: bigint): void
+  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
+  get reconnectWaitMaxMs(): bigint
+  /**
+   * Set the flat reconnect cadence (ms) for `ServerRestarting`
+   * disconnects. Default `5_000n`.
+   */
+  setReconnectWaitServerRestartMs(ms: bigint): void
+  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
+  get reconnectWaitServerRestartMs(): bigint
+  /**
+   * Set the jitter strategy applied to every reconnect delay.
+   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+   * `"none"` (case-insensitive).
+   */
+  setReconnectJitter(mode: string): void
+  /** Current reconnect jitter mode as a lowercase string. */
+  get reconnectJitter(): string
+  /**
+   * Set the wall-clock reconnect envelope (seconds) for the
+   * generic-transient and server-restart classes, measured from the
+   * first attempt of a consecutive-reconnect sequence. `0n` disables
+   * the envelope (attempt budgets only). Default `300n`. No effect
+   * unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current wall-clock reconnect envelope in seconds (default
+   * `300n`; `0n` = disabled). Reads the default-limits value when
+   * the policy is not `Auto`.
+   */
+  get reconnectMaxElapsedSecs(): bigint
+  /**
+   * Set the `ServerRestarting` reconnect attempt budget. Default
+   * `60`. No effect unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxServerRestartAttempts(n: number): void
+  /**
+   * Current `ServerRestarting` reconnect attempt budget (default
+   * `60`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxServerRestartAttempts(): number
+  /**
+   * Current reconnect policy as a string (`"auto"`, `"manual"`, or
+   * `"custom"`).
+   */
+  get reconnectPolicy(): string
+  /**
+   * Current generic-transient reconnect attempt budget (default
+   * `30`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxAttempts(): number
+  /**
+   * Current rate-limited reconnect attempt budget (default `100`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectMaxRateLimitedAttempts(): number
+  /**
+   * Current stable-window reset interval in seconds (default `60n`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectStableWindowSecs(): bigint
+  /**
+   * Set the subscription-replay burst size used after an
+   * auto-reconnect: frames are written in bursts of this many, each
+   * burst flushed and followed by a jittered `replayPaceMs` pause.
+   * Minimum `1` (validated at connect). Default `50`.
+   */
+  setReconnectReplayBurstSize(n: number): void
+  /** Current `replay_burst_size` value (default `50`). */
+  get reconnectReplayBurstSize(): number
+  /**
+   * Set the pause (ms) between subscription-replay bursts after an
+   * auto-reconnect. `0n` removes the pause. Default `5n`.
+   */
+  setReconnectReplayPaceMs(ms: bigint): void
+  /** Current `replay_pace_ms` value (default `5n`). */
+  get reconnectReplayPaceMs(): bigint
+  /**
+   * Install a custom reconnect policy driven by a JS callback.
+   *
+   * `callback(reason: number, attempt: number)` is invoked (on the
+   * Node main thread, queued from the streaming I/O thread) after
+   * each retriable involuntary disconnect. Return the reconnect
+   * delay in milliseconds, or `null` to stop reconnecting (the
+   * stream then emits the terminal `ReconnectsExhausted` event).
+   * Permanent disconnect reasons (bad credentials, account
+   * conflicts) never reach the callback. Pass `null` to restore the
+   * default `Auto` policy.
+   *
+   * The streaming I/O thread waits for the decision, so the
+   * callback should return promptly; if no decision arrives within
+   * 30 seconds (for example because the Node event loop is blocked)
+   * the stream stops reconnecting and emits the terminal event.
+   */
+  setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
+  /** Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
+  setFpssTimeoutMs(ms: bigint): void
+  /** Current `fpss.timeout_ms` value (default `3_000n`). */
+  get fpssTimeoutMs(): bigint
+  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
+  setFpssConnectTimeoutMs(ms: bigint): void
+  /** Current `fpss.connect_timeout_ms` value (default `2_000n`). */
+  get fpssConnectTimeoutMs(): bigint
+  /** Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
+  setFpssPingIntervalMs(ms: bigint): void
+  /** Current `fpss.ping_interval_ms` value (default `250n`). */
+  get fpssPingIntervalMs(): bigint
+  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
+  setFpssIoReadSliceMs(ms: bigint): void
+  /** Current `fpss.io_read_slice_ms` value (default `25n`). */
+  get fpssIoReadSliceMs(): bigint
+  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
+  setFpssDataWatchdogMs(ms: bigint): void
+  /** Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
+  get fpssDataWatchdogMs(): bigint
+  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect. */
+  setFpssKeepaliveIdleSecs(ms: bigint): void
+  /** Current `fpss.keepalive_idle_secs` value (default `5n`). */
+  get fpssKeepaliveIdleSecs(): bigint
+  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
+  setFpssKeepaliveIntervalSecs(ms: bigint): void
+  /** Current `fpss.keepalive_interval_secs` value (default `2n`). */
+  get fpssKeepaliveIntervalSecs(): bigint
+  /**
+   * Set the number of unanswered TCP keepalive probes after which
+   * the kernel declares the FPSS connection dead (where the
+   * platform exposes the knob). Default `2`; validated to `[1, 10]`
+   * at connect.
+   */
+  setFpssKeepaliveRetries(n: number): void
+  /** Current `fpss.keepalive_retries` value (default `2`). */
+  get fpssKeepaliveRetries(): number
+  /**
+   * Set the FPSS event ring buffer size (slots). Must be a power of
+   * two `>= 64`; invalid values are rejected immediately. Default
+   * `131_072`.
+   */
+  setFpssRingSize(n: number): void
+  /** Current `fpss.ring_size` value (default `131_072`). */
+  get fpssRingSize(): number
+  /**
+   * Set the FPSS host-selection policy. Accepts `"shuffled"`
+   * (default — fault-domain-aware per-client shuffle) or
+   * `"fixed_order"` (declared order verbatim), case-insensitive.
+   */
+  setFpssHostSelection(policy: string): void
+  /** Current FPSS host-selection policy as a lowercase string. */
+  get fpssHostSelection(): string
+  /**
+   * Set the FPSS host-shuffle seed. `null` (default) derives a
+   * fresh per-client seed so a fleet shuffles independently; an
+   * explicit `bigint` makes the shuffled order deterministic —
+   * useful for fleet sharding and tests. Ignored under
+   * `"fixed_order"`.
+   */
+  setFpssHostShuffleSeed(seed?: bigint | undefined | null): void
+  /**
+   * Current `fpss.host_shuffle_seed` value (`null` = per-client
+   * entropy).
+   */
+  get fpssHostShuffleSeed(): bigint | null
+  /**
+   * Set the wall-clock envelope (seconds) for one
+   * historical-channel retry sequence, measured from the first
+   * attempt. `0n` disables the envelope (attempt budget only).
+   * Default `300n`.
+   */
+  setRetryMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current `retry.max_elapsed` value in seconds (default `300n`;
+   * `0n` = disabled).
+   */
+  get retryMaxElapsedSecs(): bigint
+  /**
+   * Toggle AWS-style full jitter on the flatfile retry ladder.
+   * Default `true`; `false` gives the deterministic schedule,
+   * useful for tests that assert exact timings.
+   */
+  setFlatFilesJitter(jitter: boolean): void
+  /** Current `flatfiles.jitter` value (default `true`). */
+  get flatFilesJitter(): boolean
+  /**
    * Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
    * runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
    * defers to tokio's default sizing; `hasValue=true` pins worker
@@ -420,6 +609,31 @@ export declare class ThetaDataDxClient {
    * (Number would top out at 2^53).
    */
   droppedEventCount(): bigint
+  /**
+   * Milliseconds since the most recent inbound streaming frame of
+   * any kind (data tick, heartbeat, control), or `null` when
+   * streaming has not started or no frame has been received yet.
+   *
+   * The operator-facing staleness clock: a healthy session stays in
+   * the low hundreds of milliseconds (the upstream heartbeats even
+   * when no market data flows), so a steadily growing value is the
+   * earliest external signal of a dead or wedged connection.
+   */
+  millisSinceLastEvent(): bigint | null
+  /**
+   * UNIX-nanosecond receive timestamp of the most recent inbound
+   * streaming frame of any kind. Returns `0n` when streaming has
+   * not started or no frame has been received yet. Raw feed for
+   * `millisSinceLastEvent`, exposed for callers correlating against
+   * their own pipeline timestamps.
+   */
+  lastEventReceivedAtUnixNanos(): bigint
+  /**
+   * Address (`host:port`) of the streaming server the current
+   * session is connected to, following the session across
+   * auto-reconnects. `null` when streaming has not started.
+   */
+  lastConnectedAddr(): string | null
   /**
    * Cumulative count of user-callback panics caught by the
    * per-invocation `catch_unwind` boundary since the current stream
@@ -1418,7 +1632,7 @@ export interface FpssEvent {
    * Narrowed to a literal union in TS so `switch (event.kind)`
    * correctly narrows the optional payload fields.
    */
-  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
+  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest
   quote?: Quote
@@ -1434,6 +1648,7 @@ export interface FpssEvent {
   reconnected?: Reconnected
   reconnectedServer?: ReconnectedServer
   reconnecting?: Reconnecting
+  reconnectsExhausted?: ReconnectsExhausted
   reqResponse?: ReqResponse
   restart?: Restart
   serverError?: ServerError
@@ -1785,6 +2000,17 @@ export declare const enum RateType {
   TreasuryY30 = 'treasury_y30'
 }
 
+/**
+ * `(reason, attempt)` argument object handed to the JS reconnect
+ * callback registered via `Config.setReconnectCallback`. `reason` is
+ * the disconnect `RemoveReason` discriminant; `attempt` is the
+ * 1-based consecutive-reconnect counter.
+ */
+export interface ReconnectDecisionArgs {
+  reason: number
+  attempt: number
+}
+
 /** FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload. */
 export interface Reconnected {
 
@@ -1800,6 +2026,18 @@ export interface Reconnecting {
   reason: number
   attempt: number
   delayMs: bigint
+  /**
+   * Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+   * `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
+   * Derived from the wire-level `reason` integer.
+   */
+  reasonName: string
+}
+
+/** FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
+export interface ReconnectsExhausted {
+  reason: number
+  attempts: number
   /**
    * Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
    * `"InvalidCredentials"`, `"Unspecified"` for unknown codes).

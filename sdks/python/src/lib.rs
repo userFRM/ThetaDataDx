@@ -315,6 +315,451 @@ impl Config {
         guard.reconnect.wait_rate_limited_ms
     }
 
+    /// Set the cap (ms) on the exponential generic-transient reconnect
+    /// ladder. The ladder starts at ``reconnect_wait_ms`` and doubles
+    /// per consecutive attempt up to this value. Default ``30_000``.
+    #[setter]
+    fn set_reconnect_wait_max_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_max_ms = ms;
+    }
+
+    /// Current reconnect ``wait_max_ms`` value (default ``30_000``).
+    #[getter]
+    fn get_reconnect_wait_max_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_max_ms
+    }
+
+    /// Set the flat reconnect cadence (ms) for ``ServerRestarting``
+    /// disconnects. Default ``5_000``.
+    #[setter]
+    fn set_reconnect_wait_server_restart_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_server_restart_ms = ms;
+    }
+
+    /// Current reconnect ``wait_server_restart_ms`` value (default ``5_000``).
+    #[getter]
+    fn get_reconnect_wait_server_restart_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_server_restart_ms
+    }
+
+    /// Set the jitter strategy applied to every reconnect delay.
+    /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
+    /// or ``"none"`` (case-insensitive).
+    #[setter]
+    fn set_reconnect_jitter(&self, mode: &str) -> PyResult<()> {
+        let parsed = config::JitterMode::parse(mode).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unknown reconnect_jitter: {mode:?} (expected \"full\", \"equal\", \"decorrelated\", or \"none\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.jitter = parsed;
+        Ok(())
+    }
+
+    /// Current reconnect jitter mode as a lowercase string.
+    #[getter]
+    fn get_reconnect_jitter(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.jitter.as_str()
+    }
+
+    /// Set the wall-clock reconnect envelope (seconds) for the
+    /// generic-transient and server-restart classes, measured from the
+    /// first attempt of a consecutive-reconnect sequence. ``0``
+    /// disables the envelope (attempt budgets only). Default ``300``.
+    /// No effect unless the reconnect policy is ``Auto``.
+    #[setter]
+    fn set_reconnect_max_elapsed_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_elapsed = std::time::Duration::from_secs(secs);
+        }
+    }
+
+    /// Current wall-clock reconnect envelope in seconds (default
+    /// ``300``; ``0`` = disabled). Reads the default-limits value when
+    /// the policy is not ``Auto``.
+    #[getter]
+    fn get_reconnect_max_elapsed_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_elapsed.as_secs(),
+            _ => config::ReconnectAttemptLimits::default()
+                .max_elapsed
+                .as_secs(),
+        }
+    }
+
+    /// Set the ``ServerRestarting`` reconnect attempt budget. Default
+    /// ``60``. No effect unless the reconnect policy is ``Auto``.
+    #[setter]
+    fn set_reconnect_max_server_restart_attempts(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_server_restart_attempts = n;
+        }
+    }
+
+    /// Current ``ServerRestarting`` reconnect attempt budget (default
+    /// ``60``). Reads the default-limits value when the policy is not
+    /// ``Auto``.
+    #[getter]
+    fn get_reconnect_max_server_restart_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_server_restart_attempts,
+        }
+    }
+
+    /// Current generic-transient reconnect attempt budget (default
+    /// ``30``). Reads the default-limits value when the policy is not
+    /// ``Auto``.
+    #[getter]
+    fn get_reconnect_max_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_attempts,
+        }
+    }
+
+    /// Current rate-limited reconnect attempt budget (default ``100``).
+    /// Reads the default-limits value when the policy is not ``Auto``.
+    #[getter]
+    fn get_reconnect_max_rate_limited_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_rate_limited_attempts,
+        }
+    }
+
+    /// Current stable-window reset interval in seconds (default ``60``).
+    /// Reads the default-limits value when the policy is not ``Auto``.
+    #[getter]
+    fn get_reconnect_stable_window_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.stable_window.as_secs(),
+            _ => config::ReconnectAttemptLimits::default()
+                .stable_window
+                .as_secs(),
+        }
+    }
+
+    /// Set the subscription-replay burst size used after an
+    /// auto-reconnect: frames are written in bursts of this many, each
+    /// burst flushed and followed by a jittered ``replay_pace_ms``
+    /// pause. Minimum ``1`` (validated at connect). Default ``50``.
+    #[setter]
+    fn set_reconnect_replay_burst_size(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.replay_burst_size = n;
+    }
+
+    /// Current ``replay_burst_size`` value (default ``50``).
+    #[getter]
+    fn get_reconnect_replay_burst_size(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.replay_burst_size
+    }
+
+    /// Set the pause (ms) between subscription-replay bursts after an
+    /// auto-reconnect. ``0`` removes the pause. Default ``5``.
+    #[setter]
+    fn set_reconnect_replay_pace_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.replay_pace_ms = ms;
+    }
+
+    /// Current ``replay_pace_ms`` value (default ``5``).
+    #[getter]
+    fn get_reconnect_replay_pace_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.replay_pace_ms
+    }
+
+    /// Install a custom reconnect policy driven by a Python callable.
+    ///
+    /// ``callback(reason: int, attempt: int)`` is invoked on the
+    /// streaming I/O thread after each retriable involuntary
+    /// disconnect; return the reconnect delay in milliseconds, or
+    /// ``None`` to stop reconnecting (the stream then emits the
+    /// terminal ``ReconnectsExhausted`` event). Permanent disconnect
+    /// reasons (bad credentials, account conflicts) never reach the
+    /// callable. Pass ``None`` to restore the default ``Auto`` policy.
+    ///
+    /// The callable runs off the main thread: it must be thread-safe
+    /// and should return quickly — the I/O thread performs the actual
+    /// delay sleep after the callable returns, without holding the
+    /// interpreter lock.
+    #[setter]
+    fn set_reconnect_callback(&self, callback: Option<Py<PyAny>>) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(callback) = callback else {
+            guard.reconnect.policy =
+                config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default());
+            return Ok(());
+        };
+        guard.reconnect.policy =
+            config::ReconnectPolicy::Custom(std::sync::Arc::new(move |reason, attempt| {
+                Python::attach(|py| {
+                    let result = callback.call1(py, (reason as i32, attempt));
+                    match result {
+                        Ok(value) => {
+                            if value.is_none(py) {
+                                return None;
+                            }
+                            match value.extract::<u64>(py) {
+                                Ok(ms) => Some(std::time::Duration::from_millis(ms)),
+                                Err(e) => {
+                                    e.write_unraisable(py, None);
+                                    None
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // A raising callback cannot decide a delay;
+                            // surface via the unraisable hook and stop
+                            // reconnecting rather than looping silently.
+                            e.write_unraisable(py, None);
+                            None
+                        }
+                    }
+                })
+            }));
+        Ok(())
+    }
+
+    // ── FPSS transport knobs ──────────────────────────────────────────
+    //
+    // Scalar tuning on ``DirectConfig.fpss`` mirroring the FFI / C++ /
+    // TypeScript surface. Out-of-range values are rejected by the core
+    // validator at connect time.
+
+    /// Set the FPSS read timeout (ms): the no-frames deadline after
+    /// which the streaming I/O loop declares the session dead and
+    /// reconnects. Default ``3_000``; validated to ``[100, 60_000]``.
+    #[setter]
+    fn set_fpss_timeout_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.timeout_ms = ms;
+    }
+
+    /// Current ``fpss.timeout_ms`` value (default ``3_000``).
+    #[getter]
+    fn get_fpss_timeout_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.timeout_ms
+    }
+
+    /// Set the per-server connect timeout (ms) for the streaming
+    /// connection. Default
+    /// ``2_000``; validated to ``[1_000, 60_000]``.
+    #[setter]
+    fn set_fpss_connect_timeout_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.connect_timeout_ms = ms;
+    }
+
+    /// Current ``fpss.connect_timeout_ms`` value (default ``2_000``).
+    #[getter]
+    fn get_fpss_connect_timeout_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.connect_timeout_ms
+    }
+
+    /// Set the FPSS heartbeat ping interval (ms). Default ``250``;
+    /// validated to ``[100, 300_000]``.
+    #[setter]
+    fn set_fpss_ping_interval_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.ping_interval_ms = ms;
+    }
+
+    /// Current ``fpss.ping_interval_ms`` value (default ``250``).
+    #[getter]
+    fn get_fpss_ping_interval_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.ping_interval_ms
+    }
+
+    /// Set the FPSS event ring buffer size (slots). Must be a power of
+    /// two ``>= 64`` (rejected at connect otherwise). Default
+    /// ``131_072``.
+    #[setter]
+    fn set_fpss_ring_size(&self, n: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.ring_size = n;
+    }
+
+    /// Current ``fpss.ring_size`` value (default ``131_072``).
+    #[getter]
+    fn get_fpss_ring_size(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.ring_size
+    }
+
+    /// Set the per-iteration blocking-read slice (ms) for the
+    /// streaming I/O loop. Default ``25``; validated to ``[10, 500]``.
+    #[setter]
+    fn set_fpss_io_read_slice_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.io_read_slice_ms = ms;
+    }
+
+    /// Current ``fpss.io_read_slice_ms`` value (default ``25``).
+    #[getter]
+    fn get_fpss_io_read_slice_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.io_read_slice_ms
+    }
+
+    /// Set the last-frame watchdog (ms): when no frame of any kind has
+    /// arrived for this long the I/O loop force-reconnects. ``0``
+    /// disables. Default ``30_000``.
+    #[setter]
+    fn set_fpss_data_watchdog_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.data_watchdog_ms = ms;
+    }
+
+    /// Current ``fpss.data_watchdog_ms`` value (default ``30_000``;
+    /// ``0`` = disabled).
+    #[getter]
+    fn get_fpss_data_watchdog_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.data_watchdog_ms
+    }
+
+    /// Set the TCP keepalive idle time (seconds) before the first
+    /// kernel probe on a silent FPSS socket. Default ``5``; validated
+    /// to ``[1, 7_200]``.
+    #[setter]
+    fn set_fpss_keepalive_idle_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_idle_secs = secs;
+    }
+
+    /// Current ``fpss.keepalive_idle_secs`` value (default ``5``).
+    #[getter]
+    fn get_fpss_keepalive_idle_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_idle_secs
+    }
+
+    /// Set the interval (seconds) between TCP keepalive probes.
+    /// Default ``2``; validated to ``[1, 75]``.
+    #[setter]
+    fn set_fpss_keepalive_interval_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_interval_secs = secs;
+    }
+
+    /// Current ``fpss.keepalive_interval_secs`` value (default ``2``).
+    #[getter]
+    fn get_fpss_keepalive_interval_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_interval_secs
+    }
+
+    /// Set the number of unanswered TCP keepalive probes after which
+    /// the kernel declares the FPSS connection dead (where the
+    /// platform exposes the knob). Default ``2``; validated to
+    /// ``[1, 10]``.
+    #[setter]
+    fn set_fpss_keepalive_retries(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_retries = n;
+    }
+
+    /// Current ``fpss.keepalive_retries`` value (default ``2``).
+    #[getter]
+    fn get_fpss_keepalive_retries(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.keepalive_retries
+    }
+
+    /// Set the FPSS host-selection policy. Accepts ``"shuffled"``
+    /// (default — fault-domain-aware per-client shuffle) or
+    /// ``"fixed_order"`` (declared order verbatim), case-insensitive.
+    #[setter]
+    fn set_fpss_host_selection(&self, policy: &str) -> PyResult<()> {
+        let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unknown fpss_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.host_selection = parsed;
+        Ok(())
+    }
+
+    /// Current FPSS host-selection policy as a lowercase string.
+    #[getter]
+    fn get_fpss_host_selection(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.host_selection.as_str()
+    }
+
+    /// Set the FPSS host-shuffle seed. ``None`` (default) derives a
+    /// fresh per-client seed so a fleet shuffles independently; an
+    /// explicit value makes the shuffled order deterministic — useful
+    /// for fleet sharding and tests. Ignored under ``"fixed_order"``.
+    #[setter]
+    fn set_fpss_host_shuffle_seed(&self, seed: Option<u64>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.host_shuffle_seed = seed;
+    }
+
+    /// Current ``fpss.host_shuffle_seed`` value (``None`` = per-client
+    /// entropy).
+    #[getter]
+    fn get_fpss_host_shuffle_seed(&self) -> Option<u64> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.host_shuffle_seed
+    }
+
+    /// Set the wall-clock envelope (seconds) for one
+    /// historical-channel retry sequence, measured from the first
+    /// attempt. ``0`` disables the envelope (attempt budget only).
+    /// Default ``300``.
+    #[setter]
+    fn set_retry_max_elapsed_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_elapsed = std::time::Duration::from_secs(secs);
+    }
+
+    /// Current ``retry.max_elapsed`` value in seconds (default ``300``;
+    /// ``0`` = disabled).
+    #[getter]
+    fn get_retry_max_elapsed_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_elapsed.as_secs()
+    }
+
+    /// Toggle AWS-style full jitter on the flatfile retry ladder.
+    /// Default ``True``; ``False`` gives the deterministic schedule,
+    /// useful for tests that assert exact timings.
+    #[setter]
+    fn set_flatfiles_jitter(&self, jitter: bool) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.jitter = jitter;
+    }
+
+    /// Current ``flatfiles.jitter`` value (default ``True``).
+    #[getter]
+    fn get_flatfiles_jitter(&self) -> bool {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.jitter
+    }
+
     /// Set the tokio worker thread count for embedded bindings that own
     /// their runtime (Python / FFI / napi). ``None`` (the default)
     /// defers to tokio's default sizing (one worker per logical CPU);
@@ -988,6 +1433,34 @@ impl ThetaDataDxClient {
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
         self.tdx.dropped_event_count()
+    }
+
+    /// Milliseconds since the most recent inbound streaming frame of
+    /// any kind (data tick, heartbeat, control), or ``None`` when
+    /// streaming has not started or no frame has been received yet.
+    ///
+    /// The operator-facing staleness clock: a healthy session stays in
+    /// the low hundreds of milliseconds (the upstream heartbeats even
+    /// when no market data flows), so a steadily growing value is the
+    /// earliest external signal of a dead or wedged connection.
+    fn millis_since_last_event(&self) -> Option<u64> {
+        self.tdx.millis_since_last_event()
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// streaming frame of any kind. Returns ``0`` when streaming has
+    /// not started or no frame has been received yet. Raw feed for
+    /// :meth:`millis_since_last_event`, exposed for callers
+    /// correlating against their own pipeline timestamps.
+    fn last_event_received_at_unix_nanos(&self) -> i64 {
+        self.tdx.last_event_received_at_unix_nanos()
+    }
+
+    /// Address (``host:port``) of the streaming server the current
+    /// session is connected to, following the session across
+    /// auto-reconnects. ``None`` when streaming has not started.
+    fn last_connected_addr(&self) -> Option<String> {
+        self.tdx.last_connected_addr()
     }
 }
 

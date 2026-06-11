@@ -823,6 +823,10 @@ pub struct FpssClient {
     /// thread after every successful reconnect; the reconnect path
     /// also tries this address first.
     connected_addr: Arc<Mutex<String>>,
+    /// Replay pacing snapshot for [`Self::restore_subscriptions`].
+    /// Mirrors the builder's `replay_burst_size` / `replay_pace_ms`.
+    replay_burst_size: u32,
+    replay_pace_ms: u64,
     /// Cumulative count of publish failures: events the TLS reader could
     /// not enqueue because the consumer fell behind and the ring buffer
     /// was full. Snapshot via [`FpssClient::dropped_count`]; this is the
@@ -1263,6 +1267,11 @@ impl FpssClient {
             next_req_id,
         } = args;
 
+        // Replay knobs are `Copy`; snapshot for the client handle
+        // before the originals move into the I/O thread args.
+        let client_replay_burst_size = replay_burst_size;
+        let client_replay_pace_ms = replay_pace_ms;
+
         // Spawn the I/O thread: blocking TLS read + ring publish + command drain.
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
@@ -1352,6 +1361,8 @@ impl FpssClient {
             server_addr,
             last_event_at_ns,
             connected_addr,
+            replay_burst_size: client_replay_burst_size,
+            replay_pace_ms: client_replay_pace_ms,
             dropped,
             panics,
             consumer_thread_id,
@@ -1938,6 +1949,65 @@ impl FpssClient {
             .clone()
     }
 
+    /// Re-subscribe a saved subscription snapshot onto this session,
+    /// paced per the builder's replay knobs
+    /// ([`FpssClientBuilder::reconnect_replay_burst_size`] /
+    /// [`FpssClientBuilder::reconnect_replay_pace_ms`]).
+    ///
+    /// The single replay engine for caller-driven reconnect flows
+    /// (including the embedded bindings): subscriptions are submitted
+    /// in bursts with a jittered pause between bursts so a large saved
+    /// set is spread over wall-clock time instead of being fired at a
+    /// recovering upstream back-to-back. Capture the snapshot from
+    /// [`Self::active_subscriptions`] /
+    /// [`Self::active_full_subscriptions`] before tearing the previous
+    /// session down.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] carrying the structured
+    /// list of subscriptions that failed to restore; everything not in
+    /// the list was re-installed.
+    pub fn restore_subscriptions(
+        &self,
+        per_contract: &[(SubscriptionKind, Contract)],
+        full_type: &[(SubscriptionKind, tdbe::types::enums::SecType)],
+    ) -> Result<(), Error> {
+        let pacing = crate::client::ReplayPacing {
+            burst_size: self.replay_burst_size,
+            pace_ms: self.replay_pace_ms,
+        };
+        let failed = crate::client::restore_subscriptions(
+            per_contract,
+            full_type,
+            pacing,
+            |kind, contract| {
+                self.subscribe(protocol::Subscription::Contract {
+                    contract: contract.clone(),
+                    kind,
+                })
+            },
+            |kind, sec_type| match kind {
+                SubscriptionKind::Trade => Some(self.subscribe(protocol::Subscription::Full {
+                    sec_type,
+                    kind: protocol::FullSubscriptionKind::Trades,
+                })),
+                SubscriptionKind::OpenInterest => {
+                    Some(self.subscribe(protocol::Subscription::Full {
+                        sec_type,
+                        kind: protocol::FullSubscriptionKind::OpenInterest,
+                    }))
+                }
+                SubscriptionKind::Quote => None,
+            },
+        );
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::PartialReconnect { failed })
+        }
+    }
+
     /// Verify connection is live before sending.
     fn check_connected(&self) -> Result<(), Error> {
         if self.shutdown.load(Ordering::Acquire) {
@@ -2109,6 +2179,8 @@ impl FpssClient {
             server_addr: "test://self-join".to_owned(),
             last_event_at_ns: Arc::new(AtomicI64::new(0)),
             connected_addr: Arc::new(Mutex::new("test://self-join".to_owned())),
+            replay_burst_size: 50,
+            replay_pace_ms: 0,
             dropped,
             panics,
             consumer_thread_id,

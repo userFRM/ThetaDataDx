@@ -196,6 +196,10 @@ pub struct Reconnecting {
 pub struct ReconnectsExhausted {
     pub reason: i32,
     pub attempts: i32,
+    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
+    /// Derived from the wire-level `reason` integer.
+    pub reason_name: String,
 }
 
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
@@ -530,6 +534,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.reconnects_exhausted = Some(ReconnectsExhausted {
                 reason,
                 attempts,
+                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
             });
         }
         BufferedEvent::ReqResponse {
