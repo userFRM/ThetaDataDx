@@ -366,34 +366,20 @@ python = true
 typescript = true
 cpp = true
 
-# ─── Cross-binding error-class name divergences ───────────────────────
+# ─── FPSS parse-error event class ─────────────────────────────────────
 #
-# The Rust `Error` enum surfaces through different binding-language
-# idioms (no per-language "rename for cosmetics" pass):
-#
-#   * Rust:       `thetadatadx::Error` (single error enum).
-#   * Python:     runtime class is `Error` (matches the Rust name);
-#                 the `.pyi` stub shadows it as `FpssParseError`
-#                 (suffix-disambiguated against the generic
-#                 `Error(ThetaDataError)` exception class) to avoid the
-#                 mypy duplicate-class collision. Runtime callers still
-#                 catch `thetadatadx.Error`.
-#   * TypeScript: napi exposes the variants as a discriminated union
-#                 over the standard JS `Error` superclass — `class
-#                 Error extends globalThis.Error` is the napi default.
-#   * C++:        FFI surface returns `int32_t` status codes per the
-#                 `tdx_last_error()` thread-local string convention; the
-#                 RAII wrapper exposes them as `tdx::FpssError` to
-#                 disambiguate from `std::exception`.
-#
-# This row is informational — the parity script's class-existence
-# check skips dotted rows.
+# Named `ParseError` on every binding (mirrors the Rust core's
+# `FpssControl::Error` variant) so no binding ships a class that
+# collides with the language's own error types: Python's exception
+# hierarchy roots at `ThetaDataError`, the JS global `Error` stays
+# unshadowed, and C / C++ expose `TdxFpssParseError` /
+# `tdx::FpssParseError`.
 
 [[class]]
-name = "Error.cross_binding_name_divergence"
+name = "ParseError"
 python = true
-typescript = true
-cpp = true
+typescript = true   # `#[napi(object)]` interface `ParseError` + `FpssEvent.parseError`
+cpp = true          # `TdxFpssParseError` C struct, `tdx::FpssParseError` alias
 
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
@@ -1073,3 +1059,85 @@ name = "setReconnectCallback"
 python = true
 typescript = true
 cpp = true
+
+# ─── Value-field TYPE parity ──────────────────────────────────────────
+#
+# Each row pins the declared Rust-side type of one field on one value
+# class per binding (`python` = the pyclass struct field type,
+# `typescript` = the napi object struct field type; omit a key where
+# the spelling is binding-specific). The checker reads the struct
+# bodies — generated and hand-written alike — so a binding cannot
+# silently drift a unit-bearing field type. These rows pin the typed
+# surfaces this matrix exists to keep honest: strike is dollars
+# (f64) under the bare name on every surface, the option right is the
+# logical character string, the calendar day type is the vendor
+# vocabulary, the EOD time pair carries the vendor's `created` /
+# `last_trade` semantics, contract identity is optional, and the
+# Python keyword escape keeps `lambda_` reachable.
+
+[[value_field]]
+class = "ContractRef"            # Python streaming event payload
+name = "strike"
+python = "Option<f64>"
+
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "strike"
+typescript = "Option<f64>"
+
+[[value_field]]
+class = "ContractRef"
+name = "right"
+python = "Option<String>"
+
+[[value_field]]
+class = "EodTick"
+name = "created_ms_of_day"
+python = "i32"
+typescript = "i32"
+
+[[value_field]]
+class = "EodTick"
+name = "last_trade_ms_of_day"
+python = "i32"
+typescript = "i32"
+
+[[value_field]]
+class = "CalendarDay"
+name = "is_open"
+python = "bool"
+typescript = "bool"
+
+[[value_field]]
+class = "CalendarDay"
+name = "status"
+python = "String"
+typescript = "String"
+
+[[value_field]]
+class = "TradeTick"
+name = "strike"
+python = "Option<f64>"
+typescript = "Option<f64>"
+
+[[value_field]]
+class = "TradeTick"
+name = "right"
+python = "Option<String>"
+typescript = "Option<String>"
+
+[[value_field]]
+class = "OptionContract"
+name = "right"
+python = "String"
+typescript = "String"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "lambda_"
+python = "f64"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "lambda"
+typescript = "f64"

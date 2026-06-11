@@ -142,6 +142,7 @@ CPP_ALIASES: dict[str, str] = {
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
+    "ParseError": "FpssParseError",
 }
 
 
@@ -909,6 +910,73 @@ def _check_orphan_rust_fields(
     return errors
 
 
+VALUE_FIELD_PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
+VALUE_FIELD_TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
+
+
+def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | None:
+    """Declared Rust-side type of `field` on `struct` in a binding crate.
+
+    Scans every `.rs` file (including `_generated/`) for the struct body
+    and returns the type text of the named field, attribute prefixes
+    (`#[pyo3(get)]`) stripped. Returns `None` when the struct or field
+    is absent. Generated and hand-written sources are treated alike —
+    the declared type IS the binding surface either way.
+    """
+    struct_re = re.compile(
+        r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
+        re.S,
+    )
+    field_re = re.compile(
+        r"(?:#\[[^\]]*\]\s*)*pub\s+" + re.escape(field) + r"\s*:\s*([^,\n]+)",
+    )
+    for path in sorted(src_dir.rglob("*.rs")):
+        text = path.read_text(encoding="utf-8")
+        for m in struct_re.finditer(text):
+            fm = field_re.search(m.group(1))
+            if fm:
+                return fm.group(1).strip()
+    return None
+
+
+def _check_value_field_rows(rows: list[dict[str, Any]]) -> list[str]:
+    """Field-level TYPE parity for `[[value_field]]` rows.
+
+    Each row pins the declared Rust-side type of one field on one
+    value class per binding:
+
+        [[value_field]]
+        class = "ContractRef"
+        name = "strike"
+        python = "Option<f64>"
+        typescript = "Option<f64>"
+
+    `python` / `typescript` are the Rust types in the pyclass / napi
+    object struct (omit a key to skip that binding, e.g. a
+    Python-only spelling like `lambda_`). A mismatch — the field
+    missing, or declared under a different type — fails the gate, so a
+    binding cannot silently drift a field's unit-bearing type (the
+    strike-thousandths / right-as-int / ms_of_day2 defect class).
+    """
+    errors: list[str] = []
+    for row in rows:
+        cls, field = row["class"], row["name"]
+        for lang, src_dir in (
+            ("python", VALUE_FIELD_PY_SRC),
+            ("typescript", VALUE_FIELD_TS_SRC),
+        ):
+            declared = row.get(lang)
+            if declared is None:
+                continue
+            actual = _struct_field_type(src_dir, cls, field)
+            if actual != declared:
+                errors.append(
+                    f"{cls}.{field}.{lang}: declared type `{declared}`, "
+                    f"actual `{actual or '<field missing>'}`"
+                )
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if "--selftest" in argv:
@@ -921,6 +989,7 @@ def main(argv: list[str] | None = None) -> int:
     data: dict[str, Any] = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
     rows: list[dict[str, Any]] = data.get("class", [])
     method_rows: list[dict[str, Any]] = data.get("method", [])
+    value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -977,6 +1046,9 @@ def main(argv: list[str] | None = None) -> int:
     # Orphan Rust pub fields (no parity row).
     orphan_errors = _check_orphan_rust_fields(rust_fields, rows)
 
+    # Value-field TYPE parity ([[value_field]] rows).
+    value_field_errors = _check_value_field_rows(value_field_rows)
+
     # Catch-all: every Python pyclass must be either tracked
     # explicitly or via the implicit pattern (mechanical parity).
     untracked: set[str] = {
@@ -1027,6 +1099,16 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if value_field_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(value_field_errors)} value-field "
+            f"TYPE mismatch(es) (per-field `[[value_field]]` granularity):"
+        )
+        for e in value_field_errors:
+            print(f"  {e}")
+        print()
+
     if untracked:
         had_errors = True
         print(
@@ -1049,10 +1131,11 @@ def main(argv: list[str] | None = None) -> int:
     n_class = len(rows) - n_dotted
     n_fields = sum(len(v) for v in rust_fields.values())
     n_methods = len(method_rows)
+    n_value_fields = len(value_field_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
-        f"{n_methods} method rows + "
+        f"{n_methods} method rows + {n_value_fields} value-field rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
