@@ -228,6 +228,15 @@ toml = "1.1.2"
 # acquire the GIL without an explicit `Py_Initialize`. dev-only — never
 # enters the published crate graph.
 pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
+# Reference Rust gRPC stack driven head-to-head against the in-house
+# transport by `benches/grpc_transport_comparison.rs`. `channel` is the
+# client-side transport only — no server, router, or TLS features.
+# dev-only — never enters the published crate graph (verified by the
+# `cargo tree --edges normal` gate in the bench's module docs).
+tonic = { version = "0.14", default-features = false, features = ["channel"] } # VOCAB-OK: bench-only comparison dep
+# Codec bridge pairing the reference stack with the workspace's pinned
+# `prost` message types so both transports decode the identical structs.
+tonic-prost = "0.14" # VOCAB-OK: bench-only comparison dep
 
 # Signal-driven sampling profiler used by the concurrent-burst bench
 # to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
@@ -236,6 +245,10 @@ pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
 # AFTER the cross-platform `[dev-dependencies]` block.
 [target.'cfg(unix)'.dev-dependencies]
 pprof = { version = "0.15", features = ["flamegraph"] }
+# `getrusage(RUSAGE_SELF)` snapshots in `grpc_transport_comparison` —
+# CPU-seconds per measured phase without spawning `perf` or requiring
+# elevated kernel settings.
+libc = "0.2"
 
 [build-dependencies]
 # `prost-build` compiles `proto/mdds.proto` into Rust message types;
@@ -340,6 +353,17 @@ required-features = ["__internal"]
 # single-stage decoder; gated on `__test-helpers` for the `grpc`
 # re-export.
 name = "bench_stage_pipeline"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+# Closed-loop comparison of the in-house transport against the
+# reference Rust gRPC stack over the same loopback mock server, same
+# request protos, and same decode work. Reports per-request latency
+# percentiles, aggregate throughput, allocation, and CPU per request
+# across a concurrency x frame-size matrix. Gated on `__test-helpers`
+# for the `grpc` / `wire` / `decode` re-exports.
+name = "grpc_transport_comparison"
 harness = false
 required-features = ["__test-helpers"]
 
