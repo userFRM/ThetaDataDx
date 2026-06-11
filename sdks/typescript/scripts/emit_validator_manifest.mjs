@@ -207,7 +207,7 @@ function buildRecords(interfaces, methods) {
         firstRow[snake] = 0;
       } else if (
         snake === 'ms_of_day' ||
-        snake === 'ms_of_day2' ||
+        snake.endsWith('_ms_of_day') ||
         snake.endsWith('_time') ||
         snake === 'time'
       ) {
