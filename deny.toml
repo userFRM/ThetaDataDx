@@ -38,9 +38,20 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-# No advisories ignored. If a RUSTSEC fires, fix the dependency — or
-# document the exception here with a concrete `# Reason:` comment.
-ignore = []
+# Fix a RUSTSEC by upgrading the dependency. The single exception below is
+# documented with a concrete `# Reason:` and a tracking issue; it is the
+# only case where the patched upstream release does not yet exist.
+ignore = [
+    # Reason: RUSTSEC-2026-0176 (out-of-bounds read in the optimized
+    # `nth`/`nth_back` paths for `PyList`/`PyTuple` iterators) is fixed in
+    # pyo3 0.29, but the async bridge (`pyo3-async-runtimes` 0.28.0) and the
+    # Arrow boundary (`pyo3-arrow` 0.18.0) both require `pyo3 ^0.28`, so 0.29
+    # cannot resolve until they publish compat builds. The workspace never
+    # calls the vulnerable methods — the only `.nth()` is `std::env::Args::nth`
+    # in `bench_latency`, not a Python sequence iterator — so exposure is nil.
+    # Tracked in #684; delete this entry when the pyo3 0.29 bump lands.
+    "RUSTSEC-2026-0176",
+]
 
 [licenses]
 # Workspace crates (tdbe, thetadatadx, FFI shim, SDK shims, tools) are
