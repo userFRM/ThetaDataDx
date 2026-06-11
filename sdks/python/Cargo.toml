@@ -25,7 +25,7 @@ tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 # Direct prost dep for decoding `ResponseData` bytes in the
 # `decode_response_bytes` hook. Pinned to the same version the engine
 # crate consumes so the wire types resolve to a single instantiation.
-prost = "=0.14.3"
+prost = "=0.14.4"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.12 upward.
