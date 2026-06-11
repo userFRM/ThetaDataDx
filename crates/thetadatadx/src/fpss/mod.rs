@@ -1438,8 +1438,11 @@ impl FpssClient {
     ///
     /// Consumed progress is recorded once per drained batch, so a
     /// sample taken mid-batch can briefly include events the consumer
-    /// is already iterating. The value never exceeds
-    /// [`Self::ring_capacity`].
+    /// is already iterating. Conversely, the event-at-a-time APIs
+    /// ([`Self::next_event`] / [`Self::try_next_event`]) stage whole
+    /// drained batches internally, so events staged but not yet
+    /// returned to the caller read as already consumed here. The value
+    /// never exceeds [`Self::ring_capacity`].
     #[must_use]
     pub fn ring_occupancy(&self) -> usize {
         self.ring_cursors.occupancy()
