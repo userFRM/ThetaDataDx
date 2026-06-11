@@ -23,6 +23,7 @@
 mod flatfile_routes;
 mod format;
 mod handler;
+mod logging;
 mod router;
 mod state;
 mod validation;
@@ -32,7 +33,6 @@ use std::net::SocketAddr;
 
 use clap::Parser;
 use tower_http::cors::CorsLayer;
-use tracing_subscriber::EnvFilter;
 use zeroize::Zeroizing;
 
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
@@ -80,8 +80,20 @@ struct Args {
     bind: String,
 
     /// Log level filter (e.g. "info", "debug", "thetadatadx=trace").
+    /// The per-request access log emits at "info" under the
+    /// "tower_http" target; silence it with e.g. "info,tower_http=off".
     #[arg(long, default_value = "info")]
     log_level: String,
+
+    /// Also write logs to this path, rotated daily (e.g. "terminal.log"
+    /// produces "terminal.log.YYYY-MM-DD"). Stderr output is unaffected.
+    #[arg(long)]
+    log_file: Option<String>,
+
+    /// Log line format: "text" (default), "json", or "legacy"
+    /// (bracketed "[YYYY-MM-DD HH:MM:SS] LEVEL: message", UTC).
+    #[arg(long, value_enum, default_value_t = logging::LogFormat::Text)]
+    log_format: logging::LogFormat,
 
     /// Skip FPSS (streaming) connection at startup.
     #[arg(long)]
@@ -104,11 +116,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut args = Args::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&args.log_level)),
-        )
-        .init();
+    // Initialise tracing. The returned guard owns the non-blocking
+    // file-writer thread; it must live until process exit or buffered
+    // log lines are lost on shutdown.
+    let _log_guard = logging::init(&args.log_level, args.log_format, args.log_file.as_deref())?;
 
     // Generate a random shutdown token and print it.
     let shutdown_token = {
@@ -120,10 +131,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
 
-    // Startup banner matching the Java terminal style.
+    // Startup banner. Named after the binary so operator automation
+    // matching the banner string keys on the same identifier as the
+    // process list and the docs.
     let version = env!("CARGO_PKG_VERSION");
     eprintln!();
-    eprintln!("ThetaDataDxClient Server v{version}");
+    eprintln!("thetadatadx-server v{version}");
     eprintln!("Configuration: {}", args.fpss_region);
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
@@ -229,21 +242,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Step 6: Build HTTP REST server with CORS.
-    let allowed_origin = format!("http://{}:{}", args.bind, args.http_port);
+    //
+    // Permissive by design, matching the legacy terminal: browser-based
+    // dashboards on any local origin must be able to call both the GET
+    // data routes and the POST routes (`/v3/system/shutdown`,
+    // `/v3/flatfile/request`). The previous configuration pinned
+    // `allow_origin` to the server's own listener address — a client
+    // running on the server's origin IS the server, so the restriction
+    // blocked every real browser client while protecting nothing — and
+    // `allow_methods=[GET]` failed every POST preflight. Real protection
+    // for the mutating route is the `X-Shutdown-Token` header plus the
+    // route-scoped rate limiter, not CORS.
     let cors = CorsLayer::new()
-        .allow_origin(
-            allowed_origin
-                .parse::<axum::http::HeaderValue>()
-                .map_err(|e| format!("invalid CORS origin: {e}"))?,
-        )
-        .allow_methods([axum::http::Method::GET])
+        .allow_origin(tower_http::cors::Any)
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
-    let http_app = router::build(state.clone()).layer(cors);
+    // Loopback binds skip the general per-IP rate limiter: every local
+    // client shares the same peer IP, so a parallel backtest or bulk
+    // pull would throttle itself as a group — a regression against the
+    // legacy terminal, which imposes no per-IP limit. The limiter stays
+    // on for non-loopback binds where it is a real DoS guard, and the
+    // tighter shutdown-route limiter stays on everywhere.
+    let rate_limit_general = !router::is_loopback_bind(&args.bind);
+    if !rate_limit_general {
+        tracing::info!(
+            bind = %args.bind,
+            "loopback bind: general per-IP rate limiter disabled (shutdown-route limiter stays active)"
+        );
+    }
+
+    let http_app = router::build(state.clone(), rate_limit_general).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
     // Step 7: Build WebSocket server.
-    let ws_app = ws::router(state.clone());
+    let ws_app = ws::router(state.clone(), rate_limit_general);
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
     // Step 8: Start both servers concurrently.

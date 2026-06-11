@@ -1233,6 +1233,12 @@ fn parse_args() -> Args {
 
 #[tokio::main]
 async fn main() {
+    // Seat ring as the process-default rustls CryptoProvider before any
+    // TLS handshake. The workspace compiles ring as the only provider;
+    // reqwest's rustls path requires the default to be installed
+    // explicitly. Mirrors the server binary's startup.
+    let _ = thetadatadx::__internal_install_ring_crypto_provider();
+
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
@@ -1534,23 +1540,31 @@ mod tests {
     fn optional_date_args_validate_format() {
         let args = convert_endpoint_args(&sonic_rs::json!({
             "start_date": "2026-04-09",
-            "end_date": "20260409"
+            "end_date": "20260409",
+            "bad_date": "04/09/2026"
         }))
         .expect("arguments should convert");
 
-        assert!(
-            matches!(
-                args.optional_date("start_date").unwrap_err(),
-                EndpointError::InvalidParams(message)
-                    if message
-                        == "'start_date' must be exactly 8 digits (YYYYMMDD), got: '2026-04-09'"
-            ),
-            "expected date format validation error"
+        // Both the ISO-dashed and the compact form validate; wire
+        // normalisation strips the dashes downstream.
+        assert_eq!(
+            args.optional_date("start_date")
+                .expect("ISO-dashed start_date should validate"),
+            Some("2026-04-09")
         );
         assert_eq!(
             args.optional_date("end_date")
                 .expect("end_date should validate"),
             Some("20260409")
+        );
+        assert!(
+            matches!(
+                args.optional_date("bad_date").unwrap_err(),
+                EndpointError::InvalidParams(message)
+                    if message
+                        == "'bad_date' must be 'YYYYMMDD' (8 digits) or 'YYYY-MM-DD', got: '04/09/2026'"
+            ),
+            "expected date format validation error for slash-separated input"
         );
     }
 

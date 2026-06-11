@@ -522,6 +522,30 @@ pub(super) fn mdds_query_field_expr(
         }
         "interval" => format!("normalize_interval(&{arg_name})"),
         "time_of_day" => format!("normalize_time_of_day(&{arg_name})"),
+        // Date-semantic wire fields. The validators accept both
+        // `YYYYMMDD` and `YYYY-MM-DD`; the wire contract is the compact
+        // form only, so every date flows through `normalize_date` at
+        // request construction — the same choke point `interval` and
+        // `expiration` already normalize through. Covers required
+        // method args, optional builder setters, and SSOT-defaulted
+        // builder fields uniformly.
+        "date" | "start_date" | "end_date" => {
+            let value_expr = if list_context {
+                format!("normalize_date({arg_name})")
+            } else {
+                format!("normalize_date(&{arg_name})")
+            };
+            if !is_method_param && param.default.is_none() {
+                // Optional builder field without an SSOT default:
+                // stored as `Option<String>`; normalize through the
+                // `Option` without forcing a populated wire value.
+                format!("{arg_name}.as_deref().map(normalize_date)")
+            } else if field.is_optional {
+                format!("Some({value_expr})")
+            } else {
+                value_expr
+            }
+        }
         // Top-level `expiration` field on option query messages.
         //
         // Many option query protos carry BOTH a `ContractSpec` (whose

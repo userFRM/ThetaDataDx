@@ -148,7 +148,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         "WebSocket subscription command"
     );
 
-    let contract = if sec_type == "OPTION" {
+    let contracts = if sec_type == "OPTION" {
         // Reject externally-sourced values that don't fit `i32`. Silent
         // narrowing (`as i32`) on client input is a principle violation:
         // a caller sending `strike = 9_000_000_000` would have wrapped
@@ -304,17 +304,10 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             return;
         }
         let right_val = contract_obj.get("right").unwrap_or(&null_val);
-        let is_call = match right_val.as_str().map(str::trim) {
-            Some(r) if r.eq_ignore_ascii_case("C") || r.eq_ignore_ascii_case("CALL") => true,
-            Some(r) if r.eq_ignore_ascii_case("P") || r.eq_ignore_ascii_case("PUT") => false,
-            got => {
-                let got_str = got.unwrap_or("<missing>");
-                tracing::warn!(
-                    right = got_str,
-                    "WS subscribe: option 'right' must be one of C/CALL/P/PUT"
-                );
-                let err_msg =
-                    format!("'right' must be one of 'C' / 'CALL' / 'P' / 'PUT' (got {got_str:?})");
+        let sides = match parse_right_sides(right_val.as_str().map(str::trim)) {
+            Ok(sides) => sides,
+            Err(err_msg) => {
+                tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'right'");
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
@@ -327,51 +320,44 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 return;
             }
         };
-        Contract::option_raw(symbol, exp, is_call, strike)
+        // `Both` / `*` fans out into one contract per side — the FPSS
+        // wire addresses single-side contracts only, so the wildcard
+        // becomes two subscribe dispatches here at the SDK boundary.
+        sides
+            .iter()
+            .map(|&is_call| Contract::option_raw(symbol, exp, is_call, strike))
+            .collect::<Vec<_>>()
     } else {
-        Contract::stock(symbol)
+        vec![Contract::stock(symbol)]
+    };
+
+    let subscriptions = match subscription_plan(&req_type, &sec_type, &contracts) {
+        Ok(subs) => subs,
+        Err(err_msg) => {
+            tracing::warn!(req_type = %req_type, "WS subscribe: unsupported req_type");
+            let resp = sonic_rs::json!({
+                "header": {
+                    "type": "REQ_RESPONSE",
+                    "response": "ERROR",
+                    "req_id": req_id,
+                    "error": err_msg.as_str(),
+                }
+            });
+            send_response(socket, &resp, "bad_request_reply").await;
+            return;
+        }
     };
 
     let tdx = state.tdx();
     if tdx.is_streaming() {
-        use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription, SubscriptionKind};
-        let kind = match req_type.as_str() {
-            "QUOTE" => Some(SubscriptionKind::Quote),
-            "TRADE" => Some(SubscriptionKind::Trade),
-            "OPEN_INTEREST" => Some(SubscriptionKind::OpenInterest),
-            _ => None,
-        };
         let result = if is_add {
-            if let Some(k) = kind {
-                tdx.subscribe(Subscription::Contract {
-                    contract: contract.clone(),
-                    kind: k,
-                })
-            } else if req_type == "FULL_TRADES" {
-                let st = match sec_type.as_str() {
-                    "OPTION" => SecType::Option,
-                    "INDEX" => SecType::Index,
-                    _ => SecType::Stock,
-                };
-                tdx.subscribe(Subscription::Full {
-                    sec_type: st,
-                    kind: FullSubscriptionKind::Trades,
-                })
-            } else {
-                tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
-                Ok(())
-            }
-        } else if let Some(k) = kind {
-            tdx.unsubscribe(Subscription::Contract {
-                contract: contract.clone(),
-                kind: k,
-            })
+            tdx.subscribe_many(subscriptions)
         } else {
-            Ok(())
+            tdx.unsubscribe_many(subscriptions)
         };
 
         let resp = match result {
-            Ok(_) => sonic_rs::json!({
+            Ok(()) => sonic_rs::json!({
                 "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
             }),
             Err(e) => {
@@ -394,6 +380,99 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
         });
         send_response(socket, &resp, "streaming_off_reply").await;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Pure command -> subscription planning (testable without a socket)
+// ---------------------------------------------------------------------------
+
+/// `req_type` values accepted on the subscribe path. Echoed in the ERROR
+/// diagnostic for unknown values so clients can discover the vocabulary
+/// without consulting the docs.
+const ACCEPTED_REQ_TYPES: &[&str] = &[
+    "QUOTE",
+    "TRADE",
+    "OHLC",
+    "OPEN_INTEREST",
+    "FULL_TRADES",
+    "FULL_OPEN_INTEREST",
+];
+
+/// Parse the option `right` field into the contract sides to subscribe.
+///
+/// Routes through the same `tdbe::right::parse_right` parser the REST
+/// validators use, so the two surfaces accept one vocabulary:
+/// `call` / `put` / `both` / `C` / `P` / `*`, case-insensitive. `Both`
+/// (and `*`) yields both sides — the FPSS wire addresses single-side
+/// contracts only, so the wildcard fans out into one dispatch per side.
+fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
+    let raw = raw.ok_or_else(|| {
+        "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: <missing>".to_string()
+    })?;
+    let parsed = tdbe::right::parse_right(raw).map_err(|_| {
+        format!(
+            "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{raw}'"
+        )
+    })?;
+    Ok(match parsed.as_is_call() {
+        Some(is_call) => vec![is_call],
+        // `Both` has no single FPSS side; subscribe the call AND the put.
+        None => vec![true, false],
+    })
+}
+
+/// Translate a validated subscribe command into the FPSS subscriptions
+/// to install (or remove).
+///
+/// - `QUOTE` / `TRADE` / `OPEN_INTEREST` map to one per-contract
+///   subscription per contract side.
+/// - `OHLC` maps to the per-contract Trade stream: OHLCVC bars are
+///   derived from trades, so the bar feed flows once the trade
+///   subscription is installed. Previously this arm silently returned
+///   OK without installing anything.
+/// - `FULL_TRADES` / `FULL_OPEN_INTEREST` map to the security-type-wide
+///   full stream.
+/// - Anything else is an error listing the accepted vocabulary.
+fn subscription_plan(
+    req_type: &str,
+    sec_type: &str,
+    contracts: &[thetadatadx::fpss::protocol::Contract],
+) -> Result<Vec<thetadatadx::fpss::protocol::Subscription>, String> {
+    use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription, SubscriptionKind};
+
+    let per_contract = |kind: SubscriptionKind| {
+        contracts
+            .iter()
+            .map(|contract| Subscription::Contract {
+                contract: contract.clone(),
+                kind,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let full = |kind: FullSubscriptionKind| {
+        let st = match sec_type {
+            "OPTION" => SecType::Option,
+            "INDEX" => SecType::Index,
+            _ => SecType::Stock,
+        };
+        vec![Subscription::Full { sec_type: st, kind }]
+    };
+
+    match req_type {
+        "QUOTE" => Ok(per_contract(SubscriptionKind::Quote)),
+        "TRADE" => Ok(per_contract(SubscriptionKind::Trade)),
+        // OHLCVC bars are derived from the trade stream; subscribing the
+        // underlying Trade feed is what makes the OHLC events flow.
+        "OHLC" => Ok(per_contract(SubscriptionKind::Trade)),
+        "OPEN_INTEREST" => Ok(per_contract(SubscriptionKind::OpenInterest)),
+        "FULL_TRADES" => Ok(full(FullSubscriptionKind::Trades)),
+        "FULL_OPEN_INTEREST" => Ok(full(FullSubscriptionKind::OpenInterest)),
+        other => Err(format!(
+            "unknown req_type: '{other}' (accepted: {})",
+            ACCEPTED_REQ_TYPES.join(", ")
+        )),
     }
 }
 
@@ -472,6 +551,148 @@ mod tests {
         // 2026 is not.
         assert!(is_valid_yyyymmdd(20240229));
         assert!(!is_valid_yyyymmdd(20260229));
+    }
+
+    // -----------------------------------------------------------------------
+    //  right vocabulary — shared with the REST validator
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn right_accepts_rest_vocabulary_single_sides() {
+        for (raw, expected) in [
+            ("C", vec![true]),
+            ("c", vec![true]),
+            ("CALL", vec![true]),
+            ("Call", vec![true]),
+            ("P", vec![false]),
+            ("put", vec![false]),
+            ("PUT", vec![false]),
+        ] {
+            assert_eq!(parse_right_sides(Some(raw)).unwrap(), expected, "{raw}");
+        }
+    }
+
+    /// `Both` / `*` fan out into both sides — one subscribe dispatch per
+    /// side, since the FPSS wire addresses single-side contracts only.
+    #[test]
+    fn right_both_and_wildcard_fan_out_to_two_sides() {
+        for raw in ["Both", "both", "BOTH", "*"] {
+            assert_eq!(
+                parse_right_sides(Some(raw)).unwrap(),
+                vec![true, false],
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn right_rejects_garbage_with_rest_error_shape() {
+        for raw in [Some("xyz"), Some(""), Some("CP"), None] {
+            let err = parse_right_sides(raw).unwrap_err();
+            assert!(
+                err.contains("'call', 'put', 'both', 'C', 'P', '*'"),
+                "diagnostic must list the REST vocabulary: {err}"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    //  req_type -> subscription planning
+    // -----------------------------------------------------------------------
+
+    use thetadatadx::fpss::protocol::{
+        Contract, FullSubscriptionKind, Subscription, SubscriptionKind,
+    };
+
+    fn stock_contracts() -> Vec<Contract> {
+        vec![Contract::stock("AAPL")]
+    }
+
+    #[test]
+    fn plan_maps_quote_trade_open_interest_per_contract() {
+        for (req, kind) in [
+            ("QUOTE", SubscriptionKind::Quote),
+            ("TRADE", SubscriptionKind::Trade),
+            ("OPEN_INTEREST", SubscriptionKind::OpenInterest),
+        ] {
+            let plan = subscription_plan(req, "STOCK", &stock_contracts()).unwrap();
+            assert_eq!(plan.len(), 1, "{req}");
+            assert!(
+                matches!(&plan[0], Subscription::Contract { kind: k, .. } if *k == kind),
+                "{req} maps to {kind:?}"
+            );
+        }
+    }
+
+    /// OHLCVC bars are derived from trades: `req_type=OHLC` installs the
+    /// per-contract Trade subscription so the bar feed flows. The old
+    /// arm returned OK without installing anything.
+    #[test]
+    fn plan_maps_ohlc_to_trade_subscription() {
+        let plan = subscription_plan("OHLC", "STOCK", &stock_contracts()).unwrap();
+        assert_eq!(plan.len(), 1);
+        assert!(matches!(
+            &plan[0],
+            Subscription::Contract {
+                kind: SubscriptionKind::Trade,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plan_maps_full_streams_to_sec_type_scope() {
+        let plan = subscription_plan("FULL_TRADES", "OPTION", &[]).unwrap();
+        assert_eq!(
+            plan,
+            vec![Subscription::Full {
+                sec_type: SecType::Option,
+                kind: FullSubscriptionKind::Trades,
+            }]
+        );
+
+        let plan = subscription_plan("FULL_OPEN_INTEREST", "OPTION", &[]).unwrap();
+        assert_eq!(
+            plan,
+            vec![Subscription::Full {
+                sec_type: SecType::Option,
+                kind: FullSubscriptionKind::OpenInterest,
+            }]
+        );
+    }
+
+    /// `right=Both` produces two contracts; the plan installs one
+    /// subscription per side.
+    #[test]
+    fn plan_fans_out_both_sides_for_options() {
+        let sides = parse_right_sides(Some("Both")).unwrap();
+        let contracts: Vec<Contract> = sides
+            .iter()
+            .map(|&is_call| Contract::option_raw("SPY", 20260620, is_call, 550_000))
+            .collect();
+        let plan = subscription_plan("QUOTE", "OPTION", &contracts).unwrap();
+        assert_eq!(plan.len(), 2, "one subscription per option side");
+        let kinds_ok = plan.iter().all(|sub| {
+            matches!(
+                sub,
+                Subscription::Contract {
+                    kind: SubscriptionKind::Quote,
+                    ..
+                }
+            )
+        });
+        assert!(kinds_ok, "both sides subscribe the same tick kind");
+    }
+
+    /// Unknown `req_type` values return ERROR with the accepted set —
+    /// the silent-OK-without-subscribing behavior is gone.
+    #[test]
+    fn plan_rejects_unknown_req_type_with_accepted_list() {
+        let err = subscription_plan("OHLCVC", "STOCK", &stock_contracts()).unwrap_err();
+        assert!(err.contains("'OHLCVC'"), "echoes the value: {err}");
+        for accepted in ACCEPTED_REQ_TYPES {
+            assert!(err.contains(accepted), "lists {accepted}: {err}");
+        }
     }
 
     // -----------------------------------------------------------------------

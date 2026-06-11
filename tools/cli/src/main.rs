@@ -1781,6 +1781,12 @@ fn render_output(ep: &EndpointMeta, output: EndpointOutput, fmt: &OutputFormat) 
 
 #[tokio::main]
 async fn main() {
+    // Seat ring as the process-default rustls CryptoProvider before any
+    // TLS handshake. The workspace compiles ring as the only provider;
+    // reqwest's rustls path requires the default to be installed
+    // explicitly. Mirrors the server binary's startup.
+    let _ = thetadatadx::__internal_install_ring_crypto_provider();
+
     let matches = build_cli().get_matches();
 
     if let Err(e) = run(matches).await {

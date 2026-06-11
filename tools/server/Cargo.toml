@@ -34,14 +34,22 @@ serde = { version = "1.0.228", features = ["derive"] }
 # limiting) extends this with keyed quotas -- see `router::build()` for the
 # composition.
 tower = { version = "0.5.3", features = ["limit"] }
-tower-http = { version = "0.6.8", features = ["cors"] }
+# `trace` powers the per-request access log mounted in `router::build`.
+tower-http = { version = "0.6.8", features = ["cors", "trace"] }
 tower_governor = "0.8.0"
 # Streaming flatfile bytes back to clients via `ReaderStream` (issue #432).
 # Transitive dep of axum already; declared directly so the route module's
 # `tokio_util::io::ReaderStream` import is sourced from a pinned version.
 tokio-util = { version = "0.7.18", features = ["io"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# `json` backs `--log-format json`.
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+# Daily-rotated log file behind `--log-file` with a non-blocking writer.
+tracing-appender = "0.2.4"
+# Wall-clock timestamp for the `--log-format legacy` bracketed line shape.
+# Already in-tree as a transitive dependency of tracing-appender; declared
+# directly because the legacy event formatter calls it.
+time = "0.3"
 # `serde_urlencoded` parses the raw query string inside the custom
 # `BoundedQuery` extractor. It's already in-tree as an axum transitive
 # dep; the direct dependency here keeps the extractor self-contained

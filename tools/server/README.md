@@ -40,8 +40,12 @@ The server starts:
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
 | `--bind` | `127.0.0.1` | Bind address |
-| `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`) |
+| `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`; `info,tower_http=off` silences the access log) |
+| `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
+| `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-fpss` | | Skip FPSS streaming connection at startup |
+
+Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
 ## REST API
 
@@ -63,7 +67,7 @@ GET /v3/calendar/open_today
 GET /v3/rate/history/eod?symbol=SOFR&start_date=20240101&end_date=20240301
 ```
 
-Endpoint query parameters follow the registry names (`symbol`, `expiration`, `strike`, `right`, `interval`, etc.), not the legacy shorthand aliases (`root`, `exp`, `ivl`).
+Endpoint query parameters follow the registry names (`symbol`, `expiration`, `strike`, `right`, `interval`, etc.), not the legacy shorthand aliases (`root`, `exp`, `ivl`). Date parameters (`date`, `start_date`, `end_date`, `expiration`) accept both `YYYYMMDD` and ISO `YYYY-MM-DD`.
 
 ### System Routes (4)
 
@@ -76,7 +80,9 @@ POST /v3/system/shutdown        # requires X-Shutdown-Token header
 
 ### Response format
 
-Responses use the terminal JSON envelope:
+Every registry endpoint accepts a `format` query parameter: `json` (default), `csv` (RFC 4180 with a header row), and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited, `Content-Type: application/x-ndjson; charset=utf-8`). Unknown `format` values return 400 with the supported set.
+
+JSON responses use the terminal envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
 
 ```json
 {
@@ -90,9 +96,23 @@ Responses use the terminal JSON envelope:
 }
 ```
 
+Failures use one canonical error envelope across every route family (registry endpoints, flat files, rate-limit rejections), so a single error parser covers the whole surface:
+
+```json
+{
+    "header": {
+        "error_type": "bad_request",
+        "error_msg": "missing required parameter: 'date' (Date YYYYMMDD)"
+    },
+    "response": []
+}
+```
+
 ## WebSocket
 
 Connect to `ws://127.0.0.1:25520/v1/events` to receive streaming events.
+
+One client at a time: a second connection replaces the first — the existing client receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream, matching the legacy terminal.
 
 The server sends:
 - `STATUS` messages every second with FPSS connection state
@@ -114,8 +134,8 @@ Send JSON commands to manage subscriptions:
 ## Hardening
 
 - **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
-- **Global per-IP rate limit** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40. The server defaults to `127.0.0.1` and runs without a trusted reverse proxy, so forwarded-header extractors would let a local attacker cycle fake IPs.
-- **256 concurrent in-flight requests**, **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
+- **Global per-IP rate limit on non-loopback binds** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40, rejected as `429` with the canonical error envelope and a `Retry-After` header. Loopback binds (`127.0.0.1`, `::1` — the default) disable the general limiter: every local client shares one peer-IP bucket, so parallel local workloads would throttle each other, which the legacy terminal never did. The shutdown-route limiter stays active on every bind. The server runs without a trusted reverse proxy, so forwarded-header extractors would let an attacker cycle fake IPs.
+- **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/tools/server.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
 - **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/connection.md`.
