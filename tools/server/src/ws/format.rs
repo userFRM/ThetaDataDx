@@ -272,8 +272,13 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }
-    if let Some(strike) = c.strike {
-        obj.insert("strike", sonic_rs::Value::from(strike));
+    // `strike` is dollars on every public surface; the wire's
+    // fixed-point integer never leaves the codec layer.
+    if let Some(strike) = c.strike_dollars() {
+        obj.insert(
+            "strike",
+            sonic_rs::to_value(&strike).expect("f64 should serialize"),
+        );
     }
     if let Some(is_call) = c.is_call {
         obj.insert(

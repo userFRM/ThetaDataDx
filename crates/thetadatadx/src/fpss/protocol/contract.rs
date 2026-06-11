@@ -43,9 +43,13 @@ pub struct Contract {
     pub expiration: Option<i32>,
     /// True = call, false = put (options only).
     pub is_call: Option<bool>,
-    /// Strike price in fixed-point (options only). The encoding matches
-    /// `ThetaData`'s integer strike representation.
-    pub strike: Option<i32>,
+    /// Strike price in thousandths of a dollar (options only) — the
+    /// FPSS wire codec's fixed-point integer encoding (a `$550.00`
+    /// strike is `Some(550_000)`). Named with its unit so the dollar
+    /// surface is unambiguous: read dollars via
+    /// [`Self::strike_dollars`]; every non-Rust binding exposes
+    /// `strike` in dollars only.
+    pub strike_thousandths: Option<i32>,
 }
 
 impl Contract {
@@ -68,7 +72,7 @@ impl Contract {
             sec_type: SecType::Stock,
             expiration: None,
             is_call: None,
-            strike: None,
+            strike_thousandths: None,
         }
     }
 
@@ -79,7 +83,7 @@ impl Contract {
             sec_type: SecType::Index,
             expiration: None,
             is_call: None,
-            strike: None,
+            strike_thousandths: None,
         }
     }
 
@@ -90,7 +94,7 @@ impl Contract {
             sec_type: SecType::Rate,
             expiration: None,
             is_call: None,
-            strike: None,
+            strike_thousandths: None,
         }
     }
 
@@ -113,7 +117,7 @@ impl Contract {
     /// assert_eq!(&*c.symbol, "SPY");
     /// assert_eq!(c.expiration, Some(20_260_417));
     /// assert_eq!(c.is_call, Some(true));
-    /// assert_eq!(c.strike, Some(550_000));
+    /// assert_eq!(c.strike_thousandths, Some(550_000));
     /// # Ok::<(), thetadatadx::Error>(())
     /// ```
     ///
@@ -154,7 +158,7 @@ impl Contract {
             })?;
         let strike_dollars: f64 = strike.parse().map_err(|e| {
             Error::config_invalid(
-                "contract.strike",
+                "contract.strike_thousandths",
                 format!("invalid strike price {strike:?}: {e}"),
             )
         })?;
@@ -164,7 +168,7 @@ impl Contract {
             || strike_scaled > f64::from(i32::MAX)
         {
             return Err(Error::config_invalid(
-                "contract.strike",
+                "contract.strike_thousandths",
                 format!("strike {strike_dollars} out of i32 range after *1000 scaling"),
             ));
         }
@@ -191,20 +195,20 @@ impl Contract {
             sec_type: SecType::Option,
             expiration: Some(expiration),
             is_call: Some(is_call),
-            strike: Some(strike_raw),
+            strike_thousandths: Some(strike_raw),
         }
     }
 
     /// Strike price in dollars as `f64`. Derived from the wire-level
-    /// `strike: Option<i32>` field which holds thousandths of a dollar
-    /// (a `$5,400.00` option carries `strike == Some(5_400_000)`); this
+    /// [`Self::strike_thousandths`] fixed-point integer (a `$5,400.00`
+    /// option carries `strike_thousandths == Some(5_400_000)`); this
     /// accessor divides by `1000.0` so user code reads the dollar
     /// notation it writes when calling
     /// `Contract::option(.., strike="5400.00", ..)`. Returns `None`
     /// for non-option contracts.
     #[must_use]
     pub fn strike_dollars(&self) -> Option<f64> {
-        self.strike.map(|s| f64::from(s) / 1000.0)
+        self.strike_thousandths.map(|s| f64::from(s) / 1000.0)
     }
 
     /// Option side as the typed [`Right`] enum: `Some(Right::Call)` /
@@ -242,7 +246,7 @@ impl Contract {
             sec_type: SecType::Unknown,
             expiration: None,
             is_call: None,
-            strike: None,
+            strike_thousandths: None,
         }
     }
 
@@ -263,7 +267,7 @@ impl Contract {
             sec_type,
             expiration: None,
             is_call: None,
-            strike: None,
+            strike_thousandths: None,
         }
     }
 
@@ -434,7 +438,7 @@ impl Contract {
         for ch in strike_raw.chars() {
             if !ch.is_ascii_digit() {
                 return Err(Error::config_invalid(
-                    "contract.strike",
+                    "contract.strike_thousandths",
                     format!(
                         "Contract::from_str: strike must be 8 ASCII digits, got {strike_raw:?} in {input:?}"
                     ),
@@ -443,7 +447,7 @@ impl Contract {
         }
         let strike: i32 = strike_raw.parse().map_err(|e| {
             Error::config_invalid(
-                "contract.strike",
+                "contract.strike_thousandths",
                 format!(
                     "Contract::from_str: strike not numeric ({strike_raw:?}, {e}) in {input:?}"
                 ),
@@ -455,7 +459,7 @@ impl Contract {
             sec_type: SecType::Option,
             expiration: Some(expiration),
             is_call: Some(is_call),
-            strike: Some(strike),
+            strike_thousandths: Some(strike),
         })
     }
 
@@ -574,7 +578,7 @@ impl Contract {
             // is_call: u8 (1 = call, 0 = put)
             buf.push(u8::from(self.is_call.unwrap_or(false)));
             // strike: i32 big-endian
-            buf.extend_from_slice(&self.strike.unwrap_or(0).to_be_bytes());
+            buf.extend_from_slice(&self.strike_thousandths.unwrap_or(0).to_be_bytes());
         }
 
         buf
@@ -649,7 +653,7 @@ impl Contract {
                     sec_type,
                     expiration: Some(exp_date),
                     is_call: Some(is_call),
-                    strike: Some(strike),
+                    strike_thousandths: Some(strike),
                 },
                 total_size,
             ))
@@ -660,7 +664,7 @@ impl Contract {
                     sec_type,
                     expiration: None,
                     is_call: None,
-                    strike: None,
+                    strike_thousandths: None,
                 },
                 total_size,
             ))
@@ -684,7 +688,7 @@ impl std::fmt::Display for Contract {
                     self.sec_type.as_str(),
                     self.expiration.unwrap_or(0),
                     right,
-                    self.strike.unwrap_or(0),
+                    self.strike_thousandths.unwrap_or(0),
                 )
             }
             _ => write!(f, "{} {}", self.symbol, self.sec_type.as_str()),
@@ -723,7 +727,7 @@ impl std::str::FromStr for Contract {
     ///    assert_eq!(&*c.symbol, "SPY");
     ///    assert_eq!(c.expiration, Some(20_260_417));
     ///    assert_eq!(c.is_call, Some(true));
-    ///    assert_eq!(c.strike, Some(550_000));
+    ///    assert_eq!(c.strike_thousandths, Some(550_000));
     ///    ```
     ///
     /// # Errors
@@ -840,7 +844,7 @@ mod tests {
         assert_eq!(parsed, c);
         assert_eq!(parsed.expiration, Some(20261218));
         assert_eq!(parsed.is_call, Some(true));
-        assert_eq!(parsed.strike, Some(60000));
+        assert_eq!(parsed.strike_thousandths, Some(60000));
     }
 
     #[test]
@@ -991,7 +995,7 @@ mod tests {
         assert_eq!(c.sec_type, SecType::Stock);
         assert!(c.expiration.is_none());
         assert!(c.is_call.is_none());
-        assert!(c.strike.is_none());
+        assert!(c.strike_thousandths.is_none());
     }
 
     #[test]
@@ -1027,7 +1031,7 @@ mod tests {
         assert_eq!(c.sec_type, SecType::Option);
         assert_eq!(c.expiration, Some(20_260_417));
         assert_eq!(c.is_call, Some(true));
-        assert_eq!(c.strike, Some(550_000));
+        assert_eq!(c.strike_thousandths, Some(550_000));
     }
 
     #[test]
@@ -1038,7 +1042,7 @@ mod tests {
         assert_eq!(&*c.symbol, "QQQ");
         assert_eq!(c.is_call, Some(false));
         assert_eq!(c.expiration, Some(20_260_620));
-        assert_eq!(c.strike, Some(350_000));
+        assert_eq!(c.strike_thousandths, Some(350_000));
     }
 
     #[test]
@@ -1049,7 +1053,7 @@ mod tests {
         assert_eq!(&*c.symbol, "AAPL");
         assert_eq!(c.expiration, Some(20_260_417));
         assert_eq!(c.is_call, Some(true));
-        assert_eq!(c.strike, Some(550_000));
+        assert_eq!(c.strike_thousandths, Some(550_000));
     }
 
     #[test]
@@ -1059,7 +1063,7 @@ mod tests {
         let c = Contract::from_str("ABCDEF260417C00550000").unwrap();
         assert_eq!(&*c.symbol, "ABCDEF");
         assert_eq!(c.expiration, Some(20_260_417));
-        assert_eq!(c.strike, Some(550_000));
+        assert_eq!(c.strike_thousandths, Some(550_000));
     }
 
     #[test]
@@ -1254,7 +1258,7 @@ mod tests {
         assert_eq!(&*c20.symbol, "SPY");
         assert_eq!(c20.expiration, Some(20_260_417));
         assert_eq!(c20.is_call, Some(true));
-        assert_eq!(c20.strike, Some(550_000));
+        assert_eq!(c20.strike_thousandths, Some(550_000));
     }
 
     #[test]
@@ -1267,7 +1271,7 @@ mod tests {
         let c = Contract::from_str(twenty).expect("20-char OCC-21 with short root must repair");
         assert_eq!(&*c.symbol, "T");
         assert_eq!(c.is_call, Some(true));
-        assert_eq!(c.strike, Some(150_000));
+        assert_eq!(c.strike_thousandths, Some(150_000));
     }
 
     // -- Century scope (2000-2099) -------------------------------------------
@@ -1287,7 +1291,7 @@ mod tests {
         );
         assert_eq!(&*c.symbol, "AAPL");
         assert_eq!(c.is_call, Some(true));
-        assert_eq!(c.strike, Some(100_000));
+        assert_eq!(c.strike_thousandths, Some(100_000));
     }
 
     // -- validate_root: at most one dot --------------------------------------
@@ -1408,7 +1412,9 @@ mod tests {
     /// contract. Mirrors the layout documented on `parse_occ21`.
     fn contract_to_occ21(c: &Contract) -> String {
         let exp = c.expiration.expect("option contract carries expiration");
-        let strike = c.strike.expect("option contract carries strike");
+        let strike = c
+            .strike_thousandths
+            .expect("option contract carries strike");
         let right = if c.is_call.expect("option contract carries right") {
             'C'
         } else {
@@ -1456,7 +1462,7 @@ mod tests {
             prop_assert_eq!(&*parsed.symbol, root.as_str());
             prop_assert_eq!(parsed.expiration, Some(exp));
             prop_assert_eq!(parsed.is_call, Some(is_call));
-            prop_assert_eq!(parsed.strike, Some(strike));
+            prop_assert_eq!(parsed.strike_thousandths, Some(strike));
 
             let rebuilt = contract_to_occ21(&parsed);
             prop_assert_eq!(rebuilt, original);

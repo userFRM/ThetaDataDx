@@ -16,7 +16,7 @@ use super::protocol::Contract;
 ///
 /// Every variant carries the fully parsed [`Contract`] as `Arc<Contract>` —
 /// users identify the contract via `contract.symbol`, `contract.expiration`,
-/// `contract.strike`, `contract.is_call`. The wire-internal numeric id the
+/// `contract.strike_thousandths`, `contract.is_call`. The wire-internal numeric id the
 /// FPSS server assigns is no longer surfaced on data events; downstream code
 /// that needs an id-keyed map builds it from the
 /// [`FpssControl::ContractAssigned`] event stream.

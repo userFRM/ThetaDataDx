@@ -22,8 +22,11 @@ pub struct FlatFileRow {
     pub symbol: String,
     /// Expiration in `YYYYMMDD`. `None` for stock blobs.
     pub expiration: Option<i32>,
-    /// Strike in vendor units (1/1000 of a dollar). `None` for stocks.
-    pub strike: Option<i32>,
+    /// Strike price in dollars. `None` for stocks. The vendor file
+    /// format carries a fixed-point integer (1/1000 of a dollar); the
+    /// decoded row speaks dollars like every other typed surface, so
+    /// values join directly against historical-row `strike` columns.
+    pub strike: Option<f64>,
     /// `'C'` (call), `'P'` (put), or `None` for stocks / unknown.
     pub right: Option<char>,
     /// One entry per non-PRICE_TYPE schema column, in vendor order.
@@ -84,7 +87,9 @@ impl FlatFileRow {
         Ok(Self {
             symbol: symbol.to_string(),
             expiration,
-            strike,
+            // Vendor fixed-point (1/1000 dollar) -> dollars at the
+            // typed boundary.
+            strike: strike.map(|s| f64::from(s) / 1000.0),
             right,
             fields,
         })
