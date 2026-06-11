@@ -91,5 +91,4 @@ TEST_CASE("Reconnect setters compose with pool-sizing setters",
     cfg.set_reconnect_max_rate_limited_attempts(77);
     cfg.set_reconnect_stable_window_secs(120);
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
-    REQUIRE_NOTHROW(cfg.set_decoder_ring_size(512));
 }

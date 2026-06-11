@@ -238,8 +238,8 @@ def _canonical_setter(struct_name: str, suffix: str) -> str | None:
 
 
 # Some FFI / C++ setters use the widened `_explicit(has_value, n)` ABI
-# shape for `Option<usize>` fields (`MddsConfig.decode_threads`,
-# `decode_queue_depth`, `RuntimeConfig.tokio_worker_threads`). The
+# shape for `Option<usize>` fields (`RuntimeConfig.tokio_worker_threads`,
+# `MetricsConfig.port`). The
 # parity row uses the bare field name, but the binding exposes
 # `tdx_config_set_<field>_explicit` as the canonical setter. Accept
 # either shape when matching.
@@ -1285,18 +1285,18 @@ def _run_selftest() -> int:
         """`<canonical>_explicit` suffix counts as the same setter."""
         rows = [
             {
-                "name": "MddsConfig.decode_threads",
+                "name": "RuntimeConfig.tokio_worker_threads",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        # FFI emits `tdx_config_set_decode_threads_explicit`; that
-        # must satisfy the `decode_threads` row.
-        ffi_setters = {"decode_threads_explicit", "decode_threads"}
-        py_setters = {"decode_threads"}
-        ts_setters = {"decode_threads"}
-        cpp_setters = {"decode_threads"}
+        # FFI emits `tdx_config_set_tokio_worker_threads_explicit`;
+        # that must satisfy the `tokio_worker_threads` row.
+        ffi_setters = {"tokio_worker_threads_explicit", "tokio_worker_threads"}
+        py_setters = {"tokio_worker_threads"}
+        ts_setters = {"tokio_worker_threads"}
+        cpp_setters = {"tokio_worker_threads"}
         errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
         assert errors == [], (
             f"_explicit widened-ABI shape must satisfy the row; got {errors!r}"

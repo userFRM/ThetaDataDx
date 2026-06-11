@@ -1,42 +1,37 @@
-//! Round-robin pool of [`Channel`] handles.
+//! Least-loaded pool of [`Channel`] handles.
 //!
-//! A single h2 connection multiplexes many concurrent streams, but
-//! `MAX_CONCURRENT_STREAMS` is finite (the default upstream cap is
-//! `~100`). [`ChannelPool`] keeps `N` parallel channels and hands them
+//! A single HTTP/2 connection multiplexes many concurrent streams, but
+//! every connection carries exactly one connection-level flow-control
+//! window and `MAX_CONCURRENT_STREAMS` is finite. [`ChannelPool`] keeps
+//! `N` parallel channels — one HTTP/2 connection each — and hands them
 //! out via [`ChannelPool::next`], picking the channel with the fewest
-//! in-flight streams so a workload that exceeds the per-connection
-//! limit fans out across distinct h2 connections rather than blocking
-//! on stream availability.
+//! in-flight streams. Measured against a single multiplexed connection
+//! carrying the same workload, the per-worker connection fan-out
+//! delivers roughly 1.8x the small-frame throughput and 2.3x the
+//! large-frame throughput at the 16-concurrent account ceiling (see
+//! `docs/architecture/in-house-grpc-transport.md`, "Migration"), so the
+//! pool survives the transport swap unchanged.
 //!
 //! The pool is `Arc`-clone-cheap and `Send + Sync`; callers can clone
-//! it freely across tasks. Each [`ChannelPool::next`] returns a
-//! reference into the pool — the underlying [`Channel`] is owned by
-//! the pool as an `Arc<Channel>` and lives as long as the pool does.
+//! it freely across tasks. Each [`ChannelPool::next`] returns a lease
+//! into the pool — the underlying [`Channel`] is owned by the pool as
+//! an `Arc<Channel>` and lives as long as the pool does.
 //!
 //! # Reconnect, in place
 //!
 //! When an RPC dispatched through a pool channel observes
-//! [`super::ChannelError::ConnectionClosed`], the channel itself
-//! triggers a single-flight in-place reconnect (see
-//! [`super::Channel::trigger_reconnect`]). The pool slot does NOT
-//! get marked dead, replaced, or skipped — the same `Arc<Channel>`
-//! handle the picker returned remains valid; only the inner
-//! `SendRequest<Bytes>` swaps to a fresh h2 session in the background.
-//! The next RPC dispatched through the channel picks up the new
-//! sender transparently.
+//! [`super::ChannelError::ConnectionClosed`], the underlying stack
+//! lazily replaces the dead HTTP/2 connection on the next dispatch.
+//! The pool slot does NOT get marked dead, replaced, or skipped — the
+//! same `Arc<Channel>` handle the picker returned remains valid.
 
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use super::channel::{Channel, InFlightToken};
-use super::decoder_pool::DecoderPool;
 
-/// Round-robin pool of pre-opened [`Channel`]s.
-///
-/// Construction opens `N` connections in parallel; if any one fails
-/// the entire pool construction fails and any already-opened channels
-/// are dropped (which cancels their connection-driver tasks).
+/// Least-loaded pool of pre-opened [`Channel`]s.
 #[derive(Clone)]
 pub struct ChannelPool {
     inner: Arc<PoolInner>,
@@ -44,121 +39,44 @@ pub struct ChannelPool {
 
 struct PoolInner {
     channels: Vec<Arc<Channel>>,
-    /// Round-robin cursor. Wraps at `usize::MAX` — the modulo by
-    /// `channels.len()` makes the wraparound transparent to callers.
+    /// Round-robin cursor for tie-breaking. Wraps at `usize::MAX` —
+    /// the modulo by `channels.len()` makes the wraparound transparent
+    /// to callers.
     ///
-    /// Seeded with a per-process random offset (see
-    /// [`seeded_cursor`]) rather than `0`: with a zero seed, every
-    /// freshly-started process pins its first RPC to channel index 0
-    /// — i.e. the same upstream connection across an entire fleet
-    /// restarting after an outage. The random offset spreads
-    /// first-RPC fan-out across the channel set immediately.
+    /// Seeded with a per-process random offset (see [`seeded_cursor`])
+    /// rather than `0`: with a zero seed, every freshly-started
+    /// process pins its first RPC to channel index 0 — i.e. the same
+    /// upstream connection across an entire fleet restarting after an
+    /// outage. The random offset spreads first-RPC fan-out across the
+    /// channel set immediately.
     cursor: AtomicUsize,
-    /// Dedicated decoder pool shared across all channels in this
-    /// pool. Held here (rather than only on each `Channel` via the
-    /// attached `DecoderHandle`) so the pool's threads stay alive
-    /// for the full lifetime of the `ChannelPool` — if every
-    /// in-flight stream finished and dropped its handle, the
-    /// remaining clones on the channels would still keep the
-    /// decoders running, but holding an explicit reference here
-    /// makes the lifecycle contract obvious to readers.
-    ///
-    /// `None` means no decoder pool was wired in at construction;
-    /// channels then fall back to inline decode. Production paths
-    /// always wire one in via [`ChannelPool::from_channels_with_decoders`].
-    _decoder_pool: Option<DecoderPool>,
 }
 
 impl ChannelPool {
-    /// Wrap a caller-supplied set of channels in a pool. No decoder
-    /// pool is attached; channels fall back to inline zstd +
-    /// protobuf decode on the caller's tokio task. Production paths
-    /// should use [`ChannelPool::from_channels_with_decoders`] so
-    /// the heavy decode work runs off-reactor.
+    /// Wrap a caller-supplied set of channels in a pool.
     ///
     /// # Panics
     ///
     /// Panics if `channels` is empty. A pool must have at least one
     /// member; an empty pool has no semantics that would make
     /// `next()` succeed.
-    ///
-    /// Reachable only under `__test-helpers` (or in unit tests) —
-    /// production callers go through [`Self::from_channels_with_decoders`]
-    /// so decode runs on the dedicated decoder pool rather than inline
-    /// on the reactor.
-    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn from_channels(channels: Vec<Channel>) -> Self {
         assert!(
             !channels.is_empty(),
             "ChannelPool must hold at least one Channel"
         );
-        let channels: Vec<Arc<Channel>> = channels
-            .into_iter()
-            .map(|c| {
-                let arc = Arc::new(c);
-                // Install the weak self-reference so the channel's
-                // reconnect path can upgrade to an `Arc<Channel>` and
-                // spawn a `'static` reconnect future.
-                arc.install_self_weak(Arc::downgrade(&arc));
-                arc
-            })
-            .collect();
+        let channels: Vec<Arc<Channel>> = channels.into_iter().map(Arc::new).collect();
         let cursor = seeded_cursor(channels.len());
         Self {
-            inner: Arc::new(PoolInner {
-                channels,
-                cursor,
-                _decoder_pool: None,
-            }),
-        }
-    }
-
-    /// Wrap a caller-supplied set of channels in a pool, attaching
-    /// a [`DecoderPool`] so every RPC dispatched through the
-    /// pool routes its decode work to dedicated threads.
-    ///
-    /// Each channel is bound to one decoder handle, distributed
-    /// round-robin across the pool's decoder ring set; channels and
-    /// decoders need not be equal in count (the modulo wraps).
-    /// Cloning the handles is cheap (multi-producer reference
-    /// count) so the channel-to-decoder mapping does not constrain
-    /// pool sizing.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `channels` is empty for the same reason as
-    /// [`Self::from_channels`].
-    #[must_use]
-    pub fn from_channels_with_decoders(channels: Vec<Channel>, decoder_pool: DecoderPool) -> Self {
-        assert!(
-            !channels.is_empty(),
-            "ChannelPool must hold at least one Channel"
-        );
-        let channels: Vec<Arc<Channel>> = channels
-            .into_iter()
-            .enumerate()
-            .map(|(idx, ch)| {
-                let arc = Arc::new(ch.with_decoder(decoder_pool.handle(idx).clone()));
-                arc.install_self_weak(Arc::downgrade(&arc));
-                arc
-            })
-            .collect();
-        let cursor = seeded_cursor(channels.len());
-        Self {
-            inner: Arc::new(PoolInner {
-                channels,
-                cursor,
-                _decoder_pool: Some(decoder_pool),
-            }),
+            inner: Arc::new(PoolInner { channels, cursor }),
         }
     }
 
     /// Number of channels in the pool.
     ///
     /// Reachable only under `__test-helpers` — production code uses the
-    /// pool through [`Self::next`] / [`Self::from_channels_with_decoders`]
-    /// and does not introspect membership.
+    /// pool through [`Self::next`] and does not introspect membership.
     #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub fn len(&self) -> usize {
@@ -207,16 +125,15 @@ impl ChannelPool {
     /// when one channel is slow / saturated (e.g. holding a long
     /// server-streaming response) and the others still have h2
     /// stream credit. Round-robin tie-breaking ensures fairness
-    /// when the pool is idle (all members at the same in-flight
-    /// count) and prevents a heavily-loaded callsite from pinning
-    /// to a single channel for sticky reasons.
+    /// when the pool is idle and prevents a heavily-loaded callsite
+    /// from pinning to a single channel for sticky reasons.
     ///
     /// The in-flight counter is bumped at three points:
     ///   1. Here, when the lease is constructed — covers the
     ///      window between `pool.next()` returning and the async
     ///      dispatch future actually running.
-    ///   2. Inside [`Channel::server_streaming_frame`], when the
-    ///      open path commits — covers the entire RPC lifetime.
+    ///   2. Inside [`Channel::server_streaming`], when the open
+    ///      path commits — covers the entire RPC lifetime.
     ///   3. Decremented when the lease drops (after the dispatch
     ///      future is constructed) and again when the resulting
     ///      `ServerStreaming` drops (after the response stream
@@ -311,10 +228,10 @@ fn seeded_cursor(len: usize) -> AtomicUsize {
 /// compile unchanged. Hold the lease at least as long as the
 /// dispatch future you build from it — the lease's drop is what
 /// releases the pre-dispatch reservation back to the pool. Once the
-/// open path returns a `ServerStreaming`, the stream's own
-/// `InFlightToken` keeps the channel marked busy for the rest of
-/// the RPC lifetime, so dropping the lease after that point is the
-/// correct shape.
+/// open path returns a `ServerStreaming`, the stream's own in-flight
+/// token keeps the channel marked busy for the rest of the RPC
+/// lifetime, so dropping the lease after that point is the correct
+/// shape.
 pub struct ChannelLease<'a> {
     channel: &'a Arc<Channel>,
     _token: InFlightToken,
@@ -349,13 +266,10 @@ impl<'a> ChannelLease<'a> {
 mod tests {
     use super::*;
 
-    // Round-robin distribution semantics are covered end-to-end by
-    // the `channel_pool_concurrent_dispatch_spreads_across_members`
-    // test in `tests/grpc_mock_server.rs`, which drives the real
-    // `ChannelPool::next` against a 4-channel pool wired to mock h2
-    // listeners. The standalone unit tests previously here drove an
-    // `IndexedPool` shim that re-implemented the modulo cursor —
-    // asserting that two copies of the same algorithm agree.
+    // Pick-distribution semantics are covered end-to-end by the
+    // `channel_pool_*` tests in `tests/grpc_mock_server.rs`, which
+    // drive the real `ChannelPool::next` against multi-channel pools
+    // wired to mock h2 listeners.
 
     #[test]
     #[should_panic(expected = "ChannelPool must hold at least one Channel")]

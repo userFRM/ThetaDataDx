@@ -22,6 +22,13 @@ use std::cell::RefCell;
 use crate::error::Error;
 use crate::proto;
 
+/// Default per-frame decode ceiling for the `_unchecked`-style entry
+/// points that have no configured channel ceiling to thread through.
+/// Matches the gRPC decoder default (4 MiB) and the production
+/// `MddsConfig::max_message_size` default.
+#[cfg(feature = "__internal")]
+pub(crate) const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
+
 thread_local! {
     /// Reusable zstd decompressor **and** output buffer — avoids allocating both
     /// a fresh decompressor context and a fresh `Vec<u8>` on every call.
@@ -63,7 +70,7 @@ thread_local! {
 /// directly. Crate-internal code uses `decompress_response_with_max`.
 #[cfg(feature = "__internal")]
 pub fn decompress_response(response: &mut proto::ResponseData) -> Result<Vec<u8>, Error> {
-    decompress_response_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
+    decompress_response_with_max(response, DEFAULT_MAX_MESSAGE_SIZE)
 }
 
 /// Decompress a `ResponseData` payload with a `max_message_size` ceiling.
@@ -170,7 +177,7 @@ pub fn decompress_response_with_max(
 /// directly. Crate-internal code uses `decode_data_table_with_max`.
 #[cfg(feature = "__internal")]
 pub fn decode_data_table(response: &mut proto::ResponseData) -> Result<proto::DataTable, Error> {
-    decode_data_table_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
+    decode_data_table_with_max(response, DEFAULT_MAX_MESSAGE_SIZE)
 }
 
 /// Decode a `ResponseData` into a `DataTable`, honouring the channel's

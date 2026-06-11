@@ -119,9 +119,7 @@ describe('Pool-sizing setter state survives interleaved reconnect setter calls',
     cfg.setReconnectMaxRateLimitedAttempts(77);
     cfg.setReconnectStableWindowSecs(120n);
     cfg.setConcurrentRequests(4);
-    cfg.setDecoderRingSize(512);
     assert.equal(cfg.concurrentRequests, 4);
-    assert.equal(cfg.decoderRingSize, 512);
   });
 });
 

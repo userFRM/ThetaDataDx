@@ -78,7 +78,6 @@ TEST_CASE("FlatFiles setters compose with pool-sizing setters",
     REQUIRE_NOTHROW(cfg.set_flatfiles_initial_backoff_secs(3));
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(12));
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
-    REQUIRE_NOTHROW(cfg.set_decoder_ring_size(512));
 
     std::uint32_t n = 0;
     std::uint64_t secs = 0;

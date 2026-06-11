@@ -7,7 +7,7 @@ use thetadatadx::config;
 /// `tdx_config_get_tokio_worker_threads` out-params and the Python
 /// `Option<usize>` return — `has_value=false` encodes the `None`
 /// sentinel, `has_value=true` carries the explicit worker count
-/// (with `n=0` preserved verbatim, matching the `decode_threads`
+/// (with `n=0` preserved verbatim, matching the widened-`Option`
 /// cross-binding contract).
 #[napi(object)]
 #[derive(Clone, Copy)]
@@ -159,118 +159,6 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(
             guard.mdds.warn_on_buffered_threshold_bytes as u64,
         ))
-    }
-
-    /// Set the per-thread decoder ring size.
-    ///
-    /// Must be a power of two, `>= 64`. The setter rejects invalid
-    /// values immediately rather than waiting for the connect-time
-    /// `validate()` to fail. Default is `256`.
-    #[napi(js_name = "setDecoderRingSize")]
-    pub fn set_decoder_ring_size(&self, n: u32) -> napi::Result<()> {
-        if n == 0 || !n.is_power_of_two() {
-            return Err(napi::Error::from_reason(format!(
-                "decoder_ring_size must be a power of two >= 64; got {n}"
-            )));
-        }
-        if n < 64 {
-            return Err(napi::Error::from_reason(format!(
-                "decoder_ring_size must be >= 64; got {n}"
-            )));
-        }
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.decoder_ring_size = n as usize;
-        Ok(())
-    }
-
-    /// Current `decoder_ring_size` setting.
-    #[napi(getter, js_name = "decoderRingSize")]
-    pub fn decoder_ring_size(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.mdds.decoder_ring_size).unwrap_or(u32::MAX))
-    }
-
-    // ── MDDS two-stage decode pipeline knobs — Phase 3 of 3 ────────
-    //
-    // Mirror of the Rust core's `MddsConfig::decode_threads` and
-    // `decode_queue_depth` fields, both `Option<usize>`. The JS
-    // surface accepts `null` / `undefined` (mapped to `None` on the
-    // napi side) for the auto-sized default and a `number` for an
-    // explicit override. `0` is a legal explicit input — the core
-    // clamps `Some(0)` to `1` at pool construction time so a
-    // zero-worker pool cannot deadlock stage-1 on the first push.
-
-    /// Set the stage-2 worker thread count for the two-stage
-    /// historical-channel decode pipeline.
-    ///
-    /// Stage-2 runs `prost::Message::decode` and the downstream Tick
-    /// build off a bounded MPSC queue fed by the stage-1 (per-channel
-    /// zstd decompress) threads. Pass `null` or `undefined` for the
-    /// auto-sized default (`std::thread::available_parallelism()` on
-    /// the Rust side); pass a `number` for an explicit override.
-    /// `0` is a legal explicit value — the pool clamps it to `1`
-    /// internally.
-    #[napi(js_name = "setDecodeThreads")]
-    pub fn set_decode_threads(&self, n: Option<u32>) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.decode_threads = n.map(|v| v as usize);
-        Ok(())
-    }
-
-    /// Current `decode_threads` setting. `null` means auto-size at
-    /// connect time; a `number` is the explicit override.
-    #[napi(getter, js_name = "decodeThreads")]
-    pub fn decode_threads(&self) -> napi::Result<Option<u32>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard
-            .mdds
-            .decode_threads
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
-    }
-
-    /// Set the bounded queue depth between stage-1 and stage-2 of
-    /// the two-stage historical-channel decode pipeline.
-    ///
-    /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
-    /// workers pull them out. When stage-2 cannot keep up, stage-1
-    /// parks rather than drops. Pass `null` or `undefined` for the
-    /// auto-sized default (`concurrent_requests * 64` with a floor
-    /// of `64`); pass a `number` for an explicit override. `0` is a
-    /// legal explicit value — the queue clamps it to `1` internally.
-    #[napi(js_name = "setDecodeQueueDepth")]
-    pub fn set_decode_queue_depth(&self, n: Option<u32>) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.decode_queue_depth = n.map(|v| v as usize);
-        Ok(())
-    }
-
-    /// Current `decode_queue_depth` setting. `null` means auto-size
-    /// at connect time; a `number` is the explicit override.
-    #[napi(getter, js_name = "decodeQueueDepth")]
-    pub fn decode_queue_depth(&self) -> napi::Result<Option<u32>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard
-            .mdds
-            .decode_queue_depth
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
     // ── Streaming reconnect knobs — parity with Python / C++ / FFI ─
@@ -1110,7 +998,7 @@ impl Config {
     /// runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
     /// defers to tokio's default sizing; `hasValue=true` pins worker
     /// count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
-    /// matching the `decode_threads` setter shape across the binding
+    /// matching the widened-`Option` setter shape across the binding
     /// matrix).
     #[napi(js_name = "setTokioWorkerThreadsExplicit")]
     pub fn set_tokio_worker_threads_explicit(&self, has_value: bool, n: u32) -> napi::Result<()> {

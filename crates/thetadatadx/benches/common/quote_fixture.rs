@@ -2,8 +2,8 @@
 //! in this crate.
 //!
 //! Pulled out of the four per-bench duplicates that landed alongside
-//! `bench_decode`, `bench_decoder_pool`, `bench_protobuf_decode`, and
-//! `bench_stage_pipeline`. Each bench previously stamped its own copy
+//! `bench_decode` and `bench_protobuf_decode`. Each bench previously
+//! stamped its own copy
 //! of the same 10-column quote schema; diverging deterministic value
 //! offsets would skew cross-bench comparison.
 //!

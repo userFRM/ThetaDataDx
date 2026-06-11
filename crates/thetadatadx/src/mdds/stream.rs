@@ -44,12 +44,6 @@ impl MddsClient {
         let mut headers: Vec<String> = Vec::new();
         let mut chunk_index: usize = 0;
 
-        // Clone the decoder handle (if any) once before the receive
-        // loop so each chunk hands off without re-borrowing the
-        // stream's `Option`. `None` means inline decode on this
-        // task — used by the unit-test channels that construct a
-        // `Channel` without a pool.
-        let decoder = stream.decoder().cloned();
         let max_message_size = stream.max_message_size();
 
         while let Some(response) = stream.next().await {
@@ -68,7 +62,7 @@ impl MddsClient {
                 all_rows.reserve(hint.min(max_message_size) / 64);
             }
 
-            let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
+            let table = decode_chunk(response, max_message_size)?;
             if headers.is_empty() {
                 headers = table.headers;
             } else if !table.headers.is_empty() && table.headers != headers {
@@ -144,11 +138,10 @@ impl MddsClient {
         // names, which is the exact failure mode P13 asked to close.
         let mut saved_headers: Option<Vec<String>> = None;
         let mut chunk_index: usize = 0;
-        let decoder = stream.decoder().cloned();
         let max_message_size = stream.max_message_size();
         while let Some(response) = stream.next().await {
             let response = response?;
-            let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
+            let table = decode_chunk(response, max_message_size)?;
             if saved_headers.is_none() && !table.headers.is_empty() {
                 saved_headers = Some(table.headers.clone());
             } else if let Some(first) = saved_headers.as_deref() {
@@ -173,43 +166,17 @@ impl MddsClient {
     }
 }
 
-/// Route a single `ResponseData` chunk through the channel's decoder
-/// pool (when attached) so the zstd decompress + `DataTable` decode
-/// runs on a dedicated thread instead of the tokio reactor. Falls
-/// back to inline decode on the caller's task when no decoder is
-/// attached — that path covers `Channel::connect_*` constructors
-/// used by unit-test fixtures that do not need the pool overhead.
-async fn decode_chunk(
-    decoder: Option<&crate::grpc::DecoderHandle>,
+/// Decode a single `ResponseData` chunk (zstd decompress + `DataTable`
+/// decode) inline on the caller's task — the measured-fastest shape
+/// for this workload at every production-reachable concurrency,
+/// including multi-chunk streams (see
+/// `docs/architecture/in-house-grpc-transport.md`, "Migration").
+fn decode_chunk(
     response: proto::ResponseData,
     max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
-    if let Some(handle) = decoder {
-        // `submit` short-circuits when the pool has been poisoned by
-        // a prior worker-thread panic — surface as a transport-level
-        // failure so the retry layer can decide on rebuild instead
-        // of hanging on a dead ring.
-        let rx = handle
-            .submit(response, max_message_size)
-            .map_err(|err| Error::Transport {
-                kind: crate::error::TransportErrorKind::DecoderPoisoned,
-                message: format!("mdds decoder pool rejected submission: {err}"),
-            })?;
-        match rx.await {
-            Ok(result) => result,
-            // `oneshot::Receiver` errors only when the sender is
-            // dropped — which on our pool side means the consumer
-            // thread was torn down mid-flight. Surface as Transport
-            // so the retry layer can decide.
-            Err(_) => Err(Error::Transport {
-                kind: crate::error::TransportErrorKind::DecoderReplyDropped,
-                message: "mdds decoder pool dropped its reply channel".to_string(),
-            }),
-        }
-    } else {
-        let mut response = response;
-        decode::decode_data_table_with_max(&mut response, max_message_size)
-    }
+    let mut response = response;
+    decode::decode_data_table_with_max(&mut response, max_message_size)
 }
 
 #[cfg(test)]
@@ -279,16 +246,14 @@ mod streaming_decode_contract {
         }
     }
 
-    #[tokio::test]
-    async fn decode_chunk_handles_inline_decode_with_no_pool() {
-        // `decode_chunk(None, ...)` is the inline-decode branch taken
-        // when no `DecoderHandle` is attached to the channel. Each
-        // chunk's owned `ResponseData` is consumed by value, the
+    #[test]
+    fn decode_chunk_decodes_each_chunk_in_isolation() {
+        // Each chunk's owned `ResponseData` is consumed by value, the
         // working buffer is freed before the next chunk is fetched,
         // and the returned `DataTable` carries exactly the rows the
-        // chunk encoded. Pins the inline branch — the higher-level
-        // `for_each_chunk` peak-memory contract is exercised by the
-        // integration tests in `tests/`.
+        // chunk encoded. Pins the per-chunk decode primitive — the
+        // higher-level `for_each_chunk` peak-memory contract is
+        // exercised by the integration tests in `tests/`.
         let chunks = vec![
             make_chunk(&[("AAPL", 1), ("MSFT", 2)]),
             make_chunk(&[("GOOG", 3)]),
@@ -298,7 +263,7 @@ mod streaming_decode_contract {
         let mut total_rows = 0_usize;
         let max = 4 * 1024 * 1024;
         for chunk in chunks {
-            let table = decode_chunk(None, chunk, max).await.expect("inline decode");
+            let table = decode_chunk(chunk, max).expect("inline decode");
             per_chunk_row_counts.push(table.data_table.len());
             total_rows += table.data_table.len();
         }
@@ -306,12 +271,12 @@ mod streaming_decode_contract {
         assert_eq!(total_rows, 6);
     }
 
-    #[tokio::test]
-    async fn max_message_size_ceiling_enforced_per_chunk() {
+    #[test]
+    fn max_message_size_ceiling_enforced_per_chunk() {
         // A hostile peer that sets `original_size = i32::MAX` on a
         // single chunk inside a streaming response cannot bypass the
         // ceiling — the per-chunk decode rejects it BEFORE allocation.
-        // R1's `max_message_size` clamp applies on every chunk the
+        // The `max_message_size` clamp applies on every chunk the
         // streaming primitive routes through, not just on the buffered
         // `collect_stream` path.
         let hostile = proto::ResponseData {
@@ -322,8 +287,7 @@ mod streaming_decode_contract {
             original_size: i32::MAX,
             compressed_data: vec![],
         };
-        let err = decode_chunk(None, hostile, 4 * 1024 * 1024)
-            .await
+        let err = decode_chunk(hostile, 4 * 1024 * 1024)
             .expect_err("hostile original_size must be rejected before alloc");
         assert!(matches!(
             err,

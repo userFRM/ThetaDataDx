@@ -310,16 +310,6 @@ impl DirectConfig {
         if let Err(e) = crate::fpss::ring::check_ring_size(self.fpss.ring_size) {
             return Err(Error::config_invalid("fpss.ring_size", e.to_string()));
         }
-        // Same contract for the MDDS decoder pool ring. The MDDS
-        // pool uses the same shared validator (`crate::util::ring`)
-        // so the failure mode is identical: non-power-of-two sizes
-        // would force a modulo on every consumer tick.
-        if let Err(e) = crate::util::ring::check_ring_size(self.mdds.decoder_ring_size) {
-            return Err(Error::config_invalid(
-                "mdds.decoder_ring_size",
-                e.to_string(),
-            ));
-        }
         self.mdds.window_size_kb = self.mdds.window_size_kb.clamp(64, 1_024);
         self.mdds.connection_window_size_kb = self.mdds.connection_window_size_kb.clamp(64, 1_024);
         if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
@@ -1165,65 +1155,12 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_invalid_mdds_decoder_ring_size() {
-        // Same contract as `fpss.ring_size`: power of two, >= 64.
-        // 100 is the canonical "not a power of two" sentinel.
-        let mut config = DirectConfig::production_defaults();
-        config.mdds.decoder_ring_size = 100;
-        let err = config.validate().expect_err("must reject non-power-of-two");
-        assert!(
-            err.to_string().contains("decoder_ring_size"),
-            "expected error to name the offending field: {err}"
-        );
-    }
-
-    #[test]
-    fn validate_rejects_decoder_ring_size_below_minimum() {
-        let mut config = DirectConfig::production_defaults();
-        config.mdds.decoder_ring_size = 32; // below MIN_RING_SIZE
-        let err = config
-            .validate()
-            .expect_err("must reject sub-minimum ring size");
-        assert!(err.to_string().contains("decoder_ring_size"));
-    }
-
-    #[test]
-    fn mdds_decoder_defaults_match_production_baseline() {
+    fn mdds_defaults_match_production_baseline() {
         let mdds = crate::config::MddsConfig::production_defaults();
-        assert_eq!(mdds.decoder_ring_size, 256);
-        assert!(mdds.decoder_ring_size.is_power_of_two());
         // Tier clamp on by default — the override is an internal
         // escape hatch only enabled by tests that need to reproduce
         // the over-provisioning failure mode.
         assert!(!mdds.override_tier_clamp);
-        // Two-stage decode pipeline defaults: auto-size at connect
-        // time. `None` is the sentinel; the resolution lives in
-        // `mdds::client::default_stage2_thread_count` /
-        // `default_stage2_queue_depth` so production behaviour
-        // tracks `available_parallelism` automatically.
-        assert!(mdds.decode_threads.is_none());
-        assert!(mdds.decode_queue_depth.is_none());
-    }
-
-    #[test]
-    fn mdds_decode_threads_override_clamps_zero_to_one() {
-        // The clamp lives in `Stage2Pool::new`; the config-side
-        // contract is that `Some(0)` reaches the pool as the
-        // operator's explicit choice (the pool then clamps to 1
-        // rather than the config layer reinterpreting "0 means
-        // auto-size"). This test pins the contract so a future
-        // refactor that moves the clamp here trips CI before
-        // shipping.
-        let mut mdds = crate::config::MddsConfig::production_defaults();
-        mdds.decode_threads = Some(0);
-        assert_eq!(mdds.decode_threads, Some(0));
-    }
-
-    #[test]
-    fn mdds_decode_queue_depth_override_holds_explicit_value() {
-        let mut mdds = crate::config::MddsConfig::production_defaults();
-        mdds.decode_queue_depth = Some(2048);
-        assert_eq!(mdds.decode_queue_depth, Some(2048));
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

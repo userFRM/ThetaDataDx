@@ -85,11 +85,9 @@ describe('FlatFiles setter state survives interleaved pool-sizing calls', () => 
     cfg.setFlatFilesInitialBackoffSecs(3n);
     cfg.setFlatFilesMaxBackoffSecs(12n);
     cfg.setConcurrentRequests(4);
-    cfg.setDecoderRingSize(512);
     assert.equal(cfg.flatFilesMaxAttempts, 7);
     assert.equal(cfg.flatFilesInitialBackoffSecs, 3n);
     assert.equal(cfg.flatFilesMaxBackoffSecs, 12n);
     assert.equal(cfg.concurrentRequests, 4);
-    assert.equal(cfg.decoderRingSize, 512);
   });
 });

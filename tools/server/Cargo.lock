@@ -2231,14 +2231,13 @@ version = "12.0.0"
 dependencies = [
  "arc-swap",
  "bytes",
- "crossbeam-channel",
  "disruptor",
  "futures-core",
  "h2",
  "http",
+ "hyper-util",
  "libc",
  "metrics",
- "percent-encoding",
  "prost",
  "prost-build",
  "prost-types",
@@ -2255,6 +2254,9 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "toml",
+ "tonic",
+ "tonic-prost",
+ "tower-service",
  "tracing",
  "webpki-roots",
  "x509-parser",
@@ -2532,6 +2534,17 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tonic-prost"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a55376a0bbaa4975a3f10d009ad763d8f4108f067c7c2e74f3001fb49778d309"
+dependencies = [
+ "bytes",
+ "prost",
+ "tonic",
 ]
 
 [[package]]

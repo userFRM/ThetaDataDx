@@ -18,7 +18,7 @@ use super::channel::{Channel, ChannelError};
 
 /// `client = "terminal"` is the only static entry the wire
 /// `query_parameters` map carries; the macro-driven [`crate::mdds`]
-/// endpoints set the same value (see `MddsClient::query_info`).
+/// endpoints set the same value (see `MddsClient::build_query_info`).
 const CLIENT_PARAMETER_VALUE: &str = "terminal";
 
 /// Issue `BetaThetaTerminal::GetStockListSymbols` over `channel` and
@@ -65,32 +65,27 @@ pub async fn stock_list_symbols(
 
 /// Drain `stream` into a single merged `DataTable`. Mirrors the
 /// `collect_stream` helper on [`crate::mdds::MddsClient`] but operates
-/// on the in-house [`crate::grpc::ServerStreaming`] adapter rather than
-/// `tonic::Streaming`.
+/// on a raw [`crate::grpc::ServerStreaming`] without an `MddsClient`.
 ///
-/// When the stream's source [`crate::grpc::Channel`] carries a
-/// [`crate::grpc::DecoderHandle`], each chunk's zstd + protobuf
-/// decode runs on a dedicated decoder thread; otherwise the work
-/// runs inline on the caller's tokio task.
+/// Each chunk's zstd + protobuf decode runs inline on the caller's
+/// task — the production decode shape.
 pub async fn collect_stream(
     mut stream: crate::grpc::ServerStreaming<proto::ResponseData>,
 ) -> Result<proto::DataTable, Error> {
     let mut all_rows: Vec<proto::DataValueList> = Vec::new();
     let mut headers: Vec<String> = Vec::new();
     let mut chunk_index: usize = 0;
-    let decoder = stream.decoder().cloned();
     let max_message_size = stream.max_message_size();
 
     while let Some(response) = stream.next().await {
-        let response = response.map_err(map_channel_error)?;
+        let mut response = response.map_err(map_channel_error)?;
 
         if all_rows.is_empty() && response.original_size > 0 {
-            // R1: reserve hint must also respect the channel's
+            // The reserve hint must also respect the channel's
             // `max_message_size` so a hostile peer that claims
             // `original_size = i32::MAX` cannot inflate `all_rows`'
-            // capacity to 33 M slots (≈ 32 MiB of `DataValueList`
-            // header overhead) ahead of the decompression-layer
-            // rejection that follows.
+            // capacity ahead of the decompression-layer rejection
+            // that follows.
             let hint = usize::try_from(response.original_size).unwrap_or(0);
             let bounded = hint.min(max_message_size);
             // ~64 bytes per row keeps the row vec from reallocating
@@ -98,7 +93,7 @@ pub async fn collect_stream(
             all_rows.reserve(bounded / 64);
         }
 
-        let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
+        let table = decode::decode_data_table_with_max(&mut response, max_message_size)?;
         if headers.is_empty() {
             headers = table.headers;
         } else if !table.headers.is_empty() && table.headers != headers {
@@ -119,45 +114,11 @@ pub async fn collect_stream(
     })
 }
 
-/// Route a single chunk through the channel's decoder pool (when
-/// attached) so zstd + `DataTable::decode` runs off-reactor. Falls
-/// back to inline decode when no decoder is attached — keeps the
-/// helper usable from the unit-test channels that construct a
-/// [`crate::grpc::Channel`] without a pool wired up.
-async fn decode_chunk(
-    decoder: Option<&crate::grpc::DecoderHandle>,
-    response: proto::ResponseData,
-    max_message_size: usize,
-) -> Result<proto::DataTable, Error> {
-    if let Some(handle) = decoder {
-        // `submit` short-circuits with `DecoderSubmitError::Poisoned`
-        // when a prior worker-thread panic has flipped the pool's
-        // poison flag — surface as a transport-level failure so
-        // higher layers can decide on retry vs. rebuild.
-        let rx = handle
-            .submit(response, max_message_size)
-            .map_err(|err| Error::Transport {
-                kind: crate::error::TransportErrorKind::DecoderPoisoned,
-                message: format!("mdds decoder pool rejected submission: {err}"),
-            })?;
-        match rx.await {
-            Ok(result) => result,
-            Err(_) => Err(Error::Transport {
-                kind: crate::error::TransportErrorKind::DecoderReplyDropped,
-                message: "mdds decoder pool dropped its reply channel".to_string(),
-            }),
-        }
-    } else {
-        let mut response = response;
-        decode::decode_data_table_with_max(&mut response, max_message_size)
-    }
-}
-
 /// Bench-only helpers that issue representative MDDS RPCs through the
-/// in-house transport without going through the macro-generated
-/// `MddsClient` surface. Exists so `benches/grpc_channel.rs` can A/B
-/// 2–3 endpoints without re-implementing the full `MddsClient::connect`
-/// auth handshake just to time an RPC.
+/// transport without going through the macro-generated `MddsClient`
+/// surface. Exists so the transport benches can drive 1–2 endpoints
+/// without re-implementing the full `MddsClient::connect` auth
+/// handshake just to time an RPC.
 ///
 /// # Errors
 ///
@@ -180,7 +141,7 @@ pub mod bench_support {
     }
 
     /// Issue `BetaThetaTerminal::GetStockHistoryEod` and return the
-    /// merged response table. Used by the criterion bench only.
+    /// merged response table. Used by the transport bench only.
     ///
     /// # Errors
     ///
@@ -203,49 +164,6 @@ pub mod bench_support {
             }),
         };
         let stream = proto::beta_theta_terminal::get_stock_history_eod(channel, request)
-            .await
-            .map_err(map_channel_error)?;
-        super::collect_stream(stream).await
-    }
-
-    /// Issue `BetaThetaTerminal::GetOptionHistoryQuote` and return the
-    /// merged response table. Used by the criterion bench only.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`Error`] when the RPC fails or the response cannot
-    /// be decoded.
-    pub async fn option_history_quote(
-        channel: &Channel,
-        session_uuid: String,
-        client_type: String,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-    ) -> Result<proto::DataTable, Error> {
-        let request = proto::OptionHistoryQuoteRequest {
-            query_info: Some(make_query_info(session_uuid, client_type)),
-            params: Some(proto::OptionHistoryQuoteRequestQuery {
-                contract_spec: Some(proto::ContractSpec {
-                    symbol: symbol.to_string(),
-                    expiration: expiration.to_string(),
-                    strike: Some(strike.to_string()),
-                    right: Some(right.to_string()),
-                }),
-                date: Some(date.to_string()),
-                expiration: expiration.to_string(),
-                start_time: Some("09:30:00".to_string()),
-                end_time: Some("16:00:00".to_string()),
-                interval: "1s".to_string(),
-                max_dte: None,
-                strike_range: None,
-                start_date: None,
-                end_date: None,
-            }),
-        };
-        let stream = proto::beta_theta_terminal::get_option_history_quote(channel, request)
             .await
             .map_err(map_channel_error)?;
         super::collect_stream(stream).await

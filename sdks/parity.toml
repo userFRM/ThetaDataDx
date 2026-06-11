@@ -204,36 +204,12 @@ cpp = true
 # ─── MddsConfig cross-binding setters ──────────────────────────────────
 #
 # Tuning knobs on the MDDS sub-config exposed across every binding.
-# `concurrent_requests` / `decoder_ring_size` /
-# `decode_threads` / `decode_queue_depth` are bound via `Config.<name>`
-# (Python), `Config.set<Name>` (TypeScript napi),
-# `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The FFI
-# C-ABI for the two `Option<usize>` fields (`decode_threads` /
-# `decode_queue_depth`) uses the widened `_explicit(has_value, n)`
-# shape so the `Some(0)` sentinel survives the C boundary; the
-# parity gate accepts the `_explicit` suffix as equivalent to the
-# bare name.
+# `concurrent_requests` / `warn_on_buffered_threshold_bytes` are bound
+# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
+# `tdx::Config::set_<name>` (C++ forwarder over the C ABI).
 
 [[class]]
 name = "MddsConfig.concurrent_requests"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MddsConfig.decoder_ring_size"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MddsConfig.decode_threads"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MddsConfig.decode_queue_depth"
 python = true
 typescript = true
 cpp = true
@@ -339,9 +315,8 @@ cpp = true
 # their tokio runtime (FFI / Python / napi). The
 # `tokio_worker_threads` field uses the widened `(has_value, n)` ABI
 # shape on the C surface so the `Some(0)` sentinel survives the C
-# boundary (matches the `MddsConfig.decode_threads_explicit` shape).
-# `RuntimeConfig::build_runtime` interprets the field for callers
-# building their own runtime.
+# boundary. `RuntimeConfig::build_runtime` interprets the field for
+# callers building their own runtime.
 
 [[class]]
 name = "RuntimeConfig.tokio_worker_threads"

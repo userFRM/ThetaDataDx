@@ -141,40 +141,24 @@ mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap
 
 The previous behaviour honoured the configured value unconditionally, which produced confusing `ResourceExhausted` rejections on the (cap + 1)-th channel that the SDK then retried on a different channel — making bulk-pull failures look like "everything fails intermittently". The local clamp surfaces the misconfiguration immediately. (Bypass requires `MddsConfig::override_tier_clamp = true`, intended for tests only.)
 
-## Throughput Tuning (issue #584)
+## Throughput Tuning
 
-For large historical pulls (multi-day backfills, wide `strike_range`, `interval = 1s` / `tick`), three knobs on `MddsConfig` control the SDK-side throughput. Each is independently tunable:
+For large historical pulls (multi-day backfills, wide `strike_range`, `interval = 1s` / `tick`), `concurrent_requests` is the throughput knob on `MddsConfig`. Each in-flight request rides its own HTTP/2 connection with its own flow-control window, and per-chunk payload decode runs inline on each request's task, so concurrency scales the whole pipeline:
 
-| Workload | `concurrent_requests` | `decode_threads` | `decoder_ring_size` |
-|---|---|---|---|
-| One-shot single-day single-strike query | `1` | auto | default (256) |
-| Multi-day backfill, narrow strike scope (sr < 10) | `4` (PRO) | auto | default (256) |
-| Wide `strike_range` or `1s` / `tick` interval bulk | `8` (PRO max) | `Some(16)` | default (256) |
-| Reference: server-side tier caps | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 | | |
+| Workload | `concurrent_requests` |
+|---|---|
+| One-shot single-day single-strike query | `1` |
+| Multi-day backfill, narrow strike scope (sr < 10) | `4` (PRO) |
+| Wide `strike_range` or `1s` / `tick` interval bulk | `8` (PRO max) |
+| Reference: server-side tier caps | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |
 
-### `decode_threads`
-
-Stage-2 worker thread count for the two-stage decode pipeline. Stage-2 runs `prost::Message::decode` and the downstream Tick build off a bounded MPSC queue fed by the stage-1 (per-channel zstd decompress) threads, keeping CPU-bound work off the tokio reactor. `None` (the default) auto-sizes to `std::thread::available_parallelism()` with a minimum of `1`. `Some(n)` pins the worker count to `n`; `Some(0)` clamps to `1` (a zero-worker pool would deadlock stage-1 on the first push).
-
-**Override** on shared hosts where `available_parallelism` reads the wrong number from `/proc`, or to widen the decode pipeline on historical backfills with wide `strike_range`.
-
-Stage-1 (per-channel zstd decompress) thread count auto-sizes to `max(available_parallelism / 2, 1)` and is no longer user-tunable — the two-stage pipeline rewrite decoupled stage-1 from the channel pool, so a hand-tuned stage-1 count is no longer load-bearing.
-
-### `decoder_ring_size`
-
-Per-thread ring depth, the buffer between the h2 receive task and each decoder thread. Must be a power of two, `>= 64`. Default `256` is enough headroom for a 64-way burst across 4 channels.
-
-Larger rings absorb burstier IO without back-pressuring `try_publish`; smaller rings reduce memory footprint. Benchmark results (`bench_decoder_pool/ring`) show **ring depth is not the bottleneck at the default workload** — 64/256/1024/4096 land within ~5% of each other at 1024-row quote payloads. Tune this only if profiling shows producer-side `try_publish` retries in your specific workload.
-
-### Concrete example — PRO tier, 16-core box, wide strike range backfill
+### Concrete example — PRO tier, wide strike range backfill
 
 ```rust
 use thetadatadx::DirectConfig;
 
 let mut config = DirectConfig::production();
 config.mdds.concurrent_requests = 8;        // hit PRO tier cap
-config.mdds.decode_threads = Some(16);      // stage-2 pool — match logical-core count
-config.mdds.decoder_ring_size = 256;        // default — bench-confirmed adequate
 ```
 
 ```python
@@ -182,8 +166,6 @@ import thetadatadx as m
 
 cfg = m.Config.production()
 cfg.concurrent_requests = 8
-cfg.decode_threads = 16
-cfg.decoder_ring_size = 256
 client = m.ThetaDataDxClient(creds, cfg)
 ```
 
@@ -192,8 +174,6 @@ import { Config, ThetaDataDxClient } from 'thetadatadx';
 
 const cfg = Config.production();
 cfg.setConcurrentRequests(8);
-cfg.setDecodeThreads(16);
-cfg.setDecoderRingSize(256);
 const client = await ThetaDataDxClient.connectWithConfig(email, password, cfg);
 ```
 
@@ -202,8 +182,6 @@ const client = await ThetaDataDxClient.connectWithConfig(email, password, cfg);
 
 auto cfg = tdx::Config::production();
 cfg.set_concurrent_requests(8);
-cfg.set_decode_threads(std::optional<std::size_t>{16});
-cfg.set_decoder_ring_size(256);
 auto creds = tdx::Credentials::from_email(email, password);
 auto client = tdx::Client::connect(creds, cfg);
 ```

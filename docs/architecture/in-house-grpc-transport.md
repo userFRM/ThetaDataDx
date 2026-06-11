@@ -26,7 +26,9 @@ If a future profile under sustained 10K+ ev/s shows the in-house transport is no
 
 A benchmark run at peak load showing the standard gRPC stack within 10% of the in-house transport on end-to-end decode latency is the signal to collapse. Until that data exists, the in-house transport stays.
 
-**Status (2026-06-11): the trigger condition is met.** The measured comparison below shows the reference stack at parity or ahead in every production-reachable cell. Decision pending maintainer review; rationale #3 (surface hygiene) is unaffected by these numbers and remains the argument for keeping the in-house transport if it stays.
+**Status (2026-06-11): the trigger condition is met.** The measured comparison below shows the reference stack at parity or ahead in every production-reachable cell.
+
+**Status (2026-06-11, superseding): migrated.** The transport now rides the reference stack; see the "Migration (2026-06-11)" section below for the decision record, the fan-in and pool-topology measurements that closed the open questions, and the post-migration baseline. The sections above are retained as the historical record of the in-house design and the comparison that retired it.
 
 ## Measured comparison (2026-06-11)
 
@@ -97,7 +99,91 @@ Closed-loop benchmark: `benches/grpc_transport_comparison.rs` (run with `cargo b
 ### Honest limits of this measurement
 
 - The mock server runs in-process over loopback; allocation and CPU figures include the (identical) server-side cost of each RPC. Absolute numbers are not WAN numbers; the A/B delta is the signal.
-- Single-frame responses (the dominant production shape for these endpoints). Multi-chunk streams that interleave many channels into one decoder pool — the fan-in shape rationale #2 describes — were not measured here.
+- Single-frame responses (the dominant production shape for these endpoints). Multi-chunk streams that interleave many channels into one decoder pool — the fan-in shape rationale #2 describes — were not measured here. (Closed during the migration; see "Open question 1" below.)
 - TLS was off for both stacks (h2c); both production paths use rustls over the same h2 layer.
 - Warmed measurements only; the cold-cache axis from the original brief was not measured.
 - The box is shared; every reported cell ran in a verified-quiet window (a sampler re-ran any cell that overlapped background compile activity), with 3 repeats per cell.
+
+## Migration (2026-06-11)
+
+### Decision
+
+Collapse to the reference stack. `crates/thetadatadx/src/grpc/` is now a thin client over `tonic` (client-side `channel` transport only): per-endpoint server-streaming calls with per-chunk zstd + prost decode inline on the request task — the measured-fastest shape. <!-- VOCAB-OK: naming the adopted crate in the decision record --> The in-house h2 transport, the two-stage decode pipeline, and the per-channel decoder pool are deleted (roughly 6.2K LOC of `src/grpc/` machinery plus 3.3K LOC of dedicated benches and reconnect-internals tests).
+
+What carries over unchanged at the `MddsClient` surface: the tier semaphore, the retry policy with jitter + wall-clock envelope, the `google.rpc.RetryInfo` cooldown clamp, per-call deadlines, the connection-level vs stream-level fault taxonomy (`ConnectionClosed` vs `H2Stream`, classified by downcasting the `h2::Error` carried in the stack's error source chains), and the N-channel pool with least-loaded picks. Connection recycling after GOAWAY moves from the hand-rolled single-flight reconnect to the stack's built-in lazy reconnect; the behavioral contract (transient fault, next dispatch lands on a fresh connection, pool slot identity preserved) is pinned by `tests/test_pool_reconnect.rs`.
+
+Rationale #3 (surface hygiene) survives the migration intact: no third-party transport type appears in any public signature. The third-party status converts once, inside `src/grpc/status.rs`, into the crate's own `Status` (code, message, decoded RetryInfo hint), and every transport fault maps into the existing typed `Error` enum at the crate boundary. Rationales #1 and #2 (decode fan-out, ring backpressure) are retired by measurement: the cross-thread handoff cost more than the head-of-line blocking it avoided in every cell, including the fan-in shape below.
+
+TLS rides a custom connector that reuses the existing single-provider rustls configuration (`ring`, webpki roots, `h2` ALPN) verbatim — the stack's own TLS features stay disabled, and `cargo tree --invert aws-lc-rs` stays empty across all five workspaces. The previously dormant `MddsConfig` HTTP/2 knobs (`window_size_kb`, `connection_window_size_kb`, `keepalive_secs`, `keepalive_timeout_secs`) are load-bearing again, threaded into the channel builder at connect time.
+
+### Known caveat: status trailer parsing panics upstream (contained)
+
+The reference stack's status parser `.expect()`s the base64 decode of `grpc-status-details-bin`, so a malformed trailer from the wire would panic whichever task polls the response. Two boundaries in `src/grpc/` can observe such a trailer: the open-phase await in `channel.rs` (a trailers-only response parses its status from the response head) and `ServerStreaming::poll_next` in `stream.rs` (end-of-stream trailers after data frames). Both poll the underlying future/stream inside `std::panic::catch_unwind`; a caught panic fuses the stream and surfaces as a terminal `ChannelError::Rpc` carrying the canonical `Internal` code and a message naming the undecodable trailer — the same protocol-shape-violation convention the decode layer's locally-synthesized statuses follow. The connection task is untouched by the unwind (the parse runs in the caller's poll), so the channel keeps serving subsequent RPCs. `tests/grpc_mock_server.rs` pins both shapes, including a clean follow-up RPC on the same connection after the contained panic.
+
+### Open question 1: multi-chunk fan-in (closed)
+
+The 2026-06-11 comparison left one shape unmeasured: many response chunks fanning into one decode path per request — the decoder pool's home turf. Measured with the harness's `multi` payload (16 zstd chunks of ~640 KiB per RPC, ~10 MiB total, same per-RPC bytes as `large`), same box and protocol as the recorded comparison:
+
+| concurrency | transport | p50 | p99 | mean | req/s | wire MB/s | alloc/req | cpu/req |
+|---|---|---|---|---|---|---|---|---|
+| 8 | in-house (decoder pool) | 105.47 ms | 122.30 ms | 106.21 ms | 64 (63..64) | 666.1 | 100.8 MiB | 128 299 us |
+| 8 | reference (inline decode) | 100.25 ms | 112.03 ms | 100.20 ms | 66 (65..66) | 689.7 | 90.8 MiB | 122 248 us |
+| 16 | in-house (decoder pool) | 172.41 ms | 198.46 ms | 172.76 ms | 77 (77..77) | 807.7 | 100.8 MiB | 148 420 us |
+| 16 | reference (inline decode) | 152.34 ms | 186.42 ms | 153.55 ms | 81 (81..82) | 852.6 | 90.8 MiB | 169 387 us |
+
+Inline decode wins the fan-in shape too: +3.5% throughput / -5.0% p50 at concurrency 8, +5.6% throughput / -11.6% p50 at the 16-concurrent ceiling, with 10% less allocation per request. The pre-registered fallback (bounded `spawn_blocking` decode if inline regressed more than 10%) is not needed; the decoder pool is deleted without a replacement.
+
+### Open question 2: N-channel pool vs one multiplexed channel (pool wins)
+
+The reference stack multiplexes streams over one connection, so the migration re-evaluated whether the N-channel pool still earns its keep. Measured on the reference arm with `THETADATADX_BENCH_CONNS=1` (every worker multiplexed onto one connection) against the production shape (one connection per worker, both sides at the 64 KiB spec windows):
+
+| shape | concurrency | conns | p50 | req/s | wire MB/s |
+|---|---|---|---|---|---|
+| small (1 KB) | 8 | 1 | 236.1 us | 32 978 | 33.4 |
+| small (1 KB) | 8 | 8 | 109.1 us | 68 727 | 69.7 |
+| small (1 KB) | 16 | 1 | 366.2 us | 42 926 | 43.5 |
+| small (1 KB) | 16 | 16 | 163.1 us | 79 027 | 80.1 |
+| large (10 MiB) | 8 | 1 | 185.31 ms | 39 | 411.6 |
+| large (10 MiB) | 8 | 8 | 143.13 ms | 45 | 469.0 |
+| large (10 MiB) | 16 | 1 | 411.75 ms | 37 | 384.7 |
+| large (10 MiB) | 16 | 16 | 156.09 ms | 83 | 872.3 |
+
+One multiplexed connection costs 1.8-2.3x of the throughput at the 16-concurrent ceiling (and 2.6x the large-frame p50): every stream shares a single connection-level flow-control window and one TCP pipe, exactly the contention the per-worker connection fan-out removes. The `ChannelPool` (one HTTP/2 connection per concurrent request, least-loaded picks, lease-based in-flight accounting) survives the migration unchanged.
+
+### Post-migration baseline
+
+The harness now drives the production transport surface (`Channel` / `ChannelPool` + the production dispatch + merge shape) — it is the regression pin going forward. Same box, toolchain rustc 1.96.0, same protocol as the recorded comparison; production-reachable cells (1-16) plus the synthetic headroom appendix:
+
+**small (1 014 B wire, 1 chunk, decode ceiling 4 MiB):**
+
+| concurrency | p50 | p99 | p99.9 | mean | req/s (min..max) | wire MB/s | alloc/req | cpu/req |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 83.8 us | 123.5 us | 157.4 us | 86.7 us | 11 474 (11 401..11 512) | 11.6 | 32.8 KiB | 119 us |
+| 2 | 89.0 us | 120.8 us | 147.5 us | 90.5 us | 21 947 (21 908..21 974) | 22.3 | 32.7 KiB | 127 us |
+| 4 | 94.8 us | 123.0 us | 168.9 us | 95.4 us | 41 592 (41 520..41 699) | 42.2 | 32.7 KiB | 133 us |
+| 8 | 108.4 us | 196.1 us | 366.9 us | 111.0 us | 71 445 (71 245..71 687) | 72.4 | 32.7 KiB | 140 us |
+| **16** | **140.0 us** | **382.8 us** | **728.3 us** | **151.3 us** | **104 952 (104 701..105 448)** | **106.4** | **32.8 KiB** | **128 us** |
+| 100 (synthetic) | 700.0 us | 1.44 ms | 1.92 ms | 721.8 us | 138 260 (136 512..140 933) | 140.2 | 33.8 KiB | 94 us |
+| 1000 (synthetic) | 4.92 ms | 10.18 ms | 12.45 ms | 5.09 ms | 196 126 (195 783..196 751) | 198.9 | 34.0 KiB | 68 us |
+
+**large (10.0 MiB wire, 1 chunk, decode ceiling 64 MiB):**
+
+| concurrency | p50 | p99 | p99.9 | mean | req/s (min..max) | wire MB/s | alloc/req | cpu/req |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 54.11 ms | 59.63 ms | 74.09 ms | 54.22 ms | 17 (17..17) | 179.3 | 94.6 MiB | 58 504 us |
+| 2 | 60.70 ms | 80.09 ms | 83.89 ms | 61.26 ms | 30 (30..30) | 314.6 | 94.6 MiB | 67 775 us |
+| 4 | 65.48 ms | 88.32 ms | 92.98 ms | 67.05 ms | 53 (53..54) | 560.1 | 94.6 MiB | 76 855 us |
+| 8 | 85.26 ms | 115.95 ms | 126.23 ms | 88.61 ms | 79 (79..79) | 829.4 | 94.5 MiB | 104 791 us |
+| **16** | **125.13 ms** | **167.64 ms** | **192.72 ms** | **127.32 ms** | **110 (110..110)** | **1 153.9** | **94.6 MiB** | **138 174 us** |
+
+**multi (10.0 MiB wire across 16 chunks, decode ceiling 64 MiB):**
+
+| concurrency | p50 | p99 | p99.9 | mean | req/s (min..max) | wire MB/s | alloc/req | cpu/req |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 53.50 ms | 57.80 ms | 78.64 ms | 53.65 ms | 17 (17..17) | 181.1 | 90.9 MiB | 57 928 us |
+| 2 | 58.36 ms | 75.87 ms | 82.32 ms | 59.63 ms | 30 (29..30) | 313.5 | 90.8 MiB | 67 013 us |
+| 4 | 69.96 ms | 85.24 ms | 90.87 ms | 70.69 ms | 48 (48..48) | 506.9 | 90.8 MiB | 82 984 us |
+| 8 | 90.60 ms | 103.49 ms | 108.66 ms | 90.73 ms | 73 (73..73) | 764.6 | 90.8 MiB | 110 928 us |
+| **16** | **124.36 ms** | **144.22 ms** | **154.02 ms** | **125.21 ms** | **102 (102..102)** | **1 067.8** | **90.8 MiB** | **146 204 us** |
+
+Reading against the recorded in-house baselines above: the migrated transport is at parity or ahead in every cell. At the 16-concurrent ceiling: small frames +17.1% throughput / -18.3% p50 (104 952 vs 89 592 req/s; 140.0 vs 171.4 us), large frames +39% throughput / -25.8% p50 (1 153.9 vs 827.7 MB/s; 125.13 vs 168.59 ms), allocation 2.3x lower per small request and 1.34x lower per large request. The small-frame cells reproduce the recorded reference-arm numbers within ~0.5% — the wrapper (pool accounting, error mapping, per-chunk merge) adds no measurable cost. The large-frame cells land 25-35% above the recorded reference-arm numbers; large-allocation cells on this shared box swing run to run (the recorded comparison already noted a 58.3-67.7 ms p50 band for in-house large/c1 across invocations), and the production pool's least-loaded picks replace the recorded run's static worker-to-connection pinning, so treat the large-frame rows as this run's pin rather than a like-for-like delta against the reference arm. The verdict cell (at-or-ahead of the in-house transport everywhere) holds in every run observed.

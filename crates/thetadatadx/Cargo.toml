@@ -81,26 +81,37 @@ mimalloc-allocator = ["dep:mimalloc"]
 [dependencies]
 tdbe = { version = "0.14.0", path = "../tdbe" }
 
-# Protobuf message types for the MDDS wire contract. The in-house
-# client stack (`src/grpc/`) consumes these directly. # VOCAB-OK: old transport name in dep comment
+# Protobuf message types for the MDDS wire contract; the gRPC client
+# in `src/grpc/` consumes these directly.
 prost = "=0.14.3"
 # Referenced from the prost-build-generated `proto/`-derived modules
 # (e.g. `google.protobuf.Timestamp` and oneof scaffolding). Pinned to
 # the same version as `prost` so the derive paths resolve.
 prost-types = "=0.14.3"
 
-# In-house gRPC transport — direct h2 implementation. These deps used
-# to ride in via the old transport transitively # VOCAB-OK: dep history comment; declaring them explicitly pins
-# versions now that the old transport is gone. # VOCAB-OK: dep history
+# Historical-channel gRPC transport. `channel` is the client-side
+# transport only — no server, router, codegen, or TLS features (TLS
+# rides through the custom rustls connector in `src/grpc/channel.rs`
+# so the dependency graph keeps the single `ring` CryptoProvider).
+tonic = { version = "0.14", default-features = false, features = ["channel"] } # VOCAB-OK: dep crate name
+# Codec bridge pairing the transport with the workspace's pinned
+# `prost` message types.
+tonic-prost = "0.14" # VOCAB-OK: dep crate name
+# `TokioIo` adapter wrapping the custom TCP/TLS connector's streams
+# into the transport's IO traits. Already in the dependency graph
+# transitively; declared directly for the one adapter type.
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
+# `Service<Uri>` impl for the custom connector.
+tower-service = "0.3"
+# Error-source downcasting in `src/grpc/channel.rs`: connection-level
+# faults (GOAWAY, IO death) classify distinctly from per-stream resets
+# by inspecting the `h2::Error` carried in the transport's source
+# chains. Same major the transport itself compiles against, so the
+# downcast sees the one unified crate version.
 h2 = "0.4"
 http = "1"
 bytes = "1"
 futures-core = "0.3"
-# RFC 3986 percent-decoding for the `grpc-message` trailer (see
-# https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md —
-# the spec mandates `%HH` decoding and forbids a malformed message
-# from invalidating an otherwise-valid `grpc-status`).
-percent-encoding = "2"
 
 # Async runtime
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
@@ -171,10 +182,6 @@ regex = { version = "1.12.3", optional = true }
 # Lock-free ring buffer for FPSS event dispatch # VOCAB-OK: crate name in dep
 disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 
-# Bounded MPSC queue between the two-stage decode pipeline's stage-1
-# (zstd decompress) and stage-2 (prost decode + Tick build) workers.
-crossbeam-channel = "0.5.13" # VOCAB-OK: actual dep crate name
-
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build DataFrame from Series.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels.
@@ -228,15 +235,6 @@ toml = "1.1.2"
 # acquire the GIL without an explicit `Py_Initialize`. dev-only — never
 # enters the published crate graph.
 pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
-# Reference Rust gRPC stack driven head-to-head against the in-house
-# transport by `benches/grpc_transport_comparison.rs`. `channel` is the
-# client-side transport only — no server, router, or TLS features.
-# dev-only — never enters the published crate graph (verified by the
-# `cargo tree --edges normal` gate in the bench's module docs).
-tonic = { version = "0.14", default-features = false, features = ["channel"] } # VOCAB-OK: bench-only comparison dep
-# Codec bridge pairing the reference stack with the workspace's pinned
-# `prost` message types so both transports decode the identical structs.
-tonic-prost = "0.14" # VOCAB-OK: bench-only comparison dep
 
 # Signal-driven sampling profiler used by the concurrent-burst bench
 # to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
@@ -306,22 +304,6 @@ name = "streaming_throughput"
 harness = false
 
 [[bench]]
-# Drives the raw `Channel` / `ChannelPool` / `endpoints::bench_support`
-# surface against a mock h2c server; gated on `__test-helpers` so the
-# `grpc` module re-export stays out of the default rlib.
-name = "grpc_channel"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
-# Drives `default_decoder_thread_count` + `Channel` + `ChannelPool` +
-# `DecoderPool` under concurrent burst load; gated on `__test-helpers`
-# for the same reason as `grpc_channel`.
-name = "grpc_concurrent_burst"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
 # Drives `fpss::__test_internals::{decode_frame, DeltaState}` against
 # synthetic frame bytes; gated on `__test-helpers` so the helper module
 # stays out of the default rlib.
@@ -334,13 +316,6 @@ name = "historical_streaming_memory"
 harness = false
 
 [[bench]]
-# Drives `DecoderPool` directly to measure prost-decode throughput;
-# gated on `__test-helpers` for the `grpc` re-export.
-name = "bench_decoder_pool"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
 # Drives raw `prost::Message::decode` over `thetadatadx::wire::DataTable`
 # bytes; gated on `__internal` so the wire surface stays off the
 # published API.
@@ -349,20 +324,13 @@ harness = false
 required-features = ["__internal"]
 
 [[bench]]
-# Drives `Stage2Pool` + `DecodedPayload` head-to-head against the
-# single-stage decoder; gated on `__test-helpers` for the `grpc`
-# re-export.
-name = "bench_stage_pipeline"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
-# Closed-loop comparison of the in-house transport against the
-# reference Rust gRPC stack over the same loopback mock server, same
-# request protos, and same decode work. Reports per-request latency
-# percentiles, aggregate throughput, allocation, and CPU per request
-# across a concurrency x frame-size matrix. Gated on `__test-helpers`
-# for the `grpc` / `wire` / `decode` re-exports.
+# Closed-loop measurement of the MDDS transport against a loopback
+# mock server: per-request latency percentiles, aggregate throughput,
+# allocation, and CPU per request across a concurrency x frame-shape
+# matrix. The regression pin for the transport — compare runs against
+# the recorded numbers in
+# `docs/architecture/in-house-grpc-transport.md`. Gated on
+# `__test-helpers` for the `grpc` / `wire` / `decode` re-exports.
 name = "grpc_transport_comparison"
 harness = false
 required-features = ["__test-helpers"]
@@ -397,7 +365,7 @@ path = "tests/midframe_disconnect.rs"
 required-features = ["__test-helpers"]
 
 # Integration tests that drive the raw `grpc::{Channel, ChannelPool,
-# DecoderPool, ChannelError, Status}` surface against a mock h2c server.
+# ChannelError, Status}` surface against a mock h2c server.
 # Gated on `__test-helpers` so the `grpc` module re-export stays out
 # of the default rlib.
 [[test]]
