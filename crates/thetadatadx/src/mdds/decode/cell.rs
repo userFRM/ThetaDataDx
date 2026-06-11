@@ -7,9 +7,9 @@
 //! to a default value.
 //!
 //! These are the canonical single-cell decoders: the bulk column
-//! extraction in [`super::column`] drives them per column for the
+//! extraction in `super::column` drives them per column for the
 //! generated parsers, and the hand-written v3 parsers
-//! ([`super::dual_type_columns`]) call them per cell.
+//! (`super::dual_type_columns`) call them per cell.
 //!
 //! The macro-generated `decode_generated` module (assembled by `build.rs` from
 //! `tick_schema.toml`) is included from this module; its emitted parser

@@ -39,6 +39,11 @@
 //! across all column passes. On the same frame the blocked shape
 //! measured ~15% faster than the row-shaped decode (block sizes
 //! 64-1024 within a few percent of each other; 256 best).
+//!
+//! Error selection on a table with multiple invalid cells follows the
+//! extraction order: column-major within each block, so the surfaced
+//! diagnostic may name a different cell than the old row-major scan
+//! did. Either way the whole table is rejected.
 
 use super::error::DecodeError;
 use crate::proto;
