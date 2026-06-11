@@ -1518,7 +1518,7 @@ impl CompressionAlgo {
         }
     }
 }
-/// In-house gRPC client stubs for the `BetaThetaTerminal` service.
+/// gRPC client stubs for the `BetaThetaTerminal` service.
 ///
 /// Generated from `proto/mdds.proto` by
 /// `crates/thetadatadx/build_support/grpc/`.

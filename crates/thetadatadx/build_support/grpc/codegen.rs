@@ -1,5 +1,5 @@
-//! Shared gRPC codegen helpers: the prost-build configuration,
-//! in-house [`ServiceGenerator`] implementation, scratch-dir
+//! Shared gRPC codegen helpers: the prost-build configuration, the
+//! crate's [`ServiceGenerator`] implementation, scratch-dir
 //! management, and snapshot-path resolution.
 //!
 //! This module is consumed by two compile units:
@@ -24,10 +24,11 @@ use prost_build::{Method, Service, ServiceGenerator};
 /// manifest dir.
 pub const SNAPSHOT_PATH: &str = "proto/beta_endpoints.snapshot.rs";
 
-/// Service generator that emits in-house gRPC client stubs.
-pub struct InhouseServiceGenerator;
+/// Service generator that emits client stubs dispatching through
+/// `crate::grpc::Channel`.
+pub struct ChannelServiceGenerator;
 
-impl InhouseServiceGenerator {
+impl ChannelServiceGenerator {
     pub fn new() -> Self {
         Self
     }
@@ -82,19 +83,19 @@ impl InhouseServiceGenerator {
     }
 }
 
-impl ServiceGenerator for InhouseServiceGenerator {
+impl ServiceGenerator for ChannelServiceGenerator {
     fn generate(&mut self, service: Service, buf: &mut String) {
         // The proto exposes only server-streaming RPCs. Reject anything
         // else so a future proto change does not silently mis-frame.
         for method in &service.methods {
             assert!(
                 !method.client_streaming,
-                "client-streaming RPCs are not supported by the in-house transport: {}.{}",
+                "client-streaming RPCs are not supported by `grpc::Channel`: {}.{}",
                 service.proto_name, method.proto_name
             );
             assert!(
                 method.server_streaming,
-                "unary RPCs are not supported by the in-house transport: {}.{}",
+                "unary RPCs are not supported by `grpc::Channel`: {}.{}",
                 service.proto_name, method.proto_name
             );
         }
@@ -103,7 +104,7 @@ impl ServiceGenerator for InhouseServiceGenerator {
         // service (snake_case) so callers reach them via
         // `crate::proto::<service>::<method>(channel, req)`.
         let mod_name = to_snake_case(&service.proto_name);
-        buf.push_str("/// In-house gRPC client stubs for the `");
+        buf.push_str("/// gRPC client stubs for the `");
         buf.push_str(&service.proto_name);
         buf.push_str("` service.\n");
         buf.push_str("///\n/// Generated from `proto/mdds.proto` by\n");
@@ -137,7 +138,7 @@ pub fn to_snake_case(name: &str) -> String {
 pub fn regenerate_into_scratch() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let scratch = scratch_dir()?;
     let mut config = prost_build::Config::new();
-    config.service_generator(Box::new(InhouseServiceGenerator::new()));
+    config.service_generator(Box::new(ChannelServiceGenerator::new()));
     config.out_dir(&scratch);
     config.compile_protos(&["proto/mdds.proto"], &["proto"])?;
     let fresh_path = scratch.join("beta_endpoints.rs");

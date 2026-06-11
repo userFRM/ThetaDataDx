@@ -1,6 +1,6 @@
 //! Regenerate the committed gRPC codegen snapshot.
 //!
-//! Run when `proto/mdds.proto` (or the in-house service generator
+//! Run when `proto/mdds.proto` (or the service generator
 //! logic under `build_support/grpc/`) changes intentionally:
 //!
 //! ```sh

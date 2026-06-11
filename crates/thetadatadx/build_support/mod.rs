@@ -1,7 +1,7 @@
 //! Build-time generator orchestration for `thetadatadx`.
 //!
 //! The build pipeline has three responsibilities:
-//! - compile `proto/mdds.proto` and emit in-house gRPC client stubs
+//! - compile `proto/mdds.proto` and emit the gRPC client stubs
 //!   (`grpc::run` drives `prost-build` with our custom service
 //!   generator — no `tonic-build`);
 //! - generate tick decoders from `tick_schema.toml`;

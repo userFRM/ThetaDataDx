@@ -49,7 +49,7 @@ mod codegen;
 /// Run the gRPC codegen step under `cargo build`.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = prost_build::Config::new();
-    config.service_generator(Box::new(codegen::InhouseServiceGenerator::new()));
+    config.service_generator(Box::new(codegen::ChannelServiceGenerator::new()));
     config.compile_protos(&["proto/mdds.proto"], &["proto"])?;
     // Rebuild when the committed snapshot changes so `check()` picks
     // up edits to it (e.g. an intentional regen the developer just
