@@ -22,8 +22,9 @@ fn render_contract_napi() -> &'static str {
 /// event as `event.quote.contract` / `event.trade.contract` / etc.
 /// `secType` is the symbolic uppercase name (`"STOCK"` / `"OPTION"` /
 /// `"INDEX"` / `"RATE"`); `right` is `"C"` / `"P"` / `null`;
-/// `strikeDollars` is the option strike in dollars, while `strike` is
-/// the wire-level integer (thousandths of a dollar).
+/// `strike` is the option strike in dollars — the same unit historical
+/// rows carry under the same name, so streaming contracts join against
+/// historical data directly. `expiration` is a `YYYYMMDD` integer.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -32,8 +33,7 @@ pub struct Contract {
     pub sec_type: String,
     pub expiration: Option<i32>,
     pub right: Option<String>,
-    pub strike_dollars: Option<f64>,
-    pub strike: Option<i32>,
+    pub strike: Option<f64>,
 }
 
 "#
@@ -203,7 +203,7 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
             // owned String at the SDK boundary; the option fields transfer by value.
             "Contract" => writeln!(
                 out,
-                "                {name}: Contract {{\n                    symbol: {name}.symbol.to_string(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike_dollars: {name}.strike_dollars(),\n                    strike: {name}.strike,\n                }},",
+                "                {name}: Contract {{\n                    symbol: {name}.symbol.to_string(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike: {name}.strike_dollars(),\n                }},",
                 name = column.name
             )
             .unwrap(),

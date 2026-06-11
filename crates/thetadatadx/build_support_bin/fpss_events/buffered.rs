@@ -157,17 +157,18 @@ fn render_control_match_arms(schema: &Schema) -> String {
 /// `RemoveReason` upstream / `i32` in the schema).
 fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
+    let rust_variant = control_rust_variant(event_name);
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name, def);
     if def.columns.is_empty() {
         writeln!(
             out,
-            "            fpss::FpssControl::{event_name} => BufferedEvent::{event_name},",
+            "            fpss::FpssControl::{rust_variant} => BufferedEvent::{event_name},",
         )
         .unwrap();
     } else {
         writeln!(
             out,
-            "            fpss::FpssControl::{event_name} {{ {rust_pattern} }} => BufferedEvent::{event_name} {{",
+            "            fpss::FpssControl::{rust_variant} {{ {rust_pattern} }} => BufferedEvent::{event_name} {{",
         )
         .unwrap();
         for assign in field_assigns {
@@ -176,6 +177,18 @@ fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
         out.push_str("            },\n");
     }
     out
+}
+
+/// Core `FpssControl` variant backing a schema control event. The two
+/// names coincide for every variant except `ParseError`, whose core
+/// enum variant keeps the historical `Error` spelling — the public
+/// event class is named `ParseError` so no binding ships a class that
+/// collides with the language's own error types.
+fn control_rust_variant(event_name: &str) -> &str {
+    match event_name {
+        "ParseError" => "Error",
+        other => other,
+    }
 }
 
 /// Per-variant Rust-pattern + field-assignment mapping. Keeps the
@@ -226,7 +239,7 @@ fn control_variant_mapping(event_name: &str, _def: &EventDef) -> (&'static str, 
                 "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
             ],
         ),
-        "Error" => ("message", vec!["message: message.clone()".to_string()]),
+        "ParseError" => ("message", vec!["message: message.clone()".to_string()]),
         "UnknownFrame" => (
             "code, payload",
             vec![

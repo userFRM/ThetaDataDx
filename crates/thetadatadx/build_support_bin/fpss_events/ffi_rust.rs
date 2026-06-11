@@ -62,8 +62,8 @@ fn render_contract_struct_rust() -> &'static str {
 /// frame. Optional option fields (`expiration`, `right`, `strike`) use a\n\
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`\n\
 /// directly. `right` is the ASCII byte `b'C'` / `b'P'` (`0` when\n\
-/// `has_right` is false) so consumers see the same notation the public\n\
-/// option builder takes.\n\
+/// `has_right` is false) and `strike` is the option strike in dollars —\n\
+/// the same notation the public option builder takes.\n\
 #[repr(C)]\n\
 pub struct TdxContract {\n\
     /// Ticker symbol (e.g. \"AAPL\"). Null until ContractAssigned arrives.\n\
@@ -79,7 +79,8 @@ pub struct TdxContract {\n\
     pub right: c_char,\n\
     /// Whether `strike` is meaningful (options only).\n\
     pub has_strike: bool,\n\
-    pub strike: i32,\n\
+    /// Option strike price in dollars (0.0 when `has_strike` is false).\n\
+    pub strike: f64,\n\
 }\n\
 \n\
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
@@ -90,7 +91,7 @@ pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
     has_right: false,\n\
     right: 0,\n\
     has_strike: false,\n\
-    strike: 0,\n\
+    strike: 0.0,\n\
 };\n\n"
 }
 
@@ -269,7 +270,7 @@ fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &Ev
 
     if has_contract {
         out.push_str(
-            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(&contract.symbol[..]).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
+            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(&contract.symbol[..]).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike_thousandths.is_some(),\n                strike: contract.strike_dollars().unwrap_or(0.0),\n            };\n",
         );
     }
 
@@ -367,7 +368,7 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
                 "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)",
             ],
         ),
-        "Error" => ("message", vec!["message: message_ptr"]),
+        "ParseError" => ("message", vec!["message: message_ptr"]),
         "UnknownFrame" => (
             "code, payload",
             vec![
@@ -390,17 +391,24 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
 }
 
 fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
+    // Core enum variant backing the schema event — the two names
+    // coincide except for `ParseError`, whose core `FpssControl`
+    // variant keeps the `Error` spelling.
+    let rust_variant = match event_name {
+        "ParseError" => "Error",
+        other => other,
+    };
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
     let has_string = control_has_string(&def.columns);
     let has_bytes = control_has_byte_buffer(&def.columns);
     let has_contract = control_has_contract(&def.columns);
 
     if rust_pattern.is_empty() {
-        writeln!(out, "            FpssControl::{event_name} => {{").unwrap();
+        writeln!(out, "            FpssControl::{rust_variant} => {{").unwrap();
     } else {
         writeln!(
             out,
-            "            FpssControl::{event_name} {{ {rust_pattern} }} => {{"
+            "            FpssControl::{rust_variant} {{ {rust_pattern} }} => {{"
         )
         .unwrap();
     }
@@ -444,7 +452,7 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
         .unwrap();
         writeln!(
             out,
-            "                let tdx_contract = TdxContract {{\n                    symbol: contract_symbol_ptr,\n                    sec_type: {field}.sec_type as i32,\n                    has_expiration: {field}.expiration.is_some(),\n                    expiration: {field}.expiration.unwrap_or(0),\n                    has_right: {field}.is_call.is_some(),\n                    right: {field}.right().map_or(0, |r| r.as_char() as c_char),\n                    has_strike: {field}.strike.is_some(),\n                    strike: {field}.strike.unwrap_or(0),\n                }};"
+            "                let tdx_contract = TdxContract {{\n                    symbol: contract_symbol_ptr,\n                    sec_type: {field}.sec_type as i32,\n                    has_expiration: {field}.expiration.is_some(),\n                    expiration: {field}.expiration.unwrap_or(0),\n                    has_right: {field}.is_call.is_some(),\n                    right: {field}.right().map_or(0, |r| r.as_char() as c_char),\n                    has_strike: {field}.strike_thousandths.is_some(),\n                    strike: {field}.strike_dollars().unwrap_or(0.0),\n                }};"
         )
         .unwrap();
     }
@@ -479,7 +487,7 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
     } else {
         "None"
     };
-    let message_slot = if matches!(event_name, "ServerError" | "Error") {
+    let message_slot = if matches!(event_name, "ServerError" | "ParseError") {
         "cstring_owned"
     } else {
         "None"

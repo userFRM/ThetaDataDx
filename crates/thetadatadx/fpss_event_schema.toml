@@ -31,7 +31,7 @@
 # in Python via pyo3 `Option<..>`, `*T` pointer in Go, `std::optional<..>`
 # in C++).
 
-version = 6
+version = 7
 
 # ── Data variants — market-data ticks ─────────────────────────────────
 
@@ -187,9 +187,9 @@ columns = [
     { name = "attempts", type = "i32" },
 ]
 
-[events.Error]
+[events.ParseError]
 kind = "control"
-doc = "FPSS protocol-level parse error. Mirrors `FpssControl::Error`."
+doc = "FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`)."
 columns = [
     { name = "message", type = "String" },
 ]

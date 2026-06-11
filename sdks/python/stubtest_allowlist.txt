@@ -78,18 +78,6 @@ thetadatadx\.EventCallback
 # user-visible default is keyword-only, the runtime is permissive.
 thetadatadx\.Contract\.option
 
-# `FpssParseError` is the stub-side rename for the FPSS-event
-# payload class whose runtime name is `Error`. The
-# runtime exposes a single `Error` class (the typed FPSS-parse
-# error variant); the stub uses `FpssParseError` to avoid colliding
-# with the generic `Error` exception type that is also exposed as
-# `Error`. Both names point to the runtime class via the
-# module-level `__getattr__` fallback. The stubtest "not present at
-# runtime" diagnostic on `FpssParseError` is intentional — the
-# runtime exposes the variant under the `Error` symbol, not
-# `FpssParseError`.
-thetadatadx\.FpssParseError
-
 # `FpssEvent` is a type alias declared in the stub for
 # documentation purposes — it never appears at runtime (there is
 # no runtime use that needs it as a value).

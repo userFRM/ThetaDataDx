@@ -17,10 +17,6 @@ pub(crate) enum BufferedEvent {
     Disconnected {
         reason: i32,
     },
-    /// FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
-    Error {
-        message: String,
-    },
     /// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
     LoginSuccess {
         permissions: String,
@@ -49,6 +45,10 @@ pub(crate) enum BufferedEvent {
         open_interest: i32,
         date: i32,
         received_at_ns: u64,
+    },
+    /// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+    ParseError {
+        message: String,
     },
     /// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
     Ping {
@@ -242,14 +242,14 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             fpss::FpssControl::Disconnected { reason } => BufferedEvent::Disconnected {
                 reason: *reason as i32,
             },
-            fpss::FpssControl::Error { message } => BufferedEvent::Error {
-                message: message.clone(),
-            },
             fpss::FpssControl::LoginSuccess { permissions } => BufferedEvent::LoginSuccess {
                 permissions: permissions.clone(),
             },
             fpss::FpssControl::MarketClose => BufferedEvent::MarketClose,
             fpss::FpssControl::MarketOpen => BufferedEvent::MarketOpen,
+            fpss::FpssControl::Error { message } => BufferedEvent::ParseError {
+                message: message.clone(),
+            },
             fpss::FpssControl::Ping { payload } => BufferedEvent::Ping {
                 payload: payload.clone(),
             },

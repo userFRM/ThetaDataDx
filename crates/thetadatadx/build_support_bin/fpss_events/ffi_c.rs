@@ -40,8 +40,9 @@ fn render_contract_struct_c() -> &'static str {
  * NUL-terminated C string (may be null when not yet resolved);\n\
  * optional option fields use a tagged-present bool because C has no\n\
  * Option<T>. `right` is `'C'` / `'P'` (NUL when `has_right` is false)\n\
- * — the same notation the public option builder takes. Layout is\n\
- * byte-identical to Rust's #[repr(C)] TdxContract.\n\
+ * and `strike` is the option strike in dollars — the same notation\n\
+ * the public option builder takes. Layout is byte-identical to Rust's\n\
+ * #[repr(C)] TdxContract.\n\
  */\n\
 typedef struct {\n\
     const char *symbol;\n\
@@ -51,7 +52,7 @@ typedef struct {\n\
     bool has_right;\n\
     char right;\n\
     bool has_strike;\n\
-    int32_t strike;\n\
+    double strike;\n\
 } TdxContract;\n\n"
 }
 

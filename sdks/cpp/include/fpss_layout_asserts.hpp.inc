@@ -117,11 +117,6 @@ static_assert(offsetof(TdxFpssDisconnected, reason) == 0,
 static_assert(sizeof(TdxFpssDisconnected) == 4,
               "TdxFpssDisconnected total size drifted");
 
-static_assert(offsetof(TdxFpssError, message) == 0,
-              "TdxFpssError::message offset drifted");
-static_assert(sizeof(TdxFpssError) == 8,
-              "TdxFpssError total size drifted");
-
 static_assert(offsetof(TdxFpssLoginSuccess, permissions) == 0,
               "TdxFpssLoginSuccess::permissions offset drifted");
 static_assert(sizeof(TdxFpssLoginSuccess) == 8,
@@ -136,6 +131,11 @@ static_assert(offsetof(TdxFpssMarketOpen, _padding) == 0,
               "TdxFpssMarketOpen::_padding offset drifted");
 static_assert(sizeof(TdxFpssMarketOpen) == 1,
               "TdxFpssMarketOpen total size drifted");
+
+static_assert(offsetof(TdxFpssParseError, message) == 0,
+              "TdxFpssParseError::message offset drifted");
+static_assert(sizeof(TdxFpssParseError) == 8,
+              "TdxFpssParseError total size drifted");
 
 static_assert(offsetof(TdxFpssPing, payload) == 0,
               "TdxFpssPing::payload offset drifted");
@@ -217,14 +217,14 @@ static_assert(offsetof(TdxFpssEvent, contract_assigned) == 384,
               "TdxFpssEvent::contract_assigned offset drifted");
 static_assert(offsetof(TdxFpssEvent, disconnected) == 424,
               "TdxFpssEvent::disconnected offset drifted");
-static_assert(offsetof(TdxFpssEvent, error) == 432,
-              "TdxFpssEvent::error offset drifted");
-static_assert(offsetof(TdxFpssEvent, login_success) == 440,
+static_assert(offsetof(TdxFpssEvent, login_success) == 432,
               "TdxFpssEvent::login_success offset drifted");
-static_assert(offsetof(TdxFpssEvent, market_close) == 448,
+static_assert(offsetof(TdxFpssEvent, market_close) == 440,
               "TdxFpssEvent::market_close offset drifted");
-static_assert(offsetof(TdxFpssEvent, market_open) == 449,
+static_assert(offsetof(TdxFpssEvent, market_open) == 441,
               "TdxFpssEvent::market_open offset drifted");
+static_assert(offsetof(TdxFpssEvent, parse_error) == 448,
+              "TdxFpssEvent::parse_error offset drifted");
 static_assert(offsetof(TdxFpssEvent, ping) == 456,
               "TdxFpssEvent::ping offset drifted");
 static_assert(offsetof(TdxFpssEvent, reconnected) == 472,
