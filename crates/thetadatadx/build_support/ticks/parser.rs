@@ -1,15 +1,25 @@
-//! Emit `decode_generated.rs` (row-oriented tick parser functions).
+//! Emit `decode_generated.rs` (two-phase bulk-extraction tick parsers).
 //!
 //! Struct definitions now live in the `tdbe` crate (`crates/tdbe/src/types/tick.rs`);
 //! only parser functions are generated here. Parsers return
-//! `Result<Vec<Tick>, DecodeError>`; each cell access threads `?` so a type
-//! mismatch in one row fails the whole table, matching upstream wire-protocol
-//! semantics.
+//! `Result<Vec<Tick>, DecodeError>` and decode in two phases:
+//!
+//! 1. Resolve the table's column layout once against the schema —
+//!    `find_header` lookups plus the required-header guards.
+//! 2. Bulk-extract each resolved column through
+//!    `crate::decode::column::extract_column`, monomorphized over the
+//!    column's schema type, filling the pre-seeded tick vector
+//!    column-by-column in `BLOCK_ROWS`-row blocks (see
+//!    `decode/column.rs` for the cache rationale).
+//!
+//! Any cell failing its column's accept-set fails the whole table with
+//! a typed `DecodeError`, matching upstream wire-protocol semantics;
+//! the bulk path names the schema column and row in the diagnostic.
 
 use std::fmt::Write as _;
 use std::path::Path;
 
-use super::schema::{load_schema, TickTypeDef};
+use super::schema::{load_schema, ColumnDef, TickTypeDef};
 
 pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     let schema = load_schema()?;
@@ -42,14 +52,41 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Generate a single parser function.
+/// The single-cell decoder (`decode::cell`) backing a schema column
+/// type, and the seed literal its absent-column default fills with.
+///
+/// Schema column types map onto four decode families: plain numerics
+/// (`row_number` / `row_number_i64` with the `date`-field variant
+/// `row_date`), price-or-number floats (`row_price_f64` — also the
+/// `price`, `eod_price`, and contract-`strike` decode), text
+/// (`row_text`), and the EOD wildcard-report shapes that additionally
+/// accept `Price` cells (`row_eod_*`).
+fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static str) {
+    match col.r#type.as_str() {
+        "i32" => {
+            if def.eod_style {
+                ("row_eod_number", "0")
+            } else if col.field == "date" {
+                ("row_date", "0")
+            } else {
+                ("row_number", "0")
+            }
+        }
+        "i64" => ("row_number_i64", "0"),
+        "f64" | "price" => ("row_price_f64", "0.0"),
+        "String" => ("row_text", "String::new()"),
+        "eod_num" => ("row_eod_number", "0"),
+        "eod_num64" => ("row_eod_number_i64", "0"),
+        "eod_date" => ("row_eod_date", "0"),
+        "eod_price" => ("row_price_f64", "0.0"),
+        other => panic!("unknown column type '{other}' in tick schema"),
+    }
+}
+
+/// Generate a single two-phase parser function.
 ///
 /// Price columns are decoded to `f64` during extraction using the wire
 /// `price_type` (internally fetched, never exposed on the public struct).
-/// The emitted parser returns `Result<Vec<T>, DecodeError>` and threads `?`
-/// on every cell access so a type mismatch in one row fails the whole table.
-// Reason: code generator -- the match dispatch over column types cannot be meaningfully split.
-#[allow(clippy::too_many_lines)]
 fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     let fn_name = &def.parser;
 
@@ -59,72 +96,10 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     )
     .unwrap();
 
-    // If eod_style, emit the local EOD helpers inline.
-    if def.eod_style {
-        out.push_str(include_str!("templates/parser/eod_num.rs.tmpl"));
-        out.push_str(include_str!("templates/parser/eod_num64.rs.tmpl"));
-        out.push_str(include_str!("templates/parser/eod_date.rs.tmpl"));
-        out.push_str(include_str!("templates/parser/eod_price.rs.tmpl"));
-    }
-
     out.push_str("    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();\n");
 
-    // For eod_style, use the shared find_header() from decode.rs.
-    if def.eod_style {
-        out.push_str("    let find = |name: &str| find_header(&h, name);\n\n");
-    }
-
-    // Determine which columns need helpers.
-    let needs_opt_number = def
-        .columns
-        .iter()
-        .any(|c| c.r#type == "i32" && !def.required.contains(&c.name) && c.field != "date");
-    let needs_opt_float = def
-        .columns
-        .iter()
-        .any(|c| c.r#type == "f64" && !def.required.contains(&c.name));
-    let needs_opt_i64 = def
-        .columns
-        .iter()
-        .any(|c| c.r#type == "i64" && !def.required.contains(&c.name));
-
-    // Emit opt_number / opt_float / opt_i64 helpers (non-eod only). Each
-    // returns `Result<T, DecodeError>`: absent column or NullValue → default,
-    // type mismatch → error propagated.
-    if !def.eod_style {
-        if needs_opt_number {
-            out.push_str("    fn opt_number(row: &crate::proto::DataValueList, idx: Option<usize>) -> Result<i32, DecodeError> {\n");
-            out.push_str("        match idx {\n");
-            out.push_str("            Some(i) => Ok(row_number(row, i)?.unwrap_or(0)),\n");
-            out.push_str("            None => Ok(0),\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n\n");
-        }
-        if needs_opt_float {
-            // `f64` columns (greeks, IV, interest rates) legitimately arrive
-            // as Price or Number on the v3 MDDS server; dispatch on the wire
-            // type the same way Java's `dataValue2Object` does (PRICE →
-            // BigDecimal, NUMBER → Long). See `row_price_f64` for the
-            // accept-list.
-            out.push_str("    fn opt_float(row: &crate::proto::DataValueList, idx: Option<usize>) -> Result<f64, DecodeError> {\n");
-            out.push_str("        match idx {\n");
-            out.push_str("            Some(i) => Ok(row_price_f64(row, i)?.unwrap_or(0.0)),\n");
-            out.push_str("            None => Ok(0.0),\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n\n");
-        }
-        if needs_opt_i64 {
-            out.push_str(
-                "    fn opt_i64(row: &crate::proto::DataValueList, idx: Option<usize>) -> Result<i64, DecodeError> {\n",
-            );
-            out.push_str("        match idx {\n");
-            out.push_str("            Some(i) => Ok(row_number_i64(row, i)?.unwrap_or(0)),\n");
-            out.push_str("            None => Ok(0),\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n\n");
-        }
-    }
-
+    // Phase 1: resolve the column layout once.
+    //
     // Required header guards (non-eod only). A missing required header on a
     // non-empty response is a schema drift: silently returning `Ok(vec![])`
     // masked real data loss for ~1M-row `TradeQuoteTick` responses (P11).
@@ -158,24 +133,22 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         }
     }
 
-    // Declare index variables for all columns.
+    // Optional column lookups (alias-aware).
     for col in &def.columns {
-        let var = format!("{}_idx", col.name);
-        if def.eod_style {
-            writeln!(out, "    let {var} = find(\"{}\");", col.name).unwrap();
-        } else if def.required.contains(&col.name) {
-            // Already declared above as required.
-        } else {
-            writeln!(out, "    let {var} = find_header(&h, \"{}\");", col.name).unwrap();
+        if !def.eod_style && def.required.contains(&col.name) {
+            // Already resolved above as required.
+            continue;
         }
+        let var = format!("{}_idx", col.name);
+        writeln!(out, "    let {var} = find_header(&h, \"{}\");", col.name).unwrap();
     }
 
-    // Contract identification columns (wildcard queries inject expiration/strike/right).
+    // Contract identification columns (wildcard queries inject
+    // expiration/strike/right under their exact wire names).
     if def.contract_id {
         out.push_str("    let _cid_exp_idx = h.iter().position(|c| *c == \"expiration\");\n");
         out.push_str("    let _cid_strike_idx = h.iter().position(|c| *c == \"strike\");\n");
         out.push_str("    let _cid_right_idx = h.iter().position(|c| *c == \"right\");\n");
-        out.push_str("    let _cid_strike_is_typed = _cid_strike_idx.is_some() && h.contains(&\"strike\");\n");
     }
 
     // Check if this is QuoteTick (needs midpoint computation).
@@ -183,190 +156,79 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     out.push('\n');
 
-    // Emit the row mapping. Each row produces a `Result<Tick, DecodeError>`;
-    // `.collect::<Result<Vec<_>, _>>()` short-circuits on the first error.
-    out.push_str("    table\n");
-    out.push_str("        .data_table\n");
-    out.push_str("        .iter()\n");
-    out.push_str("        .map(|row| {\n");
-
-    // Struct literal.
-    if is_quote_tick {
-        writeln!(out, "            let _tick = {type_name} {{").unwrap();
-    } else {
-        writeln!(out, "            Ok({type_name} {{").unwrap();
+    // Phase 2: seed the output, then bulk-extract column by column in
+    // cache-resident row blocks. Columns absent from the wire response
+    // keep the seed value — the same zero-fill the per-cell decode
+    // applied row by row.
+    out.push_str("    let rows = table.data_table.as_slice();\n");
+    out.push_str("    let mut ticks = vec![\n");
+    writeln!(out, "        {type_name} {{").unwrap();
+    for col in &def.columns {
+        let (_, seed) = column_decoder(def, col);
+        writeln!(out, "            {}: {seed},", col.field).unwrap();
     }
+    if def.contract_id {
+        out.push_str("            expiration: 0,\n");
+        out.push_str("            strike: 0.0,\n");
+        out.push_str("            right: 0,\n");
+    }
+    if is_quote_tick {
+        out.push_str("            midpoint: 0.0,\n");
+    }
+    out.push_str("        };\n");
+    out.push_str("        rows.len()\n");
+    out.push_str("    ];\n");
+
+    out.push_str("    let mut row_base = 0_usize;\n");
+    out.push_str("    for (rows, ticks) in rows\n");
+    out.push_str("        .chunks(crate::decode::column::BLOCK_ROWS)\n");
+    out.push_str("        .zip(ticks.chunks_mut(crate::decode::column::BLOCK_ROWS))\n");
+    out.push_str("    {\n");
 
     for col in &def.columns {
         let var = format!("{}_idx", col.name);
-        let is_required = def.required.contains(&col.name);
-
-        match col.r#type.as_str() {
-            "i32" => {
-                if def.eod_style {
-                    writeln!(
-                        out,
-                        "                {}: match {var} {{ Some(i) => eod_num(row, i)?, None => 0 }},",
-                        col.field
-                    )
-                    .unwrap();
-                } else if is_required {
-                    if col.field == "date" {
-                        writeln!(
-                            out,
-                            "                {}: row_date(row, {var})?.unwrap_or(0),",
-                            col.field
-                        )
-                        .unwrap();
-                    } else {
-                        writeln!(
-                            out,
-                            "                {}: row_number(row, {var})?.unwrap_or(0),",
-                            col.field
-                        )
-                        .unwrap();
-                    }
-                } else if col.field == "date" {
-                    writeln!(
-                        out,
-                        "                {}: match {var} {{ Some(i) => row_date(row, i)?.unwrap_or(0), None => 0 }},",
-                        col.field
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(
-                        out,
-                        "                {}: opt_number(row, {var})?,",
-                        col.field
-                    )
-                    .unwrap();
-                }
-            }
-            "i64" => {
-                if is_required {
-                    writeln!(
-                        out,
-                        "                {}: row_number_i64(row, {var})?.unwrap_or(0),",
-                        col.field
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(out, "                {}: opt_i64(row, {var})?,", col.field).unwrap();
-                }
-            }
-            "f64" => {
-                if is_required {
-                    writeln!(
-                        out,
-                        "                {}: row_price_f64(row, {var})?.unwrap_or(0.0),",
-                        col.field
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(
-                        out,
-                        "                {}: opt_float(row, {var})?,",
-                        col.field
-                    )
-                    .unwrap();
-                }
-            }
-            "String" => {
-                if is_required {
-                    writeln!(
-                        out,
-                        "                {}: row_text(row, {var})?.unwrap_or_default(),",
-                        col.field
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(
-                        out,
-                        "                {}: match {var} {{ Some(i) => row_text(row, i)?.unwrap_or_default(), None => String::new() }},",
-                        col.field
-                    )
-                    .unwrap();
-                }
-            }
-            "price" => {
-                // Decode price to f64 at parse time.
-                let field = &col.field;
-                if is_required {
-                    writeln!(
-                        out,
-                        "                {field}: row_price_f64(row, {var})?.unwrap_or(0.0),"
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(out, "                {field}: match {var} {{").unwrap();
-                    out.push_str(
-                        "                    Some(i) => row_price_f64(row, i)?.unwrap_or(0.0),\n",
-                    );
-                    out.push_str("                    None => 0.0,\n");
-                    out.push_str("                },\n");
-                }
-            }
-            "eod_num" => {
-                writeln!(
-                    out,
-                    "                {}: match {var} {{ Some(i) => eod_num(row, i)?, None => 0 }},",
-                    col.field
-                )
-                .unwrap();
-            }
-            "eod_num64" => {
-                writeln!(
-                    out,
-                    "                {}: match {var} {{ Some(i) => eod_num64(row, i)?, None => 0 }},",
-                    col.field
-                )
-                .unwrap();
-            }
-            "eod_date" => {
-                writeln!(
-                    out,
-                    "                {}: match {var} {{ Some(i) => eod_date(row, i)?, None => 0 }},",
-                    col.field
-                )
-                .unwrap();
-            }
-            "eod_price" => {
-                // EOD price field: decode to f64 from Price or Number cell.
-                writeln!(
-                    out,
-                    "                {}: match {var} {{ Some(i) => eod_price(row, i)?, None => 0.0 }},",
-                    col.field
-                )
-                .unwrap();
-            }
-            other => panic!("unknown column type '{other}' in parser for {type_name}"),
+        let (decoder, _) = column_decoder(def, col);
+        let name = &col.name;
+        let field = &col.field;
+        let call = format!(
+            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {decoder}, |t, v| t.{field} = v)?;"
+        );
+        if !def.eod_style && def.required.contains(&col.name) {
+            writeln!(out, "        {}", call.replace("{idx}", &var)).unwrap();
+        } else {
+            writeln!(out, "        if let Some(idx) = {var} {{").unwrap();
+            writeln!(out, "            {}", call.replace("{idx}", "idx")).unwrap();
+            out.push_str("        }\n");
         }
     }
 
     // Contract identification fields (injected when contract_id = true). The
     // `expiration` column legitimately arrives as Number (YYYYMMDD) or Text
     // (ISO "2026-04-13") depending on upstream version — dispatch on the
-    // cell's own type rather than coalescing silently.
+    // cell's own type rather than coalescing silently. `strike` decodes
+    // through the same Price|Number accept-set as every price column;
+    // `right` is an ASCII code (Number) or text — strict dispatch.
     if def.contract_id {
-        out.push_str(include_str!("templates/parser/contract_expiration.rs.tmpl"));
-        // strike: decode to f64
-        out.push_str(include_str!("templates/parser/contract_strike.rs.tmpl"));
-        // right: ASCII code (Number) or text (Text) — strict dispatch.
-        out.push_str(include_str!("templates/parser/contract_right.rs.tmpl"));
+        out.push_str("        if let Some(idx) = _cid_exp_idx {\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"expiration\", row_contract_expiration, |t, v| t.expiration = v)?;\n");
+        out.push_str("        }\n");
+        out.push_str("        if let Some(idx) = _cid_strike_idx {\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"strike\", row_price_f64, |t, v| t.strike = v)?;\n");
+        out.push_str("        }\n");
+        out.push_str("        if let Some(idx) = _cid_right_idx {\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"right\", row_contract_right, |t, v| t.right = v)?;\n");
+        out.push_str("        }\n");
     }
 
     if is_quote_tick {
         // QuoteTick gets midpoint computed from bid + ask.
-        out.push_str("                midpoint: 0.0, // placeholder, set below\n");
-        out.push_str("            };\n");
-        out.push_str("            let mut _tick = _tick;\n");
-        out.push_str("            _tick.midpoint = (_tick.bid + _tick.ask) / 2.0;\n");
-        out.push_str("            Ok(_tick)\n");
-    } else {
-        out.push_str("            })\n");
+        out.push_str("        for tick in ticks.iter_mut() {\n");
+        out.push_str("            tick.midpoint = (tick.bid + tick.ask) / 2.0;\n");
+        out.push_str("        }\n");
     }
 
-    out.push_str("        })\n");
-    out.push_str("        .collect()\n");
+    out.push_str("        row_base += rows.len();\n");
+    out.push_str("    }\n");
+    out.push_str("    Ok(ticks)\n");
     out.push_str("}\n\n");
 }

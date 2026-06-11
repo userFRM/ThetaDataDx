@@ -9,6 +9,7 @@
 //! | [`transport`]| `decompress_response` / `decode_data_table` zstd path         |
 //! | [`extract`]  | `extract_{number,text,price}_column` column projections       |
 //! | [`cell`]     | Per-cell strict decoders (`row_*`) + generated parser surface |
+//! | [`column`]   | Bulk column extraction driving the generated parsers          |
 //! | [`dual_type_columns`] | Hand-written parsers for columns that arrive as either `Number` or `Text` on the v3 wire (`parse_option_contracts_v3`, …) |
 //!
 //! Public API surface is preserved at `thetadatadx::decode::*` via the
@@ -17,6 +18,7 @@
 //! the FPSS latency path.
 
 pub mod cell;
+pub(crate) mod column;
 pub mod dual_type_columns;
 pub mod error;
 pub mod extract;
@@ -54,12 +56,6 @@ pub use transport::{decode_data_table, decompress_response, decompress_response_
 // (all generated parsers); default builds get the explicit subset that the
 // generated MDDS endpoint macros call directly.
 pub use cell::*;
-
-// `observed_name` is `pub(crate)` and intentionally not part of the public
-// surface; it stays accessible as `crate::decode::observed_name` via this
-// re-export so the generated parser code (emitted by `build.rs` from the
-// templates in `build_support/ticks/templates/parser/`) still resolves it.
-pub(crate) use error::observed_name;
 
 #[cfg(test)]
 mod tests;

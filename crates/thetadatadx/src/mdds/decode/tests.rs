@@ -662,15 +662,22 @@ fn parse_time_text_rejects_negative_hour() {
 
 #[test]
 fn parse_trade_ticks_propagates_type_mismatch() {
-    // Text in an i32 column must surface as TypeMismatch.
+    // Text in an i32 column must surface as a typed mismatch naming the
+    // schema column and the offending row.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into()],
         data_table: vec![row_of(vec![dv_text("not-a-number"), dv_price(15000, 10)])],
     };
     let err = parse_trade_ticks(&table).unwrap_err();
-    assert!(
-        matches!(err, DecodeError::TypeMismatch { .. }),
-        "expected TypeMismatch, got {err:?}"
+    assert_eq!(
+        err,
+        DecodeError::ColumnTypeMismatch {
+            header: "ms_of_day",
+            column: 0,
+            row: 0,
+            expected: "Number|Timestamp",
+            observed: "Text",
+        }
     );
 }
 
@@ -757,8 +764,8 @@ fn parse_calendar_days_v3_errors_on_unset_open_time() {
 
 #[test]
 fn parse_eod_ticks_errors_on_unset_cell() {
-    // `parse_eod_ticks` is generator-emitted with the `eod_num` /
-    // `eod_date` / `eod_price` helpers; one test pins the shared path.
+    // `parse_eod_ticks` is generator-emitted over the `row_eod_*` cell
+    // decoders; one test pins the shared path.
     let table = proto::DataTable {
         headers: vec!["timestamp".into(), "open".into()],
         data_table: vec![row_of(vec![dv_missing(), dv_number(15000)])],
@@ -766,8 +773,10 @@ fn parse_eod_ticks_errors_on_unset_cell() {
     let err = parse_eod_ticks(&table).unwrap_err();
     assert_eq!(
         err,
-        DecodeError::TypeMismatch {
+        DecodeError::ColumnTypeMismatch {
+            header: "ms_of_day",
             column: 0,
+            row: 0,
             expected: "Number|Price|Timestamp",
             observed: "Unset",
         }
@@ -791,8 +800,10 @@ fn parse_trade_ticks_errors_on_unset_injected_expiration() {
     let err = parse_trade_ticks(&table).unwrap_err();
     assert_eq!(
         err,
-        DecodeError::TypeMismatch {
+        DecodeError::ColumnTypeMismatch {
+            header: "expiration",
             column: 2,
+            row: 0,
             expected: "Number|Text",
             observed: "Unset",
         }
@@ -812,8 +823,10 @@ fn parse_trade_ticks_errors_on_unset_injected_right() {
     let err = parse_trade_ticks(&table).unwrap_err();
     assert_eq!(
         err,
-        DecodeError::TypeMismatch {
+        DecodeError::ColumnTypeMismatch {
+            header: "right",
             column: 2,
+            row: 0,
             expected: "Number|Text",
             observed: "Unset",
         }
