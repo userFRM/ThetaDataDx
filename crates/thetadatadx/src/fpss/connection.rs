@@ -4,10 +4,15 @@
 //!
 //! TLS over TCP with:
 //! - `TCP_NODELAY = true` (Nagle disabled for low latency)
-//! - Connect timeout: 2 seconds
-//! - Read timeout: 10 seconds
-//! - Tries servers in order until one connects: `nj-a:20000`, `nj-a:20001`,
-//!   `nj-b:20000`, `nj-b:20001`
+//! - `SO_KEEPALIVE` armed with an aggressive probe schedule (default
+//!   5 s idle / 2 s interval / 2 probes ≈ 9 s kernel-side half-open
+//!   detection) so a peer that vanishes without a FIN/RST is detected
+//!   by the transport long before the platform default of 2+ hours
+//! - Connect timeout: 2 seconds (configurable)
+//! - Read timeout: configurable (default 3 seconds)
+//! - Host order: fault-domain-aware per-client shuffle by default (see
+//!   [`order_hosts`]), `FixedOrder` escape hatch preserves declaration
+//!   order
 //!
 //! # Implementation
 //!
@@ -18,11 +23,15 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::auth::Credentials;
+use crate::backoff::JitterMode;
 use crate::config::FpssFlushMode;
+use crate::config::HostSelectionPolicy;
 use crate::config::ReconnectPolicy;
 
 use super::pinning::PinnedVerifier;
@@ -32,30 +41,69 @@ use super::protocol::CONNECT_TIMEOUT_MS;
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
 
+/// TCP keepalive schedule applied to every FPSS socket.
+///
+/// Mirrors the three `FpssConfig` keepalive knobs; bundled so the
+/// connect path takes one argument instead of three loose integers.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TcpKeepaliveSpec {
+    /// Idle time before the first probe.
+    pub idle: Duration,
+    /// Interval between unanswered probes.
+    pub interval: Duration,
+    /// Probe count before the kernel declares the peer dead. Applied
+    /// only on platforms that expose the knob.
+    pub retries: u32,
+}
+
 /// Parameter bundle for [`super::FpssClient::connect_with_stream`].
 ///
 /// Carries every connection-side knob plus the user callback. Bundled
 /// into a struct so the call site stays linear instead of as a
-/// positional list of a dozen heterogeneous arguments — and so the
-/// configurable timeouts (`connect_timeout`, `read_timeout`,
-/// `ping_interval`) plumbed in 9.1.0 don't grow the call signature.
+/// positional list of a dozen heterogeneous arguments.
 pub(crate) struct ConnectWithStreamArgs<'a> {
     pub creds: &'a Credentials,
     pub stream: FpssStream,
     pub server_addr: String,
+    /// Host list in the order the reconnect path should try, i.e.
+    /// AFTER [`order_hosts`] has applied the selection policy.
     pub hosts: &'a [(String, u16)],
     pub ring_size: usize,
     pub derive_ohlcvc: bool,
     pub flush_mode: FpssFlushMode,
     pub policy: ReconnectPolicy,
-    /// Reconnect cadence (ms) for generic transient drops. Mirrors
+    /// Initial reconnect delay (ms) for generic transient drops;
+    /// doubles per attempt up to `wait_max_ms`. Mirrors
     /// [`crate::config::ReconnectConfig::wait_ms`].
     pub wait_ms: u64,
-    /// Reconnect cadence (ms) for `TooManyRequests` drops. Mirrors
+    /// Cap (ms) on the generic-transient reconnect ladder. Mirrors
+    /// [`crate::config::ReconnectConfig::wait_max_ms`].
+    pub wait_max_ms: u64,
+    /// Reconnect floor (ms) for `TooManyRequests` drops. Mirrors
     /// [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
     pub wait_rate_limited_ms: u64,
+    /// Flat reconnect cadence (ms) for `ServerRestarting` drops.
+    /// Mirrors [`crate::config::ReconnectConfig::wait_server_restart_ms`].
+    pub wait_server_restart_ms: u64,
+    /// Jitter strategy for every reconnect delay. Mirrors
+    /// [`crate::config::ReconnectConfig::jitter`].
+    pub jitter: JitterMode,
+    /// Subscription-replay burst size after reconnect. Mirrors
+    /// [`crate::config::ReconnectConfig::replay_burst_size`].
+    pub replay_burst_size: u32,
+    /// Pause (ms) between replay bursts. Mirrors
+    /// [`crate::config::ReconnectConfig::replay_pace_ms`].
+    pub replay_pace_ms: u64,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
+    /// Per-iteration blocking-read slice for the I/O loop. Mirrors
+    /// [`crate::config::FpssConfig::io_read_slice_ms`].
+    pub io_read_slice: Duration,
+    /// Last-frame watchdog deadline; `Duration::ZERO` disables.
+    /// Mirrors [`crate::config::FpssConfig::data_watchdog_ms`].
+    pub data_watchdog: Duration,
+    /// Keepalive schedule for reconnect-time socket construction.
+    pub keepalive: TcpKeepaliveSpec,
     pub ping_interval: Duration,
 }
 
@@ -70,6 +118,74 @@ fn ensure_rustls_crypto_provider() {
     });
 }
 
+/// Apply the configured [`HostSelectionPolicy`] to the declared host
+/// list, producing the per-client connect/failover order.
+///
+/// Under [`HostSelectionPolicy::FixedOrder`] the declared order is
+/// preserved verbatim. Under [`HostSelectionPolicy::Shuffled`] (the
+/// default) the hosts are grouped by hostname — each hostname is one
+/// fault domain — the group order and the ports within each group are
+/// shuffled with the supplied seed, and the result interleaves across
+/// groups round-robin. Two properties follow:
+///
+/// * **Fleet spread** — clients with independent seeds distribute
+///   their first connect uniformly across the fault domains instead of
+///   all dialling the first declared host.
+/// * **Cross-domain failover** — consecutive attempts alternate fault
+///   domains, so the second attempt lands on a different physical
+///   machine rather than a second port on the machine that just
+///   failed.
+///
+/// The seed makes the order deterministic: tests and fleet-sharding
+/// deployments pass a fixed seed, production defaults derive a fresh
+/// per-client seed from process-local entropy.
+pub(crate) fn order_hosts(
+    hosts: &[(String, u16)],
+    policy: HostSelectionPolicy,
+    seed: u64,
+) -> Vec<(String, u16)> {
+    match policy {
+        HostSelectionPolicy::FixedOrder => hosts.to_vec(),
+        // `HostSelectionPolicy` is non_exhaustive; route any future
+        // variant added without an arm here to the safe default.
+        _ => {
+            // Group by hostname, preserving first-seen group order as
+            // the pre-shuffle baseline.
+            let mut groups: Vec<(String, Vec<u16>)> = Vec::new();
+            for (host, port) in hosts {
+                match groups.iter_mut().find(|(h, _)| h == host) {
+                    Some((_, ports)) => ports.push(*port),
+                    None => groups.push((host.clone(), vec![*port])),
+                }
+            }
+            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+            groups.shuffle(&mut rng);
+            for (_, ports) in &mut groups {
+                ports.shuffle(&mut rng);
+            }
+            // Round-robin interleave across groups: one port per
+            // group per round, so consecutive entries cross fault
+            // domains whenever more than one domain exists.
+            let mut ordered = Vec::with_capacity(hosts.len());
+            let mut round = 0;
+            loop {
+                let mut emitted = false;
+                for (host, ports) in &groups {
+                    if let Some(port) = ports.get(round) {
+                        ordered.push((host.clone(), *port));
+                        emitted = true;
+                    }
+                }
+                if !emitted {
+                    break;
+                }
+                round += 1;
+            }
+            ordered
+        }
+    }
+}
+
 /// Establish a TLS connection to the first reachable FPSS server.
 ///
 /// Tries each server in order. Returns the stream and connected server
@@ -77,18 +193,20 @@ fn ensure_rustls_crypto_provider() {
 ///
 /// # Connection sequence
 ///
-/// 1. TCP connect with 2s timeout
+/// 1. TCP connect with the configured timeout
 /// 2. `TCP_NODELAY = true`
-/// 3. Set read timeout to 10s (`socket.setSoTimeout(10000)`)
-/// 4. TLS handshake via system trust store
+/// 3. `SO_KEEPALIVE` armed per `keepalive`
+/// 4. Read timeout set to `read_timeout`
+/// 5. TLS handshake pinned to the FPSS SPKI
 ///
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
-pub fn connect_to_servers(
+pub(crate) fn connect_to_servers(
     servers: &[(&str, u16)],
     connect_timeout: Duration,
     read_timeout: Duration,
+    keepalive: TcpKeepaliveSpec,
 ) -> Result<(FpssStream, String), crate::error::Error> {
     ensure_rustls_crypto_provider();
     let mut last_err = None;
@@ -97,7 +215,7 @@ pub fn connect_to_servers(
         let addr = format!("{host}:{port}");
         tracing::debug!(server = %addr, "attempting FPSS connection");
 
-        match try_connect(host, port, connect_timeout, read_timeout) {
+        match try_connect(host, port, connect_timeout, read_timeout, keepalive) {
             Ok(stream) => {
                 tracing::info!(server = %addr, "FPSS connected");
                 return Ok((stream, addr));
@@ -132,19 +250,51 @@ fn tls_client_config() -> Arc<ClientConfig> {
     Arc::new(config)
 }
 
+/// Arm `SO_KEEPALIVE` on the freshly-connected socket.
+///
+/// Best-effort: a kernel that rejects the schedule (or a platform
+/// without per-socket retry control) degrades to whatever subset it
+/// accepts, with a `warn` so operators can see the reduced transport
+/// coverage. The application-level read timeout and last-frame
+/// watchdog remain the primary liveness checks.
+fn arm_keepalive(tcp: &TcpStream, spec: TcpKeepaliveSpec) {
+    let sock = socket2::SockRef::from(tcp);
+    let base = socket2::TcpKeepalive::new()
+        .with_time(spec.idle)
+        .with_interval(spec.interval);
+    // Per-socket probe count is not exposed on every platform;
+    // socket2 cfg-gates the setter to the platforms that support it.
+    #[cfg(not(windows))]
+    let ka = base.with_retries(spec.retries);
+    #[cfg(windows)]
+    let ka = {
+        let _ = spec.retries;
+        base
+    };
+    if let Err(e) = sock.set_tcp_keepalive(&ka) {
+        tracing::warn!(
+            error = %e,
+            "failed to arm TCP keepalive on FPSS socket; \
+             relying on application-level timeouts only"
+        );
+    }
+}
+
 /// Attempt a single blocking TLS connection to one server.
 ///
 /// # Steps
 ///
-/// 1. `TcpStream::connect_timeout` -- `socket.connect(addr, 2000)`
-/// 2. `set_nodelay(true)` -- `socket.setTcpNoDelay(true)`
-/// 3. `set_read_timeout` -- `socket.setSoTimeout(10000)`
-/// 4. Blocking TLS handshake via rustls `StreamOwned`
+/// 1. `TcpStream::connect_timeout`
+/// 2. `set_nodelay(true)`
+/// 3. `SO_KEEPALIVE` per the configured schedule
+/// 4. `set_read_timeout`
+/// 5. Blocking TLS handshake via rustls `StreamOwned`
 fn try_connect(
     host: &str,
     port: u16,
     connect_timeout: Duration,
     read_timeout: Duration,
+    keepalive: TcpKeepaliveSpec,
 ) -> Result<FpssStream, crate::error::Error> {
     let addr = format!("{host}:{port}");
 
@@ -170,7 +320,12 @@ fn try_connect(
     // TCP_NODELAY = true (socket.setTcpNoDelay(true)).
     tcp.set_nodelay(true)?;
 
-    // Read timeout (socket.setSoTimeout(10000)).
+    // SO_KEEPALIVE: kernel-side half-open detection in
+    // ~(idle + interval * retries) seconds, versus the platform
+    // default of 2+ hours.
+    arm_keepalive(&tcp, keepalive);
+
+    // Read timeout.
     tcp.set_read_timeout(Some(read_timeout))?;
 
     // TLS handshake (blocking) using rustls with webpki root certificates.
@@ -197,6 +352,14 @@ fn try_connect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_keepalive() -> TcpKeepaliveSpec {
+        TcpKeepaliveSpec {
+            idle: Duration::from_secs(5),
+            interval: Duration::from_secs(2),
+            retries: 2,
+        }
+    }
 
     #[test]
     fn rustls_crypto_provider_install_is_idempotent() {
@@ -254,12 +417,129 @@ mod tests {
         let connect_timeout = Duration::from_millis(150);
         let read_timeout = Duration::from_millis(10_000);
         let start = std::time::Instant::now();
-        let res = connect_to_servers(&servers, connect_timeout, read_timeout);
+        let res = connect_to_servers(&servers, connect_timeout, read_timeout, test_keepalive());
         let elapsed = start.elapsed();
         assert!(res.is_err(), "unroutable host must fail to connect");
         assert!(
             elapsed < Duration::from_millis(2_000),
             "connect_timeout = 150 ms but elapsed = {elapsed:?}; the knob is not wired"
         );
+    }
+
+    /// The keepalive schedule is applied to a real socket without
+    /// error on this platform. Uses a loopback listener so the connect
+    /// succeeds and the socket options are actually set.
+    #[test]
+    fn keepalive_arms_on_loopback_socket() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let addr = listener.local_addr().expect("local addr");
+        let tcp = TcpStream::connect(addr).expect("connect loopback");
+        arm_keepalive(&tcp, test_keepalive());
+        let sock = socket2::SockRef::from(&tcp);
+        assert!(
+            sock.keepalive().expect("read SO_KEEPALIVE"),
+            "SO_KEEPALIVE must be armed after arm_keepalive"
+        );
+    }
+
+    fn production_hosts() -> Vec<(String, u16)> {
+        vec![
+            ("nj-a.thetadata.us".to_string(), 20000),
+            ("nj-a.thetadata.us".to_string(), 20001),
+            ("nj-b.thetadata.us".to_string(), 20000),
+            ("nj-b.thetadata.us".to_string(), 20001),
+        ]
+    }
+
+    #[test]
+    fn order_hosts_fixed_order_preserves_declaration() {
+        let hosts = production_hosts();
+        let ordered = order_hosts(&hosts, HostSelectionPolicy::FixedOrder, 42);
+        assert_eq!(ordered, hosts);
+    }
+
+    /// The shuffled order is deterministic for a given seed — the
+    /// load-bearing property for fleet sharding and for this test
+    /// suite itself.
+    #[test]
+    fn order_hosts_shuffled_is_deterministic_per_seed() {
+        let hosts = production_hosts();
+        let a = order_hosts(&hosts, HostSelectionPolicy::Shuffled, 7);
+        let b = order_hosts(&hosts, HostSelectionPolicy::Shuffled, 7);
+        assert_eq!(a, b, "same seed must produce the same order");
+        // A different seed must be able to produce a different order;
+        // with 2 groups x 2 ports there are 8 distinct outcomes, so
+        // scanning a small seed range must find at least one divergence.
+        let found_divergent =
+            (0..32_u64).any(|s| order_hosts(&hosts, HostSelectionPolicy::Shuffled, s) != a);
+        assert!(found_divergent, "shuffle must depend on the seed");
+    }
+
+    /// Consecutive entries must alternate fault domains (hostnames)
+    /// whenever more than one domain exists — the property that makes
+    /// the first failover land on a different physical machine.
+    #[test]
+    fn order_hosts_shuffled_interleaves_fault_domains() {
+        let hosts = production_hosts();
+        for seed in 0..64_u64 {
+            let ordered = order_hosts(&hosts, HostSelectionPolicy::Shuffled, seed);
+            assert_eq!(ordered.len(), 4, "no hosts may be lost");
+            // Same multiset of entries.
+            let mut sorted_in = hosts.clone();
+            let mut sorted_out = ordered.clone();
+            sorted_in.sort();
+            sorted_out.sort();
+            assert_eq!(sorted_in, sorted_out, "shuffle must be a permutation");
+            // First two entries cross fault domains.
+            assert_ne!(
+                ordered[0].0, ordered[1].0,
+                "seed {seed}: first failover must cross fault domains; got {ordered:?}"
+            );
+            // Full alternation for the 2x2 production shape.
+            assert_ne!(ordered[2].0, ordered[3].0);
+        }
+    }
+
+    /// First-host distribution: across seeds, both fault domains must
+    /// appear in the first slot — the steady-state load-spreading
+    /// property.
+    #[test]
+    fn order_hosts_shuffled_spreads_first_host_across_domains() {
+        let hosts = production_hosts();
+        let mut first_hosts = std::collections::HashSet::new();
+        for seed in 0..64_u64 {
+            let ordered = order_hosts(&hosts, HostSelectionPolicy::Shuffled, seed);
+            first_hosts.insert(ordered[0].0.clone());
+        }
+        assert_eq!(
+            first_hosts.len(),
+            2,
+            "both fault domains must appear as the first connect target across seeds"
+        );
+    }
+
+    /// Degenerate shapes: a single host, and asymmetric port counts
+    /// per domain, must survive the interleave without loss.
+    #[test]
+    fn order_hosts_handles_degenerate_shapes() {
+        let single = vec![("nj-a.thetadata.us".to_string(), 20000)];
+        assert_eq!(
+            order_hosts(&single, HostSelectionPolicy::Shuffled, 1),
+            single
+        );
+
+        let asymmetric = vec![
+            ("a.example".to_string(), 1),
+            ("a.example".to_string(), 2),
+            ("a.example".to_string(), 3),
+            ("b.example".to_string(), 9),
+        ];
+        let ordered = order_hosts(&asymmetric, HostSelectionPolicy::Shuffled, 5);
+        assert_eq!(ordered.len(), 4);
+        let mut sorted_in = asymmetric.clone();
+        let mut sorted_out = ordered.clone();
+        sorted_in.sort();
+        sorted_out.sort();
+        assert_eq!(sorted_in, sorted_out);
     }
 }

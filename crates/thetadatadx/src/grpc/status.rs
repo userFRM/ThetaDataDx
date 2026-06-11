@@ -24,8 +24,16 @@ pub(crate) const GRPC_STATUS: &str = "grpc-status";
 /// gracefully tolerates malformed values rather than invalidating the
 /// `grpc-status` it travels with. See [`decode_grpc_message`].
 pub(crate) const GRPC_MESSAGE: &str = "grpc-message";
+/// `grpc-status-details-bin` trailer name. Carries a base64-encoded
+/// `google.rpc.Status` message whose `details` may include a
+/// `google.rpc.RetryInfo` server backoff hint. See
+/// [`decode_retry_delay`].
+pub(crate) const GRPC_STATUS_DETAILS_BIN: &str = "grpc-status-details-bin";
 /// `grpc-status: 0` — the `Ok` code.
 pub(crate) const STATUS_OK: u32 = 0;
+
+/// Fully-qualified `Any.type_url` suffix for `google.rpc.RetryInfo`.
+const RETRY_INFO_TYPE_URL_SUFFIX: &str = "google.rpc.RetryInfo";
 
 /// gRPC status carried in HTTP/2 trailers.
 ///
@@ -39,6 +47,11 @@ pub struct Status {
     /// Human-readable status message decoded from `grpc-message` (may
     /// be empty when the trailer is absent or the status is `Ok`).
     message: String,
+    /// Server-supplied backoff hint decoded from the
+    /// `google.rpc.RetryInfo` detail in `grpc-status-details-bin`, when
+    /// present. Retry loops clamp their computed delay up to this value
+    /// so a server-instructed cooldown is always honoured in full.
+    retry_delay: Option<std::time::Duration>,
 }
 
 impl Status {
@@ -48,6 +61,7 @@ impl Status {
         Self {
             code,
             message: message.into(),
+            retry_delay: None,
         }
     }
 
@@ -61,6 +75,14 @@ impl Status {
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    /// Server-supplied minimum backoff before the next retry, decoded
+    /// from the `google.rpc.RetryInfo` status detail. `None` when the
+    /// server sent no hint (the common case).
+    #[must_use]
+    pub const fn retry_delay(&self) -> Option<std::time::Duration> {
+        self.retry_delay
     }
 
     /// `true` iff the status code is `0` (gRPC `Ok`).
@@ -131,8 +153,111 @@ impl Status {
             .map(decode_grpc_message)
             .unwrap_or_default();
 
-        Ok(Self { code, message })
+        let retry_delay = trailers
+            .get(GRPC_STATUS_DETAILS_BIN)
+            .and_then(|raw| decode_retry_delay(raw.as_bytes()));
+
+        Ok(Self {
+            code,
+            message,
+            retry_delay,
+        })
     }
+}
+
+// ─── google.rpc.RetryInfo decode ────────────────────────────────────
+//
+// Minimal local mirrors of the `google.rpc` protos involved in the
+// RetryInfo hint. The crate does not vendor the google.rpc proto tree;
+// the two messages below pin only the fields this parser reads, with
+// tags matching the canonical definitions:
+//
+//   google.rpc.Status   { ... repeated google.protobuf.Any details = 3; }
+//   google.rpc.RetryInfo { google.protobuf.Duration retry_delay = 1; }
+//
+// Unknown fields are skipped by prost, so richer detail payloads decode
+// cleanly.
+
+/// Local mirror of `google.rpc.Status` (details field only).
+#[derive(Clone, PartialEq, prost::Message)]
+struct RpcStatusProto {
+    #[prost(message, repeated, tag = "3")]
+    details: prost::alloc::vec::Vec<prost_types::Any>,
+}
+
+/// Local mirror of `google.rpc.RetryInfo`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct RetryInfoProto {
+    #[prost(message, optional, tag = "1")]
+    retry_delay: Option<prost_types::Duration>,
+}
+
+/// Decode the `grpc-status-details-bin` trailer into the
+/// `google.rpc.RetryInfo.retry_delay` hint, if one is present.
+///
+/// Per the gRPC HTTP/2 spec, `-bin` metadata values are base64-encoded
+/// (RFC 4648, padding optional). Any malformed layer — bad base64,
+/// non-proto payload, missing detail — degrades to `None` rather than
+/// invalidating the `grpc-status` the trailer travels with, mirroring
+/// the tolerance contract of [`decode_grpc_message`]. Negative or
+/// overlong durations are rejected.
+fn decode_retry_delay(raw: &[u8]) -> Option<std::time::Duration> {
+    use prost::Message;
+    let bytes = base64_decode(raw)?;
+    let status = RpcStatusProto::decode(bytes.as_slice()).ok()?;
+    for any in &status.details {
+        if !any.type_url.ends_with(RETRY_INFO_TYPE_URL_SUFFIX) {
+            continue;
+        }
+        let info = RetryInfoProto::decode(any.value.as_slice()).ok()?;
+        let proto_delay = info.retry_delay?;
+        if proto_delay.seconds < 0 || proto_delay.nanos < 0 {
+            return None;
+        }
+        let secs = u64::try_from(proto_delay.seconds).ok()?;
+        let nanos = u32::try_from(proto_delay.nanos).ok()?;
+        return Some(std::time::Duration::new(secs, nanos));
+    }
+    None
+}
+
+/// Decode RFC 4648 base64 (standard alphabet; `=` padding optional, as
+/// gRPC `-bin` metadata commonly omits it). Returns `None` on any
+/// character outside the alphabet or an impossible length remainder.
+fn base64_decode(input: &[u8]) -> Option<Vec<u8>> {
+    fn value(c: u8) -> Option<u32> {
+        match c {
+            b'A'..=b'Z' => Some(u32::from(c - b'A')),
+            b'a'..=b'z' => Some(u32::from(c - b'a') + 26),
+            b'0'..=b'9' => Some(u32::from(c - b'0') + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let trimmed: &[u8] = {
+        let mut end = input.len();
+        while end > 0 && input[end - 1] == b'=' {
+            end -= 1;
+        }
+        &input[..end]
+    };
+    // A single leftover sextet cannot encode a byte.
+    if trimmed.len() % 4 == 1 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(trimmed.len() / 4 * 3 + 2);
+    for chunk in trimmed.chunks(4) {
+        let mut acc: u32 = 0;
+        for &c in chunk {
+            acc = (acc << 6) | value(c)?;
+        }
+        // Left-align the partial chunk so byte extraction is uniform.
+        acc <<= 6 * (4 - chunk.len()) as u32;
+        let bytes = [(acc >> 16) as u8, (acc >> 8) as u8, acc as u8];
+        out.extend_from_slice(&bytes[..chunk.len().saturating_sub(1).min(3)]);
+    }
+    Some(out)
 }
 
 /// Convert a [`HeaderValue`] to `&str`, or `None` if it is not UTF-8.
@@ -364,5 +489,155 @@ mod tests {
     fn display_omits_empty_message() {
         let s = Status::new(0, "");
         assert_eq!(s.to_string(), "grpc-status=0");
+    }
+
+    // ─── RetryInfo decode ───────────────────────────────────────────
+
+    /// Minimal RFC 4648 base64 encoder for synthesising
+    /// `grpc-status-details-bin` trailer values in tests.
+    fn base64_encode(input: &[u8]) -> String {
+        const ALPHABET: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for chunk in input.chunks(3) {
+            let mut acc: u32 = 0;
+            for (i, &b) in chunk.iter().enumerate() {
+                acc |= u32::from(b) << (16 - 8 * i);
+            }
+            for i in 0..4 {
+                if i <= chunk.len() {
+                    let idx = ((acc >> (18 - 6 * i)) & 0x3F) as usize;
+                    out.push(ALPHABET[idx] as char);
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        out
+    }
+
+    /// Encode a `google.rpc.Status` carrying one RetryInfo detail with
+    /// the given delay, as the base64 trailer value the server ships.
+    fn retry_info_trailer_value(secs: i64, nanos: i32) -> String {
+        use prost::Message;
+        let info = RetryInfoProto {
+            retry_delay: Some(prost_types::Duration {
+                seconds: secs,
+                nanos,
+            }),
+        };
+        let status = RpcStatusProto {
+            details: vec![prost_types::Any {
+                type_url: "type.googleapis.com/google.rpc.RetryInfo".to_string(),
+                value: info.encode_to_vec(),
+            }],
+        };
+        base64_encode(&status.encode_to_vec())
+    }
+
+    #[test]
+    fn base64_decode_round_trips_padded_and_unpadded() {
+        for payload in [
+            &b""[..],
+            &b"f"[..],
+            &b"fo"[..],
+            &b"foo"[..],
+            &b"foob"[..],
+            &b"retry-info payload bytes"[..],
+        ] {
+            let encoded = base64_encode(payload);
+            assert_eq!(
+                base64_decode(encoded.as_bytes()).as_deref(),
+                Some(payload),
+                "padded form must round-trip: {encoded:?}"
+            );
+            let unpadded = encoded.trim_end_matches('=');
+            assert_eq!(
+                base64_decode(unpadded.as_bytes()).as_deref(),
+                Some(payload),
+                "unpadded form must round-trip: {unpadded:?}"
+            );
+        }
+        // Characters outside the alphabet are rejected, as is the
+        // impossible single-sextet remainder.
+        assert_eq!(base64_decode(b"a!cd"), None);
+        assert_eq!(base64_decode(b"abcde"), None);
+    }
+
+    #[test]
+    fn retry_info_detail_surfaces_as_retry_delay() {
+        let value = retry_info_trailer_value(2, 500_000_000);
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("8"),
+        );
+        h.insert(
+            HeaderName::from_static("grpc-status-details-bin"),
+            HeaderValue::from_str(&value).expect("base64 is a valid header value"),
+        );
+        let s = Status::from_trailers(&h).expect("status parsed");
+        assert_eq!(s.code(), 8);
+        assert_eq!(
+            s.retry_delay(),
+            Some(std::time::Duration::from_millis(2_500)),
+            "RetryInfo delay must surface on the parsed status"
+        );
+    }
+
+    #[test]
+    fn absent_or_malformed_details_degrade_to_no_hint() {
+        // No details trailer at all.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("14"),
+        );
+        let s = Status::from_trailers(&h).expect("status parsed");
+        assert_eq!(s.retry_delay(), None);
+
+        // Malformed base64 must not invalidate the grpc-status it
+        // travels with — same tolerance contract as grpc-message.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("14"),
+        );
+        h.insert(
+            HeaderName::from_static("grpc-status-details-bin"),
+            HeaderValue::from_static("!!not-base64!!"),
+        );
+        let s = Status::from_trailers(&h).expect("status still parses");
+        assert_eq!(s.code(), 14);
+        assert_eq!(s.retry_delay(), None);
+
+        // Valid base64 wrapping a non-proto payload also degrades.
+        let garbage = base64_encode(b"\xff\xfe\xfd not a proto");
+        assert_eq!(decode_retry_delay(garbage.as_bytes()), None);
+    }
+
+    #[test]
+    fn negative_retry_delay_is_rejected() {
+        let value = retry_info_trailer_value(-1, 0);
+        assert_eq!(
+            decode_retry_delay(value.as_bytes()),
+            None,
+            "a negative server hint must be discarded, not wrapped"
+        );
+    }
+
+    #[test]
+    fn foreign_detail_types_are_skipped() {
+        use prost::Message;
+        // A details list whose Any payload is NOT RetryInfo must be
+        // ignored without error.
+        let status = RpcStatusProto {
+            details: vec![prost_types::Any {
+                type_url: "type.googleapis.com/google.rpc.ErrorInfo".to_string(),
+                value: vec![1, 2, 3],
+            }],
+        };
+        let encoded = base64_encode(&status.encode_to_vec());
+        assert_eq!(decode_retry_delay(encoded.as_bytes()), None);
     }
 }

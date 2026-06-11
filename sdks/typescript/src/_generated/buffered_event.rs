@@ -79,6 +79,11 @@ pub(crate) enum BufferedEvent {
         attempt: i32,
         delay_ms: u64,
     },
+    /// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+    ReconnectsExhausted {
+        reason: i32,
+        attempts: i32,
+    },
     /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
     ReqResponse {
         req_id: i32,
@@ -254,6 +259,10 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 reason: *reason as i32,
                 attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                 delay_ms: *delay_ms,
+            },
+            fpss::FpssControl::ReconnectsExhausted { reason, attempts } => BufferedEvent::ReconnectsExhausted {
+                reason: *reason as i32,
+                attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
             },
             fpss::FpssControl::ReqResponse { req_id, result } => BufferedEvent::ReqResponse {
                 req_id: *req_id,

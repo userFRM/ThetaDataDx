@@ -215,6 +215,7 @@ mod tests {
             let err = to_py_err(thetadatadx::Error::Grpc {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: "tier insufficient".into(),
+                retry_after: None,
             });
             assert_exception_class(py, &err, "SubscriptionError");
         });
@@ -227,6 +228,7 @@ mod tests {
             let err = to_py_err(thetadatadx::Error::Grpc {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
+                retry_after: None,
             });
             assert_exception_class(py, &err, "RateLimitError");
         });
@@ -239,6 +241,7 @@ mod tests {
             let err = to_py_err(thetadatadx::Error::Grpc {
                 kind: GrpcStatusKind::NotFound,
                 message: "no rows".into(),
+                retry_after: None,
             });
             assert_exception_class(py, &err, "NoDataFoundError");
         });

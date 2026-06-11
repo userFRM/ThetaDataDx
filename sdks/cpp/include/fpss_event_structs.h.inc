@@ -24,12 +24,13 @@ typedef enum {
     TDX_FPSS_RECONNECTED = 11,
     TDX_FPSS_RECONNECTED_SERVER = 12,
     TDX_FPSS_RECONNECTING = 13,
-    TDX_FPSS_REQ_RESPONSE = 14,
-    TDX_FPSS_RESTART = 15,
-    TDX_FPSS_SERVER_ERROR = 16,
-    TDX_FPSS_TRADE = 17,
-    TDX_FPSS_UNKNOWN_CONTROL = 18,
-    TDX_FPSS_UNKNOWN_FRAME = 19,
+    TDX_FPSS_RECONNECTS_EXHAUSTED = 14,
+    TDX_FPSS_REQ_RESPONSE = 15,
+    TDX_FPSS_RESTART = 16,
+    TDX_FPSS_SERVER_ERROR = 17,
+    TDX_FPSS_TRADE = 18,
+    TDX_FPSS_UNKNOWN_CONTROL = 19,
+    TDX_FPSS_UNKNOWN_FRAME = 20,
 } TdxFpssEventKind;
 
 /* FPSS Contract shared across every data event. `symbol` is a
@@ -174,6 +175,12 @@ typedef struct {
     uint64_t delay_ms;
 } TdxFpssReconnecting;
 
+/* FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
+typedef struct {
+    int32_t reason;
+    int32_t attempts;
+} TdxFpssReconnectsExhausted;
+
 /* FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
 typedef struct {
     int32_t req_id;
@@ -224,6 +231,7 @@ typedef struct {
     TdxFpssReconnected reconnected;
     TdxFpssReconnectedServer reconnected_server;
     TdxFpssReconnecting reconnecting;
+    TdxFpssReconnectsExhausted reconnects_exhausted;
     TdxFpssReqResponse req_response;
     TdxFpssRestart restart;
     TdxFpssServerError server_error;

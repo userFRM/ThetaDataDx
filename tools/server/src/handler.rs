@@ -302,6 +302,7 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
         EndpointError::Server(thetadatadx::Error::Grpc {
             kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
             message,
+            retry_after,
         }) => {
             tracing::warn!(
                 endpoint = ep.name,
@@ -313,9 +314,13 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
                 "upstream_exhausted",
                 &format!("upstream is at capacity; retry shortly: {message}"),
             );
-            if let Ok(value) =
-                axum::http::HeaderValue::from_str(&UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS.to_string())
-            {
+            // Prefer the server-advertised cooldown when the upstream
+            // attached one; fall back to the static default otherwise.
+            let retry_secs = retry_after
+                .map_or(UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS, |d| {
+                    d.as_secs().max(1)
+                });
+            if let Ok(value) = axum::http::HeaderValue::from_str(&retry_secs.to_string()) {
                 resp.headers_mut()
                     .insert(axum::http::header::RETRY_AFTER, value);
             }
@@ -1115,6 +1120,7 @@ mod tests {
             EndpointError::Server(thetadatadx::Error::Grpc {
                 kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
                 message: "stream quota exceeded".to_string(),
+                retry_after: None,
             }),
         );
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -1145,6 +1151,7 @@ mod tests {
             EndpointError::Server(thetadatadx::Error::Grpc {
                 kind: thetadatadx::GrpcStatusKind::Internal,
                 message: "decode fault".to_string(),
+                retry_after: None,
             }),
         );
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);

@@ -127,13 +127,33 @@ pub(crate) async fn classify_attempt<T>(
 
 /// Sleep between retry attempts according to the client's policy.
 /// Split out of the macros so the per-endpoint expansion stays flat.
+///
+/// When the failed attempt carried a server-supplied
+/// `google.rpc.RetryInfo` hint (surfaced as
+/// `Error::Grpc { retry_after, .. }`), the sleep is raised to at least
+/// that value — a server-instructed cooldown is honoured in full even
+/// when the client-side schedule would have retried sooner.
 pub(crate) async fn sleep_for_retry(
     policy: &crate::config::RetryPolicy,
     attempt: u32,
     endpoint: &'static str,
     err: &crate::error::Error,
 ) {
-    let delay = policy.delay_for_attempt(attempt);
+    let mut delay = policy.delay_for_attempt(attempt);
+    if let crate::error::Error::Grpc {
+        retry_after: Some(hint),
+        ..
+    } = err
+    {
+        if *hint > delay {
+            tracing::debug!(
+                endpoint,
+                hint_ms = hint.as_millis() as u64,
+                "raising retry delay to server-supplied RetryInfo hint"
+            );
+            delay = *hint;
+        }
+    }
     metrics::counter!(
         "thetadatadx.grpc.retries",
         "endpoint" => endpoint
@@ -255,6 +275,7 @@ where
     Fut: std::future::Future<Output = Result<T, crate::error::Error>>,
 {
     let budget = policy.max_attempts.max(1);
+    let started = std::time::Instant::now();
     let mut refreshed_already = false;
     let mut refresh_retry_used = false;
     let mut attempt: u32 = 1;
@@ -276,7 +297,13 @@ where
             AttemptStep::Retry(err) => {
                 let refresh_just_now = !refreshed_before && refreshed_already;
                 let can_post_refresh = refresh_just_now && !refresh_retry_used;
-                if attempt >= budget && !can_post_refresh {
+                // Two stop conditions bound the sequence: the attempt
+                // budget and the wall-clock envelope. A just-completed
+                // session refresh still earns its one post-refresh
+                // re-attempt regardless of either budget.
+                let budget_spent =
+                    attempt >= budget || !policy.within_elapsed_budget(started.elapsed());
+                if budget_spent && !can_post_refresh {
                     return Err(err);
                 }
                 if can_post_refresh {
@@ -308,6 +335,7 @@ where
     Fut: std::future::Future<Output = Result<(), crate::error::Error>>,
 {
     let budget = policy.max_attempts.max(1);
+    let started = std::time::Instant::now();
     let mut refreshed_already = false;
     let mut refresh_retry_used = false;
     let mut attempt: u32 = 1;
@@ -339,7 +367,7 @@ where
                 attempt += 1;
             }
             StreamingAttemptOutcome::Backoff(err) => {
-                if attempt >= budget {
+                if attempt >= budget || !policy.within_elapsed_budget(started.elapsed()) {
                     return Err(err);
                 }
                 sleep_for_retry(policy, attempt, endpoint, &err).await;
@@ -919,6 +947,7 @@ mod classify_error_tests {
         Error::Grpc {
             kind,
             message: String::new(),
+            retry_after: None,
         }
     }
 
@@ -1053,6 +1082,7 @@ mod streaming_attempt_tests {
         Error::Grpc {
             kind,
             message: String::new(),
+            retry_after: None,
         }
     }
 
@@ -1241,6 +1271,7 @@ mod refresh_retry_disabled_tests {
         Error::Grpc {
             kind,
             message: String::new(),
+            retry_after: None,
         }
     }
 
@@ -1494,6 +1525,7 @@ mod refresh_retry_disabled_tests {
             initial_delay: std::time::Duration::ZERO,
             max_delay: std::time::Duration::ZERO,
             max_attempts: 3,
+            max_elapsed: std::time::Duration::ZERO,
             jitter: false,
         };
 

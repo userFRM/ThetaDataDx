@@ -522,6 +522,34 @@ impl FpssClient {
         guard.as_ref().map_or(0, |c| c.panic_count())
     }
 
+    /// Milliseconds since the most recent inbound streaming frame of
+    /// any kind (data tick, heartbeat, control), or ``None`` when no
+    /// session is live or no frame has been received yet. The
+    /// operator-facing staleness clock: a steadily growing value is
+    /// the earliest external signal of a dead or wedged connection.
+    fn millis_since_last_event(&self) -> Option<u64> {
+        let guard = self.lock_inner();
+        guard.as_ref().and_then(|c| c.millis_since_last_event())
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// streaming frame of any kind. Returns ``0`` when no session is
+    /// live or no frame has been received yet.
+    fn last_event_received_at_unix_nanos(&self) -> i64 {
+        let guard = self.lock_inner();
+        guard
+            .as_ref()
+            .map_or(0, |c| c.last_event_received_at_unix_nanos())
+    }
+
+    /// Address (``host:port``) of the streaming server the current
+    /// session is connected to, following the session across
+    /// auto-reconnects. ``None`` when no session is live.
+    fn last_connected_addr(&self) -> Option<String> {
+        let guard = self.lock_inner();
+        guard.as_ref().map(|c| c.last_connected_addr())
+    }
+
     /// Polymorphic subscribe — primary fluent entry point. Accepts
     /// any value returned by `Contract.quote()` / `Contract.trade()` /
     /// `Contract.open_interest()` (per-contract scope) or
@@ -689,69 +717,29 @@ impl FpssClient {
         self.start_streaming(stored)?;
 
         // 3. Re-apply every saved subscription against the freshly
-        //    reconnected session. Accumulate failures rather than
-        //    aborting on the first one — the FPSS protocol has no
-        //    batched-transaction semantic, so any per-subscription
-        //    failure leaves a partial state that the caller decides
-        //    how to handle. Per-contract Quote / Trade / OpenInterest
-        //    plus full-stream Trade / OpenInterest cover every active
-        //    subscription shape the core client tracks.
-        let mut failed: Vec<String> = Vec::new();
-        for (kind, contract) in per_contract {
-            let sub = fpss::protocol::Subscription::Contract {
-                contract: contract.clone(),
-                kind,
+        //    reconnected session through the core's paced replay
+        //    engine — bursts with a jittered pause between them, the
+        //    same cadence the auto-reconnect path uses, so a large
+        //    saved set is not fired at a recovering upstream
+        //    back-to-back. Failures accumulate (the FPSS protocol has
+        //    no batched-transaction semantic) and surface as a single
+        //    error naming everything that did not restore; the
+        //    streaming session itself is already up at that point.
+        //    The replay sleeps between bursts, so it runs detached
+        //    from the interpreter lock.
+        let outcome = {
+            let inner = {
+                let guard = self.lock_inner();
+                guard.as_ref().map(std::sync::Arc::clone)
             };
-            let outcome = self.with_live(|c| c.subscribe(sub.clone()));
-            if outcome.is_err() {
-                failed.push(format!("per-contract {kind:?} {contract}"));
-            }
-        }
-        for (kind, sec_type) in full_stream {
-            // `SubscriptionKind` is a closed 3-variant enum (Quote /
-            // Trade / OpenInterest) — no wildcard arm here; adding a
-            // variant upstream is a compile-time error rather than a
-            // silent miscategorisation.
-            let full_kind = match kind {
-                SubscriptionKind::Trade => Some(FullSubscriptionKind::Trades),
-                SubscriptionKind::OpenInterest => Some(FullSubscriptionKind::OpenInterest),
-                SubscriptionKind::Quote => {
-                    // Quote is never a full-stream subscription kind on
-                    // the FPSS wire — the core's
-                    // `active_full_subscriptions` never returns it, so
-                    // this arm is unreachable in practice. Log at
-                    // `debug` rather than treating it as a restore
-                    // failure: surfacing it as `failed` would imply a
-                    // user-actionable issue when none exists.
-                    tracing::debug!(
-                        ?sec_type,
-                        "full-stream Quote not restorable on reconnect; \
-                         protocol-level invariant"
-                    );
-                    None
-                }
-                _ => None,
+            let Some(inner) = inner else {
+                return Err(PyRuntimeError::new_err(
+                    "streaming not started -- call start_streaming(callback) first",
+                ));
             };
-            if let Some(full_kind) = full_kind {
-                let sub = fpss::protocol::Subscription::Full {
-                    sec_type,
-                    kind: full_kind,
-                };
-                let outcome = self.with_live(|c| c.subscribe(sub.clone()));
-                if outcome.is_err() {
-                    failed.push(format!("full-stream {kind:?} {sec_type:?}"));
-                }
-            }
-        }
-        if failed.is_empty() {
-            Ok(())
-        } else {
-            Err(PyRuntimeError::new_err(format!(
-                "reconnect succeeded but {} subscription(s) failed to restore: {}",
-                failed.len(),
-                failed.join(", "),
-            )))
-        }
+            py.detach(move || inner.restore_subscriptions(&per_contract, &full_stream))
+        };
+        outcome.map_err(|e| PyRuntimeError::new_err(format!("reconnect succeeded but {e}")))
     }
 
     /// Block until every superseded streaming session's event ring

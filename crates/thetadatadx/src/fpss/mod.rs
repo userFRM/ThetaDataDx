@@ -87,7 +87,8 @@ use std::thread::{self, JoinHandle, ThreadId};
 use std::time::Duration;
 
 use crate::auth::Credentials;
-use crate::config::{FpssFlushMode, ReconnectPolicy};
+use crate::backoff::JitterMode;
+use crate::config::{FpssFlushMode, HostSelectionPolicy, ReconnectPolicy};
 use crate::error::Error;
 use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -355,11 +356,23 @@ pub struct FpssClientBuilder<'a> {
     flush_mode: FpssFlushMode,
     policy: ReconnectPolicy,
     wait_ms: u64,
+    wait_max_ms: u64,
     wait_rate_limited_ms: u64,
+    wait_server_restart_ms: u64,
+    jitter: JitterMode,
+    replay_burst_size: u32,
+    replay_pace_ms: u64,
     derive_ohlcvc: bool,
     connect_timeout_ms: u64,
     read_timeout_ms: u64,
     ping_interval_ms: u64,
+    io_read_slice_ms: u64,
+    data_watchdog_ms: u64,
+    keepalive_idle_secs: u64,
+    keepalive_interval_secs: u64,
+    keepalive_retries: u32,
+    host_selection: HostSelectionPolicy,
+    host_shuffle_seed: Option<u64>,
 }
 
 impl<'a> FpssClientBuilder<'a> {
@@ -367,18 +380,32 @@ impl<'a> FpssClientBuilder<'a> {
     /// defaults for the rest.
     #[must_use]
     pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
+        let reconnect = crate::config::ReconnectConfig::production_defaults();
+        let fpss = crate::config::FpssConfig::production_defaults();
         Self {
             creds,
             hosts,
             ring_size: 4096,
             flush_mode: FpssFlushMode::default(),
             policy: ReconnectPolicy::default(),
-            wait_ms: protocol::RECONNECT_DELAY_MS,
-            wait_rate_limited_ms: protocol::TOO_MANY_REQUESTS_DELAY_MS,
+            wait_ms: reconnect.wait_ms,
+            wait_max_ms: reconnect.wait_max_ms,
+            wait_rate_limited_ms: reconnect.wait_rate_limited_ms,
+            wait_server_restart_ms: reconnect.wait_server_restart_ms,
+            jitter: reconnect.jitter,
+            replay_burst_size: reconnect.replay_burst_size,
+            replay_pace_ms: reconnect.replay_pace_ms,
             derive_ohlcvc: true,
-            connect_timeout_ms: protocol::CONNECT_TIMEOUT_MS,
-            read_timeout_ms: protocol::READ_TIMEOUT_MS,
-            ping_interval_ms: protocol::PING_INTERVAL_MS,
+            connect_timeout_ms: fpss.connect_timeout_ms,
+            read_timeout_ms: fpss.timeout_ms,
+            ping_interval_ms: fpss.ping_interval_ms,
+            io_read_slice_ms: fpss.io_read_slice_ms,
+            data_watchdog_ms: fpss.data_watchdog_ms,
+            keepalive_idle_secs: fpss.keepalive_idle_secs,
+            keepalive_interval_secs: fpss.keepalive_interval_secs,
+            keepalive_retries: fpss.keepalive_retries,
+            host_selection: fpss.host_selection,
+            host_shuffle_seed: fpss.host_shuffle_seed,
         }
     }
 
@@ -409,18 +436,59 @@ impl<'a> FpssClientBuilder<'a> {
         self
     }
 
-    /// Delay (ms) before reconnecting after a generic transient drop
-    /// (`TimedOut`, `ServerRestarting`, `Unspecified`, ...).
+    /// Initial delay (ms) of the exponential reconnect ladder for
+    /// generic transient drops (`TimedOut`, `Unspecified`, ...).
+    /// Doubles per consecutive attempt up to
+    /// [`Self::reconnect_wait_max_ms`].
     #[must_use]
     pub fn reconnect_wait_ms(mut self, ms: u64) -> Self {
         self.wait_ms = ms;
         self
     }
 
-    /// Delay (ms) before reconnecting after a `TooManyRequests` drop.
+    /// Cap (ms) on the exponential generic-transient reconnect ladder.
+    #[must_use]
+    pub fn reconnect_wait_max_ms(mut self, ms: u64) -> Self {
+        self.wait_max_ms = ms;
+        self
+    }
+
+    /// Floor delay (ms) before reconnecting after a `TooManyRequests`
+    /// drop. Jitter samples above the floor, never below it.
     #[must_use]
     pub fn reconnect_wait_rate_limited_ms(mut self, ms: u64) -> Self {
         self.wait_rate_limited_ms = ms;
+        self
+    }
+
+    /// Flat reconnect cadence (ms) for `ServerRestarting` drops.
+    #[must_use]
+    pub fn reconnect_wait_server_restart_ms(mut self, ms: u64) -> Self {
+        self.wait_server_restart_ms = ms;
+        self
+    }
+
+    /// Jitter strategy applied to every reconnect delay. See
+    /// [`JitterMode`].
+    #[must_use]
+    pub fn reconnect_jitter(mut self, mode: JitterMode) -> Self {
+        self.jitter = mode;
+        self
+    }
+
+    /// Subscription-replay frames per burst on the auto-reconnect
+    /// path. Clamped to a minimum of `1`.
+    #[must_use]
+    pub fn reconnect_replay_burst_size(mut self, n: u32) -> Self {
+        self.replay_burst_size = n;
+        self
+    }
+
+    /// Pause (ms) between subscription-replay bursts on the
+    /// auto-reconnect path. `0` removes the pause.
+    #[must_use]
+    pub fn reconnect_replay_pace_ms(mut self, ms: u64) -> Self {
+        self.replay_pace_ms = ms;
         self
     }
 
@@ -454,6 +522,60 @@ impl<'a> FpssClientBuilder<'a> {
         self
     }
 
+    /// Per-iteration blocking-read slice (ms) for the I/O loop.
+    #[must_use]
+    pub fn io_read_slice_ms(mut self, ms: u64) -> Self {
+        self.io_read_slice_ms = ms;
+        self
+    }
+
+    /// Last-frame watchdog (ms); `0` disables. See
+    /// [`crate::config::FpssConfig::data_watchdog_ms`].
+    #[must_use]
+    pub fn data_watchdog_ms(mut self, ms: u64) -> Self {
+        self.data_watchdog_ms = ms;
+        self
+    }
+
+    /// TCP keepalive idle time (seconds) before the first probe.
+    #[must_use]
+    pub fn keepalive_idle_secs(mut self, secs: u64) -> Self {
+        self.keepalive_idle_secs = secs;
+        self
+    }
+
+    /// TCP keepalive probe interval (seconds).
+    #[must_use]
+    pub fn keepalive_interval_secs(mut self, secs: u64) -> Self {
+        self.keepalive_interval_secs = secs;
+        self
+    }
+
+    /// TCP keepalive probe count before the kernel declares the peer
+    /// dead (where the platform exposes the knob).
+    #[must_use]
+    pub fn keepalive_retries(mut self, retries: u32) -> Self {
+        self.keepalive_retries = retries;
+        self
+    }
+
+    /// Host-ordering policy for connect + failover. See
+    /// [`HostSelectionPolicy`].
+    #[must_use]
+    pub fn host_selection(mut self, policy: HostSelectionPolicy) -> Self {
+        self.host_selection = policy;
+        self
+    }
+
+    /// Seed for the shuffled host order; `None` derives a fresh
+    /// per-client seed. See
+    /// [`crate::config::FpssConfig::host_shuffle_seed`].
+    #[must_use]
+    pub fn host_shuffle_seed(mut self, seed: Option<u64>) -> Self {
+        self.host_shuffle_seed = seed;
+        self
+    }
+
     /// Connect, authenticate, and start the background I/O and ping
     /// threads. Returns a ready-to-use [`FpssClient`].
     ///
@@ -475,11 +597,23 @@ impl<'a> FpssClientBuilder<'a> {
             flush_mode: self.flush_mode,
             policy: self.policy,
             wait_ms: self.wait_ms,
+            wait_max_ms: self.wait_max_ms,
             wait_rate_limited_ms: self.wait_rate_limited_ms,
+            wait_server_restart_ms: self.wait_server_restart_ms,
+            jitter: self.jitter,
+            replay_burst_size: self.replay_burst_size,
+            replay_pace_ms: self.replay_pace_ms,
             derive_ohlcvc: self.derive_ohlcvc,
             connect_timeout_ms: self.connect_timeout_ms,
             read_timeout_ms: self.read_timeout_ms,
             ping_interval_ms: self.ping_interval_ms,
+            io_read_slice_ms: self.io_read_slice_ms,
+            data_watchdog_ms: self.data_watchdog_ms,
+            keepalive_idle_secs: self.keepalive_idle_secs,
+            keepalive_interval_secs: self.keepalive_interval_secs,
+            keepalive_retries: self.keepalive_retries,
+            host_selection: self.host_selection,
+            host_shuffle_seed: self.host_shuffle_seed,
         }
     }
 }
@@ -500,11 +634,23 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) flush_mode: FpssFlushMode,
     pub(crate) policy: ReconnectPolicy,
     pub(crate) wait_ms: u64,
+    pub(crate) wait_max_ms: u64,
     pub(crate) wait_rate_limited_ms: u64,
+    pub(crate) wait_server_restart_ms: u64,
+    pub(crate) jitter: JitterMode,
+    pub(crate) replay_burst_size: u32,
+    pub(crate) replay_pace_ms: u64,
     pub(crate) derive_ohlcvc: bool,
     pub(crate) connect_timeout_ms: u64,
     pub(crate) read_timeout_ms: u64,
     pub(crate) ping_interval_ms: u64,
+    pub(crate) io_read_slice_ms: u64,
+    pub(crate) data_watchdog_ms: u64,
+    pub(crate) keepalive_idle_secs: u64,
+    pub(crate) keepalive_interval_secs: u64,
+    pub(crate) keepalive_retries: u32,
+    pub(crate) host_selection: HostSelectionPolicy,
+    pub(crate) host_shuffle_seed: Option<u64>,
 }
 
 /// Outcome of a single non-blocking poll inside
@@ -574,9 +720,19 @@ struct SpawnArgs<'a, P> {
     flush_mode: FpssFlushMode,
     policy: ReconnectPolicy,
     wait_ms: u64,
+    wait_max_ms: u64,
     wait_rate_limited_ms: u64,
+    wait_server_restart_ms: u64,
+    jitter: JitterMode,
+    replay_burst_size: u32,
+    replay_pace_ms: u64,
     connect_timeout: Duration,
     read_timeout: Duration,
+    io_read_slice: Duration,
+    data_watchdog: Duration,
+    keepalive: connection::TcpKeepaliveSpec,
+    last_event_at_ns: Arc<AtomicI64>,
+    connected_addr: Arc<Mutex<String>>,
     ping_interval: Duration,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
@@ -655,8 +811,22 @@ pub struct FpssClient {
     /// Active full-type (full-stream) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
-    /// The server address we connected to.
+    /// The server address the initial connect landed on. Snapshot;
+    /// see `last_connected_addr()` for the live session address.
     server_addr: String,
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// frame of any kind (`0` = never). Written by the I/O thread,
+    /// read by [`FpssClient::millis_since_last_event`] /
+    /// [`FpssClient::last_event_received_at_unix_nanos`].
+    last_event_at_ns: Arc<AtomicI64>,
+    /// Address of the live session's server. Updated by the I/O
+    /// thread after every successful reconnect; the reconnect path
+    /// also tries this address first.
+    connected_addr: Arc<Mutex<String>>,
+    /// Replay pacing snapshot for [`Self::restore_subscriptions`].
+    /// Mirrors the builder's `replay_burst_size` / `replay_pace_ms`.
+    replay_burst_size: u32,
+    replay_pace_ms: u64,
     /// Cumulative count of publish failures: events the TLS reader could
     /// not enqueue because the consumer fell behind and the ring buffer
     /// was full. Snapshot via [`FpssClient::dropped_count`]; this is the
@@ -730,11 +900,23 @@ impl FpssClient {
             flush_mode,
             policy,
             wait_ms,
+            wait_max_ms,
             wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
             derive_ohlcvc,
             connect_timeout_ms,
             read_timeout_ms,
             ping_interval_ms,
+            io_read_slice_ms,
+            data_watchdog_ms,
+            keepalive_idle_secs,
+            keepalive_interval_secs,
+            keepalive_retries,
+            host_selection,
+            host_shuffle_seed,
         } = args;
         let ring_size = ring::check_ring_size(ring_size)
             .map_err(|e| Error::config_invalid("fpss.ring_size", e.to_string()))?;
@@ -763,24 +945,78 @@ impl FpssClient {
                 to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.end()),
             ));
         }
-        let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
+        if !crate::config::fpss_bounds::IO_READ_SLICE_MS.contains(&io_read_slice_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.io_read_slice_ms",
+                to_i64(io_read_slice_ms),
+                to_i64(*crate::config::fpss_bounds::IO_READ_SLICE_MS.start()),
+                to_i64(*crate::config::fpss_bounds::IO_READ_SLICE_MS.end()),
+            ));
+        }
+        if !crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.contains(&keepalive_idle_secs) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_idle_secs",
+                to_i64(keepalive_idle_secs),
+                to_i64(*crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.start()),
+                to_i64(*crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.end()),
+            ));
+        }
+        if !crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.contains(&keepalive_interval_secs) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_interval_secs",
+                to_i64(keepalive_interval_secs),
+                to_i64(*crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.start()),
+                to_i64(*crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.end()),
+            ));
+        }
+        if !crate::config::fpss_bounds::KEEPALIVE_RETRIES.contains(&keepalive_retries) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_retries",
+                i64::from(keepalive_retries),
+                i64::from(*crate::config::fpss_bounds::KEEPALIVE_RETRIES.start()),
+                i64::from(*crate::config::fpss_bounds::KEEPALIVE_RETRIES.end()),
+            ));
+        }
+        // Apply the host-selection policy once per client: the order
+        // produced here is the client's connect AND failover order for
+        // its whole lifetime (the reconnect path additionally promotes
+        // the last-good address to the front).
+        let seed = host_shuffle_seed.unwrap_or_else(crate::backoff::entropy_u64);
+        let ordered_hosts = connection::order_hosts(hosts, host_selection, seed);
+        let keepalive = connection::TcpKeepaliveSpec {
+            idle: Duration::from_secs(keepalive_idle_secs),
+            interval: Duration::from_secs(keepalive_interval_secs),
+            retries: keepalive_retries,
+        };
+        let borrowed: Vec<(&str, u16)> = ordered_hosts
+            .iter()
+            .map(|(h, p)| (h.as_str(), *p))
+            .collect();
         let connect_timeout = Duration::from_millis(connect_timeout_ms);
         let read_timeout = Duration::from_millis(read_timeout_ms);
         let (stream, server_addr) =
-            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)?;
+            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout, keepalive)?;
         Self::connect_with_stream(connection::ConnectWithStreamArgs {
             creds,
             stream,
             server_addr,
-            hosts,
+            hosts: &ordered_hosts,
             ring_size,
             derive_ohlcvc,
             flush_mode,
             policy,
             wait_ms,
+            wait_max_ms,
             wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
             connect_timeout,
             read_timeout,
+            io_read_slice: Duration::from_millis(io_read_slice_ms),
+            data_watchdog: Duration::from_millis(data_watchdog_ms),
+            keepalive,
             ping_interval: Duration::from_millis(ping_interval_ms),
         })
     }
@@ -806,9 +1042,17 @@ impl FpssClient {
             flush_mode,
             policy,
             wait_ms,
+            wait_max_ms,
             wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
             connect_timeout,
             read_timeout,
+            io_read_slice,
+            data_watchdog,
+            keepalive,
             ping_interval,
         } = args;
         // Send CREDENTIALS (code 0).
@@ -861,16 +1105,13 @@ impl FpssClient {
             }
         };
 
-        // Set a shorter read timeout for the I/O loop so it can drain commands
-        // between reads. The 10s overall timeout is tracked by counting consecutive
-        // read-timeout errors in the I/O loop.
-        //
-        // 50ms is short enough that pings (100ms interval) are serviced promptly,
-        // but long enough to avoid excessive CPU spinning during quiet periods.
-        let io_read_timeout = Duration::from_millis(50);
+        // Set a shorter read timeout for the I/O loop so it can drain
+        // commands between reads. The overall no-frames deadline is
+        // enforced on a wall clock inside the I/O loop; this slice only
+        // sets how often the loop wakes to service outbound commands.
         stream
             .sock
-            .set_read_timeout(Some(io_read_timeout))
+            .set_read_timeout(Some(io_read_slice))
             .map_err(|e| Error::Fpss {
                 kind: crate::error::FpssErrorKind::ConnectionRefused,
                 message: format!("failed to set read timeout: {e}"),
@@ -900,6 +1141,22 @@ impl FpssClient {
         // borrows another so re-subscribe frames on auto-reconnect
         // allocate fresh ids correlatable through `ReqResponse`.
         let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
+
+        // Staleness clock shared with the I/O thread: UNIX nanoseconds
+        // of the most recent inbound frame (login handshake counts —
+        // frames were just exchanged).
+        let last_event_at_ns: Arc<AtomicI64> = Arc::new(AtomicI64::new(
+            i64::try_from(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_nanos()),
+            )
+            .unwrap_or(i64::MAX),
+        ));
+
+        // Live connected-address cell: seeded with the initial server,
+        // updated by the I/O thread after every successful reconnect.
+        let connected_addr: Arc<Mutex<String>> = Arc::new(Mutex::new(server_addr.clone()));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -934,9 +1191,19 @@ impl FpssClient {
             flush_mode,
             policy,
             wait_ms,
+            wait_max_ms,
             wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
             connect_timeout,
             read_timeout,
+            io_read_slice,
+            data_watchdog,
+            keepalive,
+            last_event_at_ns,
+            connected_addr,
             ping_interval,
             shutdown,
             authenticated,
@@ -974,9 +1241,19 @@ impl FpssClient {
             flush_mode,
             policy,
             wait_ms,
+            wait_max_ms,
             wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
             connect_timeout,
             read_timeout,
+            io_read_slice,
+            data_watchdog,
+            keepalive,
+            last_event_at_ns,
+            connected_addr,
             ping_interval,
             shutdown,
             authenticated,
@@ -990,16 +1267,22 @@ impl FpssClient {
             next_req_id,
         } = args;
 
+        // Replay knobs are `Copy`; snapshot for the client handle
+        // before the originals move into the I/O thread args.
+        let client_replay_burst_size = replay_burst_size;
+        let client_replay_pace_ms = replay_pace_ms;
+
         // Spawn the I/O thread: blocking TLS read + ring publish + command drain.
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
-        let io_server_addr = server_addr.clone();
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
         let io_active_subs = Arc::clone(&active_subs);
         let io_active_full_subs = Arc::clone(&active_full_subs);
         let io_dropped = Arc::clone(&dropped);
         let io_next_req_id = Arc::clone(&next_req_id);
+        let io_last_event_at_ns = Arc::clone(&last_event_at_ns);
+        let io_connected_addr = Arc::clone(&connected_addr);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -1013,12 +1296,16 @@ impl FpssClient {
                     authenticated: io_authenticated,
                     permissions,
                     pending_control,
-                    _server_addr: io_server_addr,
                     derive_ohlcvc,
                     flush_mode,
                     policy,
                     wait_ms,
+                    wait_max_ms,
                     wait_rate_limited_ms,
+                    wait_server_restart_ms,
+                    jitter,
+                    replay_burst_size,
+                    replay_pace_ms,
                     creds: io_creds,
                     hosts: io_hosts,
                     active_subs: io_active_subs,
@@ -1026,6 +1313,11 @@ impl FpssClient {
                     dropped: io_dropped,
                     connect_timeout,
                     read_timeout,
+                    io_read_slice,
+                    data_watchdog,
+                    keepalive,
+                    last_event_at_ns: io_last_event_at_ns,
+                    connected_addr: io_connected_addr,
                     next_req_id: io_next_req_id,
                 });
             })
@@ -1067,6 +1359,10 @@ impl FpssClient {
             active_subs,
             active_full_subs,
             server_addr,
+            last_event_at_ns,
+            connected_addr,
+            replay_burst_size: client_replay_burst_size,
+            replay_pace_ms: client_replay_pace_ms,
             dropped,
             panics,
             consumer_thread_id,
@@ -1578,9 +1874,61 @@ impl FpssClient {
         self.authenticated.load(Ordering::Acquire)
     }
 
-    /// Get the server address we are connected to.
+    /// Get the server address the initial connect landed on.
+    ///
+    /// Snapshot from connect time; auto-reconnect may move the session
+    /// to a different host. [`Self::last_connected_addr`] tracks the
+    /// live session.
     pub fn server_addr(&self) -> &str {
         &self.server_addr
+    }
+
+    /// Address (`host:port`) of the server the current session is
+    /// connected to. Unlike [`Self::server_addr`], this follows the
+    /// session across auto-reconnects, so operators can observe which
+    /// host is actually serving the stream.
+    #[must_use]
+    pub fn last_connected_addr(&self) -> String {
+        self.connected_addr
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// frame of any kind (data tick, heartbeat, control). `0` means no
+    /// frame has been received yet.
+    ///
+    /// This is the raw feed for [`Self::millis_since_last_event`];
+    /// exposed so callers correlating against their own wall-clock
+    /// pipeline timestamps do not lose precision.
+    #[must_use]
+    pub fn last_event_received_at_unix_nanos(&self) -> i64 {
+        self.last_event_at_ns.load(Ordering::Relaxed)
+    }
+
+    /// Milliseconds since the most recent inbound frame of any kind,
+    /// or `None` when no frame has been received yet.
+    ///
+    /// The operator-facing staleness clock: a healthy session stays in
+    /// the low hundreds of milliseconds (the server heartbeats every
+    /// ~100 ms even when no market data flows), so a steadily growing
+    /// value is the earliest external signal of a dead or wedged
+    /// connection. Sampled from a wall clock; values can be perturbed
+    /// by host clock adjustments.
+    #[must_use]
+    pub fn millis_since_last_event(&self) -> Option<u64> {
+        let at = self.last_event_at_ns.load(Ordering::Relaxed);
+        if at <= 0 {
+            return None;
+        }
+        let now = i64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos()),
+        )
+        .unwrap_or(i64::MAX);
+        Some(u64::try_from((now - at).max(0)).unwrap_or(u64::MAX) / 1_000_000)
     }
 
     /// Get a snapshot of currently active per-contract subscriptions.
@@ -1599,6 +1947,65 @@ impl FpssClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
+    }
+
+    /// Re-subscribe a saved subscription snapshot onto this session,
+    /// paced per the builder's replay knobs
+    /// ([`FpssClientBuilder::reconnect_replay_burst_size`] /
+    /// [`FpssClientBuilder::reconnect_replay_pace_ms`]).
+    ///
+    /// The single replay engine for caller-driven reconnect flows
+    /// (including the embedded bindings): subscriptions are submitted
+    /// in bursts with a jittered pause between bursts so a large saved
+    /// set is spread over wall-clock time instead of being fired at a
+    /// recovering upstream back-to-back. Capture the snapshot from
+    /// [`Self::active_subscriptions`] /
+    /// [`Self::active_full_subscriptions`] before tearing the previous
+    /// session down.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] carrying the structured
+    /// list of subscriptions that failed to restore; everything not in
+    /// the list was re-installed.
+    pub fn restore_subscriptions(
+        &self,
+        per_contract: &[(SubscriptionKind, Contract)],
+        full_type: &[(SubscriptionKind, tdbe::types::enums::SecType)],
+    ) -> Result<(), Error> {
+        let pacing = crate::client::ReplayPacing {
+            burst_size: self.replay_burst_size,
+            pace_ms: self.replay_pace_ms,
+        };
+        let failed = crate::client::restore_subscriptions(
+            per_contract,
+            full_type,
+            pacing,
+            |kind, contract| {
+                self.subscribe(protocol::Subscription::Contract {
+                    contract: contract.clone(),
+                    kind,
+                })
+            },
+            |kind, sec_type| match kind {
+                SubscriptionKind::Trade => Some(self.subscribe(protocol::Subscription::Full {
+                    sec_type,
+                    kind: protocol::FullSubscriptionKind::Trades,
+                })),
+                SubscriptionKind::OpenInterest => {
+                    Some(self.subscribe(protocol::Subscription::Full {
+                        sec_type,
+                        kind: protocol::FullSubscriptionKind::OpenInterest,
+                    }))
+                }
+                SubscriptionKind::Quote => None,
+            },
+        );
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::PartialReconnect { failed })
+        }
     }
 
     /// Verify connection is live before sending.
@@ -1770,6 +2177,10 @@ impl FpssClient {
             active_subs,
             active_full_subs,
             server_addr: "test://self-join".to_owned(),
+            last_event_at_ns: Arc::new(AtomicI64::new(0)),
+            connected_addr: Arc::new(Mutex::new("test://self-join".to_owned())),
+            replay_burst_size: 50,
+            replay_pace_ms: 0,
             dropped,
             panics,
             consumer_thread_id,
@@ -1920,18 +2331,38 @@ mod builder_tests {
     use super::*;
     use crate::config::DirectConfig;
 
-    /// Default builder seeds the timing knobs from the protocol-level
-    /// Java-parity constants so a caller that does not override them
-    /// reproduces the legacy behaviour exactly. Regression guard
-    /// against the fields silently going to `0`.
+    /// Default builder seeds every timing knob from the production
+    /// sub-config defaults so a bare `FpssClient::builder(..)` behaves
+    /// identically to a `DirectConfig::production()` connect.
+    /// Regression guard against the fields silently going to `0` or
+    /// drifting from the config crate.
     #[test]
-    fn builder_seeds_timing_defaults_from_java_parity_constants() {
+    fn builder_seeds_timing_defaults_from_production_config() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
         let args = FpssClientBuilder::new(&creds, &hosts).into_args();
-        assert_eq!(args.connect_timeout_ms, protocol::CONNECT_TIMEOUT_MS);
-        assert_eq!(args.read_timeout_ms, protocol::READ_TIMEOUT_MS);
-        assert_eq!(args.ping_interval_ms, protocol::PING_INTERVAL_MS);
+        let fpss = crate::config::FpssConfig::production_defaults();
+        let reconnect = crate::config::ReconnectConfig::production_defaults();
+        assert_eq!(args.connect_timeout_ms, fpss.connect_timeout_ms);
+        assert_eq!(args.read_timeout_ms, fpss.timeout_ms);
+        assert_eq!(args.ping_interval_ms, fpss.ping_interval_ms);
+        assert_eq!(args.io_read_slice_ms, fpss.io_read_slice_ms);
+        assert_eq!(args.data_watchdog_ms, fpss.data_watchdog_ms);
+        assert_eq!(args.keepalive_idle_secs, fpss.keepalive_idle_secs);
+        assert_eq!(args.keepalive_interval_secs, fpss.keepalive_interval_secs);
+        assert_eq!(args.keepalive_retries, fpss.keepalive_retries);
+        assert_eq!(args.host_selection, fpss.host_selection);
+        assert_eq!(args.host_shuffle_seed, fpss.host_shuffle_seed);
+        assert_eq!(args.wait_ms, reconnect.wait_ms);
+        assert_eq!(args.wait_max_ms, reconnect.wait_max_ms);
+        assert_eq!(args.wait_rate_limited_ms, reconnect.wait_rate_limited_ms);
+        assert_eq!(
+            args.wait_server_restart_ms,
+            reconnect.wait_server_restart_ms
+        );
+        assert_eq!(args.jitter, reconnect.jitter);
+        assert_eq!(args.replay_burst_size, reconnect.replay_burst_size);
+        assert_eq!(args.replay_pace_ms, reconnect.replay_pace_ms);
     }
 
     /// `build()` rejects a `read_timeout_ms` outside the validated

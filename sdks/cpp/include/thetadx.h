@@ -856,6 +856,279 @@ void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t m
  */
 int32_t tdx_config_get_reconnect_wait_rate_limited_ms(const TdxConfig* config, uint64_t* out_ms);
 
+
+/**
+ * Read the configured reconnect policy selector. Writes 0 (Auto),
+ * 1 (Manual), or 2 (Custom) into *out_policy. Returns 0 on success,
+ * -1 if either pointer is null.
+ */
+int32_t tdx_config_get_reconnect_policy(const TdxConfig* config, int32_t* out_policy);
+
+/**
+ * Read the generic-transient reconnect attempt budget (default 30).
+ * When the policy is not Auto, writes the default-limits value.
+ * Returns 0 on success, -1 if either pointer is null.
+ */
+int32_t tdx_config_get_reconnect_max_attempts(const TdxConfig* config, uint32_t* out);
+
+/**
+ * Read the rate-limited reconnect attempt budget (default 100). Same
+ * shape as tdx_config_get_reconnect_max_attempts.
+ */
+int32_t tdx_config_get_reconnect_max_rate_limited_attempts(const TdxConfig* config,
+                                                           uint32_t* out);
+
+/**
+ * Set the ServerRestarting reconnect attempt budget. Default 60. No
+ * effect unless the reconnect policy is Auto.
+ */
+void tdx_config_set_reconnect_max_server_restart_attempts(TdxConfig* config, uint32_t n);
+
+/**
+ * Read the ServerRestarting reconnect attempt budget (default 60).
+ * Same shape as tdx_config_get_reconnect_max_attempts.
+ */
+int32_t tdx_config_get_reconnect_max_server_restart_attempts(const TdxConfig* config,
+                                                             uint32_t* out);
+
+/**
+ * Read the stable-window reset interval in seconds (default 60). Same
+ * shape as tdx_config_get_reconnect_max_attempts.
+ */
+int32_t tdx_config_get_reconnect_stable_window_secs(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the wall-clock reconnect envelope (seconds) for the
+ * generic-transient and server-restart classes, measured from the
+ * first attempt of a consecutive-reconnect sequence. 0 disables the
+ * envelope (attempt budgets only). Default 300. No effect unless the
+ * reconnect policy is Auto.
+ */
+void tdx_config_set_reconnect_max_elapsed_secs(TdxConfig* config, uint64_t secs);
+
+/**
+ * Read the wall-clock reconnect envelope in seconds (default 300;
+ * 0 = disabled). Same shape as tdx_config_get_reconnect_max_attempts.
+ */
+int32_t tdx_config_get_reconnect_max_elapsed_secs(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the cap (ms) on the exponential generic-transient reconnect
+ * ladder. The ladder starts at reconnect_wait_ms and doubles per
+ * consecutive attempt up to this value. Default 30_000.
+ */
+void tdx_config_set_reconnect_wait_max_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current reconnect wait_max_ms setting (default 30_000). */
+int32_t tdx_config_get_reconnect_wait_max_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the flat reconnect cadence (ms) for ServerRestarting
+ * disconnects. Default 5_000.
+ */
+void tdx_config_set_reconnect_wait_server_restart_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current reconnect wait_server_restart_ms setting (default 5_000). */
+int32_t tdx_config_get_reconnect_wait_server_restart_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the jitter strategy applied to every reconnect delay.
+ *   mode=0: Full (default) -- sample uniformly from [0, delay].
+ *   mode=1: Equal -- delay/2 + uniform(0, delay/2).
+ *   mode=2: Decorrelated -- walk relative to the previous delay.
+ *   mode=3: None -- deterministic delays (tests only).
+ * Returns 0 on success, -1 on an invalid mode or null config.
+ */
+int32_t tdx_config_set_reconnect_jitter(TdxConfig* config, int32_t mode);
+
+/**
+ * Read the configured reconnect jitter mode. Same encoding as
+ * tdx_config_set_reconnect_jitter. Returns 0 on success, -1 if either
+ * pointer is null.
+ */
+int32_t tdx_config_get_reconnect_jitter(const TdxConfig* config, int32_t* out_mode);
+
+/**
+ * Set the subscription-replay burst size used after an auto-reconnect:
+ * frames are written in bursts of this many, each burst flushed and
+ * followed by a jittered replay_pace_ms pause. Minimum 1 (validated at
+ * connect). Default 50.
+ */
+void tdx_config_set_reconnect_replay_burst_size(TdxConfig* config, uint32_t n);
+
+/** Read the current replay_burst_size setting (default 50). */
+int32_t tdx_config_get_reconnect_replay_burst_size(const TdxConfig* config, uint32_t* out);
+
+/**
+ * Set the pause (ms) between subscription-replay bursts after an
+ * auto-reconnect. 0 removes the pause. Default 5.
+ */
+void tdx_config_set_reconnect_replay_pace_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current replay_pace_ms setting (default 5). */
+int32_t tdx_config_get_reconnect_replay_pace_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Reconnect-decision callback for tdx_config_set_reconnect_callback.
+ * Invoked on the streaming I/O thread after each retriable involuntary
+ * disconnect. reason is the RemoveReason discriminant; attempt is the
+ * 1-based consecutive-reconnect counter. Return the reconnect delay in
+ * milliseconds, or any negative value to stop reconnecting.
+ */
+typedef int64_t (*TdxReconnectCallback)(int32_t reason, uint32_t attempt, void* user_data);
+
+/**
+ * Install a custom reconnect policy driven by a C callback. Permanent
+ * disconnect reasons never reach the callback. The callback runs on
+ * the SDK's streaming I/O thread: cb and user_data must be safe to use
+ * from another thread for as long as any client built from this config
+ * is alive. Passing cb=NULL restores the default Auto policy. Returns
+ * 0 on success, -1 if config is null.
+ */
+int32_t tdx_config_set_reconnect_callback(TdxConfig* config, TdxReconnectCallback cb,
+                                          void* user_data);
+
+/**
+ * Set the FPSS read timeout (ms): the no-frames deadline after which
+ * the streaming I/O loop declares the session dead and reconnects.
+ * Default 3_000; validated to [100, 60_000] at connect.
+ */
+void tdx_config_set_fpss_timeout_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss timeout_ms setting (default 3_000). */
+int32_t tdx_config_get_fpss_timeout_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the per-server connect timeout (ms) for the streaming
+ * connection. Default 2_000; validated to [1_000, 60_000] at connect.
+ */
+void tdx_config_set_fpss_connect_timeout_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss connect_timeout_ms setting (default 2_000). */
+int32_t tdx_config_get_fpss_connect_timeout_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the FPSS heartbeat ping interval (ms). Default 250; validated to
+ * [100, 300_000] at connect.
+ */
+void tdx_config_set_fpss_ping_interval_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss ping_interval_ms setting (default 250). */
+int32_t tdx_config_get_fpss_ping_interval_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the per-iteration blocking-read slice (ms) for the streaming I/O
+ * loop. Default 25; validated to [10, 500] at connect.
+ */
+void tdx_config_set_fpss_io_read_slice_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss io_read_slice_ms setting (default 25). */
+int32_t tdx_config_get_fpss_io_read_slice_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the last-frame watchdog (ms): when no frame of any kind has
+ * arrived for this long the I/O loop force-reconnects. 0 disables.
+ * Default 30_000.
+ */
+void tdx_config_set_fpss_data_watchdog_ms(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss data_watchdog_ms setting (default 30_000; 0 = disabled). */
+int32_t tdx_config_get_fpss_data_watchdog_ms(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the TCP keepalive idle time (seconds) before the first kernel
+ * probe on a silent FPSS socket. Default 5; validated to [1, 7_200]
+ * at connect.
+ */
+void tdx_config_set_fpss_keepalive_idle_secs(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss keepalive_idle_secs setting (default 5). */
+int32_t tdx_config_get_fpss_keepalive_idle_secs(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the interval (seconds) between TCP keepalive probes. Default 2;
+ * validated to [1, 75] at connect.
+ */
+void tdx_config_set_fpss_keepalive_interval_secs(TdxConfig* config, uint64_t v);
+
+/** Read the current fpss keepalive_interval_secs setting (default 2). */
+int32_t tdx_config_get_fpss_keepalive_interval_secs(const TdxConfig* config, uint64_t* out);
+
+/**
+ * Set the number of unanswered TCP keepalive probes after which the
+ * kernel declares the FPSS connection dead (where the platform exposes
+ * the knob). Default 2; validated to [1, 10] at connect.
+ */
+void tdx_config_set_fpss_keepalive_retries(TdxConfig* config, uint32_t v);
+
+/** Read the current fpss keepalive_retries setting (default 2). */
+int32_t tdx_config_get_fpss_keepalive_retries(const TdxConfig* config, uint32_t* out);
+
+/**
+ * Set the FPSS event ring buffer size (slots). Must be a power of two
+ * >= 64; invalid values are rejected at the setter (tdx_last_error).
+ * Default 131_072.
+ */
+void tdx_config_set_fpss_ring_size(TdxConfig* config, size_t n);
+
+/** Read the current fpss ring_size setting (default 131_072). */
+int32_t tdx_config_get_fpss_ring_size(const TdxConfig* config, size_t* out);
+
+/**
+ * Set the FPSS host-selection policy.
+ *   policy=0: Shuffled (default) -- fault-domain-aware per-client
+ *             shuffle; a fleet spreads across hosts and consecutive
+ *             failover attempts cross physical machines.
+ *   policy=1: FixedOrder -- use the declared host order verbatim.
+ * Returns 0 on success, -1 on an invalid policy or null config.
+ */
+int32_t tdx_config_set_fpss_host_selection(TdxConfig* config, int32_t policy);
+
+/**
+ * Read the configured FPSS host-selection policy. Same encoding as
+ * tdx_config_set_fpss_host_selection. Returns 0 on success, -1 if
+ * either pointer is null.
+ */
+int32_t tdx_config_get_fpss_host_selection(const TdxConfig* config, int32_t* out_policy);
+
+/**
+ * Set the FPSS host-shuffle seed using the (has_value, seed) widened
+ * shape. has_value=false (default) derives a fresh per-client seed so
+ * a fleet shuffles independently; has_value=true makes the shuffled
+ * order deterministic -- useful for fleet sharding and tests. Ignored
+ * under the FixedOrder policy. Returns 0 on success, -1 if config is
+ * null.
+ */
+int32_t tdx_config_set_fpss_host_shuffle_seed_explicit(TdxConfig* config, bool has_value,
+                                                       uint64_t seed);
+
+/**
+ * Read the current FPSS host-shuffle seed. *out_has_value=false
+ * encodes the per-client-entropy sentinel. Returns 0 on success, -1
+ * if any pointer is null.
+ */
+int32_t tdx_config_get_fpss_host_shuffle_seed(const TdxConfig* config, bool* out_has_value,
+                                              uint64_t* out_seed);
+
+/**
+ * Set the wall-clock envelope (seconds) for one historical-channel
+ * retry sequence, measured from the first attempt. 0 disables the
+ * envelope (attempt budget only). Default 300.
+ */
+void tdx_config_set_retry_max_elapsed_secs(TdxConfig* config, uint64_t secs);
+
+/** Read the current retry max_elapsed value in seconds (default 300; 0 = disabled). */
+int32_t tdx_config_get_retry_max_elapsed_secs(const TdxConfig* config, uint64_t* out_secs);
+
+/**
+ * Toggle AWS-style full jitter on the flatfile retry ladder. Default
+ * true; false gives the deterministic schedule, useful for tests.
+ */
+void tdx_config_set_flatfiles_jitter(TdxConfig* config, bool jitter);
+
+/** Read the current flatfiles jitter setting (default true). */
+int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitter);
+
 /**
  * Set the RuntimeConfig.tokio_worker_threads knob for embedded
  * runtimes built via RuntimeConfig::build_runtime.
@@ -1313,6 +1586,32 @@ int tdx_fpss_reconnect(const TdxFpssHandle* h);
  *  installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
+/**
+ * Milliseconds since the most recent inbound streaming frame of any
+ * kind on this FPSS handle. Returns 0 on success with the value in
+ * *out_ms, 1 when no session is live or no frame has been received
+ * yet, -1 on a null pointer.
+ */
+int32_t tdx_fpss_millis_since_last_event(const TdxFpssHandle* h, uint64_t* out_ms);
+
+/**
+ * UNIX-nanosecond receive timestamp of the most recent inbound
+ * streaming frame of any kind on this FPSS handle. Returns 0 when the
+ * handle is null, no session is live, or no frame has been received
+ * yet.
+ */
+int64_t tdx_fpss_last_event_received_at_unix_nanos(const TdxFpssHandle* h);
+
+/**
+ * Address (host:port) of the streaming server the current FPSS session
+ * is connected to, following the session across auto-reconnects.
+ * Returns a heap-owned C string the caller must release with
+ * tdx_string_free, or NULL when no session is live.
+ */
+char* tdx_fpss_last_connected_addr(const TdxFpssHandle* h);
+
+
+
 /** Cumulative count of user-callback panics caught by the per-invocation
  *  catch_unwind boundary since the current stream started. A panic in the
  *  callback is caught, recorded here, and does not stop event delivery —
@@ -1475,6 +1774,32 @@ int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
  *  was full. Returns 0 if the handle is null or no callback has been
  *  installed yet. */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
+
+/**
+ * Milliseconds since the most recent inbound streaming frame of any
+ * kind on this unified handle. Returns 0 on success with the value in
+ * *out_ms, 1 when streaming has not started or no frame has been
+ * received yet, -1 on a null pointer.
+ */
+int32_t tdx_unified_millis_since_last_event(const TdxUnified* handle, uint64_t* out_ms);
+
+/**
+ * UNIX-nanosecond receive timestamp of the most recent inbound
+ * streaming frame of any kind on this unified handle. Returns 0 when
+ * the handle is null, streaming has not started, or no frame has been
+ * received yet.
+ */
+int64_t tdx_unified_last_event_received_at_unix_nanos(const TdxUnified* handle);
+
+/**
+ * Address (host:port) of the streaming server the current session is
+ * connected to, following the session across auto-reconnects. Returns
+ * a heap-owned C string the caller must release with tdx_string_free,
+ * or NULL when streaming has not started.
+ */
+char* tdx_unified_last_connected_addr(const TdxUnified* handle);
+
+
 
 /** Cumulative count of user-callback panics caught by the per-invocation
  *  catch_unwind boundary since the current stream started. A panic in the

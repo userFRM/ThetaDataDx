@@ -145,10 +145,11 @@ pub async fn flatfile_request_raw(
 /// total. Terminal failures surface immediately — no amount of retrying
 /// will fix bad credentials or a malformed request.
 ///
-/// Backoff follows the deterministic ladder `initial_backoff`, `*2`, `*4`
-/// up to `max_backoff` — see [`FlatFilesConfig::backoff_for_attempt`].
-/// A `tracing::warn!` is emitted before each sleep so operators can
-/// observe sustained transient pressure on the legacy MDDS hosts.
+/// Backoff follows the ladder `initial_backoff`, `*2`, `*4` up to
+/// `max_backoff`, full-jittered when [`FlatFilesConfig::jitter`] is set
+/// — see [`FlatFilesConfig::delay_for_attempt`]. A `tracing::warn!`
+/// is emitted before each sleep so operators can observe sustained
+/// transient pressure on the legacy MDDS hosts.
 pub async fn flatfile_request_raw_with_config(
     creds: &Credentials,
     sec: SecType,
@@ -204,7 +205,7 @@ where
                 if attempt >= max_attempts || !error_is_transient(&err) {
                     return Err(err);
                 }
-                let backoff = config.backoff_for_attempt(attempt);
+                let backoff = config.delay_for_attempt(attempt);
                 tracing::warn!(
                     target: "flatfiles",
                     attempt,
@@ -375,6 +376,7 @@ mod tests {
             max_attempts,
             initial_backoff: std::time::Duration::from_millis(1),
             max_backoff: std::time::Duration::from_millis(4),
+            jitter: false,
         }
     }
 

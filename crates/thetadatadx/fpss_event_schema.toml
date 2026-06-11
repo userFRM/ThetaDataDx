@@ -31,7 +31,7 @@
 # in Python via pyo3 `Option<..>`, `*T` pointer in Go, `std::optional<..>`
 # in C++).
 
-version = 5
+version = 6
 
 # ── Data variants — market-data ticks ─────────────────────────────────
 
@@ -178,6 +178,14 @@ columns = [
 kind = "control"
 doc = "FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload."
 columns = []
+
+[events.ReconnectsExhausted]
+kind = "control"
+doc = "FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted)."
+columns = [
+    { name = "reason",   type = "i32" },
+    { name = "attempts", type = "i32" },
+]
 
 [events.Error]
 kind = "control"

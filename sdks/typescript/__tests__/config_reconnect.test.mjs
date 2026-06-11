@@ -128,7 +128,7 @@ describe('Pool-sizing setter state survives interleaved reconnect setter calls',
 describe('Config.setReconnectWaitMs / setReconnectWaitRateLimitedMs', () => {
   it('default to the wire-constant cadences', () => {
     const cfg = Config.production();
-    assert.equal(cfg.reconnectWaitMs, 2_000n);
+    assert.equal(cfg.reconnectWaitMs, 250n);
     assert.equal(cfg.reconnectWaitRateLimitedMs, 130_000n);
   });
 
@@ -186,7 +186,7 @@ describe('Config.setRetry* — RetryPolicy field setters', () => {
     const cfg = Config.production();
     assert.equal(cfg.retryInitialDelayMs, 250n);
     assert.equal(cfg.retryMaxDelayMs, 30_000n);
-    assert.equal(cfg.retryMaxAttempts, 5);
+    assert.equal(cfg.retryMaxAttempts, 20);
     assert.equal(cfg.retryJitter, true);
   });
 

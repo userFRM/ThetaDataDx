@@ -183,12 +183,13 @@ def test_reconnect_setter_state_survives_interleaved_calls():
 
 def test_reconnect_wait_ms_defaults_to_wire_constants() -> None:
     """Defaults mirror ``ReconnectConfig::production_defaults``:
-    ``wait_ms=2_000`` (transient) / ``wait_rate_limited_ms=130_000``
-    (TooManyRequests).
+    ``wait_ms=250`` (initial delay of the exponential transient
+    ladder) / ``wait_rate_limited_ms=130_000`` (the TooManyRequests
+    floor).
     """
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.reconnect_wait_ms == 2_000
+    assert cfg.reconnect_wait_ms == 250
     assert cfg.reconnect_wait_rate_limited_ms == 130_000
 
 
@@ -255,7 +256,7 @@ def test_retry_policy_defaults() -> None:
     cfg = mod.Config.production()
     assert cfg.retry_initial_delay_ms == 250
     assert cfg.retry_max_delay_ms == 30_000
-    assert cfg.retry_max_attempts == 5
+    assert cfg.retry_max_attempts == 20
     assert cfg.retry_jitter is True
 
 

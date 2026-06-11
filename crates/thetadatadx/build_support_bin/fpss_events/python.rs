@@ -220,7 +220,10 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     // column is the wire encoding of `tdbe::types::enums::RemoveReason`.
     // Lets Python users branch on the variant name (`event.reason_name
     // == "TooManyRequests"`) instead of looking up the integer.
-    if matches!(event_name, "Disconnected" | "Reconnecting") {
+    if matches!(
+        event_name,
+        "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
+    ) {
         out.push_str(
             "\n    /// Resolved `RemoveReason` variant name (e.g. `\"TooManyRequests\"`,\n",
         );

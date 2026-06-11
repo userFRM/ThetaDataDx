@@ -134,9 +134,15 @@ reqwest = { version = "0.13.3", features = ["json", "query", "rustls-no-provider
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
 # Cryptographically random bytes for scratch-file disambiguation and ephemeral
-# tokens. `rand::random::<[u8; 16]>()` is the sole use site — no UUID crate
-# required for 128-bit random IDs rendered as hex.
+# tokens, plus the seeded shuffle / jitter sampling in `crate::backoff`
+# and the FPSS host-ordering layer.
 rand = "0.9"
+# Per-socket TCP keepalive schedule on the FPSS connection (idle /
+# interval / probe-count). `std::net::TcpStream` exposes no keepalive
+# setter; `SockRef::from(&tcp)` borrows the fd without taking ownership.
+# The `all` feature unlocks `TcpKeepalive::with_retries` on the
+# platforms that support per-socket probe counts.
+socket2 = { version = "0.6", features = ["all"] }
 
 # Compression (responses use zstd)
 zstd = "0.13.3"

@@ -178,6 +178,24 @@ pub enum FpssControl {
     },
     /// Auto-reconnect succeeded -- connection is live again.
     Reconnected,
+    /// The streaming I/O loop stopped attempting recovery for a cause
+    /// other than a user-initiated shutdown. Terminal: no further
+    /// events follow on this session.
+    ///
+    /// Emitted when the auto-reconnect budget (attempt count or
+    /// wall-clock envelope) is exhausted, when a permanent disconnect
+    /// reason (bad credentials, account conflict) short-circuits
+    /// recovery, when a `Manual` policy declines to reconnect, or when
+    /// a `Custom` policy returns `None`. Operators watching for this
+    /// variant can distinguish "the stream gave up and needs
+    /// intervention" from a clean `shutdown()` — which emits no
+    /// terminal event because the caller initiated it.
+    ///
+    /// `reason` is the disconnect reason of the final drop; `attempts`
+    /// is the number of consecutive reconnect attempts consumed before
+    /// giving up (`0` when no reconnect was attempted, e.g. permanent
+    /// reasons and the `Manual` policy).
+    ReconnectsExhausted { reason: RemoveReason, attempts: u32 },
     /// Protocol-level parse error.
     Error { message: String },
     /// Server sent a frame with an unrecognized code. Raw bytes preserved
@@ -615,6 +633,33 @@ mod tests {
     fn fpss_control_reconnected_variant() {
         let evt = FpssEvent::Control(FpssControl::Reconnected);
         assert!(matches!(&evt, FpssEvent::Control(FpssControl::Reconnected)));
+    }
+
+    #[test]
+    fn fpss_control_reconnects_exhausted_variant() {
+        let evt = FpssEvent::Control(FpssControl::ReconnectsExhausted {
+            reason: RemoveReason::TimedOut,
+            attempts: 30,
+        });
+        if let FpssEvent::Control(FpssControl::ReconnectsExhausted { reason, attempts }) = &evt {
+            assert_eq!(*reason, RemoveReason::TimedOut);
+            assert_eq!(*attempts, 30);
+        } else {
+            panic!("expected ReconnectsExhausted");
+        }
+        // Round-trips through the internal/public reborrow like every
+        // other control variant.
+        let internal = FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+            reason: RemoveReason::Unspecified,
+            attempts: 0,
+        });
+        assert!(matches!(
+            internal.as_public(),
+            Some(FpssEvent::Control(FpssControl::ReconnectsExhausted {
+                attempts: 0,
+                ..
+            }))
+        ));
     }
 
     #[test]

@@ -296,6 +296,31 @@ impl Reconnecting {
     }
 }
 
+/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct ReconnectsExhausted {
+    #[pyo3(get)] pub reason: i32,
+    #[pyo3(get)] pub attempts: i32,
+}
+#[pymethods]
+impl ReconnectsExhausted {
+    fn __repr__(&self) -> String {
+        format!("ReconnectsExhausted(reason={}, attempts={})", self.reason, self.attempts)
+    }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "reconnects_exhausted" }
+
+    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
+    /// Derived from the wire-level `reason` integer.
+    #[getter]
+    fn reason_name(&self) -> &'static str {
+        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
+    }
+}
+
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
@@ -564,6 +589,17 @@ pub(crate) fn buffered_event_to_typed(
             },
         )
         .map(|p| p.into_any()),
+        BufferedEvent::ReconnectsExhausted {
+            reason,
+            attempts,
+        } => Py::new(
+            py,
+            ReconnectsExhausted {
+                reason: *reason,
+                attempts: *attempts,
+            },
+        )
+        .map(|p| p.into_any()),
         BufferedEvent::ReqResponse {
             req_id,
             result,
@@ -662,6 +698,7 @@ pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<Reconnected>()?;
     m.add_class::<ReconnectedServer>()?;
     m.add_class::<Reconnecting>()?;
+    m.add_class::<ReconnectsExhausted>()?;
     m.add_class::<ReqResponse>()?;
     m.add_class::<Restart>()?;
     m.add_class::<ServerError>()?;

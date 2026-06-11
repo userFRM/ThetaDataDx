@@ -519,6 +519,275 @@ public:
         return tdx_config_get_reconnect_wait_rate_limited_ms(handle_.get(), out_ms);
     }
 
+    /** Current reconnect policy selector: 0=Auto, 1=Manual, 2=Custom. */
+    int32_t get_reconnect_policy(int32_t* out_policy) const {
+        return tdx_config_get_reconnect_policy(handle_.get(), out_policy);
+    }
+
+    /** Current generic-transient reconnect attempt budget (default 30). */
+    int32_t get_reconnect_max_attempts(uint32_t* out) const {
+        return tdx_config_get_reconnect_max_attempts(handle_.get(), out);
+    }
+
+    /** Current rate-limited reconnect attempt budget (default 100). */
+    int32_t get_reconnect_max_rate_limited_attempts(uint32_t* out) const {
+        return tdx_config_get_reconnect_max_rate_limited_attempts(handle_.get(), out);
+    }
+
+    /** Set the ServerRestarting reconnect attempt budget. Default 60. */
+    void set_reconnect_max_server_restart_attempts(uint32_t n) {
+        tdx_config_set_reconnect_max_server_restart_attempts(handle_.get(), n);
+    }
+
+    /** Current ServerRestarting reconnect attempt budget (default 60). */
+    int32_t get_reconnect_max_server_restart_attempts(uint32_t* out) const {
+        return tdx_config_get_reconnect_max_server_restart_attempts(handle_.get(), out);
+    }
+
+    /** Current stable-window reset interval in seconds (default 60). */
+    int32_t get_reconnect_stable_window_secs(uint64_t* out) const {
+        return tdx_config_get_reconnect_stable_window_secs(handle_.get(), out);
+    }
+
+    /** Set the wall-clock reconnect envelope (seconds) for the
+     *  generic-transient and server-restart classes. 0 disables the
+     *  envelope (attempt budgets only). Default 300. */
+    void set_reconnect_max_elapsed_secs(uint64_t secs) {
+        tdx_config_set_reconnect_max_elapsed_secs(handle_.get(), secs);
+    }
+
+    /** Current wall-clock reconnect envelope in seconds (default 300;
+     *  0 = disabled). */
+    int32_t get_reconnect_max_elapsed_secs(uint64_t* out) const {
+        return tdx_config_get_reconnect_max_elapsed_secs(handle_.get(), out);
+    }
+
+    /** Set the cap (ms) on the exponential generic-transient reconnect
+     *  ladder. Default 30_000. */
+    void set_reconnect_wait_max_ms(uint64_t ms) {
+        tdx_config_set_reconnect_wait_max_ms(handle_.get(), ms);
+    }
+
+    /** Current reconnect wait_max_ms (default 30_000). */
+    int32_t get_reconnect_wait_max_ms(uint64_t* out_ms) const {
+        return tdx_config_get_reconnect_wait_max_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the flat reconnect cadence (ms) for ServerRestarting
+     *  disconnects. Default 5_000. */
+    void set_reconnect_wait_server_restart_ms(uint64_t ms) {
+        tdx_config_set_reconnect_wait_server_restart_ms(handle_.get(), ms);
+    }
+
+    /** Current reconnect wait_server_restart_ms (default 5_000). */
+    int32_t get_reconnect_wait_server_restart_ms(uint64_t* out_ms) const {
+        return tdx_config_get_reconnect_wait_server_restart_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
+     *  2=Decorrelated, 3=None. Throws std::runtime_error on an
+     *  invalid mode. */
+    void set_reconnect_jitter(int32_t mode) {
+        const int32_t rc = tdx_config_set_reconnect_jitter(handle_.get(), mode);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_reconnect_jitter failed: ") +
+                (err ? err : "unknown error"));
+        }
+    }
+
+    /** Current reconnect jitter mode (same encoding as the setter). */
+    int32_t get_reconnect_jitter(int32_t* out_mode) const {
+        return tdx_config_get_reconnect_jitter(handle_.get(), out_mode);
+    }
+
+    /** Set the subscription-replay burst size used after an
+     *  auto-reconnect. Minimum 1 (validated at connect). Default 50. */
+    void set_reconnect_replay_burst_size(uint32_t n) {
+        tdx_config_set_reconnect_replay_burst_size(handle_.get(), n);
+    }
+
+    /** Current replay_burst_size (default 50). */
+    int32_t get_reconnect_replay_burst_size(uint32_t* out) const {
+        return tdx_config_get_reconnect_replay_burst_size(handle_.get(), out);
+    }
+
+    /** Set the pause (ms) between subscription-replay bursts. 0
+     *  removes the pause. Default 5. */
+    void set_reconnect_replay_pace_ms(uint64_t ms) {
+        tdx_config_set_reconnect_replay_pace_ms(handle_.get(), ms);
+    }
+
+    /** Current replay_pace_ms (default 5). */
+    int32_t get_reconnect_replay_pace_ms(uint64_t* out_ms) const {
+        return tdx_config_get_reconnect_replay_pace_ms(handle_.get(), out_ms);
+    }
+
+    /** Install a custom reconnect policy driven by a C callback.
+     *  Permanent disconnect reasons never reach the callback; it runs
+     *  on the SDK's streaming I/O thread and must be thread-safe.
+     *  Return the delay in milliseconds or a negative value to stop.
+     *  Pass nullptr to restore the default Auto policy. */
+    int32_t set_reconnect_callback(TdxReconnectCallback cb, void* user_data) {
+        return tdx_config_set_reconnect_callback(handle_.get(), cb, user_data);
+    }
+
+    /** Set the FPSS read timeout (ms): the no-frames deadline after
+     *  which the streaming I/O loop reconnects. Default 3_000;
+     *  validated to [100, 60_000] at connect. */
+    void set_fpss_timeout_ms(uint64_t ms) {
+        tdx_config_set_fpss_timeout_ms(handle_.get(), ms);
+    }
+
+    /** Current fpss timeout_ms (default 3_000). */
+    int32_t get_fpss_timeout_ms(uint64_t* out_ms) const {
+        return tdx_config_get_fpss_timeout_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the per-server connect timeout (ms) for the streaming
+     *  connection. Default 2_000; validated to [1_000, 60_000] at
+     *  connect. */
+    void set_fpss_connect_timeout_ms(uint64_t ms) {
+        tdx_config_set_fpss_connect_timeout_ms(handle_.get(), ms);
+    }
+
+    /** Current fpss connect_timeout_ms (default 2_000). */
+    int32_t get_fpss_connect_timeout_ms(uint64_t* out_ms) const {
+        return tdx_config_get_fpss_connect_timeout_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the FPSS heartbeat ping interval (ms). Default 250;
+     *  validated to [100, 300_000] at connect. */
+    void set_fpss_ping_interval_ms(uint64_t ms) {
+        tdx_config_set_fpss_ping_interval_ms(handle_.get(), ms);
+    }
+
+    /** Current fpss ping_interval_ms (default 250). */
+    int32_t get_fpss_ping_interval_ms(uint64_t* out_ms) const {
+        return tdx_config_get_fpss_ping_interval_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the per-iteration blocking-read slice (ms) for the
+     *  streaming I/O loop. Default 25; validated to [10, 500]. */
+    void set_fpss_io_read_slice_ms(uint64_t ms) {
+        tdx_config_set_fpss_io_read_slice_ms(handle_.get(), ms);
+    }
+
+    /** Current fpss io_read_slice_ms (default 25). */
+    int32_t get_fpss_io_read_slice_ms(uint64_t* out_ms) const {
+        return tdx_config_get_fpss_io_read_slice_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the last-frame watchdog (ms); 0 disables. Default 30_000. */
+    void set_fpss_data_watchdog_ms(uint64_t ms) {
+        tdx_config_set_fpss_data_watchdog_ms(handle_.get(), ms);
+    }
+
+    /** Current fpss data_watchdog_ms (default 30_000; 0 = disabled). */
+    int32_t get_fpss_data_watchdog_ms(uint64_t* out_ms) const {
+        return tdx_config_get_fpss_data_watchdog_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the TCP keepalive idle time (seconds). Default 5; validated
+     *  to [1, 7_200] at connect. */
+    void set_fpss_keepalive_idle_secs(uint64_t secs) {
+        tdx_config_set_fpss_keepalive_idle_secs(handle_.get(), secs);
+    }
+
+    /** Current fpss keepalive_idle_secs (default 5). */
+    int32_t get_fpss_keepalive_idle_secs(uint64_t* out) const {
+        return tdx_config_get_fpss_keepalive_idle_secs(handle_.get(), out);
+    }
+
+    /** Set the TCP keepalive probe interval (seconds). Default 2;
+     *  validated to [1, 75] at connect. */
+    void set_fpss_keepalive_interval_secs(uint64_t secs) {
+        tdx_config_set_fpss_keepalive_interval_secs(handle_.get(), secs);
+    }
+
+    /** Current fpss keepalive_interval_secs (default 2). */
+    int32_t get_fpss_keepalive_interval_secs(uint64_t* out) const {
+        return tdx_config_get_fpss_keepalive_interval_secs(handle_.get(), out);
+    }
+
+    /** Set the TCP keepalive probe count before the kernel declares
+     *  the peer dead. Default 2; validated to [1, 10] at connect. */
+    void set_fpss_keepalive_retries(uint32_t n) {
+        tdx_config_set_fpss_keepalive_retries(handle_.get(), n);
+    }
+
+    /** Current fpss keepalive_retries (default 2). */
+    int32_t get_fpss_keepalive_retries(uint32_t* out) const {
+        return tdx_config_get_fpss_keepalive_retries(handle_.get(), out);
+    }
+
+    /** Set the FPSS event ring size (slots). Must be a power of two
+     *  >= 64; invalid values are rejected (tdx_last_error). Default
+     *  131_072. */
+    void set_fpss_ring_size(size_t n) {
+        tdx_config_set_fpss_ring_size(handle_.get(), n);
+    }
+
+    /** Current fpss ring_size (default 131_072). */
+    int32_t get_fpss_ring_size(size_t* out) const {
+        return tdx_config_get_fpss_ring_size(handle_.get(), out);
+    }
+
+    /** Set the FPSS host-selection policy: 0=Shuffled (default),
+     *  1=FixedOrder. Throws std::runtime_error on an invalid policy. */
+    void set_fpss_host_selection(int32_t policy) {
+        const int32_t rc = tdx_config_set_fpss_host_selection(handle_.get(), policy);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_fpss_host_selection failed: ") +
+                (err ? err : "unknown error"));
+        }
+    }
+
+    /** Current FPSS host-selection policy (same encoding as the
+     *  setter). */
+    int32_t get_fpss_host_selection(int32_t* out_policy) const {
+        return tdx_config_get_fpss_host_selection(handle_.get(), out_policy);
+    }
+
+    /** Set the FPSS host-shuffle seed using the (has_value, seed)
+     *  shape. has_value=false derives a fresh per-client seed;
+     *  has_value=true makes the shuffled order deterministic. */
+    int32_t set_fpss_host_shuffle_seed_explicit(bool has_value, uint64_t seed) {
+        return tdx_config_set_fpss_host_shuffle_seed_explicit(handle_.get(), has_value, seed);
+    }
+
+    /** Read the FPSS host-shuffle seed back. *out_has_value=false
+     *  encodes the per-client-entropy sentinel. */
+    int32_t get_fpss_host_shuffle_seed(bool* out_has_value, uint64_t* out_seed) const {
+        return tdx_config_get_fpss_host_shuffle_seed(handle_.get(), out_has_value, out_seed);
+    }
+
+    /** Set the wall-clock envelope (seconds) for one
+     *  historical-channel retry sequence. 0 disables. Default 300. */
+    void set_retry_max_elapsed_secs(uint64_t secs) {
+        tdx_config_set_retry_max_elapsed_secs(handle_.get(), secs);
+    }
+
+    /** Current retry max_elapsed in seconds (default 300; 0 = disabled). */
+    int32_t get_retry_max_elapsed_secs(uint64_t* out_secs) const {
+        return tdx_config_get_retry_max_elapsed_secs(handle_.get(), out_secs);
+    }
+
+    /** Toggle AWS-style full jitter on the flatfile retry ladder.
+     *  Default true. */
+    void set_flatfiles_jitter(bool jitter) {
+        tdx_config_set_flatfiles_jitter(handle_.get(), jitter);
+    }
+
+    /** Current flatfiles jitter setting (default true). */
+    int32_t get_flatfiles_jitter(bool* out_jitter) const {
+        return tdx_config_get_flatfiles_jitter(handle_.get(), out_jitter);
+    }
+
+
     /** Set the RuntimeConfig.tokio_worker_threads knob using the
      *  (has_value, n) shape that preserves Some(0) across the C
      *  boundary. has_value=false defers to tokio's default sizing. */
@@ -1053,6 +1322,34 @@ public:
         return handle_ ? tdx_fpss_panic_count(handle_.get()) : 0;
     }
 
+    /** Milliseconds since the most recent inbound streaming frame of
+     *  any kind. Returns 0 on success with the value in *out_ms, 1
+     *  when no session is live or no frame has been received yet, -1
+     *  on a null handle. */
+    int32_t millis_since_last_event(uint64_t* out_ms) const {
+        return handle_ ? tdx_fpss_millis_since_last_event(handle_.get(), out_ms) : -1;
+    }
+
+    /** UNIX-nanosecond receive timestamp of the most recent inbound
+     *  streaming frame. 0 when no session is live or no frame has
+     *  arrived yet. */
+    int64_t last_event_received_at_unix_nanos() const {
+        return handle_ ? tdx_fpss_last_event_received_at_unix_nanos(handle_.get()) : 0;
+    }
+
+    /** Address (host:port) of the server the current session is
+     *  connected to, following the session across auto-reconnects.
+     *  Empty when no session is live. */
+    std::string last_connected_addr() const {
+        if (!handle_) return {};
+        char* raw = tdx_fpss_last_connected_addr(handle_.get());
+        if (!raw) return {};
+        std::string out(raw);
+        tdx_string_free(raw);
+        return out;
+    }
+
+
 private:
     // Free C-ABI shim that the Rust dispatcher invokes. `ctx` is the
     // `std::function*` we registered alongside the callback. The event
@@ -1422,6 +1719,34 @@ public:
     uint64_t panic_count() const {
         return handle_ ? tdx_unified_panic_count(handle_.get()) : 0;
     }
+
+    /** Milliseconds since the most recent inbound streaming frame of
+     *  any kind. Returns 0 on success with the value in *out_ms, 1
+     *  when streaming has not started or no frame has been received
+     *  yet, -1 on a null handle. */
+    int32_t millis_since_last_event(uint64_t* out_ms) const {
+        return handle_ ? tdx_unified_millis_since_last_event(handle_.get(), out_ms) : -1;
+    }
+
+    /** UNIX-nanosecond receive timestamp of the most recent inbound
+     *  streaming frame. 0 when streaming has not started or no frame
+     *  has arrived yet. */
+    int64_t last_event_received_at_unix_nanos() const {
+        return handle_ ? tdx_unified_last_event_received_at_unix_nanos(handle_.get()) : 0;
+    }
+
+    /** Address (host:port) of the streaming server the current
+     *  session is connected to, following the session across
+     *  auto-reconnects. Empty when streaming has not started. */
+    std::string last_connected_addr() const {
+        if (!handle_) return {};
+        char* raw = tdx_unified_last_connected_addr(handle_.get());
+        if (!raw) return {};
+        std::string out(raw);
+        tdx_string_free(raw);
+        return out;
+    }
+
 
     /// `true` iff the streaming session is currently live (set_callback
     /// and stop_streaming /

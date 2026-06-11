@@ -16,6 +16,31 @@ pub struct TokioWorkerThreadsSetting {
     pub n: u32,
 }
 
+
+/// `(reason, attempt)` argument object handed to the JS reconnect
+/// callback registered via `Config.setReconnectCallback`. `reason` is
+/// the disconnect `RemoveReason` discriminant; `attempt` is the
+/// 1-based consecutive-reconnect counter.
+#[napi(object)]
+#[derive(Clone, Copy)]
+pub struct ReconnectDecisionArgs {
+    pub reason: i32,
+    pub attempt: u32,
+}
+
+
+/// Decode a non-negative `u64` from a JS `bigint` argument, with the
+/// setter name in the failure diagnostic.
+fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<u64> {
+    let (_signed, value, lossless) = v.get_u64();
+    if !lossless {
+        return Err(napi::Error::from_reason(format!(
+            "{name}: BigInt magnitude must fit in u64",
+        )));
+    }
+    Ok(value)
+}
+
 /// SDK configuration. Mirrors [`thetadatadx::DirectConfig`].
 ///
 /// Build a config via one of the three static factories
@@ -409,6 +434,676 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(
             guard.reconnect.wait_rate_limited_ms,
         ))
+    }
+
+
+    /// Set the cap (ms) on the exponential generic-transient reconnect
+    /// ladder. The ladder starts at `reconnectWaitMs` and doubles per
+    /// consecutive attempt up to this value. Default `30_000n`.
+    #[napi(js_name = "setReconnectWaitMaxMs")]
+    pub fn set_reconnect_wait_max_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setReconnectWaitMaxMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_max_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_max_ms` value (default `30_000n`).
+    #[napi(getter, js_name = "reconnectWaitMaxMs")]
+    pub fn reconnect_wait_max_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.reconnect.wait_max_ms,
+        ))
+    }
+
+    /// Set the flat reconnect cadence (ms) for `ServerRestarting`
+    /// disconnects. Default `5_000n`.
+    #[napi(js_name = "setReconnectWaitServerRestartMs")]
+    pub fn set_reconnect_wait_server_restart_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setReconnectWaitServerRestartMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_server_restart_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_server_restart_ms` value (default `5_000n`).
+    #[napi(getter, js_name = "reconnectWaitServerRestartMs")]
+    pub fn reconnect_wait_server_restart_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.reconnect.wait_server_restart_ms,
+        ))
+    }
+
+    /// Set the jitter strategy applied to every reconnect delay.
+    /// Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+    /// `"none"` (case-insensitive).
+    #[napi(js_name = "setReconnectJitter")]
+    pub fn set_reconnect_jitter(&self, mode: String) -> napi::Result<()> {
+        let parsed = config::JitterMode::parse(&mode).ok_or_else(|| {
+            napi::Error::from_reason(format!(
+                "setReconnectJitter: unknown mode {mode:?}; expected \"full\", \"equal\", \"decorrelated\", or \"none\""
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.jitter = parsed;
+        Ok(())
+    }
+
+    /// Current reconnect jitter mode as a lowercase string.
+    #[napi(getter, js_name = "reconnectJitter")]
+    pub fn reconnect_jitter(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.reconnect.jitter.as_str())
+    }
+
+    /// Set the wall-clock reconnect envelope (seconds) for the
+    /// generic-transient and server-restart classes, measured from the
+    /// first attempt of a consecutive-reconnect sequence. `0n` disables
+    /// the envelope (attempt budgets only). Default `300n`. No effect
+    /// unless the reconnect policy is `Auto`.
+    #[napi(js_name = "setReconnectMaxElapsedSecs")]
+    pub fn set_reconnect_max_elapsed_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setReconnectMaxElapsedSecs", &secs)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_elapsed = std::time::Duration::from_secs(value);
+        }
+        Ok(())
+    }
+
+    /// Current wall-clock reconnect envelope in seconds (default
+    /// `300n`; `0n` = disabled). Reads the default-limits value when
+    /// the policy is not `Auto`.
+    #[napi(getter, js_name = "reconnectMaxElapsedSecs")]
+    pub fn reconnect_max_elapsed_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let value = match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_elapsed,
+            _ => config::ReconnectAttemptLimits::default().max_elapsed,
+        };
+        Ok(napi::bindgen_prelude::BigInt::from(value.as_secs()))
+    }
+
+    /// Set the `ServerRestarting` reconnect attempt budget. Default
+    /// `60`. No effect unless the reconnect policy is `Auto`.
+    #[napi(js_name = "setReconnectMaxServerRestartAttempts")]
+    pub fn set_reconnect_max_server_restart_attempts(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_server_restart_attempts = n;
+        }
+        Ok(())
+    }
+
+    /// Current `ServerRestarting` reconnect attempt budget (default
+    /// `60`). Reads the default-limits value when the policy is not
+    /// `Auto`.
+    #[napi(getter, js_name = "reconnectMaxServerRestartAttempts")]
+    pub fn reconnect_max_server_restart_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_server_restart_attempts,
+        })
+    }
+
+    /// Current reconnect policy as a string (`"auto"`, `"manual"`, or
+    /// `"custom"`).
+    #[napi(getter, js_name = "reconnectPolicy")]
+    pub fn reconnect_policy(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(_) => "auto",
+            config::ReconnectPolicy::Manual => "manual",
+            _ => "custom",
+        })
+    }
+
+    /// Current generic-transient reconnect attempt budget (default
+    /// `30`). Reads the default-limits value when the policy is not
+    /// `Auto`.
+    #[napi(getter, js_name = "reconnectMaxAttempts")]
+    pub fn reconnect_max_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_attempts,
+        })
+    }
+
+    /// Current rate-limited reconnect attempt budget (default `100`).
+    /// Reads the default-limits value when the policy is not `Auto`.
+    #[napi(getter, js_name = "reconnectMaxRateLimitedAttempts")]
+    pub fn reconnect_max_rate_limited_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
+            _ => config::ReconnectAttemptLimits::default().max_rate_limited_attempts,
+        })
+    }
+
+    /// Current stable-window reset interval in seconds (default `60n`).
+    /// Reads the default-limits value when the policy is not `Auto`.
+    #[napi(getter, js_name = "reconnectStableWindowSecs")]
+    pub fn reconnect_stable_window_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let value = match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(limits) => limits.stable_window,
+            _ => config::ReconnectAttemptLimits::default().stable_window,
+        };
+        Ok(napi::bindgen_prelude::BigInt::from(value.as_secs()))
+    }
+
+    /// Set the subscription-replay burst size used after an
+    /// auto-reconnect: frames are written in bursts of this many, each
+    /// burst flushed and followed by a jittered `replayPaceMs` pause.
+    /// Minimum `1` (validated at connect). Default `50`.
+    #[napi(js_name = "setReconnectReplayBurstSize")]
+    pub fn set_reconnect_replay_burst_size(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.replay_burst_size = n;
+        Ok(())
+    }
+
+    /// Current `replay_burst_size` value (default `50`).
+    #[napi(getter, js_name = "reconnectReplayBurstSize")]
+    pub fn reconnect_replay_burst_size(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.reconnect.replay_burst_size)
+    }
+
+    /// Set the pause (ms) between subscription-replay bursts after an
+    /// auto-reconnect. `0n` removes the pause. Default `5n`.
+    #[napi(js_name = "setReconnectReplayPaceMs")]
+    pub fn set_reconnect_replay_pace_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setReconnectReplayPaceMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.replay_pace_ms = value;
+        Ok(())
+    }
+
+    /// Current `replay_pace_ms` value (default `5n`).
+    #[napi(getter, js_name = "reconnectReplayPaceMs")]
+    pub fn reconnect_replay_pace_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.reconnect.replay_pace_ms,
+        ))
+    }
+
+    /// Install a custom reconnect policy driven by a JS callback.
+    ///
+    /// `callback(reason: number, attempt: number)` is invoked (on the
+    /// Node main thread, queued from the streaming I/O thread) after
+    /// each retriable involuntary disconnect. Return the reconnect
+    /// delay in milliseconds, or `null` to stop reconnecting (the
+    /// stream then emits the terminal `ReconnectsExhausted` event).
+    /// Permanent disconnect reasons (bad credentials, account
+    /// conflicts) never reach the callback. Pass `null` to restore the
+    /// default `Auto` policy.
+    ///
+    /// The streaming I/O thread waits for the decision, so the
+    /// callback should return promptly; if no decision arrives within
+    /// 30 seconds (for example because the Node event loop is blocked)
+    /// the stream stops reconnecting and emits the terminal event.
+    #[napi(js_name = "setReconnectCallback")]
+    pub fn set_reconnect_callback(
+        &self,
+        callback: Option<
+            napi::threadsafe_function::ThreadsafeFunction<
+                ReconnectDecisionArgs,
+                Option<i64>,
+                ReconnectDecisionArgs,
+                napi::Status,
+                false,
+            >,
+        >,
+    ) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let Some(tsfn) = callback else {
+            guard.reconnect.policy =
+                config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default());
+            return Ok(());
+        };
+        guard.reconnect.policy =
+            config::ReconnectPolicy::Custom(std::sync::Arc::new(move |reason, attempt| {
+                let (tx, rx) = std::sync::mpsc::sync_channel::<Option<i64>>(1);
+                let status = tsfn.call_with_return_value(
+                    ReconnectDecisionArgs {
+                        reason: reason as i32,
+                        attempt,
+                    },
+                    napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+                    move |decision: napi::Result<Option<i64>>, _env| {
+                        // A callback that throws (or returns a value
+                        // that fails i64 extraction) cannot decide a
+                        // delay — treat as "stop reconnecting".
+                        let _ = tx.send(decision.unwrap_or(None));
+                        Ok(())
+                    },
+                );
+                if status != napi::Status::Ok {
+                    // The JS environment is gone (or the queue is
+                    // saturated) — no decision can be obtained; stop
+                    // reconnecting so the terminal event fires.
+                    return None;
+                }
+                match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                    Ok(Some(ms)) if ms >= 0 => Some(std::time::Duration::from_millis(ms as u64)),
+                    Ok(_) => None,
+                    // No decision within the window (for example a
+                    // blocked Node event loop) — stop reconnecting so
+                    // the terminal event fires instead of wedging the
+                    // I/O thread indefinitely.
+                    Err(_) => None,
+                }
+            }));
+        Ok(())
+    }
+
+
+    // ── FPSS transport knobs — parity with Python / C++ / FFI ──────
+
+    /// Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
+    #[napi(js_name = "setFpssTimeoutMs")]
+    pub fn set_fpss_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssTimeoutMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.timeout_ms = value;
+        Ok(())
+    }
+
+    /// Current `fpss.timeout_ms` value (default `3_000n`).
+    #[napi(getter, js_name = "fpssTimeoutMs")]
+    pub fn fpss_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.timeout_ms))
+    }
+
+    /// Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.
+    #[napi(js_name = "setFpssConnectTimeoutMs")]
+    pub fn set_fpss_connect_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssConnectTimeoutMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.connect_timeout_ms = value;
+        Ok(())
+    }
+
+    /// Current `fpss.connect_timeout_ms` value (default `2_000n`).
+    #[napi(getter, js_name = "fpssConnectTimeoutMs")]
+    pub fn fpss_connect_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.connect_timeout_ms))
+    }
+
+    /// Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
+    #[napi(js_name = "setFpssPingIntervalMs")]
+    pub fn set_fpss_ping_interval_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssPingIntervalMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.ping_interval_ms = value;
+        Ok(())
+    }
+
+    /// Current `fpss.ping_interval_ms` value (default `250n`).
+    #[napi(getter, js_name = "fpssPingIntervalMs")]
+    pub fn fpss_ping_interval_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.ping_interval_ms))
+    }
+
+    /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect.
+    #[napi(js_name = "setFpssIoReadSliceMs")]
+    pub fn set_fpss_io_read_slice_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssIoReadSliceMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.io_read_slice_ms = value;
+        Ok(())
+    }
+
+    /// Current `fpss.io_read_slice_ms` value (default `25n`).
+    #[napi(getter, js_name = "fpssIoReadSliceMs")]
+    pub fn fpss_io_read_slice_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.io_read_slice_ms))
+    }
+
+    /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`.
+    #[napi(js_name = "setFpssDataWatchdogMs")]
+    pub fn set_fpss_data_watchdog_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssDataWatchdogMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.data_watchdog_ms = value;
+        Ok(())
+    }
+
+    /// Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled).
+    #[napi(getter, js_name = "fpssDataWatchdogMs")]
+    pub fn fpss_data_watchdog_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.data_watchdog_ms))
+    }
+
+    /// Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect.
+    #[napi(js_name = "setFpssKeepaliveIdleSecs")]
+    pub fn set_fpss_keepalive_idle_secs(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssKeepaliveIdleSecs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.keepalive_idle_secs = value;
+        Ok(())
+    }
+
+    /// Current `fpss.keepalive_idle_secs` value (default `5n`).
+    #[napi(getter, js_name = "fpssKeepaliveIdleSecs")]
+    pub fn fpss_keepalive_idle_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.keepalive_idle_secs))
+    }
+
+    /// Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.
+    #[napi(js_name = "setFpssKeepaliveIntervalSecs")]
+    pub fn set_fpss_keepalive_interval_secs(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setFpssKeepaliveIntervalSecs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.keepalive_interval_secs = value;
+        Ok(())
+    }
+
+    /// Current `fpss.keepalive_interval_secs` value (default `2n`).
+    #[napi(getter, js_name = "fpssKeepaliveIntervalSecs")]
+    pub fn fpss_keepalive_interval_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.keepalive_interval_secs))
+    }
+
+    /// Set the number of unanswered TCP keepalive probes after which
+    /// the kernel declares the FPSS connection dead (where the
+    /// platform exposes the knob). Default `2`; validated to `[1, 10]`
+    /// at connect.
+    #[napi(js_name = "setFpssKeepaliveRetries")]
+    pub fn set_fpss_keepalive_retries(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.keepalive_retries = n;
+        Ok(())
+    }
+
+    /// Current `fpss.keepalive_retries` value (default `2`).
+    #[napi(getter, js_name = "fpssKeepaliveRetries")]
+    pub fn fpss_keepalive_retries(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.fpss.keepalive_retries)
+    }
+
+    /// Set the FPSS event ring buffer size (slots). Must be a power of
+    /// two `>= 64`; invalid values are rejected immediately. Default
+    /// `131_072`.
+    #[napi(js_name = "setFpssRingSize")]
+    pub fn set_fpss_ring_size(&self, n: u32) -> napi::Result<()> {
+        if n == 0 || !n.is_power_of_two() {
+            return Err(napi::Error::from_reason(format!(
+                "fpss_ring_size must be a power of two >= 64; got {n}"
+            )));
+        }
+        if n < 64 {
+            return Err(napi::Error::from_reason(format!(
+                "fpss_ring_size must be >= 64; got {n}"
+            )));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.ring_size = n as usize;
+        Ok(())
+    }
+
+    /// Current `fpss.ring_size` value (default `131_072`).
+    #[napi(getter, js_name = "fpssRingSize")]
+    pub fn fpss_ring_size(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::try_from(guard.fpss.ring_size).unwrap_or(u32::MAX))
+    }
+
+    /// Set the FPSS host-selection policy. Accepts `"shuffled"`
+    /// (default — fault-domain-aware per-client shuffle) or
+    /// `"fixed_order"` (declared order verbatim), case-insensitive.
+    #[napi(js_name = "setFpssHostSelection")]
+    pub fn set_fpss_host_selection(&self, policy: String) -> napi::Result<()> {
+        let parsed = config::HostSelectionPolicy::parse(&policy).ok_or_else(|| {
+            napi::Error::from_reason(format!(
+                "setFpssHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.host_selection = parsed;
+        Ok(())
+    }
+
+    /// Current FPSS host-selection policy as a lowercase string.
+    #[napi(getter, js_name = "fpssHostSelection")]
+    pub fn fpss_host_selection(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.fpss.host_selection.as_str())
+    }
+
+    /// Set the FPSS host-shuffle seed. `null` (default) derives a
+    /// fresh per-client seed so a fleet shuffles independently; an
+    /// explicit `bigint` makes the shuffled order deterministic —
+    /// useful for fleet sharding and tests. Ignored under
+    /// `"fixed_order"`.
+    #[napi(js_name = "setFpssHostShuffleSeed")]
+    pub fn set_fpss_host_shuffle_seed(
+        &self,
+        seed: Option<napi::bindgen_prelude::BigInt>,
+    ) -> napi::Result<()> {
+        let resolved = match seed {
+            Some(v) => Some(bigint_to_u64("setFpssHostShuffleSeed", &v)?),
+            None => None,
+        };
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.host_shuffle_seed = resolved;
+        Ok(())
+    }
+
+    /// Current `fpss.host_shuffle_seed` value (`null` = per-client
+    /// entropy).
+    #[napi(getter, js_name = "fpssHostShuffleSeed")]
+    pub fn fpss_host_shuffle_seed(
+        &self,
+    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard
+            .fpss
+            .host_shuffle_seed
+            .map(napi::bindgen_prelude::BigInt::from))
+    }
+
+    /// Set the wall-clock envelope (seconds) for one
+    /// historical-channel retry sequence, measured from the first
+    /// attempt. `0n` disables the envelope (attempt budget only).
+    /// Default `300n`.
+    #[napi(js_name = "setRetryMaxElapsedSecs")]
+    pub fn set_retry_max_elapsed_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setRetryMaxElapsedSecs", &secs)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.max_elapsed = std::time::Duration::from_secs(value);
+        Ok(())
+    }
+
+    /// Current `retry.max_elapsed` value in seconds (default `300n`;
+    /// `0n` = disabled).
+    #[napi(getter, js_name = "retryMaxElapsedSecs")]
+    pub fn retry_max_elapsed_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.retry.max_elapsed.as_secs(),
+        ))
+    }
+
+    /// Toggle AWS-style full jitter on the flatfile retry ladder.
+    /// Default `true`; `false` gives the deterministic schedule,
+    /// useful for tests that assert exact timings.
+    #[napi(js_name = "setFlatFilesJitter")]
+    pub fn set_flat_files_jitter(&self, jitter: bool) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.jitter = jitter;
+        Ok(())
+    }
+
+    /// Current `flatfiles.jitter` value (default `true`).
+    #[napi(getter, js_name = "flatFilesJitter")]
+    pub fn flat_files_jitter(&self) -> napi::Result<bool> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.flatfiles.jitter)
     }
 
     /// Set the `RuntimeConfig.tokio_worker_threads` knob for embedded

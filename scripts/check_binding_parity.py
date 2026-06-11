@@ -187,6 +187,7 @@ def _is_implicitly_tracked(name: str) -> bool:
         "Reconnected",
         "ReconnectedServer",
         "Reconnecting",
+        "ReconnectsExhausted",
         "ReqResponse",
         "Restart",
         "ServerError",
@@ -461,10 +462,26 @@ def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
 RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     ("ReconnectConfig", "stable_window"): "stable_window_secs",
     ("ReconnectAttemptLimits", "stable_window"): "stable_window_secs",
+    ("ReconnectAttemptLimits", "max_elapsed"): "max_elapsed_secs",
     ("FlatFilesConfig", "initial_backoff"): "initial_backoff_secs",
     ("FlatFilesConfig", "max_backoff"): "max_backoff_secs",
     ("RetryPolicy", "initial_delay"): "initial_delay_ms",
     ("RetryPolicy", "max_delay"): "max_delay_ms",
+    ("RetryPolicy", "max_elapsed"): "max_elapsed_secs",
+    # FpssConfig scalar knobs carry an `fpss_` prefix at the binding
+    # surface so the generic field names (`timeout_ms`, `ring_size`)
+    # stay unambiguous against sibling sub-configs.
+    ("FpssConfig", "timeout_ms"): "fpss_timeout_ms",
+    ("FpssConfig", "ring_size"): "fpss_ring_size",
+    ("FpssConfig", "ping_interval_ms"): "fpss_ping_interval_ms",
+    ("FpssConfig", "connect_timeout_ms"): "fpss_connect_timeout_ms",
+    ("FpssConfig", "io_read_slice_ms"): "fpss_io_read_slice_ms",
+    ("FpssConfig", "data_watchdog_ms"): "fpss_data_watchdog_ms",
+    ("FpssConfig", "keepalive_idle_secs"): "fpss_keepalive_idle_secs",
+    ("FpssConfig", "keepalive_interval_secs"): "fpss_keepalive_interval_secs",
+    ("FpssConfig", "keepalive_retries"): "fpss_keepalive_retries",
+    ("FpssConfig", "host_selection"): "fpss_host_selection",
+    ("FpssConfig", "host_shuffle_seed"): "fpss_host_shuffle_seed",
 }
 
 
