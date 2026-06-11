@@ -1233,6 +1233,12 @@ fn parse_args() -> Args {
 
 #[tokio::main]
 async fn main() {
+    // Seat ring as the process-default rustls CryptoProvider before any
+    // TLS handshake. The workspace compiles ring as the only provider;
+    // reqwest's rustls path requires the default to be installed
+    // explicitly. Mirrors the server binary's startup.
+    let _ = thetadatadx::__internal_install_ring_crypto_provider();
+
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
