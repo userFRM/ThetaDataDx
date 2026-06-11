@@ -116,6 +116,10 @@ Rationale #3 (surface hygiene) survives the migration intact: no third-party tra
 
 TLS rides a custom connector that reuses the existing single-provider rustls configuration (`ring`, webpki roots, `h2` ALPN) verbatim — the stack's own TLS features stay disabled, and `cargo tree --invert aws-lc-rs` stays empty across all five workspaces. The previously dormant `MddsConfig` HTTP/2 knobs (`window_size_kb`, `connection_window_size_kb`, `keepalive_secs`, `keepalive_timeout_secs`) are load-bearing again, threaded into the channel builder at connect time.
 
+### Known caveat: status trailer parsing panics upstream (contained)
+
+The reference stack's status parser `.expect()`s the base64 decode of `grpc-status-details-bin`, so a malformed trailer from the wire would panic whichever task polls the response. Two boundaries in `src/grpc/` can observe such a trailer: the open-phase await in `channel.rs` (a trailers-only response parses its status from the response head) and `ServerStreaming::poll_next` in `stream.rs` (end-of-stream trailers after data frames). Both poll the underlying future/stream inside `std::panic::catch_unwind`; a caught panic fuses the stream and surfaces as a terminal `ChannelError::Rpc` carrying the canonical `Internal` code and a message naming the undecodable trailer — the same protocol-shape-violation convention the decode layer's locally-synthesized statuses follow. The connection task is untouched by the unwind (the parse runs in the caller's poll), so the channel keeps serving subsequent RPCs. `tests/grpc_mock_server.rs` pins both shapes, including a clean follow-up RPC on the same connection after the contained panic.
+
 ### Open question 1: multi-chunk fan-in (closed)
 
 The 2026-06-11 comparison left one shape unmeasured: many response chunks fanning into one decode path per request — the decoder pool's home turf. Measured with the harness's `multi` payload (16 zstd chunks of ~640 KiB per RPC, ~10 MiB total, same per-RPC bytes as `large`), same box and protocol as the recorded comparison:

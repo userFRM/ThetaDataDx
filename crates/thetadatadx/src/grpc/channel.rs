@@ -23,6 +23,7 @@
 //! `CryptoProvider`. The same connector serves plaintext h2c for mock
 //! servers and sidecar deployments.
 
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -566,6 +567,21 @@ impl Channel {
                 .await
                 .map_err(|status| classify_status(status, deadline_ms))
         };
+        // The underlying gRPC implementation panics while parsing a
+        // status whose `grpc-status-details-bin` value is not valid
+        // base64, and a trailers-only response parses that header
+        // inside this open await. A malformed trailer from the wire
+        // must not unwind into the caller's task, so the open future
+        // is polled inside `catch_unwind` and a caught panic surfaces
+        // as the terminal undecodable-trailer status (see
+        // [`classify_poll_panic`]). `AssertUnwindSafe` is sound here:
+        // the future is dropped on the panic path and never polled
+        // again.
+        let mut open = std::pin::pin!(open);
+        let open = std::future::poll_fn(move |cx| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| open.as_mut().poll(cx)))
+                .unwrap_or_else(|payload| Poll::Ready(Err(classify_poll_panic(payload))))
+        });
         let response = match deadline {
             Some(d) => match tokio::time::timeout(d, open).await {
                 Ok(r) => r,
@@ -661,6 +677,37 @@ pub(crate) fn classify_status(status: tonic::Status, deadline_ms: Option<u64>) -
         source = err.source();
     }
     ChannelError::ConnectionClosed(status.to_string())
+}
+
+/// Classify a panic caught at a transport poll boundary into the
+/// terminal [`ChannelError`] for an undecodable status trailer.
+///
+/// The underlying gRPC implementation `.expect()`s the base64 decode
+/// of `grpc-status-details-bin`, so a peer that sends a malformed
+/// value panics whichever task polls the response. The two poll
+/// boundaries that can observe such a trailer (the open-phase await
+/// in [`Channel::server_streaming`] for trailers-only responses, and
+/// [`ServerStreaming`]'s `poll_next` for end-of-stream trailers)
+/// contain the unwind with `std::panic::catch_unwind` and route the
+/// payload here.
+///
+/// The synthesized status follows the protocol-shape-violation
+/// convention documented on [`classify_status`]: canonical `Internal`,
+/// no error source, terminal for the retry shell. The panic payload
+/// text rides along in the message so an unexpected panic from the
+/// same boundary stays diagnosable.
+pub(crate) fn classify_poll_panic(payload: Box<dyn std::any::Any + Send>) -> ChannelError {
+    let detail = payload
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("non-string panic payload");
+    ChannelError::Rpc {
+        status: Status::new(
+            crate::error::GrpcStatusKind::Internal as u32,
+            format!("server sent an undecodable status trailer: {detail}"),
+        ),
+    }
 }
 
 /// Classify a channel-level dispatch error (`ready()` failing before

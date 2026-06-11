@@ -27,7 +27,7 @@ use std::time::Duration;
 use futures_core::Stream;
 use tokio::time::{Instant, Sleep};
 
-use super::channel::{classify_status, ChannelError, InFlightToken};
+use super::channel::{classify_poll_panic, classify_status, ChannelError, InFlightToken};
 
 /// Boxed `Sleep` so [`ServerStreaming`] stays `Unpin`. The deadline
 /// path takes a heap allocation per call; the non-deadline path is
@@ -142,18 +142,34 @@ where
             }
         }
 
-        match Pin::new(&mut this.inner).poll_next(cx) {
-            Poll::Ready(Some(Ok(msg))) => Poll::Ready(Some(Ok(msg))),
-            Poll::Ready(Some(Err(status))) => {
+        // The underlying gRPC implementation panics while parsing
+        // end-of-stream trailers whose `grpc-status-details-bin` value
+        // is not valid base64. A malformed trailer from the wire must
+        // not unwind into the consumer's task, so the inner poll runs
+        // inside `catch_unwind`; a caught panic fuses the stream and
+        // surfaces as the terminal undecodable-trailer status (see
+        // [`classify_poll_panic`]). `AssertUnwindSafe` is sound here:
+        // the fuse guarantees the inner stream is never polled again
+        // after a caught panic.
+        let poll = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            Pin::new(&mut this.inner).poll_next(cx)
+        }));
+        match poll {
+            Err(payload) => {
+                this.closed = true;
+                Poll::Ready(Some(Err(classify_poll_panic(payload))))
+            }
+            Ok(Poll::Ready(Some(Ok(msg)))) => Poll::Ready(Some(Ok(msg))),
+            Ok(Poll::Ready(Some(Err(status)))) => {
                 this.closed = true;
                 let deadline_ms = this.deadline.is_some().then_some(this.deadline_duration_ms);
                 Poll::Ready(Some(Err(classify_status(status, deadline_ms))))
             }
-            Poll::Ready(None) => {
+            Ok(Poll::Ready(None)) => {
                 this.closed = true;
                 Poll::Ready(None)
             }
-            Poll::Pending => Poll::Pending,
+            Ok(Poll::Pending) => Poll::Pending,
         }
     }
 }

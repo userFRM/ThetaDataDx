@@ -169,6 +169,15 @@ pub struct MockBehaviour {
     /// sleeping for several PING intervals (avoids fixed-sleep
     /// barriers).
     pub ping_pong_signal: Option<(Arc<Notify>, u32)>,
+    /// When `n > 0`, the status-bearing HEADERS of the first `n`
+    /// streams on the connection carry a `grpc-status-details-bin`
+    /// value that is not valid base64 — on the trailers-only response
+    /// head when `trailers_only` is set, on the trailing trailers
+    /// otherwise. Exercises the client's containment of the status
+    /// parser's decode panic: the poisoned RPC must surface a typed
+    /// terminal error, and later streams on the same connection must
+    /// still be served.
+    pub invalid_status_details_streams: usize,
 }
 
 impl MockServer {
@@ -324,11 +333,18 @@ pub async fn serve_one_connection(
     // request handler runs on a separate task so the accept loop can
     // continue advancing the h2 connection state machine while DATA
     // and trailers flush.
+    let mut stream_index: usize = 0;
     while let Some(request_result) = connection.accept().await {
         let (request, respond) = request_result?;
         let chunks = chunks.clone();
         let status_message = status_message.clone();
         let behaviour_inner = behaviour.clone();
+        // Poison the status-bearing HEADERS of the first N streams on
+        // the connection (see `invalid_status_details_streams`); later
+        // streams respond clean so tests can confirm the connection
+        // survived the poisoned exchange.
+        let poison_status_details = stream_index < behaviour.invalid_status_details_streams;
+        stream_index += 1;
         let (handler_done_tx, handler_done_rx) = oneshot::channel::<()>();
         tokio::spawn(async move {
             if let Err(e) = handle_request(
@@ -338,6 +354,7 @@ pub async fn serve_one_connection(
                 status_code,
                 status_message,
                 behaviour_inner,
+                poison_status_details,
             )
             .await
             {
@@ -369,6 +386,7 @@ async fn handle_request(
     status_code: u32,
     status_message: String,
     behaviour: MockBehaviour,
+    poison_status_details: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if let Some(expected_scheme) = behaviour.assert_scheme {
         let scheme = request.uri().scheme_str().unwrap_or("");
@@ -469,12 +487,25 @@ async fn handle_request(
         // gRPC trailers-only encoding: `grpc-status` (and optional
         // `grpc-message`) live on the response HEADERS frame, with
         // END_STREAM set. No DATA frames, no trailing HEADERS frame.
-        respond_trailers_only(respond, status_code, &status_message)?;
+        respond_trailers_only(respond, status_code, &status_message, poison_status_details)?;
         return Ok(());
     }
-    respond_chunks(respond, &chunks, status_code, &status_message)?;
+    respond_chunks(
+        respond,
+        &chunks,
+        status_code,
+        &status_message,
+        poison_status_details,
+    )?;
     Ok(())
 }
+
+/// `grpc-status-details-bin` value outside the base64 alphabet (`!` is
+/// not a base64 character), so any conforming decoder rejects it. The
+/// reference client's status parser `.expect()`s that decode — the
+/// poisoned-trailer tests below pin the containment of the resulting
+/// panic.
+const INVALID_STATUS_DETAILS_BIN: &str = "!!!not-base64!!!";
 
 /// Send a trailers-only gRPC response: HTTP 200 with `grpc-status`
 /// (and optional `grpc-message`) on the initial HEADERS frame, no body.
@@ -482,6 +513,7 @@ fn respond_trailers_only(
     mut respond: SendResponse<Bytes>,
     status_code: u32,
     status_message: &str,
+    poison_status_details: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut response = Response::new(());
     *response.status_mut() = StatusCode::OK;
@@ -497,6 +529,12 @@ fn respond_trailers_only(
         response.headers_mut().insert(
             HeaderName::from_static("grpc-message"),
             HeaderValue::from_str(status_message).expect("status message is ASCII"),
+        );
+    }
+    if poison_status_details {
+        response.headers_mut().insert(
+            HeaderName::from_static("grpc-status-details-bin"),
+            HeaderValue::from_static(INVALID_STATUS_DETAILS_BIN),
         );
     }
     // `end_of_stream = true` makes this a HEADERS-only response with
@@ -552,6 +590,7 @@ fn respond_chunks(
     chunks: &[ResponseData],
     status_code: u32,
     status_message: &str,
+    poison_status_details: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut response = Response::new(());
     *response.status_mut() = StatusCode::OK;
@@ -578,6 +617,12 @@ fn respond_chunks(
         trailers.insert(
             HeaderName::from_static("grpc-message"),
             HeaderValue::from_str(status_message).expect("status message is ASCII"),
+        );
+    }
+    if poison_status_details {
+        trailers.insert(
+            HeaderName::from_static("grpc-status-details-bin"),
+            HeaderValue::from_static(INVALID_STATUS_DETAILS_BIN),
         );
     }
     send_stream.send_trailers(trailers)?;
@@ -876,6 +921,159 @@ async fn channel_decodes_trailers_only_error() {
         }
         other => panic!("expected ChannelError::Rpc, got {other:?}"),
     }
+}
+
+/// Assert the typed error a contained status-parser panic must surface:
+/// `ChannelError::Rpc` with the canonical `Internal` code and a message
+/// naming the undecodable trailer. Shared by the two poisoned-trailer
+/// shapes (trailers-only head, end-of-stream trailers).
+fn assert_undecodable_trailer_error(err: &ChannelError) {
+    match err {
+        ChannelError::Rpc { status } => {
+            assert_eq!(
+                status.code(),
+                13,
+                "contained status-parser panic maps to the canonical Internal code"
+            );
+            assert!(
+                status.message().contains("undecodable status trailer"),
+                "message names the malformed trailer, got: {}",
+                status.message()
+            );
+        }
+        other => panic!("expected ChannelError::Rpc, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn channel_contains_undecodable_status_trailer_on_trailers_only_response() {
+    // The reference client's status parser `.expect()`s the base64
+    // decode of `grpc-status-details-bin`, so a trailers-only response
+    // head carrying a malformed value would panic the dispatching task.
+    // The open-phase containment must surface a typed terminal error
+    // instead, and the connection must survive: the next RPC on the
+    // same channel (stream 2, served clean by the mock) round-trips.
+    let mock = MockServer::spawn_with_behaviour(
+        Vec::new(),
+        0,
+        String::new(),
+        MockBehaviour {
+            trailers_only: true,
+            invalid_status_details_streams: 1,
+            ..MockBehaviour::default()
+        },
+    )
+    .await;
+
+    let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+        .await
+        .expect("h2c connect");
+
+    // The contained error can surface on the open call (response
+    // HEADERS already carry the trailers) or on the first poll of the
+    // body stream — both boundaries run the same containment, so
+    // accept either surface like `channel_decodes_trailers_only_error`
+    // does.
+    let result = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await;
+    let err = match result {
+        Err(e) => e,
+        Ok(stream) => match collect(stream).await {
+            Err(e) => e,
+            Ok(msgs) => panic!(
+                "expected a contained undecodable-trailer error, got {} messages",
+                msgs.len()
+            ),
+        },
+    };
+    assert_undecodable_trailer_error(&err);
+
+    // Channel still usable: the mock serves stream 2 clean
+    // (trailers-only `grpc-status: 0`), which decodes as an empty
+    // OK stream.
+    let stream = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await
+        .expect("channel dispatches a fresh RPC after the contained panic");
+    let messages = collect(stream)
+        .await
+        .expect("clean follow-up RPC completes");
+    assert!(messages.is_empty(), "trailers-only OK carries no messages");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn channel_contains_undecodable_status_trailer_at_end_of_stream() {
+    // Same malformed `grpc-status-details-bin`, this time on the
+    // trailing HEADERS after data frames — the shape that reaches
+    // `ServerStreaming::poll_next`. The stream must yield its data
+    // frame, then the typed terminal error (no panic), then fuse; and
+    // the channel must keep serving.
+    let chunks = vec![make_response_data(&["AAPL", "MSFT"])];
+    let mock = MockServer::spawn_with_behaviour(
+        chunks,
+        0,
+        String::new(),
+        MockBehaviour {
+            invalid_status_details_streams: 1,
+            ..MockBehaviour::default()
+        },
+    )
+    .await;
+
+    let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+        .await
+        .expect("h2c connect");
+
+    let mut stream = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await
+        .expect("rpc opens — the poisoned trailers arrive after the data frames");
+
+    // The data frame ahead of the poisoned trailers decodes normally.
+    let first = stream
+        .next()
+        .await
+        .expect("one data frame precedes the trailers")
+        .expect("data frame decodes");
+    let list = DataValueList::decode(&first.compressed_data[..]).expect("inner list decodes");
+    assert_eq!(list.values.len(), 2);
+
+    // The poisoned end-of-stream trailers surface as the typed
+    // terminal error, and the stream fuses after it.
+    let err = stream
+        .next()
+        .await
+        .expect("terminal item follows the data frame")
+        .expect_err("undecodable trailer surfaces as an error");
+    assert_undecodable_trailer_error(&err);
+    assert!(
+        stream.next().await.is_none(),
+        "stream is fused after the terminal error"
+    );
+
+    // Channel still usable: stream 2 is served clean and decodes
+    // end to end.
+    let stream = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await
+        .expect("channel dispatches a fresh RPC after the contained panic");
+    let messages = collect(stream)
+        .await
+        .expect("clean follow-up RPC completes");
+    assert_eq!(messages.len(), 1, "follow-up RPC decodes its chunk");
 }
 
 // ─── Finding 3: :scheme pseudo-header matches the transport ──────────
