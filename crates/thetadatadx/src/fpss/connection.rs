@@ -259,19 +259,18 @@ fn tls_client_config() -> Arc<ClientConfig> {
 /// watchdog remain the primary liveness checks.
 fn arm_keepalive(tcp: &TcpStream, spec: TcpKeepaliveSpec) {
     let sock = socket2::SockRef::from(tcp);
-    let mut ka = socket2::TcpKeepalive::new()
+    let base = socket2::TcpKeepalive::new()
         .with_time(spec.idle)
         .with_interval(spec.interval);
     // Per-socket probe count is not exposed on every platform;
     // socket2 cfg-gates the setter to the platforms that support it.
     #[cfg(not(windows))]
-    {
-        ka = ka.with_retries(spec.retries);
-    }
+    let ka = base.with_retries(spec.retries);
     #[cfg(windows)]
-    {
+    let ka = {
         let _ = spec.retries;
-    }
+        base
+    };
     if let Err(e) = sock.set_tcp_keepalive(&ka) {
         tracing::warn!(
             error = %e,
