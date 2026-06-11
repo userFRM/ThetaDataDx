@@ -365,7 +365,7 @@ path = "tests/midframe_disconnect.rs"
 required-features = ["__test-helpers"]
 
 # Integration tests that drive the raw `grpc::{Channel, ChannelPool,
-# DecoderPool, ChannelError, Status}` surface against a mock h2c server.
+# ChannelError, Status}` surface against a mock h2c server.
 # Gated on `__test-helpers` so the `grpc` module re-export stays out
 # of the default rlib.
 [[test]]

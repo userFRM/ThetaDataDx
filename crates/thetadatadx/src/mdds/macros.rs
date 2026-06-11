@@ -450,24 +450,25 @@ pub(crate) fn warn_buffered_response_size(
 
 /// Classify an [`Error`] for retry / refresh routing.
 ///
-/// `From<tonic::Status>` folds the tonic enum into
+/// The wire status converts once into the crate's own
+/// [`crate::grpc::Status`] and reaches this classifier as
 /// `Error::Grpc { kind: GrpcStatusKind::*, .. }`. We dispatch on the
-/// typed `kind` so the retry classifier no longer parses status
-/// strings. Other `Error` variants are terminal -- a `Decode` or
-/// `Decompress` failure won't fix itself on retry.
+/// typed `kind` so the retry classifier never parses status strings.
+/// Other `Error` variants are terminal -- a `Decode` or `Decompress`
+/// failure won't fix itself on retry.
 ///
 /// `Error::Transport { kind: ConnectionClosed, .. }` covers every
 /// connection-level h2 fault (GOAWAY, IO failure, peer shutdown,
-/// open-phase drops). The source channel reacts by kicking off a
-/// single-flight in-place reconnect of its underlying
-/// `SendRequest<Bytes>` (see [`crate::grpc::channel::Channel::trigger_reconnect`]);
-/// classifying the error as Transient here lets the retry shell
-/// re-attempt the RPC on the next pool pick — by which point either
-/// the same channel has swapped in a fresh h2 session or the pool's
-/// load-balancing picker has routed the retry to a different
-/// channel. Either way, a transient connection blip on a long-
-/// running pool surfaces to the caller only if the reconnect itself
-/// exhausts its retry budget.
+/// open-phase drops; see
+/// [`crate::grpc::ChannelError::ConnectionClosed`]). The underlying
+/// stack reconnects lazily: the dead connection is replaced only when
+/// the next RPC dispatches on that channel, so the Transient
+/// classification here is what drives recovery — the retry shell
+/// re-attempts on the next pool pick, which either lands on the same
+/// channel (now dialing a fresh h2 session) or routes to a sibling
+/// via the pool's load-balancing picker. Either way, a transient
+/// connection blip on a long-running pool surfaces to the caller only
+/// if the retry budget itself exhausts.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
     use crate::error::{GrpcStatusKind, TransportErrorKind};
     match err {
