@@ -79,8 +79,8 @@ def cmake_project_version(path: Path) -> str | None:
 # now catches that case.
 DOC_PIN_PATHS = (
     ROOT / "README.md",
-    ROOT / "docs-site" / "docs" / "getting-started" / "installation.md",
-    ROOT / "docs-site" / "docs" / "getting-started" / "quickstart.md",
+    ROOT / "docs-site" / "docs" / "articles" / "getting-started.md",
+    ROOT / "docs-site" / "docs" / "examples" / "dataframes.md",
 )
 # Match `thetadatadx = "<MAJOR>"` (Cargo.toml-ish pin) and
 # `thetadatadx = { version = "<MAJOR>", ... }` (Cargo.toml feature

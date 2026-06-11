@@ -12,12 +12,17 @@ so both machinery and humans reason against one pinned schema. Refresh
 the snapshot by rerunning this script with ``--refresh-snapshot``; the
 fetch path below is retained for that single purpose.
 
-The script walks ``docs-site/docs/historical/**/*.md``, extracts each
-page's ``<TierBadge tier="..." />``, maps the docs path to an upstream
+The script walks the generated reference tree
+(``docs-site/docs/reference/**/*.md``), extracts each page's
+``<TierBadge tier="..." />``, maps the docs path to an upstream
 endpoint path, and fails if any badge disagrees with upstream. Also fails
 if a docs page maps to an endpoint absent from upstream (so new endpoints
 surface loudly), apart from a small allow-list of endpoints upstream
 doesn't document.
+
+The generated pages derive their badges from the same snapshot via the
+docs generator, so this check guards against a stale tree (generator not
+re-run after a snapshot refresh) rather than against hand-edit drift.
 """
 
 from __future__ import annotations
@@ -32,7 +37,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORICAL_ROOT = ROOT / "docs-site/docs/historical"
+REFERENCE_ROOT = ROOT / "docs-site/docs/reference"
 SNAPSHOT_PATH = ROOT / "scripts/upstream_openapi.yaml"
 
 UPSTREAM_URL = "https://docs.thetadata.us/openapiv3.yaml"
@@ -44,42 +49,26 @@ FETCH_MAX_ATTEMPTS = 4  # ~= 0s, 2s, 4s, 8s backoff cumulative <= 15s
 # upstream ThetaData OpenAPI schema doesn't cover. Keys are paths relative
 # to ``docs-site/docs/``.
 ALLOWLIST: dict[str, str | None] = {
-    "historical/rate/eod.md": None,
+    # Upstream does not document the rate endpoint; the generator pins
+    # it to the free tier (see `endpoint_tier` in the docs generator).
+    "reference/rate/history/eod.md": None,
 }
 
 TIER_RE = re.compile(r'<TierBadge\s+tier="([^"]+)"\s*/>')
 
-# Segment-level special cases: docs path component -> upstream component.
-SEGMENT_REWRITES: dict[str, str] = {
-    "index-data": "index",
-    "at-time": "at_time",
-}
-
-# Leaf-file stem rewrites for compound names that don't round-trip via
-# simple hyphen-to-underscore.
-GREEK_LEAF_REWRITES: dict[str, str] = {
-    "greeks-iv": "greeks/implied_volatility",
-    "greeks-all": "greeks/all",
-    "greeks-eod": "greeks/eod",
-    "greeks-first-order": "greeks/first_order",
-    "greeks-second-order": "greeks/second_order",
-    "greeks-third-order": "greeks/third_order",
-    "trade-greeks-iv": "trade_greeks/implied_volatility",
-    "trade-greeks-all": "trade_greeks/all",
-    "trade-greeks-first-order": "trade_greeks/first_order",
-    "trade-greeks-second-order": "trade_greeks/second_order",
-    "trade-greeks-third-order": "trade_greeks/third_order",
-}
-
 # Full-path rewrites for endpoints whose docs path can't be mechanically
-# derived. Keys are docs paths relative to ``docs-site/docs/``.
+# derived (upstream path naming differs from the registry's REST path,
+# or the upstream route carries a path parameter). Keys are docs paths
+# relative to ``docs-site/docs/``.
 PATH_REWRITES: dict[str, str] = {
-    "historical/calendar/open-today.md": "/calendar/today",
-    "historical/calendar/year.md": "/calendar/year_holidays",
-    "historical/option/list/roots.md": "/option/list/symbols",
-    "historical/option/list/dates.md": "/option/list/dates/{request_type}",
-    "historical/option/list/contracts.md": "/option/list/contracts/{request_type}",
-    "historical/stock/list/dates.md": "/stock/list/dates/{request_type}",
+    "reference/calendar/open-today.md": "/calendar/today",
+    "reference/calendar/year.md": "/calendar/year_holidays",
+    "reference/option/list/dates.md": "/option/list/dates/{request_type}",
+    "reference/option/list/contracts.md": "/option/list/contracts/{request_type}",
+    "reference/stock/list/dates.md": "/stock/list/dates/{request_type}",
+    # The ranged OHLC endpoint is the date-range form of the upstream
+    # single-date OHLC route — same data, same tier.
+    "reference/stock/history/ohlc-range.md": "/stock/history/ohlc",
 }
 
 # OpenAPI YAML is large but highly regular: every endpoint starts with
@@ -180,15 +169,18 @@ def parse_tier_mapping(yaml_text: str) -> dict[str, str]:
 def docs_path_to_endpoint(rel_path: str) -> str | None:
     """Map a docs path (relative to docs-site/docs/) to an upstream endpoint.
 
-    Returns None for files that are neither endpoint docs nor covered by
-    explicit rewrites (e.g. section index.md pages).
+    The generated reference tree mirrors the REST path with hyphenated
+    segments, so the mechanical mapping is segment-wise
+    hyphen-to-underscore. Returns None for files that are neither
+    endpoint docs nor covered by explicit rewrites (the section
+    index.md page).
     """
     if rel_path in PATH_REWRITES:
         return PATH_REWRITES[rel_path]
 
-    if not rel_path.startswith("historical/"):
+    if not rel_path.startswith("reference/"):
         return None
-    tail = rel_path[len("historical/") :]
+    tail = rel_path[len("reference/") :]
     if tail.endswith("/index.md") or tail == "index.md":
         return None
     if not tail.endswith(".md"):
@@ -199,17 +191,7 @@ def docs_path_to_endpoint(rel_path: str) -> str | None:
     if len(parts) < 2:
         return None
 
-    leaf = parts[-1]
-    parents = parts[:-1]
-
-    if leaf in GREEK_LEAF_REWRITES:
-        leaf_translated = GREEK_LEAF_REWRITES[leaf]
-    else:
-        leaf_translated = leaf.replace("-", "_")
-
-    parents_translated = [SEGMENT_REWRITES.get(p, p).replace("-", "_") for p in parents]
-
-    return "/" + "/".join(parents_translated + [leaf_translated])
+    return "/" + "/".join(part.replace("-", "_") for part in parts)
 
 
 def find_tier_badge(text: str) -> str | None:
@@ -244,7 +226,7 @@ def main() -> int:
     unmapped: list[tuple[str, str]] = []
     missing_badge: list[str] = []
 
-    for md_path in sorted(HISTORICAL_ROOT.rglob("*.md")):
+    for md_path in sorted(REFERENCE_ROOT.rglob("*.md")):
         rel = md_path.relative_to(ROOT / "docs-site/docs").as_posix()
         text = md_path.read_text()
         badge = find_tier_badge(text)
