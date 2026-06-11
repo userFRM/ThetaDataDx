@@ -179,6 +179,14 @@ pub mod wire {
         pub use crate::proto::{
             OptionHistoryGreeksFirstOrderRequest, OptionHistoryGreeksImpliedVolatilityRequest,
         };
+
+        /// Request-side protos for `GetStockHistoryEod`, re-exported so
+        /// the transport-comparison bench can issue the identical wire
+        /// request through an external client stack and through the
+        /// in-house transport.
+        pub use crate::proto::{
+            AuthToken, QueryInfo, StockHistoryEodRequest, StockHistoryEodRequestQuery,
+        };
     }
 }
 
