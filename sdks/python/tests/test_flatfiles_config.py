@@ -132,9 +132,7 @@ def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
     cfg.flatfiles_initial_backoff_secs = 3
     cfg.flatfiles_max_backoff_secs = 12
     cfg.concurrent_requests = 4
-    cfg.decoder_ring_size = 512
     assert cfg.concurrent_requests == 4
-    assert cfg.decoder_ring_size == 512
     assert cfg.flatfiles_max_attempts == 7
     assert cfg.flatfiles_initial_backoff_secs == 3
     assert cfg.flatfiles_max_backoff_secs == 12

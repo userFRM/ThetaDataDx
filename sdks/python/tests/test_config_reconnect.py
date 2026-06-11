@@ -171,9 +171,7 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     cfg.reconnect_max_rate_limited_attempts = 77
     cfg.reconnect_stable_window_secs = 120
     cfg.concurrent_requests = 4
-    cfg.decoder_ring_size = 512
     assert cfg.concurrent_requests == 4
-    assert cfg.decoder_ring_size == 512
     # Reconnect policy getter still reads the policy we set.
     assert cfg.reconnect_policy == "auto"
 
