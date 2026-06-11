@@ -1,0 +1,107 @@
+# ThetaDataDx documentation
+# SDK for ThetaData market data: Rust, Python, TypeScript, C++, plus a local HTTP/WebSocket server and an MCP server.
+# One line per page: path — summary. All paths are relative to the docs site root.
+
+/ — ThetaDataDx: SDK for ThetaData market data — historical, streaming, and bulk flat files in Rust, Python, TypeScript, and C++.
+/articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
+/articles/concurrent-requests — Concurrent Requests: How many historical requests run in parallel per subscription tier, and how to use that budget.
+/articles/conditions — Trade & Quote Conditions: Condition code mapping for the condition fields on trade and quote rows.
+/articles/configuration — Configuration: Environments, retries, timeouts, concurrency, and the streaming knobs.
+/articles/data-issues — Data Issues?: A short checklist before filing a data problem.
+/articles/error-codes — Error Codes: The typed error surface across all four SDKs and the server's error envelope.
+/articles/exchanges — Exchanges: Exchange code mapping for the exchange fields on trade and quote rows.
+/articles/flat-files — Flat Files: Whole-universe daily archives — every contract for a date in one call.
+/articles/getting-started — Getting Started: Install the SDK, save your credentials, and make your first request in Rust, Python, TypeScript, or C++.
+/articles/option-greeks — Option Greeks: The model behind the Greeks endpoints and the local calculator, with input conventions.
+/articles/request-sizing — Request Sizing: How to split large historical requests.
+/articles/subscriptions — Subscriptions: Minimum ThetaData subscription tier for every endpoint.
+/articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
+/articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
+/changelog — Changelog
+/cli — CLI: Query any endpoint from the command line with the tdx binary.
+/examples/ — Query Builder: Build a working SDK snippet interactively — pick data type, asset, parameters, and language.
+/examples/at-time — Quotes At a Time of Day: Sample the same wall-clock moment across a date range in one request.
+/examples/bulk-backfill — Bulk Backfill: Pull months of tick data with bounded memory and full tier concurrency.
+/examples/dataframes — DataFrames: Convert any historical response to pandas, polars, or Arrow.
+/examples/option-chain — Option Chain Snapshot: Discover a chain and pull live Greeks for every contract on an expiration.
+/examples/streaming-watchlist — Streaming Watchlist: Subscribe a basket of symbols in one call and fan events out by symbol.
+/mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint plus offline Greeks tools.
+/migration/v11-to-v12 — Migrating from v11 to v12
+/migration/v9-to-v10 — Migrating from v9 to v10
+/reference/ — API Reference: Every endpoint, one page — signatures and runnable samples in Rust, Python, TypeScript, C++, and HTTP.
+/reference/calendar/on-date — On Date: Get calendar information for a specific date.
+/reference/calendar/open-today — Open Today: Check whether the market is open today.
+/reference/calendar/year — Year: Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+/reference/index/at-time/price — Price: Fetch the index price at a specific time of day across a date range.
+/reference/index/history/eod — EOD: Fetch end-of-day index data for a date range.
+/reference/index/history/ohlc — OHLC: Fetch intraday OHLC bars for an index.
+/reference/index/history/price — Price: Fetch intraday price history for an index.
+/reference/index/list/dates — Dates: List available dates for an index symbol.
+/reference/index/list/symbols — Symbols: List all available index symbols.
+/reference/index/snapshot/market-value — Market Value: Get the latest market value snapshot for one or more indices.
+/reference/index/snapshot/ohlc — OHLC: Get the latest OHLC snapshot for one or more indices.
+/reference/index/snapshot/price — Price: Get the latest price snapshot for one or more indices.
+/reference/option/at-time/quote — Quote: Fetch the quote at a specific time of day across a date range for an option.
+/reference/option/at-time/trade — Trade: Fetch the trade at a specific time of day across a date range for an option.
+/reference/option/history/eod — EOD: Fetch end-of-day option data for a contract over a date range.
+/reference/option/history/greeks/all — All Greeks: Fetch all Greeks history for an option contract (intraday, sampled by interval).
+/reference/option/history/greeks/eod — EOD Greeks: Fetch end-of-day Greeks history for an option contract.
+/reference/option/history/greeks/first-order — First-Order Greeks: Fetch first-order Greeks history (intraday, sampled by interval).
+/reference/option/history/greeks/implied-volatility — Implied Volatility: Fetch implied volatility history (intraday, sampled by interval).
+/reference/option/history/greeks/second-order — Second-Order Greeks: Fetch second-order Greeks history (intraday, sampled by interval).
+/reference/option/history/greeks/third-order — Third-Order Greeks: Fetch third-order Greeks history (intraday, sampled by interval).
+/reference/option/history/ohlc — OHLC: Fetch intraday OHLC bars for an option contract.
+/reference/option/history/open-interest — Open Interest: Fetch open interest history for an option contract.
+/reference/option/history/quote — Quote: Fetch NBBO quotes for an option contract on a given date.
+/reference/option/history/trade — Trade: Fetch all trades for an option contract on a given date.
+/reference/option/history/trade-greeks/all — All Trade Greeks: Fetch all Greeks on each trade for an option contract.
+/reference/option/history/trade-greeks/first-order — First-Order Trade Greeks: Fetch first-order Greeks on each trade for an option contract.
+/reference/option/history/trade-greeks/implied-volatility — Trade Implied Volatility: Fetch implied volatility on each trade for an option contract.
+/reference/option/history/trade-greeks/second-order — Second-Order Trade Greeks: Fetch second-order Greeks on each trade for an option contract.
+/reference/option/history/trade-greeks/third-order — Third-Order Trade Greeks: Fetch third-order Greeks on each trade for an option contract.
+/reference/option/history/trade-quote — Trade Quote: Fetch combined trade + quote ticks for an option contract.
+/reference/option/list/contracts — Contracts: List all option contracts for a symbol on a given date.
+/reference/option/list/dates — Dates: List available dates for an option contract by request type.
+/reference/option/list/expirations — Expirations: List available expiration dates for an option underlying.
+/reference/option/list/strikes — Strikes: List available strike prices for an option at a given expiration.
+/reference/option/list/symbols — Symbols: List all available option underlying symbols.
+/reference/option/snapshot/greeks/all — All Greeks: Get all Greeks snapshot for an option contract (from ThetaData server).
+/reference/option/snapshot/greeks/first-order — First-Order Greeks: Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
+/reference/option/snapshot/greeks/implied-volatility — Implied Volatility: Get implied volatility snapshot for an option contract (from ThetaData server).
+/reference/option/snapshot/greeks/second-order — Second-Order Greeks: Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
+/reference/option/snapshot/greeks/third-order — Third-Order Greeks: Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
+/reference/option/snapshot/market-value — Market Value: Get the latest market value snapshot for an option contract.
+/reference/option/snapshot/ohlc — OHLC: Get the latest OHLC snapshot for an option contract.
+/reference/option/snapshot/open-interest — Open Interest: Get the latest open interest snapshot for an option contract.
+/reference/option/snapshot/quote — Quote: Get the latest NBBO quote snapshot for an option contract.
+/reference/option/snapshot/trade — Trade: Get the latest trade snapshot for an option contract.
+/reference/rate/history/eod — EOD: Fetch end-of-day interest rate history.
+/reference/stock/at-time/quote — Quote: Fetch the quote at a specific time of day across a date range.
+/reference/stock/at-time/trade — Trade: Fetch the trade at a specific time of day across a date range.
+/reference/stock/history/eod — EOD: Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
+/reference/stock/history/ohlc — OHLC: Fetch intraday OHLC bars for a stock on a single date.
+/reference/stock/history/ohlc-range — OHLC Range: Fetch intraday OHLC bars across a date range.
+/reference/stock/history/quote — Quote: Fetch NBBO quotes for a stock on a given date at a given interval.
+/reference/stock/history/trade — Trade: Fetch all trades for a stock on a given date.
+/reference/stock/history/trade-quote — Trade Quote: Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+/reference/stock/list/dates — Dates: List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
+/reference/stock/list/symbols — Symbols: List all available stock ticker symbols.
+/reference/stock/snapshot/market-value — Market Value: Get the latest market value snapshot for one or more stocks.
+/reference/stock/snapshot/ohlc — OHLC: Get the latest OHLC snapshot for one or more stocks.
+/reference/stock/snapshot/quote — Quote: Get the latest NBBO quote snapshot for one or more stocks.
+/reference/stock/snapshot/trade — Trade: Get the latest trade snapshot for one or more stocks.
+/server/ — Server — Getting Started: Run the local HTTP REST and WebSocket server speaking the v3 route surface.
+/server/http — Server — HTTP API: The v3 REST route surface, response formats, and the error envelope.
+/server/websocket — Server — WebSocket Streaming: Subscribe to real-time events over the local WebSocket endpoint.
+/streaming/ — Streaming — Getting Started: Connect, register a callback, subscribe, and shut down cleanly — in every language.
+/streaming/events — Handling Events: The typed event catalogue and how to narrow events in each language.
+/streaming/indices/price — Index Price: Real-time price stream for an index.
+/streaming/options/full-open-interest — Option Full Open Interest: Open-interest updates for every option contract in one subscription.
+/streaming/options/full-trade — Option Full Trades: Every option trade across all underlyings in one subscription.
+/streaming/options/open-interest — Option Open Interest: Open-interest updates for an option contract.
+/streaming/options/quote — Option Quotes: Real-time NBBO quote stream for an option contract.
+/streaming/options/trade — Option Trades: Real-time trade stream for an option contract.
+/streaming/reliability — Reconnection & Monitoring: Automatic reconnect policy, flush mode, and the counters that tell you a stream is healthy.
+/streaming/stocks/full-trade — Stock Full Trades: Every trade across all stocks in one subscription.
+/streaming/stocks/quote — Stock Quotes: Real-time NBBO quote stream for a stock.
+/streaming/stocks/trade — Stock Trades: Real-time trade stream for a stock.
