@@ -380,6 +380,24 @@ The surfaced event is a typed pyclass — one per `FpssData` variant and one per
 - **Data variants** — `Quote`, `Trade`, `OpenInterest`, `Ohlcvc`. `event.kind` is `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`. Each carries a typed `event.contract` with `symbol: str`, `sec_type: str` (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"`), `expiration: Optional[int]` (YYYYMMDD), `right: Optional[str]` (`"C"` / `"P"`, `None` for non-options), `strike_dollars: Optional[float]` (strike in dollars), and `strike: Optional[int]` (wire integer, thousandths of a dollar). Price fields (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are pre-decoded to `float`. All data variants include `received_at_ns: int`.
 - **Control variants** — `LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`, `MarketClose`, `ServerError`, `Disconnected`, `Reconnecting`, `Reconnected`, `Error`, `UnknownFrame`, `UnknownControl`, `Connected`, `Ping`, `ReconnectedServer`, `Restart`. `event.kind` matches the snake_case form (`"login_success"`, `"contract_assigned"`, `"disconnected"`, etc.). Each variant exposes only the fields its Rust counterpart carries — e.g. `LoginSuccess.permissions: str`, `Disconnected.{reason: int, reason_name: str}` (`reason_name` is the `RemoveReason` enum name like `"TooManyRequests"`), `Reconnecting.{reason: int, reason_name: str, attempt: int, delay_ms: int}`, `ContractAssigned.{id: int, contract: Contract}`, `ServerError.message: str`, `UnknownFrame.{code: int, payload: bytes}`. Variants with no payload (`MarketOpen`, `MarketClose`, `Reconnected`, `Connected`, `Restart`, `ReconnectedServer`, `UnknownControl`) carry only `kind`.
 
+## Ring Occupancy (Back-Pressure Signal)
+
+`ring_occupancy()` is a point-in-time sample of the events in flight between the I/O thread and your callback: published into the streaming event ring but not yet drained by the dispatcher. `ring_capacity()` is the ring's configured size (the `fpss_ring_size` setting), the fixed denominator for the sample.
+
+Together they give you the *leading* saturation signal: `dropped_event_count()` only moves after events have already been lost, while a rising occupancy that approaches `ring_capacity()` predicts those drops while there is still time to react — shed work inside the callback, widen the ring, or move heavy processing onto your own queue.
+
+Sample it from your own thread: reading is two relaxed atomic loads, takes no lock, and never blocks the feed. A healthy consumer hovers near zero; treat sustained growth as the cue to act. Because the sample races the live drain, treat it as monitoring data (it clamps at zero and never exceeds capacity), not an exact queue length.
+
+```python
+# Poll alongside dropped_event_count() on a periodic timer.
+occupancy = tdx.ring_occupancy()
+capacity = tdx.ring_capacity()
+if capacity and occupancy > 0.8 * capacity:
+    log.warning("streaming ring at %d/%d — drops imminent", occupancy, capacity)
+```
+
+The same pair is exposed on every binding: Rust `ring_occupancy()` / `ring_capacity()`, Python `ring_occupancy()` / `ring_capacity()`, TypeScript `ringOccupancy()` / `ringCapacity()` (both `bigint`), C `tdx_unified_ring_occupancy()` / `tdx_unified_ring_capacity()`, and C++ `ring_occupancy()` / `ring_capacity()`. All return 0 when streaming has not started.
+
 ## Streaming Methods Reference
 
 ### Rust (`ThetaDataDxClient`)
@@ -412,6 +430,8 @@ The surfaced event is a typed pyclass — one per `FpssData` variant and one per
 | `await_drain(timeout_ms)` | Block until the previous session's consumer has drained |
 | `is_streaming()` | Check if streaming is active |
 | `dropped_event_count()` | Cumulative count of events the TLS reader could not publish because the consumer fell behind |
+| `ring_occupancy()` | Point-in-time count of events in the streaming ring not yet drained into the callback — rising values approaching `ring_capacity()` predict drops |
+| `ring_capacity()` | Configured streaming ring size in slots — the fixed denominator for `ring_occupancy()` |
 | `stop_streaming()` | Graceful shutdown of streaming |
 
 ### C++ (`tdx::UnifiedClient`)

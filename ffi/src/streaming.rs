@@ -1120,6 +1120,49 @@ pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -
     })
 }
 
+/// Point-in-time count of streaming events published into the event
+/// ring but not yet drained into the registered callback — the
+/// in-flight depth between the I/O thread and the dispatcher.
+///
+/// The leading back-pressure signal: `tdx_unified_dropped_events`
+/// only moves AFTER data has been lost, while a rising occupancy that
+/// approaches `tdx_unified_ring_capacity` predicts those drops while
+/// there is still time to react. Sampling never blocks the feed —
+/// it is a pair of relaxed atomic loads on the calling thread; safe
+/// to poll from any thread at any cadence.
+///
+/// Returns 0 if the handle is null or no callback has been installed
+/// yet.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_ring_occupancy(handle: *const TdxUnified) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        unsafe { (*handle).inner.ring_occupancy() as u64 }
+    })
+}
+
+/// Configured capacity of the streaming event ring in slots (the
+/// `fpss_ring_size` setting, a power of two) — the fixed denominator
+/// for `tdx_unified_ring_occupancy`. When the occupancy sample
+/// approaches this value the ring is saturating and further events
+/// will be dropped (counted by `tdx_unified_dropped_events`).
+///
+/// Returns 0 if the handle is null or no callback has been installed
+/// yet.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_ring_capacity(handle: *const TdxUnified) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        unsafe { (*handle).inner.ring_capacity() as u64 }
+    })
+}
+
 /// Cumulative count of user-callback panics caught by the per-invocation
 /// `catch_unwind` boundary on this unified handle since the current
 /// stream started.
@@ -2119,6 +2162,56 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard.as_ref().map_or(0, |c| c.dropped_count())
+    })
+}
+
+/// Point-in-time count of FPSS events published into the event ring
+/// but not yet drained into the registered callback — the in-flight
+/// depth between the I/O thread and the dispatcher.
+///
+/// The leading back-pressure signal: `tdx_fpss_dropped_events` only
+/// moves AFTER data has been lost, while a rising occupancy that
+/// approaches `tdx_fpss_ring_capacity` predicts those drops while
+/// there is still time to react. Sampling never blocks the feed; safe
+/// to poll from any thread at any cadence.
+///
+/// Returns 0 if the handle is null or has been shut down.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_ring_occupancy(handle: *const TdxFpssHandle) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.as_ref().map_or(0, |c| c.ring_occupancy() as u64)
+    })
+}
+
+/// Configured capacity of the FPSS event ring in slots (the
+/// `fpss_ring_size` setting, a power of two) — the fixed denominator
+/// for `tdx_fpss_ring_occupancy`. When the occupancy sample
+/// approaches this value the ring is saturating and further events
+/// will be dropped (counted by `tdx_fpss_dropped_events`).
+///
+/// Returns 0 if the handle is null or has been shut down.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_ring_capacity(handle: *const TdxFpssHandle) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.as_ref().map_or(0, |c| c.ring_capacity() as u64)
     })
 }
 

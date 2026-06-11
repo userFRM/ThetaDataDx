@@ -52,7 +52,7 @@ pub use self::session::{reconnect_delay, reconnect_delay_for};
 // crate's `EventPoller` / `Polling` / `SingleProducerBarrier` types are
 // stored inside `FpssClient::poller_state` and never reach the public
 // signature surface; these imports are crate-internal only.
-use self::ring::RingEvent;
+use self::ring::{RingCursors, RingEvent};
 use disruptor::wait_strategies::WaitStrategy; // VOCAB-OK: internal crate name, not user-facing
 use disruptor::{EventPoller, Polling, SingleProducerBarrier}; // VOCAB-OK: internal crate name, not user-facing
 
@@ -676,6 +676,15 @@ enum TryNext {
 struct PollerState {
     poller: EventPoller<RingEvent, SingleProducerBarrier>,
     pending: VecDeque<FpssEvent>,
+    /// Ring sequence of the last slot a drained batch released
+    /// (`-1` = nothing consumed yet). Plain `i64` — only the consumer
+    /// thread (serialised by the `poller_state` mutex) advances it,
+    /// by the drained batch's length per `poll()`. Mirrored into the
+    /// shared [`RingCursors`] with one `Relaxed` store per batch so
+    /// [`FpssClient::ring_occupancy`] can sample in-flight depth.
+    /// Deliveries from `pending` do not advance it: those events left
+    /// the ring on the `poll()` that staged them.
+    consumed_seq: i64,
 }
 
 /// Selector for the test-only [`FpssClient::for_self_join_test`]
@@ -740,6 +749,7 @@ struct SpawnArgs<'a, P> {
     active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
+    ring_cursors: Arc<RingCursors>,
     consumer_thread_id: Arc<OnceLock<ThreadId>>,
     slow_callback_threshold_ns: Arc<AtomicU64>,
     slow_callback_count: Arc<AtomicU64>,
@@ -832,6 +842,18 @@ pub struct FpssClient {
     /// was full. Snapshot via [`FpssClient::dropped_count`]; this is the
     /// user-facing "ring-overflow" metric.
     dropped: Arc<AtomicU64>,
+    /// Producer / consumer progress cursors for the event ring,
+    /// sampled by [`FpssClient::ring_occupancy`]. The I/O thread
+    /// stores the published sequence on every successful publish; the
+    /// drain paths store the consumed sequence once per drained
+    /// batch. Cache-padded so the two write streams never share a
+    /// line.
+    ring_cursors: Arc<RingCursors>,
+    /// Configured event-ring capacity in slots (validated power of
+    /// two). Snapshot via [`FpssClient::ring_capacity`] so operators
+    /// can scale [`FpssClient::ring_occupancy`] samples without
+    /// re-reading their own configuration.
+    ring_size: usize,
     /// Cumulative count of user-callback panics caught by the
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`FpssClient::panic_count`].
@@ -1167,8 +1189,13 @@ impl FpssClient {
         // Build the ring producer + poller. The producer is moved into
         // the I/O thread; the poller is bundled into the assembled
         // `FpssClient` and drained via `next_event` / `poll_batch` /
-        // `for_each` / the `Iterator for &FpssClient` impl.
-        let (producer, poller) = io_loop::build_poller_producer(ring_size);
+        // `for_each` / the `Iterator for &FpssClient` impl. The shared
+        // cursor pair feeds `ring_occupancy()`: the producer records
+        // every published sequence, the drain paths record batch
+        // completions.
+        let ring_cursors = Arc::new(RingCursors::new());
+        let (producer, poller) =
+            io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors));
 
         // Build the client with the producer + poller bundled in. The
         // poller lives inside `FpssClient::poller_state` and is drained
@@ -1211,6 +1238,7 @@ impl FpssClient {
             active_full_subs,
             dropped,
             panics,
+            ring_cursors,
             consumer_thread_id,
             slow_callback_threshold_ns,
             slow_callback_count,
@@ -1222,7 +1250,7 @@ impl FpssClient {
     /// and assemble the [`FpssClient`] handle.
     fn spawn_io_and_assemble<P>(args: SpawnArgs<'_, P>) -> Result<Self, Error>
     where
-        P: io_loop::RingProducer,
+        P: ring::RingProducer,
     {
         let SpawnArgs {
             producer,
@@ -1261,6 +1289,7 @@ impl FpssClient {
             active_full_subs,
             dropped,
             panics,
+            ring_cursors,
             consumer_thread_id,
             slow_callback_threshold_ns,
             slow_callback_count,
@@ -1352,6 +1381,7 @@ impl FpssClient {
             poller_state: Mutex::new(Some(PollerState {
                 poller,
                 pending: VecDeque::new(),
+                consumed_seq: -1,
             })),
             shutdown,
             authenticated,
@@ -1365,6 +1395,8 @@ impl FpssClient {
             replay_pace_ms: client_replay_pace_ms,
             dropped,
             panics,
+            ring_cursors,
+            ring_size,
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns,
@@ -1384,6 +1416,45 @@ impl FpssClient {
     #[must_use]
     pub fn dropped_count(&self) -> u64 {
         self.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Point-in-time count of events published into the event ring but
+    /// not yet drained by the consumer — the in-flight depth between
+    /// the I/O thread and your callback.
+    ///
+    /// This is the leading back-pressure signal:
+    /// [`Self::dropped_count`] only moves AFTER data has been lost,
+    /// while a rising occupancy that approaches
+    /// [`Self::ring_capacity`] predicts those drops while there is
+    /// still time to react (shed callback work, widen the ring, scale
+    /// the consumer).
+    ///
+    /// Reading is a pair of `Relaxed` atomic loads on the calling
+    /// thread — it never blocks the feed, takes no lock, and is safe
+    /// to poll from any thread at any cadence. Because the two
+    /// cursors are sampled independently, a read racing a concurrent
+    /// drain is clamped at `0` rather than underflowing; treat the
+    /// value as a monitoring sample, not an exact queue length.
+    ///
+    /// Consumed progress is recorded once per drained batch, so a
+    /// sample taken mid-batch can briefly include events the consumer
+    /// is already iterating. The value never exceeds
+    /// [`Self::ring_capacity`].
+    #[must_use]
+    pub fn ring_occupancy(&self) -> usize {
+        self.ring_cursors.occupancy()
+    }
+
+    /// Configured capacity of the event ring in slots (the builder's
+    /// `ring_size`, a validated power of two).
+    ///
+    /// The fixed denominator for [`Self::ring_occupancy`]: when the
+    /// occupancy sample approaches this value the ring is saturating
+    /// and further publishes will be dropped (counted by
+    /// [`Self::dropped_count`]).
+    #[must_use]
+    pub fn ring_capacity(&self) -> usize {
+        self.ring_size
     }
 
     /// Cumulative count of user-callback faults: Rust panics caught by the
@@ -1523,11 +1594,22 @@ impl FpssClient {
 
         let outcome = match state.poller.poll() {
             Ok(mut batch) => {
+                // Count every slot this drain releases, including
+                // internal-only events that `as_public` filters out —
+                // the ring frees every slot the batch guard covers. A
+                // register increment inside the existing iteration; no
+                // atomic, no extra pass.
+                let mut batch_len: i64 = 0;
                 for ring_event in &mut batch {
+                    batch_len += 1;
                     if let Some(public) = ring_event.event.as_public() {
                         state.pending.push_back(public.clone());
                     }
                 }
+                // One store per drained batch (never per event): mirror
+                // the local cursor into the shared occupancy sample.
+                state.consumed_seq += batch_len;
+                self.ring_cursors.record_consumed(state.consumed_seq);
                 match state.pending.pop_front() {
                     Some(event) => TryNext::Event(event),
                     None => TryNext::Empty,
@@ -1582,7 +1664,14 @@ impl FpssClient {
 
         let outcome = match state.poller.poll() {
             Ok(mut batch) => {
+                // Count every slot this drain releases, including
+                // internal-only events that `as_public` filters out —
+                // the ring frees every slot the batch guard covers. A
+                // register increment inside the existing iteration; no
+                // atomic, no extra pass.
+                let mut batch_len: i64 = 0;
                 for ring_event in &mut batch {
+                    batch_len += 1;
                     if let Some(event) = ring_event.event.as_public() {
                         if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             on_event(event);
@@ -1603,6 +1692,10 @@ impl FpssClient {
                         }
                     }
                 }
+                // One store per drained batch (never per event): mirror
+                // the local cursor into the shared occupancy sample.
+                state.consumed_seq += batch_len;
+                self.ring_cursors.record_consumed(state.consumed_seq);
                 Some(PollOutcome::Drained(delivered))
             }
             Err(Polling::NoEvents) => Some(PollOutcome::Drained(delivered)),
@@ -2064,10 +2157,11 @@ impl FpssClient {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        use disruptor::{build_single_producer, BusySpin, Producer, Sequence}; // VOCAB-OK: internal crate name
+        use disruptor::{build_single_producer, BusySpin, Sequence}; // VOCAB-OK: internal crate name
 
         use self::events::FpssEventInternal;
         use self::ring::RingEvent;
+        use self::ring::{RingProducer, SequencedProducer};
 
         let ring_size = ring::check_ring_size(ring_size).expect(
             "for_self_join_test: ring_size must be validated; tests must pass a power of two \
@@ -2082,6 +2176,7 @@ impl FpssClient {
             Arc::new(Mutex::new(Vec::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
+        let ring_cursors = Arc::new(RingCursors::new());
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
         let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
@@ -2090,21 +2185,33 @@ impl FpssClient {
         let handler_cell = Mutex::new(handler);
         let panics_consumer = Arc::clone(&panics);
         let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
+        let consumer_cursors = Arc::clone(&ring_cursors);
 
         let factory = RingEvent::default;
-        let mut producer = build_single_producer(ring_size, factory, BusySpin)
-            .handle_events_with(move |slot: &RingEvent, _seq: Sequence, _eob: bool| {
-                consumer_thread_id_cell.get_or_init(|| thread::current().id());
-                if let Some(evt) = slot.event.as_public() {
-                    let mut h = handler_cell
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h(evt))).is_err() {
-                        panics_consumer.fetch_add(1, Ordering::Relaxed);
+        let mut producer = SequencedProducer::new(
+            build_single_producer(ring_size, factory, BusySpin)
+                .handle_events_with(move |slot: &RingEvent, seq: Sequence, eob: bool| {
+                    consumer_thread_id_cell.get_or_init(|| thread::current().id());
+                    if let Some(evt) = slot.event.as_public() {
+                        let mut h = handler_cell
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h(evt)))
+                            .is_err()
+                        {
+                            panics_consumer.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
-                }
-            })
-            .build();
+                    // Batch-granularity consumed cursor, mirroring the
+                    // production drain: one store on the last event of
+                    // each dispatched batch.
+                    if eob {
+                        consumer_cursors.record_consumed(seq);
+                    }
+                })
+                .build(),
+            Arc::clone(&ring_cursors),
+        );
 
         // Fake I/O thread: in `TryPublishBurst` mode, push the burst
         // via `try_publish` exactly like `io_loop` does on the real
@@ -2183,11 +2290,73 @@ impl FpssClient {
             replay_pace_ms: 0,
             dropped,
             panics,
+            ring_cursors,
+            ring_size,
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
             slow_callback_count: Arc::new(AtomicU64::new(0)),
         })
+    }
+
+    /// Test-only constructor wiring the production polling topology —
+    /// [`io_loop::build_poller_producer`] plus a live [`PollerState`]
+    /// — **without** touching the network or spawning any thread.
+    ///
+    /// Returns the assembled client together with the ring producer so
+    /// a test drives publishes and `poll_batch` / `next_event` drains
+    /// deterministically from a single thread. This is the fixture for
+    /// the ring-occupancy contract: the producer records published
+    /// sequences and the drain paths record consumed batches into the
+    /// same shared cursors the public [`Self::ring_occupancy`] reads.
+    ///
+    /// [`Self::for_self_join_test`] cannot serve here: it owns a
+    /// dispatcher-thread consumer, so the moment between "published"
+    /// and "drained" is not observable from the test thread.
+    #[cfg(test)]
+    pub(in crate::fpss) fn for_ring_occupancy_test(
+        ring_size: usize,
+    ) -> (Self, impl ring::RingProducer) {
+        let ring_size = ring::check_ring_size(ring_size).expect(
+            "for_ring_occupancy_test: ring_size must be validated; tests must pass a power of \
+             two >= MIN_RING_SIZE (e.g. 64, 128, 256)",
+        );
+
+        let ring_cursors = Arc::new(RingCursors::new());
+        let (producer, poller) =
+            io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors));
+
+        let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
+
+        let client = FpssClient {
+            cmd_tx: Mutex::new(cmd_tx),
+            io_handle: None,
+            ping_handle: None,
+            poller_state: Mutex::new(Some(PollerState {
+                poller,
+                pending: VecDeque::new(),
+                consumed_seq: -1,
+            })),
+            shutdown: Arc::new(AtomicBool::new(false)),
+            authenticated: Arc::new(AtomicBool::new(true)),
+            next_req_id: Arc::new(AtomicI64::new(1)),
+            active_subs: Arc::new(Mutex::new(Vec::new())),
+            active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            server_addr: "test://ring-occupancy".to_owned(),
+            last_event_at_ns: Arc::new(AtomicI64::new(0)),
+            connected_addr: Arc::new(Mutex::new("test://ring-occupancy".to_owned())),
+            replay_burst_size: 50,
+            replay_pace_ms: 0,
+            dropped: Arc::new(AtomicU64::new(0)),
+            panics: Arc::new(AtomicU64::new(0)),
+            ring_cursors,
+            ring_size,
+            consumer_thread_id: Arc::new(OnceLock::new()),
+            drained: Arc::new(AtomicBool::new(false)),
+            slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
+            slow_callback_count: Arc::new(AtomicU64::new(0)),
+        };
+        (client, producer)
     }
 
     /// Send a command to the I/O thread. Maps channel-send failure to a
@@ -2659,5 +2828,154 @@ mod panic_isolation_tests {
             "events 2..N_EVENTS must have been delivered after two panics; \
              got {delivered_count}"
         );
+    }
+}
+
+#[cfg(test)]
+mod ring_occupancy_tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::events::FpssEventInternal;
+    use super::ring::RingProducer;
+    use super::{FpssClient, FpssControl, HarnessPublishMode, PollOutcome};
+
+    /// Publish one synthetic control event through the test producer.
+    fn publish_one(producer: &mut impl RingProducer) -> bool {
+        producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+            })
+            .is_ok()
+    }
+
+    /// Occupancy rises by one per published event and returns to zero
+    /// after a single `poll_batch` drain; capacity reports the
+    /// configured ring size.
+    #[test]
+    fn occupancy_tracks_publish_then_drain() {
+        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+
+        assert_eq!(client.ring_capacity(), 64);
+        assert_eq!(client.ring_occupancy(), 0, "fresh ring must read empty");
+
+        for published in 1..=5usize {
+            assert!(publish_one(&mut producer), "ring must not be full yet");
+            assert_eq!(
+                client.ring_occupancy(),
+                published,
+                "occupancy must count each undrained publish"
+            );
+        }
+
+        let mut delivered = 0usize;
+        let outcome = client.poll_batch(|_event| delivered += 1);
+        assert_eq!(outcome, PollOutcome::Drained(5));
+        assert_eq!(delivered, 5);
+        assert_eq!(client.ring_occupancy(), 0, "a drained ring must read empty");
+    }
+
+    /// A publish burst against a full ring saturates at the configured
+    /// capacity: overflow publishes fail without advancing the
+    /// published cursor, so occupancy never exceeds capacity.
+    #[test]
+    fn occupancy_never_exceeds_capacity_under_full_ring_burst() {
+        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+
+        let mut accepted = 0usize;
+        for _ in 0..(64 + 16) {
+            if publish_one(&mut producer) {
+                accepted += 1;
+            }
+            assert!(
+                client.ring_occupancy() <= client.ring_capacity(),
+                "occupancy must never exceed capacity"
+            );
+        }
+        assert_eq!(accepted, 64, "exactly ring_size publishes must land");
+        assert_eq!(client.ring_occupancy(), client.ring_capacity());
+
+        let outcome = client.poll_batch(|_event| {});
+        assert_eq!(outcome, PollOutcome::Drained(64));
+        assert_eq!(client.ring_occupancy(), 0);
+    }
+
+    /// Consumed progress is recorded at batch granularity: a single
+    /// `try_next_event` pull stages the whole available batch out of
+    /// the ring, so occupancy drops to zero even though undelivered
+    /// events remain in the client-side staging queue.
+    #[test]
+    fn occupancy_counts_drained_batches_not_delivered_events() {
+        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+
+        for _ in 0..3 {
+            assert!(publish_one(&mut producer));
+        }
+        assert_eq!(client.ring_occupancy(), 3);
+
+        let first = client
+            .try_next_event()
+            .expect("staging mutex must not be poisoned");
+        assert!(first.is_some(), "one event must be delivered");
+        assert_eq!(
+            client.ring_occupancy(),
+            0,
+            "the drain staged the whole batch out of the ring; occupancy \
+             tracks ring slots, not the staging queue"
+        );
+
+        // The two staged events still arrive.
+        assert!(client
+            .try_next_event()
+            .expect("staging mutex must not be poisoned")
+            .is_some());
+        assert!(client
+            .try_next_event()
+            .expect("staging mutex must not be poisoned")
+            .is_some());
+    }
+
+    /// The dispatcher-thread harness keeps the same contract end to
+    /// end: once every event is delivered, the consumer's end-of-batch
+    /// cursor store has caught up with the producer and occupancy
+    /// reads zero.
+    #[test]
+    fn harness_occupancy_drains_to_zero_after_delivery() {
+        const N_EVENTS: usize = 10;
+
+        let delivered = Arc::new(AtomicU64::new(0));
+        let delivered_c = Arc::clone(&delivered);
+
+        let client = FpssClient::for_self_join_test(
+            N_EVENTS,
+            64,
+            HarnessPublishMode::TryPublishBurst,
+            None,
+            move |_event| {
+                delivered_c.fetch_add(1, Ordering::Relaxed);
+            },
+        );
+
+        assert_eq!(client.ring_capacity(), 64);
+
+        // Bounded wait, no fixed sleep: occupancy must reach zero once
+        // the dispatcher has drained the burst.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let all_delivered = delivered.load(Ordering::Relaxed) == N_EVENTS as u64;
+            if all_delivered && client.ring_occupancy() == 0 {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "occupancy did not drain to zero within 5 s; delivered={}, occupancy={}",
+                delivered.load(Ordering::Relaxed),
+                client.ring_occupancy()
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+
+        client.shutdown();
     }
 }

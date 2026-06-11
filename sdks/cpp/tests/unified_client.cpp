@@ -67,6 +67,12 @@ TEST_CASE("UnifiedClient binds the full FPSS surface",
     // dropped_event_count() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const UC&>().dropped_event_count()), uint64_t>);
+    // ring_occupancy() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const UC&>().ring_occupancy()), uint64_t>);
+    // ring_capacity() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const UC&>().ring_capacity()), uint64_t>);
     // is_streaming() -> bool
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const UC&>().is_streaming()), bool>);

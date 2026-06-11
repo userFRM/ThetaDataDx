@@ -1203,6 +1203,25 @@ public:
         return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
     }
 
+    /** Point-in-time count of streaming events published into the
+     *  event ring but not yet drained into the registered callback —
+     *  the in-flight depth between the I/O thread and the dispatcher.
+     *  Rising occupancy that approaches ring_capacity() predicts
+     *  drops before dropped_events() moves; sampling never blocks the
+     *  feed and is safe from any thread. Returns 0 when no session is
+     *  live. Safe to call on a moved-from client. */
+    uint64_t ring_occupancy() const {
+        return handle_ ? tdx_fpss_ring_occupancy(handle_.get()) : 0;
+    }
+
+    /** Configured capacity of the streaming event ring in slots (the
+     *  fpss_ring_size setting, a power of two) — the fixed
+     *  denominator for ring_occupancy(). Returns 0 when no session is
+     *  live. Safe to call on a moved-from client. */
+    uint64_t ring_capacity() const {
+        return handle_ ? tdx_fpss_ring_capacity(handle_.get()) : 0;
+    }
+
     /** Cumulative count of user-callback panics caught by the
      *  per-invocation catch_unwind boundary since the current stream
      *  started. A panic in the callback is caught, recorded here, and
@@ -1599,6 +1618,26 @@ public:
     /// installed yet. Safe to call on a moved-from client.
     uint64_t dropped_event_count() const {
         return handle_ ? tdx_unified_dropped_events(handle_.get()) : 0;
+    }
+
+    /// Point-in-time count of streaming events published into the
+    /// event ring but not yet drained into the registered callback —
+    /// the in-flight depth between the I/O thread and the dispatcher.
+    /// Rising occupancy that approaches ring_capacity() predicts
+    /// drops before dropped_event_count() moves; sampling never
+    /// blocks the feed and is safe from any thread. Returns 0 when no
+    /// callback has been installed yet. Safe to call on a moved-from
+    /// client.
+    uint64_t ring_occupancy() const {
+        return handle_ ? tdx_unified_ring_occupancy(handle_.get()) : 0;
+    }
+
+    /// Configured capacity of the streaming event ring in slots (the
+    /// fpss_ring_size setting, a power of two) — the fixed
+    /// denominator for ring_occupancy(). Returns 0 when no callback
+    /// has been installed yet. Safe to call on a moved-from client.
+    uint64_t ring_capacity() const {
+        return handle_ ? tdx_unified_ring_capacity(handle_.get()) : 0;
     }
 
     /// Cumulative count of user-callback panics caught by the

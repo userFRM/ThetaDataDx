@@ -510,6 +510,28 @@ impl FpssClient {
         guard.as_ref().map_or(0, |c| c.dropped_count())
     }
 
+    /// Point-in-time count of events published into the event ring
+    /// but not yet drained into your callback — the in-flight depth
+    /// between the I/O thread and the dispatcher. The leading
+    /// back-pressure signal: :meth:`dropped_event_count` only moves
+    /// AFTER data has been lost, while a rising occupancy that
+    /// approaches :meth:`ring_capacity` predicts those drops while
+    /// there is still time to react. Sampling never blocks the feed.
+    /// Returns 0 when no session is live.
+    fn ring_occupancy(&self) -> usize {
+        let guard = self.lock_inner();
+        guard.as_ref().map_or(0, |c| c.ring_occupancy())
+    }
+
+    /// Configured capacity of the event ring in slots (the
+    /// ``fpss_ring_size`` setting, a power of two) — the fixed
+    /// denominator for :meth:`ring_occupancy`. Returns 0 when no
+    /// session is live.
+    fn ring_capacity(&self) -> usize {
+        let guard = self.lock_inner();
+        guard.as_ref().map_or(0, |c| c.ring_capacity())
+    }
+
     /// Cumulative count of user-callback faults: Rust panics caught by the
     /// per-invocation `catch_unwind` boundary, and Python exceptions raised
     /// inside the callback (surfaced via `sys.unraisablehook`). Both kinds

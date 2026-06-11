@@ -1306,6 +1306,36 @@ impl ThetaDataDxClient {
         self.tdx.dropped_event_count()
     }
 
+    /// Point-in-time count of streaming events published into the
+    /// event ring but not yet drained into your callback — the
+    /// in-flight depth between the I/O thread and the dispatcher.
+    ///
+    /// The leading back-pressure signal: :meth:`dropped_event_count`
+    /// only moves AFTER data has been lost, while a rising occupancy
+    /// that approaches :meth:`ring_capacity` predicts those drops
+    /// while there is still time to react. Sampling never blocks the
+    /// feed; poll it from your own thread at any cadence.
+    ///
+    /// Forwarded to
+    /// [`thetadatadx::ThetaDataDxClient::ring_occupancy`] so the value
+    /// matches every other binding (C ABI, TypeScript, C++). Returns
+    /// 0 before `start_streaming` and after `stop_streaming`.
+    fn ring_occupancy(&self) -> usize {
+        self.tdx.ring_occupancy()
+    }
+
+    /// Configured capacity of the streaming event ring in slots (the
+    /// ``fpss_ring_size`` setting, a power of two).
+    ///
+    /// The fixed denominator for :meth:`ring_occupancy`: when the
+    /// occupancy sample approaches this value the ring is saturating
+    /// and further events will be dropped (counted by
+    /// :meth:`dropped_event_count`). Returns 0 before
+    /// `start_streaming` and after `stop_streaming`.
+    fn ring_capacity(&self) -> usize {
+        self.tdx.ring_capacity()
+    }
+
     /// Milliseconds since the most recent inbound streaming frame of
     /// any kind (data tick, heartbeat, control), or ``None`` when
     /// streaming has not started or no frame has been received yet.
@@ -1454,6 +1484,8 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // Diagnostics.
     "dropped_event_count",
     "panic_count",
+    "ring_occupancy",
+    "ring_capacity",
     // FLATFILES namespace getter.
     "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
@@ -1482,12 +1514,15 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "unsubscribe",
     "unsubscribe_many",
     "active_full_subscriptions",
-    // Diagnostic getters — `dropped_event_count` and `panic_count`
-    // live directly on `ThetaDataDxClient` (lib.rs) and forward to
-    // the core `thetadatadx::ThetaDataDxClient` accessors so the
-    // count matches every other binding.
+    // Diagnostic getters — `dropped_event_count`, `panic_count`,
+    // `ring_occupancy`, and `ring_capacity` live directly on
+    // `ThetaDataDxClient` (lib.rs) and forward to the core
+    // `thetadatadx::ThetaDataDxClient` accessors so the count matches
+    // every other binding.
     "dropped_event_count",
     "panic_count",
+    "ring_occupancy",
+    "ring_capacity",
 ];
 
 /// `const fn` byte-equal helper for the compile-time guard below.

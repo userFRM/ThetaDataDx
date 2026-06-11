@@ -30,7 +30,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use disruptor::{build_single_producer, EventPoller, Producer, SingleProducerBarrier};
+use disruptor::{build_single_producer, EventPoller, SingleProducerBarrier};
 use metrics::Counter;
 
 // ─── Hoisted I/O-loop counter handles ───────────────────────────────
@@ -72,7 +72,9 @@ use super::framing::{
 };
 use super::protocol::{self, build_credentials_payload, Contract};
 use super::reconnect_delay;
-use super::ring::{self, AdaptiveWaitStrategy, RingEvent};
+use super::ring::{
+    self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
+};
 
 type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
 type ActiveFullSubs = Arc<
@@ -111,8 +113,8 @@ type ActiveFullSubs = Arc<
 ///
 /// `producer` is the ring publisher built by the caller via
 /// [`build_poller_producer`]. The io_loop only ever calls
-/// [`Producer::try_publish`] on it; the consumer side is driven on
-/// the caller's own thread through `FpssClient::next_event` /
+/// [`RingProducer::try_publish`] on it; the consumer side is driven
+/// on the caller's own thread through `FpssClient::next_event` /
 /// `poll_batch` / `for_each` (or by the per-binding dispatcher thread
 /// each language SDK owns).
 pub(in crate::fpss) struct IoLoopArgs<P> {
@@ -191,7 +193,7 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 pub(in crate::fpss) fn io_loop<P>(args: IoLoopArgs<P>)
 where
-    P: Producer<RingEvent>,
+    P: RingProducer,
 {
     let IoLoopArgs {
         stream,
@@ -236,7 +238,7 @@ where
 
     // The producer was built by the caller via
     // [`build_poller_producer`]. From here on the io_loop only
-    // publishes into the ring via [`Producer::try_publish`]; the
+    // publishes into the ring via [`RingProducer::try_publish`]; the
     // consumer side runs on the caller's own thread (or each binding's
     // dispatcher thread) and drains the ring independently.
 
@@ -1090,19 +1092,6 @@ where
     tracing::debug!("fpss-io thread exiting");
 }
 
-/// A ring producer the I/O thread can own and drive: a
-/// [`Producer<RingEvent>`] that is `Send` (moved into the spawned I/O
-/// thread) and `'static` (outlives the thread it is moved into).
-///
-/// The producer shape returned by [`build_poller_producer`] satisfies
-/// this via the blanket impl below.
-pub(in crate::fpss) trait RingProducer:
-    Producer<RingEvent> + Send + 'static
-{
-}
-
-impl<T> RingProducer for T where T: Producer<RingEvent> + Send + 'static {}
-
 /// Build the ring producer + poller.
 ///
 /// Constructs the single-producer ring in polling mode, so
@@ -1112,11 +1101,17 @@ impl<T> RingProducer for T where T: Producer<RingEvent> + Send + 'static {}
 /// `FpssClient` and drained by `next_event` / `poll_batch` /
 /// `for_each` / the `Iterator for &FpssClient` impl.
 ///
+/// `cursors` is the shared occupancy cursor pair: the returned
+/// producer records every successfully published sequence into it,
+/// and the consumer drain records batch completions, so
+/// `FpssClient::ring_occupancy` can sample in-flight depth.
+///
 /// Dropping the producer at io_loop exit stores the shutdown sequence
 /// on the ring; the consumer side then drains every published event
 /// and signals shutdown once it reaches that sequence — the EOF-drain guarantee.
 pub(in crate::fpss) fn build_poller_producer(
     ring_size: usize,
+    cursors: Arc<RingCursors>,
 ) -> (
     impl RingProducer,
     EventPoller<RingEvent, SingleProducerBarrier>,
@@ -1125,7 +1120,7 @@ pub(in crate::fpss) fn build_poller_producer(
     let wait_strategy = AdaptiveWaitStrategy::fpss_default();
     let (poller, builder) =
         build_single_producer(ring_size, factory, wait_strategy).new_event_poller();
-    (builder.build(), poller)
+    (SequencedProducer::new(builder.build(), cursors), poller)
 }
 
 /// Current wall-clock time as UNIX nanoseconds, clamped into `i64`.

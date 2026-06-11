@@ -4,6 +4,7 @@
 //! `fpss`, `grpc`, `mdds`, or `flatfiles` in particular and are
 //! reused across them.
 
+pub(crate) mod cache_padded;
 pub(crate) mod random_id;
 pub mod ring;
 pub(crate) mod stream_ext;

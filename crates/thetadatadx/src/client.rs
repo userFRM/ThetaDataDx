@@ -500,6 +500,44 @@ impl ThetaDataDxClient {
         }
     }
 
+    /// Point-in-time count of streaming events published into the
+    /// event ring but not yet drained by the dispatcher — the
+    /// in-flight depth between the I/O thread and your callback.
+    /// Returns `0` when streaming has not started.
+    ///
+    /// The leading back-pressure signal:
+    /// [`Self::dropped_event_count`] only moves AFTER data has been
+    /// lost, while a rising occupancy that approaches
+    /// [`Self::ring_capacity`] predicts those drops while there is
+    /// still time to react. Sampling never blocks the feed — it is a
+    /// pair of relaxed atomic loads on the calling thread; poll it
+    /// from your own monitoring thread at any cadence.
+    #[must_use]
+    pub fn ring_occupancy(&self) -> usize {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.ring_occupancy(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Configured capacity of the streaming event ring in slots (the
+    /// `fpss.ring_size` setting, a validated power of two). Returns
+    /// `0` when streaming has not started.
+    ///
+    /// The fixed denominator for [`Self::ring_occupancy`]: when the
+    /// occupancy sample approaches this value the ring is saturating
+    /// and further publishes will be dropped (counted by
+    /// [`Self::dropped_event_count`]).
+    #[must_use]
+    pub fn ring_capacity(&self) -> usize {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.ring_capacity(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
     /// Milliseconds since the most recent inbound streaming frame of
     /// any kind (data tick, heartbeat, control), or `None` when
     /// streaming has not started or no frame has been received yet.

@@ -565,6 +565,36 @@ export declare class ThetaDataDxClient {
    */
   droppedEventCount(): bigint
   /**
+   * Point-in-time count of streaming events published into the
+   * event ring but not yet drained into your callback — the
+   * in-flight depth between the I/O thread and the dispatcher.
+   *
+   * The leading back-pressure signal: `droppedEventCount()` only
+   * moves AFTER data has been lost, while a rising occupancy that
+   * approaches `ringCapacity()` predicts those drops while there
+   * is still time to react. Sampling never blocks the feed; poll
+   * it from your own code at any cadence.
+   *
+   * Forwards to `thetadatadx::ThetaDataDxClient::ring_occupancy`
+   * so the value matches every other binding (C ABI, Python,
+   * C++). Returns `0n` before `startStreaming` and after
+   * `stopStreaming`. Returned as `bigint` for shape-consistency
+   * with the other streaming counters.
+   */
+  ringOccupancy(): bigint
+  /**
+   * Configured capacity of the streaming event ring in slots (the
+   * `fpssRingSize` setting, a power of two).
+   *
+   * The fixed denominator for `ringOccupancy()`: when the
+   * occupancy sample approaches this value the ring is saturating
+   * and further events will be dropped (counted by
+   * `droppedEventCount()`). Returns `0n` before `startStreaming`
+   * and after `stopStreaming`. Returned as `bigint` for
+   * shape-consistency with the other streaming counters.
+   */
+  ringCapacity(): bigint
+  /**
    * Milliseconds since the most recent inbound streaming frame of
    * any kind (data tick, heartbeat, control), or `null` when
    * streaming has not started or no frame has been received yet.
