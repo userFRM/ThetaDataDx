@@ -826,8 +826,9 @@ impl PriceTick {
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
 /// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).
 /// The four exchange / condition columns are NOT in the `required` list
-/// below so the generator emits `opt_number(row, None) -> 0` arms for
-/// them; this lets the decoder accept subset NBBO layouts (e.g. the
+/// below, so when the wire omits them the generated parser skips their
+/// column pass and the `0` seed stands; this lets the decoder accept
+/// subset NBBO layouts (e.g. the
 /// 6-field `[ms_of_day, bid_size, bid, ask_size, ask, date]` shape some
 /// storage tiers emit) without erroring, while still decoding the full
 /// 11-field shape bit-exact when every column is present.
