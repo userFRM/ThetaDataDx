@@ -7,7 +7,8 @@
 //! shape `MddsClient` wires), sends the same prost-encoded request the
 //! SDK sends, receives zstd-compressed `ResponseData` frames, and
 //! performs the production decode work (zstd decompress + prost
-//! `DataTable` decode + row merge) inline on the request task.
+//! `DataTable` decode + row merge + typed `EodTick` build) inline on
+//! the request task.
 //!
 //! Compare runs against the measured tables recorded in
 //! `docs/architecture/in-house-grpc-transport.md` ("Measured
@@ -285,18 +286,42 @@ struct SynthPayload {
     rows: usize,
 }
 
-/// Deterministic EOD-shaped rows: 8 numeric columns of full-range
+/// Deterministic EOD-shaped rows: 8 numeric columns, mostly full-range
 /// random `i64` values. Random varints compress poorly, so the wire
 /// frame stays close to the decoded size and the target is reachable.
+///
+/// Every row is valid input for the production `EodTick` build the
+/// measured loop performs: `ms_of_day` stays inside the `i32`
+/// milliseconds-of-day window and `date` is a real `YYYYMMDD` value
+/// (both randomized so neither column compresses away); the six
+/// remaining columns ride the unbounded `i64` decode arms and stay
+/// full-range random.
 fn build_rows(row_count: usize, seed: u64) -> DataTable {
     let mut rng = StdRng::seed_from_u64(seed);
     let rows: Vec<DataValueList> = (0..row_count)
-        .map(|_| DataValueList {
-            values: (0..8)
-                .map(|_| DataValue {
-                    data_type: Some(data_value::DataType::Number(rng.random::<i64>())),
-                })
-                .collect(),
+        .map(|_| {
+            let ms_of_day = i64::from(rng.random_range(0..=86_400_000_i32));
+            let date = i64::from(
+                rng.random_range(1900..=2099_i32) * 10_000
+                    + rng.random_range(1..=12_i32) * 100
+                    + rng.random_range(1..=28_i32),
+            );
+            let values = [
+                ms_of_day,
+                rng.random::<i64>(), // open
+                rng.random::<i64>(), // high
+                rng.random::<i64>(), // low
+                rng.random::<i64>(), // close
+                rng.random::<i64>(), // volume
+                rng.random::<i64>(), // count
+                date,
+            ]
+            .into_iter()
+            .map(|n| DataValue {
+                data_type: Some(data_value::DataType::Number(n)),
+            })
+            .collect();
+            DataValueList { values }
         })
         .collect();
     DataTable {
@@ -463,7 +488,7 @@ async fn run_window(
             while Instant::now() < deadline {
                 let started = Instant::now();
                 let lease = pool.next();
-                let table = bench_support::stock_history_eod(
+                let ticks = bench_support::stock_history_eod(
                     &lease,
                     SESSION_UUID.to_string(),
                     CLIENT_TYPE.to_string(),
@@ -474,7 +499,7 @@ async fn run_window(
                 .await
                 .expect("in-house rpc");
                 let elapsed = started.elapsed();
-                assert_eq!(table.data_table.len(), expected_rows, "row count drift");
+                assert_eq!(ticks.len(), expected_rows, "row count drift");
                 if record {
                     latencies.push(u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX));
                 }

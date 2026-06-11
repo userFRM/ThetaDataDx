@@ -126,7 +126,9 @@ pub async fn collect_stream(
 /// decoded.
 pub mod bench_support {
     use super::{map_channel_error, Channel, Error, HashMap, CLIENT_PARAMETER_VALUE};
+    use crate::decode;
     use crate::proto;
+    use tdbe::types::tick::EodTick;
 
     fn make_query_info(session_uuid: String, client_type: String) -> proto::QueryInfo {
         let mut query_parameters = HashMap::with_capacity(1);
@@ -141,7 +143,10 @@ pub mod bench_support {
     }
 
     /// Issue `BetaThetaTerminal::GetStockHistoryEod` and return the
-    /// merged response table. Used by the transport bench only.
+    /// decoded ticks — the full production decode shape (zstd
+    /// decompress + prost `DataTable` decode + row merge + typed tick
+    /// build), exactly what the generated `stock_history_eod` endpoint
+    /// performs. Used by the transport bench only.
     ///
     /// # Errors
     ///
@@ -154,7 +159,7 @@ pub mod bench_support {
         symbol: &str,
         start_date: &str,
         end_date: &str,
-    ) -> Result<proto::DataTable, Error> {
+    ) -> Result<Vec<EodTick>, Error> {
         let request = proto::StockHistoryEodRequest {
             query_info: Some(make_query_info(session_uuid, client_type)),
             params: Some(proto::StockHistoryEodRequestQuery {
@@ -166,7 +171,8 @@ pub mod bench_support {
         let stream = proto::beta_theta_terminal::get_stock_history_eod(channel, request)
             .await
             .map_err(map_channel_error)?;
-        super::collect_stream(stream).await
+        let table = super::collect_stream(stream).await?;
+        Ok(decode::parse_eod_ticks(&table)?)
     }
 }
 

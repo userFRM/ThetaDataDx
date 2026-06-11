@@ -24,6 +24,24 @@ pub enum DecodeError {
         expected: &'static str,
         observed: &'static str,
     },
+    /// A cell's wire type fell outside the accept-set its schema column
+    /// declares. The bulk column extractors (`decode::column`) raise this
+    /// in place of [`DecodeError::TypeMismatch`]: the schema column name
+    /// and the offending row index make a corrupt cell in a 100K-row
+    /// frame locatable from the error alone.
+    #[error("column `{header}` (index {column}, row {row}): expected {expected}, got {observed}")]
+    ColumnTypeMismatch {
+        /// Schema-side column name (as declared in `tick_schema.toml`).
+        header: &'static str,
+        /// Resolved wire column index.
+        column: usize,
+        /// Zero-based row index within the decoded `DataTable`.
+        row: usize,
+        /// Accept-set the schema declares for this column.
+        expected: &'static str,
+        /// `DataType` variant observed on the wire.
+        observed: &'static str,
+    },
     /// Row has fewer cells than the requested column index.
     #[error("column {column}: missing cell")]
     MissingCell { column: usize },
