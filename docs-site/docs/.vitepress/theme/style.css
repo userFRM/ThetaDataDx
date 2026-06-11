@@ -148,11 +148,15 @@ div[class*='language-'] .lang {
 }
 
 /* ===== Tables ===== */
+/* Size to content and scroll horizontally when wide (sample-output
+ * tables on reference pages can carry 20+ columns). */
 .vp-doc table {
+  display: block;
   border-collapse: collapse;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
   border-radius: 8px;
-  overflow: hidden;
 }
 
 .vp-doc th {

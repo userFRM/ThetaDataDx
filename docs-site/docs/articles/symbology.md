@@ -1,0 +1,41 @@
+---
+title: Symbology & Contract Identity
+description: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
+---
+
+# Symbology & Contract Identity
+
+## Symbols
+
+A symbol identifies a stock, index, or option underlying: `AAPL`, `SPY`, `SPX`. Snapshot endpoints accept multiple symbols at once (a list in the SDKs, comma-separated over HTTP). Index option underlyings are distinct symbols per settlement style — `SPX` (AM-settled monthlies) and `SPXW` (PM-settled weeklies) are different roots; the same split applies to other index families (`VIX`/`VIXW`, `NDX`/`NDXP`). List the roots your account can see with the [option symbols](/reference/option/list/symbols) endpoint.
+
+## Option contract identity
+
+An option contract is always the four-tuple **(symbol, expiration, strike, right)**:
+
+| Part | Form | Example |
+|---|---|---|
+| `symbol` | underlying root | `SPXW` |
+| `expiration` | `YYYYMMDD` date | `20260618` |
+| `strike` | dollars, as a string | `"5400"` or `"17.5"` |
+| `right` | `C` / `P` (`call` / `put` accepted) | `C` |
+
+Strikes are **human dollars everywhere on the SDK surface** — never scaled integers. Endpoints that take an optional `strike` / `right` treat omission as a wildcard: all strikes, both rights. Wildcard responses identify each row's contract via the `expiration`, `strike`, and `right` response fields.
+
+The one place a scaled strike survives: the server's [WebSocket subscribe envelope](/server/websocket) takes thousandths of a dollar (`570000` = $570.00), matching the upstream wire convention.
+
+## Dates and times in
+
+- Dates are `YYYYMMDD` strings (`"20250303"`). The HTTP server also accepts ISO `YYYY-MM-DD`.
+- Date ranges are inclusive on both ends.
+- Time-of-day inputs (`start_time`, `end_time`, `time_of_day`) are Eastern Time wall-clock `HH:MM:SS` (at-time endpoints take milliseconds: `HH:MM:SS.SSS`).
+- `interval` accepts a preset (`1s`, `1m`, `1h`, …) or a millisecond count as a string (`"60000"`).
+
+## Timestamps out
+
+Response rows carry two integer time fields:
+
+- `date` — the trading date as a `YYYYMMDD` integer.
+- `ms_of_day` — milliseconds since midnight Eastern Time (`34200000` = 09:30:00 ET).
+
+Integer timestamps compare and bucket cheaply in hot loops; convert to wall-clock datetimes only at display boundaries.

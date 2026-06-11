@@ -6,11 +6,18 @@ surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
-- docs-site API reference coverage for every endpoint
+- one generated docs-site reference page per registry endpoint (and no
+  stale extras), each carrying the fixed page anatomy markers
+- `llms.txt` covering every page on the site (and naming no deleted page)
 - current server docs staying on the v3 path scheme and current defaults
 - `CHANGELOG.md` and `docs-site/docs/changelog.md` staying byte-identical
   (the docs-site build re-publishes whatever is on `main`, so any drift
   is a release-note bug the moment it lands)
+
+The generated reference tree itself is byte-verified by
+`cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site -- --check`
+in CI; the structural checks here are the cargo-free fast path the docs
+deploy workflow runs.
 
 Exits non-zero on any mismatch. Run from repo root; the script resolves
 the workspace root from its own path so `cd` is not required.
@@ -32,12 +39,15 @@ TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
 
+DOCS_SITE = ROOT / "docs-site/docs"
+OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
+
 # Paths exposed only by the thetadatadx-server binary (not by the upstream
 # ThetaData terminal). Allowlist these so the drift check focuses on
 # upstream-tracking endpoints. `/v3/system/shutdown` is a privileged
 # graceful-shutdown route gated by a per-startup UUID token — see
 # `tools/server/src/handler.rs::system_shutdown` and the hardening section
-# in `docs-site/docs/tools/server.md`.
+# in `docs-site/docs/server/index.md`.
 SERVER_SPECIFIC_PATHS = {"/v3/system/shutdown"}
 BUILDER_PARAMS = {
     param["name"]
@@ -115,20 +125,18 @@ def check_static_docs() -> None:
     )
 
     expect_contains(
-        ROOT / "docs-site/docs/tools/mcp.md",
+        DOCS_SITE / "mcp.md",
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the workspace
-    # major. Pinned against the current `crates/thetadatadx/Cargo.toml` version (Bumped from "10" → "11");
-    # the matching version-sync gate
-    # (`scripts/check_version_sync.py`) enforces this against
-    # `crates/thetadatadx/Cargo.toml` canonically.
+    # major; the version-sync gate (`scripts/check_version_sync.py`)
+    # enforces this against `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
-        ROOT / "docs-site/docs/getting-started/installation.md",
+        DOCS_SITE / "articles/getting-started.md",
         'thetadatadx = "12"',
     )
     expect_contains(
-        ROOT / "docs-site/docs/tools/mcp.md",
+        DOCS_SITE / "mcp.md",
         'Use `"strike":"0"` when you want a bulk chain-style response',
     )
     expect_contains(
@@ -138,20 +146,25 @@ def check_static_docs() -> None:
 
     # Website changelog must match repo root CHANGELOG.md
     repo_changelog = (ROOT / "CHANGELOG.md").read_text()
-    site_changelog = (ROOT / "docs-site/docs/changelog.md").read_text()
+    site_changelog = (DOCS_SITE / "changelog.md").read_text()
     if repo_changelog != site_changelog:
         fail(
             "docs-site/docs/changelog.md is out of sync with CHANGELOG.md. "
             "Run: cp CHANGELOG.md docs-site/docs/changelog.md"
         )
 
-    for path in [
-        ROOT / "tools/server/README.md",
-        ROOT / "docs-site/docs/tools/server.md",
-    ]:
-        expect_contains(path, "25503")
-        expect_contains(path, "/v3/stock/history/ohlc_range")
-        expect_contains(path, "/v3/option/snapshot/quote?symbol=")
+    server_pages = [
+        DOCS_SITE / "server/index.md",
+        DOCS_SITE / "server/http.md",
+        DOCS_SITE / "server/websocket.md",
+    ]
+    expect_contains(ROOT / "tools/server/README.md", "25503")
+    expect_contains(ROOT / "tools/server/README.md", "/v3/stock/history/ohlc_range")
+    expect_contains(ROOT / "tools/server/README.md", "/v3/option/snapshot/quote?symbol=")
+    expect_contains(DOCS_SITE / "server/index.md", "25503")
+    expect_contains(DOCS_SITE / "server/http.md", "/v3/stock/history/ohlc_range")
+    expect_contains(DOCS_SITE / "server/http.md", "/v3/option/snapshot/quote?symbol=")
+    for path in [ROOT / "tools/server/README.md", *server_pages]:
         expect_not_contains(path, "/v2/")
         expect_not_contains(path, "/v3/hist/")
         expect_not_contains(path, "/v3/snapshot/")
@@ -175,19 +188,26 @@ def check_static_docs() -> None:
     # row leads with tdx_fpss_connect" — exact wording sufficient.
     expect_contains(sdk_overview, "**Standalone FPSS** | `tdx_fpss_connect`")
 
-    option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
-    strike_docs = option_docs + [
-        ROOT / "docs-site/docs/api-reference.md",
+    # Strikes are dollars on every public surface; the scaled-integer
+    # vocabulary must never reappear (the WebSocket envelope's
+    # thousandths note on server/websocket.md spells the exception
+    # without the banned phrasing).
+    strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
         ROOT / "docs/api-reference.md",
         ROOT / "tools/cli/README.md",
-        ROOT / "docs-site/docs/tools/cli.md",
+        DOCS_SITE / "cli.md",
         ROOT / "tools/server/README.md",
-        ROOT / "docs-site/docs/tools/server.md",
-        ROOT / "docs-site/public/thetadatadx.yaml",
+        *server_pages,
+        OPENAPI_YAML,
+        DOCS_SITE / "examples/option-chain.md",
+        DOCS_SITE / ".vitepress/theme/components/QueryBuilder.vue",
     ]
     for path in strike_docs:
         expect_not_contains(path, "scaled integer")
-        expect_not_contains(path, "500000")
+        # Word-bounded: capture-backed sample tables legitimately carry
+        # timestamps like `34500000` that embed the digit string.
+        if re.search(r"\b500000\b", path.read_text()):
+            fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
 
     expect_contains(
         ROOT / "crates/thetadatadx/endpoint_surface.toml",
@@ -201,17 +221,16 @@ def check_static_docs() -> None:
         ROOT / "docs/api-reference.md",
         '`time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted.',
     )
+    # The generated at-time pages inherit the same wording from the
+    # registry; pin one so a registry rewrite that loses the format
+    # note fails here too.
     expect_contains(
-        ROOT / "docs-site/docs/api-reference.md",
-        '| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS`',
+        DOCS_SITE / "reference/stock/at-time/trade.md",
+        "ET wall-clock time in HH:MM:SS.SSS",
     )
     expect_contains(
-        ROOT / "docs-site/public/thetadatadx.yaml",
+        OPENAPI_YAML,
         'description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)',
-    )
-    expect_not_contains(
-        ROOT / "docs-site/docs/api-reference.md",
-        'Ms from midnight ET',
     )
     expect_not_contains(
         ROOT / "tools/cli/README.md",
@@ -222,14 +241,6 @@ def check_static_docs() -> None:
     expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
     expect_not_contains(ROOT / "docs/architecture.md", "18 FFI FPSS functions")
     expect_not_contains(ROOT / "docs/architecture.md", "symbol-level subscribe/unsubscribe only")
-    expect_not_contains(
-        ROOT / "docs-site/docs/api-reference.md",
-        "Python only (uses Rust SDK directly)",
-    )
-    expect_not_contains(
-        ROOT / "docs-site/docs/api-reference.md",
-        "Python only (FFI only supports symbol-level)",
-    )
     # Wave K replaced the per-tick subscribe_* family with the polymorphic
     # subscribe(Subscription) entry point that takes a typed value built
     # via Contract.option(...).quote() / .trade() / .open_interest(). The
@@ -238,28 +249,17 @@ def check_static_docs() -> None:
         ROOT / "sdks/python/README.md",
         "`Contract.option(symbol, *, expiration, strike, right)`",
     )
-    # Streaming method-reference guards (retargeted after the top-level
-    # streaming.md orphan was deleted in favor of the streaming/*.md subdirectory).
-    for streaming_page in [
-        ROOT / "docs-site/docs/streaming/index.md",
-        ROOT / "docs-site/docs/streaming/connection.md",
-        ROOT / "docs-site/docs/streaming/events.md",
-        ROOT / "docs-site/docs/streaming/reconnection.md",
-        ROOT / "docs-site/docs/streaming/latency.md",
-    ]:
-        expect_not_contains(streaming_page, "Python does not expose reconnect_streaming() directly.")
-        expect_not_contains(streaming_page, "C++ does not expose reconnect_streaming() directly.")
-        expect_not_contains(streaming_page, "| `active_subscriptions` | `() -> std::string` |")
-    # Streaming Methods Reference now reflects the unified callback
-    # surface: every binding exposes `start_streaming(callback)` as the
-    # sole delivery path. Pin that contract.
-    for streaming_page in [
-        ROOT / "docs-site/docs/streaming/events.md",
-        ROOT / "docs-site/docs/streaming/index.md",
-        ROOT / "docs-site/docs/streaming/connection.md",
-        ROOT / "docs-site/docs/streaming/reconnection.md",
-        ROOT / "docs-site/docs/streaming/latency.md",
-    ]:
+    # Streaming pages (hand-written guides + generated stream-type pages)
+    # must never reference removed or internal delivery APIs. Every
+    # binding exposes `start_streaming(callback)` as the sole delivery
+    # path; pin that contract.
+    streaming_pages = sorted((DOCS_SITE / "streaming").rglob("*.md"))
+    if len(streaming_pages) < 10:
+        fail(
+            f"expected the streaming section to hold the 3 guide pages plus the "
+            f"generated stream-type pages; found {len(streaming_pages)}"
+        )
+    for streaming_page in streaming_pages:
         expect_not_contains(streaming_page, "start_streaming_iter")
         expect_not_contains(streaming_page, "streaming_iter")
         expect_not_contains(streaming_page, "streaming_async")
@@ -267,42 +267,28 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "FpssEventPoller")
         expect_not_contains(streaming_page, "EventIterator")
         expect_not_contains(streaming_page, "tdx_fpss_event_iter")
-    # Forbidden Go-era residue must stay out of streaming docs.
-    for streaming_page in [
-        ROOT / "docs-site/docs/streaming/connection.md",
-        ROOT / "docs-site/docs/streaming/events.md",
-        ROOT / "docs-site/docs/streaming/reconnection.md",
-        ROOT / "docs-site/docs/streaming/latency.md",
-    ]:
         expect_not_contains(streaming_page, "```go [Go]")
         expect_not_contains(streaming_page, "contract_map")
         expect_not_contains(streaming_page, "contract_lookup")
         expect_not_contains(streaming_page, "SubscribeOptionQuotes")
-        # The earlier `Simple` shim was replaced by typed pyclasses
-        # with snake_case `kind` discriminators per FpssControl variant.
         expect_not_contains(streaming_page, 'event.kind == "simple"')
         expect_not_contains(streaming_page, "event.event_type")
-        # `RawData` is hidden from the public surface; the
-        # unrecognised-wire-frame fallback now flows through
-        # `FpssControl::UnknownFrame`.
         expect_not_contains(streaming_page, "FpssEvent::RawData")
         expect_not_contains(streaming_page, "RawData (undecoded fallback)")
-        # Pre-rename callback-thread description.
         expect_not_contains(streaming_page, "ring-reader thread")
-        # Removed subscribe_*-family.
         expect_not_contains(streaming_page, "subscribe_option_")
         expect_not_contains(streaming_page, "subscribe_quotes")
         expect_not_contains(streaming_page, "subscribe_trades")
         expect_not_contains(streaming_page, "subscribe_full_trades")
     expect_contains(
-        ROOT / "docs-site/docs/streaming/reconnection.md",
-        "Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.",
+        DOCS_SITE / "streaming/reliability.md",
+        "Caller-driven recovery is always available: `reconnect()`",
     )
     # Same streaming-API guards apply to interactive Vue components under the
     # VitePress theme. Code samples embedded in recipe builders deploy to the
     # public docs site on every push to main; a dead-API reference there
     # ships broken paste-and-run examples to readers.
-    vue_components_dir = ROOT / "docs-site/docs/.vitepress/theme/components"
+    vue_components_dir = DOCS_SITE / ".vitepress/theme/components"
     for vue_file in sorted(vue_components_dir.rglob("*.vue")):
         expect_not_contains(vue_file, "start_streaming_iter")
         expect_not_contains(vue_file, "streaming_iter")
@@ -313,16 +299,74 @@ def check_static_docs() -> None:
         expect_not_contains(vue_file, "tdx_fpss_event_iter")
 
 
-def check_api_reference() -> None:
-    api_reference = (ROOT / "docs-site/docs/api-reference.md").read_text()
-    headings = set(re.findall(r"^### ([a-z0-9_]+)$", api_reference, re.MULTILINE))
-    missing = sorted(ENDPOINT_NAMES - headings)
-    if missing:
-        fail(f"docs-site/docs/api-reference.md missing endpoint headings: {', '.join(missing)}")
+def endpoint_page_path(endpoint: dict) -> Path:
+    """Mirror of the generator's path rule: REST path, hyphenated."""
+    rest = endpoint["rest_path"].removeprefix("/v3/")
+    return DOCS_SITE / "reference" / (rest.replace("_", "-") + ".md")
+
+
+def check_reference_pages() -> None:
+    """One generated page per registry endpoint, no stale extras, fixed anatomy."""
+    expected: dict[Path, str] = {
+        endpoint_page_path(ep): ep["name"] for ep in REGISTRY_ENDPOINTS
+    }
+    for path, name in sorted(expected.items()):
+        if not path.is_file():
+            fail(
+                f"missing generated reference page for endpoint {name}: "
+                f"{path.relative_to(ROOT)} — run the docs generator"
+            )
+        text = path.read_text()
+        for marker in ("@generated", "<SdkTabs>", "## Parameters", "## Response"):
+            if marker not in text:
+                fail(f"{path.relative_to(ROOT)} missing page-anatomy marker {marker!r}")
+        if not re.search(r'<TierBadge tier="(free|value|standard|professional)" />', text):
+            fail(f"{path.relative_to(ROOT)} missing or malformed <TierBadge>")
+
+    actual = {p for p in (DOCS_SITE / "reference").rglob("*.md") if p.name != "index.md"}
+    extra = sorted(p.relative_to(ROOT) for p in actual - set(expected))
+    if extra:
+        fail(
+            "stale reference pages with no matching registry endpoint "
+            f"(delete or regenerate): {', '.join(str(p) for p in extra)}"
+        )
+
+
+def site_page_url(md_path: Path) -> str:
+    rel = md_path.relative_to(DOCS_SITE).as_posix().removesuffix(".md")
+    if rel == "index":
+        return "/"
+    if rel.endswith("/index"):
+        return "/" + rel.removesuffix("index")
+    return "/" + rel
+
+
+def check_llms_txt() -> None:
+    """`llms.txt` lists every page on the site and names no deleted page."""
+    llms_path = DOCS_SITE / "public/llms.txt"
+    if not llms_path.is_file():
+        fail("docs-site/docs/public/llms.txt missing — run the docs generator")
+    listed = {
+        line.split(" — ", 1)[0].strip()
+        for line in llms_path.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    on_disk = {
+        site_page_url(p)
+        for p in DOCS_SITE.rglob("*.md")
+        if ".vitepress" not in p.parts and "node_modules" not in p.parts
+    }
+    missing = sorted(on_disk - listed)
+    stale = sorted(listed - on_disk)
+    if missing or stale:
+        fail(
+            "docs-site/docs/public/llms.txt drifted from the page tree. "
+            f"missing={missing or '[]'} stale={stale or '[]'} — run the docs generator"
+        )
 
 
 def check_openapi() -> None:
-    text = (ROOT / "docs-site/public/thetadatadx.yaml").read_text()
+    text = OPENAPI_YAML.read_text()
     actual_paths = {
         match.group(1)
         for match in re.finditer(r"^  (/[A-Za-z0-9_/-]+):\s*$", text, re.MULTILINE)
@@ -336,7 +380,7 @@ def check_openapi() -> None:
         missing = sorted(REST_PATHS - effective_actual_paths)
         extra = sorted(effective_actual_paths - REST_PATHS)
         fail(
-            "docs-site/public/thetadatadx.yaml path set drifted. "
+            f"{OPENAPI_YAML.relative_to(ROOT)} path set drifted. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
@@ -348,7 +392,7 @@ def check_openapi() -> None:
         missing = sorted(expected_ops - actual_ops)
         extra = sorted(actual_ops - expected_ops)
         fail(
-            "docs-site/public/thetadatadx.yaml operationId set drifted. "
+            f"{OPENAPI_YAML.relative_to(ROOT)} operationId set drifted. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
@@ -412,7 +456,7 @@ def check_endpoint_option_surface() -> None:
         ROOT / "sdks/cpp/include/thetadx.hpp",
         ROOT / "sdks/cpp/src/thetadx.cpp",
         ROOT / "sdks/cpp/README.md",
-        ROOT / "docs-site/docs/historical/option/history/greeks-eod.md",
+        DOCS_SITE / "reference/option/history/greeks/eod.md",
     ]:
         expect_not_contains(path, "OptionRequestOptions")
         expect_not_contains(path, "TdxOptionRequestOptions")
@@ -434,7 +478,8 @@ def check_tier_badges() -> None:
 
 def main() -> None:
     check_static_docs()
-    check_api_reference()
+    check_reference_pages()
+    check_llms_txt()
     check_openapi()
     check_endpoint_option_surface()
     check_tier_badges()

@@ -51,7 +51,7 @@ Every request emits one `INFO` access-log line (method, URI, status, latency) by
 
 All registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`, alongside the hand-written system routes.
 
-Routes follow the current registry-driven v3 path scheme. The canonical checked-in contract is [`docs-site/public/thetadatadx.yaml`](../../docs-site/public/thetadatadx.yaml).
+Routes follow the current registry-driven v3 path scheme. The canonical checked-in contract is [`docs-site/docs/public/thetadatadx.yaml`](../../docs-site/docs/public/thetadatadx.yaml).
 SDK-only callback-based `*_stream` builders are documented in the API reference and are not exposed as HTTP routes.
 
 Representative examples:

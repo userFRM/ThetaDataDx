@@ -1,5 +1,5 @@
 //! Code-generation modules reachable only from
-//! `bin/generate_sdk_surfaces`.
+//! `bin/generate_sdk_surfaces` and `bin/generate_docs_site`.
 //!
 //! Items here are physically separate from `build_support/` so the build
 //! script never compiles them. The build script's compile unit reads
@@ -20,6 +20,12 @@ mod upstream_openapi;
 #[path = "../src/mdds/wire_semantics.rs"]
 mod wire_semantics;
 
+// Consumed by `generate_docs_site` only; when `generate_sdk_surfaces`
+// is compiled with the `__internal` feature in the same invocation, the
+// re-export is unused in that compile unit by design.
+#[cfg(feature = "__internal")]
+#[allow(unused_imports)]
+pub use endpoints::{check_docs_site_files, write_docs_site_files};
 pub use endpoints::{
     check_sdk_generated_files as check_endpoint_sdk_generated_files,
     write_sdk_generated_files as write_endpoint_sdk_generated_files,

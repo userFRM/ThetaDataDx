@@ -1,0 +1,97 @@
+[
+  { "text": "Stock", "collapsed": true, "items": [
+    { "text": "List", "collapsed": true, "items": [
+      { "text": "Symbols", "link": "/reference/stock/list/symbols" },
+      { "text": "Dates", "link": "/reference/stock/list/dates" }
+    ]},
+    { "text": "Snapshot", "collapsed": true, "items": [
+      { "text": "OHLC", "link": "/reference/stock/snapshot/ohlc" },
+      { "text": "Trade", "link": "/reference/stock/snapshot/trade" },
+      { "text": "Quote", "link": "/reference/stock/snapshot/quote" },
+      { "text": "Market Value", "link": "/reference/stock/snapshot/market-value" }
+    ]},
+    { "text": "History", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/stock/history/eod" },
+      { "text": "OHLC", "link": "/reference/stock/history/ohlc" },
+      { "text": "Trade", "link": "/reference/stock/history/trade" },
+      { "text": "Quote", "link": "/reference/stock/history/quote" },
+      { "text": "Trade Quote", "link": "/reference/stock/history/trade-quote" },
+      { "text": "OHLC Range", "link": "/reference/stock/history/ohlc-range" }
+    ]},
+    { "text": "At-Time", "collapsed": true, "items": [
+      { "text": "Trade", "link": "/reference/stock/at-time/trade" },
+      { "text": "Quote", "link": "/reference/stock/at-time/quote" }
+    ]}
+  ]},
+  { "text": "Option", "collapsed": true, "items": [
+    { "text": "List", "collapsed": true, "items": [
+      { "text": "Symbols", "link": "/reference/option/list/symbols" },
+      { "text": "Dates", "link": "/reference/option/list/dates" },
+      { "text": "Expirations", "link": "/reference/option/list/expirations" },
+      { "text": "Strikes", "link": "/reference/option/list/strikes" },
+      { "text": "Contracts", "link": "/reference/option/list/contracts" }
+    ]},
+    { "text": "Snapshot", "collapsed": true, "items": [
+      { "text": "OHLC", "link": "/reference/option/snapshot/ohlc" },
+      { "text": "Trade", "link": "/reference/option/snapshot/trade" },
+      { "text": "Quote", "link": "/reference/option/snapshot/quote" },
+      { "text": "Open Interest", "link": "/reference/option/snapshot/open-interest" },
+      { "text": "Market Value", "link": "/reference/option/snapshot/market-value" },
+      { "text": "Implied Volatility", "link": "/reference/option/snapshot/greeks/implied-volatility" },
+      { "text": "All Greeks", "link": "/reference/option/snapshot/greeks/all" },
+      { "text": "First-Order Greeks", "link": "/reference/option/snapshot/greeks/first-order" },
+      { "text": "Second-Order Greeks", "link": "/reference/option/snapshot/greeks/second-order" },
+      { "text": "Third-Order Greeks", "link": "/reference/option/snapshot/greeks/third-order" }
+    ]},
+    { "text": "History", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/option/history/eod" },
+      { "text": "OHLC", "link": "/reference/option/history/ohlc" },
+      { "text": "Trade", "link": "/reference/option/history/trade" },
+      { "text": "Quote", "link": "/reference/option/history/quote" },
+      { "text": "Trade Quote", "link": "/reference/option/history/trade-quote" },
+      { "text": "Open Interest", "link": "/reference/option/history/open-interest" },
+      { "text": "EOD Greeks", "link": "/reference/option/history/greeks/eod" },
+      { "text": "All Greeks", "link": "/reference/option/history/greeks/all" },
+      { "text": "All Trade Greeks", "link": "/reference/option/history/trade-greeks/all" },
+      { "text": "First-Order Greeks", "link": "/reference/option/history/greeks/first-order" },
+      { "text": "First-Order Trade Greeks", "link": "/reference/option/history/trade-greeks/first-order" },
+      { "text": "Second-Order Greeks", "link": "/reference/option/history/greeks/second-order" },
+      { "text": "Second-Order Trade Greeks", "link": "/reference/option/history/trade-greeks/second-order" },
+      { "text": "Third-Order Greeks", "link": "/reference/option/history/greeks/third-order" },
+      { "text": "Third-Order Trade Greeks", "link": "/reference/option/history/trade-greeks/third-order" },
+      { "text": "Implied Volatility", "link": "/reference/option/history/greeks/implied-volatility" },
+      { "text": "Trade Implied Volatility", "link": "/reference/option/history/trade-greeks/implied-volatility" }
+    ]},
+    { "text": "At-Time", "collapsed": true, "items": [
+      { "text": "Trade", "link": "/reference/option/at-time/trade" },
+      { "text": "Quote", "link": "/reference/option/at-time/quote" }
+    ]}
+  ]},
+  { "text": "Index", "collapsed": true, "items": [
+    { "text": "List", "collapsed": true, "items": [
+      { "text": "Symbols", "link": "/reference/index/list/symbols" },
+      { "text": "Dates", "link": "/reference/index/list/dates" }
+    ]},
+    { "text": "Snapshot", "collapsed": true, "items": [
+      { "text": "OHLC", "link": "/reference/index/snapshot/ohlc" },
+      { "text": "Price", "link": "/reference/index/snapshot/price" },
+      { "text": "Market Value", "link": "/reference/index/snapshot/market-value" }
+    ]},
+    { "text": "History", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/index/history/eod" },
+      { "text": "OHLC", "link": "/reference/index/history/ohlc" },
+      { "text": "Price", "link": "/reference/index/history/price" }
+    ]},
+    { "text": "At-Time", "collapsed": true, "items": [
+      { "text": "Price", "link": "/reference/index/at-time/price" }
+    ]}
+  ]},
+  { "text": "Calendar", "collapsed": true, "items": [
+    { "text": "Open Today", "link": "/reference/calendar/open-today" },
+    { "text": "On Date", "link": "/reference/calendar/on-date" },
+    { "text": "Year", "link": "/reference/calendar/year" }
+  ]},
+  { "text": "Interest Rate", "collapsed": true, "items": [
+    { "text": "EOD", "link": "/reference/rate/history/eod" }
+  ]}
+]

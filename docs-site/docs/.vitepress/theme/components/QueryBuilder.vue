@@ -333,8 +333,8 @@ const params = ref({
   end_date:    lastTradingDay(),
   date:        lastTradingDay(),
   interval:    '5m',
-  expiration:  '20251219',
-  strike:      '500000',
+  expiration:  '20261218',
+  strike:      '570',
   right:       'C' as 'C' | 'P',
   year:        String(new Date().getFullYear()),
   min_size:    '100',
@@ -630,7 +630,7 @@ for tick in eod:
     print(f"{tick.date}: open={tick.open} high={tick.high} low={tick.low} close={tick.close} vol={tick.volume}")
 
 # Intraday OHLC (interval: ${interval()})
-ohlc = client.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
+ohlc = client.stock_history_ohlc(symbol, "${endDate()}", interval="${interval()}")
 for tick in ohlc:
     print(f"{tick.date} ms={tick.ms_of_day}: open={tick.open} close={tick.close} vol={tick.volume}")`
 
@@ -639,51 +639,50 @@ for tick in ohlc:
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-# Get all strikes for this expiration
-strikes = client.option_list_strikes(symbol, exp)
-print(f"Found {len(strikes)} strikes for {symbol} {exp}")
-
-# Fetch Greeks for each strike (calls + puts)
-chain = []
-for strike in strikes:
-    for right in ["C", "P"]:
-        greeks = client.option_snapshot_greeks_all(symbol, exp, strike, right)
-        if greeks:
-            chain.append({
-                "strike": int(strike) / 1000,  # scaled int -> dollars
-                "right":  right,
-                **greeks[0],
-            })
+# One wildcard call returns Greeks for every contract on the expiration
+# (strike / right default to all strikes, both rights).
+chain = client.option_snapshot_greeks_all(symbol, exp)
+print(f"{len(chain)} contracts for {symbol} {exp}")
 
 import pandas as pd
-df = pd.DataFrame(chain)
-print(df[["strike", "right", "implied_volatility", "delta", "gamma", "theta", "vega"]].to_string())`
+df = pd.DataFrame(
+    {
+        "strike": t.strike,                 # dollars
+        "right":  chr(t.right),             # 67='C', 80='P'
+        "iv":     t.implied_volatility,
+        "delta":  t.delta,
+        "gamma":  t.gamma,
+        "theta":  t.theta,
+        "vega":   t.vega,
+    }
+    for t in chain
+)
+print(df.sort_values(["strike", "right"]).to_string())`
 
     case 'gamma_exposure': return `${h}
 
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-strikes  = client.option_list_strikes(symbol, exp)
+# Two wildcard snapshots cover the whole expiration: all Greeks + all OI.
+greeks = client.option_snapshot_greeks_all(symbol, exp)
+oi     = client.option_snapshot_open_interest(symbol, exp)
+
+# Join open interest onto Greeks by (strike, right).
+oi_by_contract = {(t.strike, t.right): t.open_interest for t in oi}
 
 gex_data = []
-for strike in strikes:
-    for right in ["C", "P"]:
-        greeks = client.option_snapshot_greeks_all(symbol, exp, strike, right)
-        oi     = client.option_snapshot_open_interest(symbol, exp, strike, right)
-        if greeks and oi:
-            gamma        = greeks[0]["gamma"]
-            open_interest = oi[0]["open_interest"]
-            # GEX = gamma * OI * 100 * spot^2 / 10^7
-            # Calls add positive gamma, puts subtract (dealers are short puts)
-            sign = 1 if right == "C" else -1
-            gex_data.append({
-                "strike": int(strike) / 1000,  # scaled int -> dollars
-                "right":  right,
-                "gamma":  gamma,
-                "oi":     open_interest,
-                "gex":    sign * gamma * open_interest * 100,
-            })
+for g in greeks:
+    open_interest = oi_by_contract.get((g.strike, g.right), 0)
+    # Calls add positive gamma, puts subtract (dealers are short puts).
+    sign = 1 if g.right == 67 else -1          # 67='C', 80='P'
+    gex_data.append({
+        "strike": g.strike,                    # dollars
+        "right":  chr(g.right),
+        "gamma":  g.gamma,
+        "oi":     open_interest,
+        "gex":    sign * g.gamma * open_interest * 100,
+    })
 
 import pandas as pd
 df = pd.DataFrame(gex_data)
@@ -699,15 +698,14 @@ exps = client.option_list_expirations(symbol)
 print(f"Found {len(exps)} expirations")
 
 surface = []
-for exp in exps[:8]:  # first 8 expirations for a manageable surface
-    strikes = client.option_list_strikes(symbol, exp)
-    for strike in strikes:
-        iv_data = client.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C")
-        if iv_data and iv_data[0]["implied_volatility"] > 0:
+for exp in list(exps)[:8]:  # first 8 expirations for a manageable surface
+    # Wildcard IV snapshot: every strike on the expiration, calls only.
+    for t in client.option_snapshot_greeks_implied_volatility(symbol, exp, right="C"):
+        if t.implied_volatility > 0:
             surface.append({
                 "expiration": exp,
-                "strike":     int(strike) / 1000,  # scaled int -> dollars
-                "iv":         iv_data[0]["implied_volatility"],
+                "strike":     t.strike,    # dollars
+                "iv":         t.implied_volatility,
             })
 
 import pandas as pd
@@ -721,26 +719,28 @@ symbol = "${sym()}"
 date   = "${singleDate()}"
 
 # Get all option contracts that traded on this date
-contracts = client.option_list_contracts("TRADE", symbol, date)
+contracts = client.option_list_contracts("trade", symbol, date)
 print(f"Scanning {len(contracts)} contracts...")
 
 unusual = []
 for c in contracts:
-    exp_c   = c["expiration"]
-    strike_c = c["strike"]
-    right_c  = c["right"]
+    exp_c    = str(c.expiration)        # YYYYMMDD int
+    strike_c = f"{c.strike:g}"          # dollars
+    right_c  = chr(c.right)             # 67='C', 80='P'
 
-    oi_data = client.option_history_open_interest(symbol, str(exp_c), str(strike_c), right_c, date)
-    trades  = client.option_history_trade(symbol, str(exp_c), str(strike_c), right_c, date)
+    oi_data = client.option_history_open_interest(symbol, exp_c, date,
+                                                  strike=strike_c, right=right_c)
+    trades  = client.option_history_trade(symbol, exp_c, date,
+                                          strike=strike_c, right=right_c)
 
     if oi_data and trades:
         total_volume = len(trades)
-        open_int     = oi_data[0]["open_interest"] if oi_data[0]["open_interest"] > 0 else 1
+        open_int     = max(oi_data[0].open_interest, 1)
         vol_oi       = total_volume / open_int
 
         if vol_oi > 2.0:  # volume > 2x open interest = unusual
             unusual.append({
-                "contract":     f"{symbol} {exp_c} {right_c} {int(strike_c)/1000}",
+                "contract":     f"{symbol} {exp_c} {right_c} {strike_c}",
                 "volume":       total_volume,
                 "oi":           open_int,
                 "vol_oi_ratio": round(vol_oi, 2),
@@ -758,29 +758,14 @@ else:
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-strikes = client.option_list_strikes(symbol, exp)
+# Wildcard snapshots: every contract on the expiration in two calls.
+trades = client.option_snapshot_trade(symbol, exp)
+oi     = client.option_snapshot_open_interest(symbol, exp)
 
-total_call_vol = 0
-total_put_vol  = 0
-total_call_oi  = 0
-total_put_oi   = 0
-
-for strike in strikes:
-    for right in ["C", "P"]:
-        snap = client.option_snapshot_trade(symbol, exp, strike, right)
-        oi   = client.option_snapshot_open_interest(symbol, exp, strike, right)
-
-        if snap:
-            if right == "C":
-                total_call_vol += snap[0].get("size", 0)
-            else:
-                total_put_vol  += snap[0].get("size", 0)
-
-        if oi:
-            if right == "C":
-                total_call_oi += oi[0].get("open_interest", 0)
-            else:
-                total_put_oi  += oi[0].get("open_interest", 0)
+total_call_vol = sum(t.size for t in trades if t.right == 67)          # 'C'
+total_put_vol  = sum(t.size for t in trades if t.right == 80)          # 'P'
+total_call_oi  = sum(t.open_interest for t in oi if t.right == 67)
+total_put_oi   = sum(t.open_interest for t in oi if t.right == 80)
 
 call_vol = total_call_vol if total_call_vol > 0 else 1
 call_oi  = total_call_oi  if total_call_oi  > 0 else 1
@@ -797,12 +782,12 @@ print(f"  P/C OI ratio: {total_put_oi / call_oi:.4f}")`
 
 symbol = "${sym()}"
 exp    = "${exp()}"
-# Strike uses scaled integers: 500000 = $500.00
-strike = "${strike()}"
-right  = "${right()}"  # "C" for call, "P" for put
+strike = "${strike()}"  # dollars
+right  = "${right()}"   # "C" for call, "P" for put
 
 # Fetch historical Greeks at ${interval()} interval
-ticks = client.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
+ticks = client.option_history_greeks_all(symbol, exp, "${singleDate()}",
+                                         strike=strike, right=right, interval="${interval()}")
 for tick in ticks:
     print(
         f"{tick.date} ms={tick.ms_of_day:>8}: "
@@ -862,10 +847,10 @@ for price, vol in sorted_profile:
 # Get all trading days, holidays, and early closes for ${yearVal()}
 days = client.calendar_year("${yearVal()}")
 
-trading_days = [d for d in days if d["is_open"]]
-holidays     = [d for d in days if not d["is_open"]]
+trading_days = [d for d in days if d.is_open]
+holidays     = [d for d in days if not d.is_open]
 # Early close = close_time before 57600000 ms (4:00 PM ET)
-early_closes = [d for d in trading_days if d["close_time"] < 57600000]
+early_closes = [d for d in trading_days if d.close_time < 57600000]
 
 print(f"Year ${yearVal()} Summary:")
 print(f"  Trading days : {len(trading_days)}")
@@ -874,15 +859,17 @@ print(f"  Early closes : {len(early_closes)}")
 print()
 print("Holidays:")
 for d in holidays:
-    print(f"  {d['date']}")
+    print(f"  {d.date}")
 print()
 print("Early Closes:")
 for d in early_closes:
-    print(f"  {d['date']}  closes={d['close_time']}")`
+    print(f"  {d.date}  closes={d.close_time}")`
 
     case 'live_quote_monitor': return `${h}
 
 import threading
+
+from thetadatadx import Contract
 
 # Subscribe before opening the streaming session so the first quote
 # lands as soon as client.streaming() activates the dispatcher.
@@ -910,6 +897,8 @@ with client.streaming(on_event):
     case 'trade_tape': return `${h}
 
 import threading
+
+from thetadatadx import Contract
 
 symbols = [${symsListPy()}]
 for sym in symbols:
@@ -940,9 +929,11 @@ with client.streaming(on_event):
 
 import threading
 
+from thetadatadx import SecType
+
 # Subscribe to the full option-trade stream; the contract on each event
 # carries symbol / expiration / strike / right directly.
-client.subscribe(SecType.Option.full_trades())
+client.subscribe(SecType.OPTION.full_trades())
 
 print(f"Option Flow Scanner — alerting on size >= ${minSize()}")
 print(f"{'Contract':<35}  {'Size':>6}  {'Price':>8}  {'Premium':>12}")
@@ -967,6 +958,8 @@ with client.streaming(on_event):
 
 import threading
 
+from thetadatadx import Contract
+
 symbol = "${sym()}"
 exp    = "${exp()}"
 
@@ -974,9 +967,7 @@ exp    = "${exp()}"
 strikes = client.option_list_strikes(symbol, exp)
 for strike in strikes:
     for right in ["C", "P"]:
-        client.subscribe(
-            Contract.option(symbol, expiration=exp, strike=str(strike), right=right).quote()
-        )
+        client.subscribe(Contract.option(symbol, exp, strike, right).quote())
 
 print(f"Live chain: {symbol} {exp}  ({len(strikes) * 2} contracts)")
 print(f"{'Contract':<30}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
@@ -1027,7 +1018,7 @@ function genRust(): string {
     }
 
     // Intraday OHLC (interval: ${interval()})
-    let ohlc = client.stock_history_ohlc(symbol, "${endDate()}", "${interval()}").await?;
+    let ohlc = client.stock_history_ohlc(symbol, "${endDate()}").interval("${interval()}").await?;
     for tick in &ohlc {
         println!("{} ms={}: open={} close={} vol={}",
             tick.date, tick.ms_of_day, tick.open, tick.close, tick.volume);
@@ -1036,49 +1027,42 @@ function genRust(): string {
     case 'option_chain_snapshot': return rustMain(`    let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    // Get all strikes for this expiration
-    let strikes = client.option_list_strikes(symbol, exp).await?;
-    println!("Found {} strikes for {} {}", strikes.len(), symbol, exp);
+    // One wildcard call returns Greeks for every contract on the expiration
+    // (strike / right default to all strikes, both rights).
+    let chain = client.option_snapshot_greeks_all(symbol, exp).await?;
+    println!("{} contracts for {} {}", chain.len(), symbol, exp);
 
-    // Fetch Greeks for each strike (calls + puts)
-    for strike in &strikes {
-        for right in &["C", "P"] {
-            if let Ok(greeks) = client.option_snapshot_greeks_all(symbol, exp, strike, right).await {
-                if let Some(g) = greeks.first() {
-                    // Strike is a scaled integer: divide by 1000 for dollar price
-                    let strike_f = strike.parse::<f64>().unwrap_or(0.0) / 1000.0;
-                    println!("{} \${:.2}: iv={:.4} delta={:+.4} gamma={:.6} theta={:+.4} vega={:.4}",
-                        right, strike_f,
-                        g.implied_volatility, g.delta, g.gamma, g.theta, g.vega);
-                }
-            }
-        }
+    for g in &chain {
+        let right = (g.right as u8) as char;   // 67='C', 80='P'
+        println!("{} \${:.2}: iv={:.4} delta={:+.4} gamma={:.6} theta={:+.4} vega={:.4}",
+            right, g.strike,
+            g.implied_volatility, g.delta, g.gamma, g.theta, g.vega);
     }`)
 
-    case 'gamma_exposure': return rustMain(`    let symbol = "${sym()}";
+    case 'gamma_exposure': return rustMain(`    use std::collections::HashMap;
+
+    let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    let strikes = client.option_list_strikes(symbol, exp).await?;
+    // Two wildcard snapshots cover the whole expiration: all Greeks + all OI.
+    let greeks = client.option_snapshot_greeks_all(symbol, exp).await?;
+    let oi     = client.option_snapshot_open_interest(symbol, exp).await?;
+
+    // Join open interest onto Greeks by (strike, right).
+    let oi_by_contract: HashMap<(u64, i32), i32> = oi
+        .iter()
+        .map(|t| ((t.strike.to_bits(), t.right), t.open_interest))
+        .collect();
 
     let mut net_gex: f64 = 0.0;
-    for strike in &strikes {
-        for right in &["C", "P"] {
-            let greeks_res = client.option_snapshot_greeks_all(symbol, exp, strike, right).await;
-            let oi_res     = client.option_snapshot_open_interest(symbol, exp, strike, right).await;
-
-            if let (Ok(greeks), Ok(oi)) = (greeks_res, oi_res) {
-                if let (Some(g), Some(o)) = (greeks.first(), oi.first()) {
-                    // GEX = gamma * OI * 100 (calls +, puts -)
-                    let sign = if *right == "C" { 1.0_f64 } else { -1.0_f64 };
-                    let gex  = sign * g.gamma * o.open_interest as f64 * 100.0;
-                    net_gex += gex;
-                    // Strike is scaled: 500000 = $500
-                    let strike_f = strike.parse::<f64>().unwrap_or(0.0) / 1000.0;
-                    println!("\${:.2} {}: gamma={:.6} oi={} gex={:.2}",
-                        strike_f, right, g.gamma, o.open_interest, gex);
-                }
-            }
-        }
+    for g in &greeks {
+        let open_interest = *oi_by_contract.get(&(g.strike.to_bits(), g.right)).unwrap_or(&0);
+        // GEX = gamma * OI * 100 (calls +, puts -; dealers are short puts).
+        let sign = if g.right == 67 { 1.0_f64 } else { -1.0_f64 };
+        let gex  = sign * g.gamma * f64::from(open_interest) * 100.0;
+        net_gex += gex;
+        println!("\${:.2} {}: gamma={:.6} oi={} gex={:.2}",
+            g.strike, (g.right as u8) as char, g.gamma, open_interest, gex);
     }
     println!("\\nNet GEX: {:.2}", net_gex);`)
 
@@ -1088,19 +1072,15 @@ function genRust(): string {
     let exps = client.option_list_expirations(symbol).await?;
     println!("Found {} expirations", exps.len());
 
-    // Build vol surface — first 8 expirations
+    // Build vol surface — first 8 expirations, one wildcard IV call each.
     for exp in exps.iter().take(8) {
-        let strikes = client.option_list_strikes(symbol, exp).await?;
-        for strike in &strikes {
-            if let Ok(iv_data) = client.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C").await {
-                if let Some(iv) = iv_data.first() {
-                    if iv.implied_volatility > 0.0 {
-                        // Strike is scaled: divide by 1000 for dollar price
-                        let strike_f = strike.parse::<f64>().unwrap_or(0.0) / 1000.0;
-                        println!("exp={} strike=\${:.2} iv={:.4}",
-                            exp, strike_f, iv.implied_volatility);
-                    }
-                }
+        let iv_data = client
+            .option_snapshot_greeks_implied_volatility(symbol, exp)
+            .right("C")
+            .await?;
+        for t in &iv_data {
+            if t.implied_volatility > 0.0 {
+                println!("exp={} strike=\${:.2} iv={:.4}", exp, t.strike, t.implied_volatility);
             }
         }
     }`)
@@ -1109,20 +1089,29 @@ function genRust(): string {
     let date   = "${singleDate()}";
 
     // Get all contracts that traded on this date
-    let contracts = client.option_list_contracts("TRADE", symbol, date).await?;
+    let contracts = client.option_list_contracts("trade", symbol, date).await?;
     println!("Scanning {} contracts...", contracts.len());
 
     let mut unusual = Vec::new();
     for c in &contracts {
-        let right_str = if c.right == 0 { "C" } else { "P" };
-        let oi_res = client.option_history_open_interest(
-            symbol, &c.expiration.to_string(), &c.strike.to_string(), right_str, date).await;
-        let trades_res = client.option_history_trade(
-            symbol, &c.expiration.to_string(), &c.strike.to_string(), right_str, date).await;
+        let right_str = if c.right == 67 { "C" } else { "P" };  // ASCII
+        let exp       = c.expiration.to_string();
+        let strike    = format!("{}", c.strike);                // dollars
+
+        let oi_res = client
+            .option_history_open_interest(symbol, &exp, date)
+            .strike(&strike)
+            .right(right_str)
+            .await;
+        let trades_res = client
+            .option_history_trade(symbol, &exp, date)
+            .strike(&strike)
+            .right(right_str)
+            .await;
 
         if let (Ok(oi), Ok(trades)) = (oi_res, trades_res) {
             let volume   = trades.len() as f64;
-            let oi_count = oi.first().map(|o| o.open_interest as f64).unwrap_or(1.0).max(1.0);
+            let oi_count = oi.first().map(|o| f64::from(o.open_interest)).unwrap_or(1.0).max(1.0);
             let vol_oi   = volume / oi_count;
 
             if vol_oi > 2.0 {
@@ -1135,32 +1124,24 @@ function genRust(): string {
     println!("\\n{:<35}  {:>8}  {:>8}  {:>10}", "Contract", "Volume", "OI", "Vol/OI");
     println!("{}", "-".repeat(70));
     for (c, right_str, vol, oi, ratio) in unusual.iter().take(20) {
-        // Strike is scaled: divide by 1000 for dollar price
         println!("{} {} {} \${:.2}  {:>8}  {:>8}  {:>10.2}",
-            symbol, c.expiration, right_str, c.strike as f64 / 1000.0, vol, oi, ratio);
+            symbol, c.expiration, right_str, c.strike, vol, oi, ratio);
     }`)
 
     case 'put_call_ratio': return rustMain(`    let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    let strikes = client.option_list_strikes(symbol, exp).await?;
+    // Wildcard snapshots: every contract on the expiration in two calls.
+    let trades = client.option_snapshot_trade(symbol, exp).await?;
+    let oi     = client.option_snapshot_open_interest(symbol, exp).await?;
 
     let (mut call_vol, mut put_vol, mut call_oi, mut put_oi) = (0u64, 0u64, 0u64, 0u64);
 
-    for strike in &strikes {
-        for right in &["C", "P"] {
-            let is_call = *right == "C";
-            if let Ok(snap) = client.option_snapshot_trade(symbol, exp, strike, right).await {
-                if let Some(s) = snap.first() {
-                    if is_call { call_vol += s.size as u64; } else { put_vol += s.size as u64; }
-                }
-            }
-            if let Ok(oi_data) = client.option_snapshot_open_interest(symbol, exp, strike, right).await {
-                if let Some(o) = oi_data.first() {
-                    if is_call { call_oi += o.open_interest as u64; } else { put_oi += o.open_interest as u64; }
-                }
-            }
-        }
+    for t in &trades {
+        if t.right == 67 { call_vol += t.size as u64; } else { put_vol += t.size as u64; }
+    }
+    for o in &oi {
+        if o.right == 67 { call_oi += o.open_interest as u64; } else { put_oi += o.open_interest as u64; }
     }
 
     let cv = call_vol.max(1) as f64;
@@ -1175,12 +1156,15 @@ function genRust(): string {
 
     case 'historical_greeks': return rustMain(`    let symbol = "${sym()}";
     let exp    = "${exp()}";
-    // Strike uses scaled integers: 500000 = $500.00
-    let strike = "${strike()}";
-    let right  = "${right()}";  // "C" for call, "P" for put
+    let strike = "${strike()}";  // dollars
+    let right  = "${right()}";   // "C" for call, "P" for put
 
-    let ticks = client.option_history_greeks_all(
-        symbol, exp, strike, right, "${singleDate()}", "${interval()}").await?;
+    let ticks = client
+        .option_history_greeks_all(symbol, exp, "${singleDate()}")
+        .strike(strike)
+        .right(right)
+        .interval("${interval()}")
+        .await?;
 
     println!("Historical Greeks: {} ticks", ticks.len());
     println!("{:>12}  {:>7}  {:>7}  {:>9}  {:>7}  {:>7}",
@@ -1226,8 +1210,8 @@ function genRust(): string {
     case 'market_calendar': return rustMain(`    // Get all trading days, holidays, and early closes for ${yearVal()}
     let days = client.calendar_year("${yearVal()}").await?;
 
-    let trading: Vec<_> = days.iter().filter(|d| d.is_open).collect();
-    let holidays: Vec<_> = days.iter().filter(|d| !d.is_open).collect();
+    let trading: Vec<_> = days.iter().filter(|d| d.is_open == 1).collect();
+    let holidays: Vec<_> = days.iter().filter(|d| d.is_open == 0).collect();
     // Early close = close_time before 57600000 ms (4:00 PM ET)
     let early: Vec<_> = trading.iter().filter(|d| d.close_time < 57600000).collect();
 
@@ -1309,7 +1293,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     case 'option_flow_scanner': return `${rustHeader()}
 use thetadatadx::fpss::{FpssEvent, FpssData};
-use tdbe::types::SecType;
+use thetadatadx::fpss::protocol::SecTypeExt;
+use tdbe::types::enums::SecType;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
@@ -1363,7 +1348,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
                 "{} {} {} {}",
                 contract.symbol,
                 contract.expiration.unwrap_or(0),
-                contract.strike.unwrap_or(0),
+                contract.strike_dollars().unwrap_or(0.0),
                 contract.right().map_or('?', |r| r.as_char()),
             );
             let spread = ask - bid;
@@ -1571,9 +1556,9 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
         <!-- Strike -->
         <div v-if="needsStrike" class="qb-param-group">
-          <label class="qb-label">Strike <span class="qb-hint">scaled integer</span></label>
-          <input class="qb-input" type="text" v-model="params.strike" placeholder="500000" />
-          <div class="qb-helper">500000 = $500.00 &mdash; use <code>option_list_strikes()</code></div>
+          <label class="qb-label">Strike <span class="qb-hint">dollars</span></label>
+          <input class="qb-input" type="text" v-model="params.strike" placeholder="570" />
+          <div class="qb-helper">In dollars (570 or 17.5) &mdash; discover with <code>option_list_strikes()</code></div>
         </div>
 
         <!-- Right (Call/Put) -->

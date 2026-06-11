@@ -398,6 +398,15 @@ path = "src/bin/generate_sdk_surfaces.rs"
 required-features = ["config-file"]
 
 [[bin]]
+# Regenerates the checked-in docs-site reference tree (one page per
+# registry endpoint + streaming pages + sidebar manifests + llms.txt).
+# `__internal` is required because the sample-output renderer decodes
+# the checked-in capture fixtures through the production decode path.
+name = "generate_docs_site"
+path = "src/bin/generate_docs_site.rs"
+required-features = ["config-file", "__internal"]
+
+[[bin]]
 name = "refresh_grpc_snapshot"
 path = "src/bin/refresh_grpc_snapshot.rs"
 required-features = ["grpc-codegen"]

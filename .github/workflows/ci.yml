@@ -82,6 +82,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust-deps
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo run -p thetadatadx --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
         shell: bash
@@ -293,6 +294,7 @@ jobs:
       - run: python3 scripts/check_lockfile_drift.py
       - run: python3 scripts/validate_agreement_test.py
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo check --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked

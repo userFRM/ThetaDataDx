@@ -1,0 +1,17 @@
+[
+  { "text": "Stocks", "collapsed": true, "items": [
+    { "text": "Quote", "link": "/streaming/stocks/quote" },
+    { "text": "Trade", "link": "/streaming/stocks/trade" },
+    { "text": "Full Trades", "link": "/streaming/stocks/full-trade" }
+  ]},
+  { "text": "Options", "collapsed": true, "items": [
+    { "text": "Quote", "link": "/streaming/options/quote" },
+    { "text": "Trade", "link": "/streaming/options/trade" },
+    { "text": "Open Interest", "link": "/streaming/options/open-interest" },
+    { "text": "Full Trades", "link": "/streaming/options/full-trade" },
+    { "text": "Full Open Interest", "link": "/streaming/options/full-open-interest" }
+  ]},
+  { "text": "Indices", "collapsed": true, "items": [
+    { "text": "Price", "link": "/streaming/indices/price" }
+  ]}
+]

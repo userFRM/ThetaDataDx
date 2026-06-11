@@ -51,6 +51,15 @@ pub(crate) struct ColumnDef {
     pub(crate) name: String,
     pub(crate) field: String,
     pub(crate) r#type: String,
+    /// One-sentence field description rendered on the docs-site
+    /// response-schema tables (`generate_docs_site`). Optional at the
+    /// serde layer so the build-script view of the same TOML stays
+    /// untouched; the docs generator fails loudly on a missing doc.
+    /// Only the docs generator reads it, so the field is dead code in
+    /// the `generate_sdk_surfaces` compile unit (no `__internal`).
+    #[serde(default)]
+    #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
+    pub(crate) doc: Option<String>,
 }
 
 /// Every per-language binding name a renderer needs for one tick type.
@@ -100,7 +109,7 @@ pub(crate) struct TickRenderDef {
     pub(crate) pyclass: String,
 }
 
-pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
+pub(crate) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_path = "tick_schema.toml";
     let schema_str = std::fs::read_to_string(schema_path)?;
     let schema: Schema = toml::from_str(&schema_str)?;
