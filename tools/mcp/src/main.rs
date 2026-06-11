@@ -397,12 +397,8 @@ fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Render ThetaData's option right code as a human-readable MCP field value.
-fn option_right_value(right: i32) -> Value {
-    match right {
-        67 => "C".into(),
-        80 => "P".into(),
-        _ => right.into(),
-    }
+fn option_right_value(right: char) -> Value {
+    Value::from(right.to_string().as_str())
 }
 
 /// Attach wildcard option contract identifiers to a serialized tick row.
@@ -410,7 +406,7 @@ fn option_right_value(right: i32) -> Value {
 /// ThetaData only populates these fields on wildcard/bulk queries, where
 /// callers request `expiration = "0"` and/or `strike = "0"`. Single-contract
 /// queries leave them as zero, so MCP omits them to keep those payloads lean.
-fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, right: i32) {
+fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, right: char) {
     if expiration == 0 {
         return;
     }
@@ -435,8 +431,8 @@ fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
         .map(|t| {
             let mut row = json!({
                 "date": t.date,
-                "ms_of_day": t.ms_of_day,
-                "ms_of_day2": t.ms_of_day2,
+                "created": t.created_ms_of_day,
+                "last_trade": t.last_trade_ms_of_day,
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
@@ -893,7 +889,7 @@ fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
             json!({
                 "date": d.date, "is_open": d.is_open,
                 "open_time": d.open_time, "close_time": d.close_time,
-                "status": d.status,
+                "status": d.status.as_str(),
             })
         })
         .collect();
@@ -914,7 +910,7 @@ fn serialize_option_contracts(contracts: &[tdbe::types::tick::OptionContract]) -
         .map(|c| {
             json!({
                 "symbol": c.symbol, "expiration": c.expiration,
-                "strike": c.strike, "right": c.right,
+                "strike": c.strike, "right": option_right_value(c.right),
             })
         })
         .collect();
@@ -1344,10 +1340,10 @@ mod tests {
     use super::*;
     use tdbe::types::tick::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick};
 
-    fn sample_eod_tick(expiration: i32, strike: f64, right: i32) -> EodTick {
+    fn sample_eod_tick(expiration: i32, strike: f64, right: char) -> EodTick {
         EodTick {
-            ms_of_day: 34_200_000,
-            ms_of_day2: 57_600_000,
+            created_ms_of_day: 34_200_000,
+            last_trade_ms_of_day: 57_600_000,
             open: 1.0,
             high: 1.0,
             low: 1.0,
@@ -1369,7 +1365,7 @@ mod tests {
         }
     }
 
-    fn sample_greeks_tick(expiration: i32, strike: f64, right: i32) -> GreeksAllTick {
+    fn sample_greeks_tick(expiration: i32, strike: f64, right: char) -> GreeksAllTick {
         GreeksAllTick {
             ms_of_day: 0,
             bid: 0.0,
@@ -1570,7 +1566,7 @@ mod tests {
 
     #[test]
     fn serialize_option_history_eod_preserves_bulk_contract_identifiers() {
-        let payload = serialize_eod_ticks(&[sample_eod_tick(20230120, 385.0, 67)]);
+        let payload = serialize_eod_ticks(&[sample_eod_tick(20230120, 385.0, 'C')]);
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
@@ -1594,7 +1590,7 @@ mod tests {
 
     #[test]
     fn serialize_eod_ticks_preserves_full_eod_fields() {
-        let payload = serialize_eod_ticks(&[sample_eod_tick(0, 0.0, 0)]);
+        let payload = serialize_eod_ticks(&[sample_eod_tick(0, 0.0, '\0')]);
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
@@ -1602,12 +1598,11 @@ mod tests {
             .expect("serialized tick row should exist");
 
         assert_eq!(
-            tick.get("ms_of_day")
-                .and_then(|value: &Value| value.as_i64()),
+            tick.get("created").and_then(|value: &Value| value.as_i64()),
             Some(34_200_000)
         );
         assert_eq!(
-            tick.get("ms_of_day2")
+            tick.get("last_trade")
                 .and_then(|value: &Value| value.as_i64()),
             Some(57_600_000)
         );
@@ -1635,7 +1630,7 @@ mod tests {
 
     #[test]
     fn serialize_option_history_greeks_eod_omits_contract_identifiers_for_single_contract_rows() {
-        let payload = serialize_greeks_all_ticks(&[sample_greeks_tick(0, 0.0, 0)]);
+        let payload = serialize_greeks_all_ticks(&[sample_greeks_tick(0, 0.0, '\0')]);
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
@@ -1675,7 +1670,7 @@ mod tests {
             date: 20260410,
             expiration: 0,
             strike: 0.0,
-            right: 0,
+            right: '\0',
             midpoint: 150.5,
         };
         let payload = serialize_quote_ticks(&[tick]);
@@ -1720,7 +1715,7 @@ mod tests {
             date: 20260410,
             expiration: 0,
             strike: 0.0,
-            right: 0,
+            right: '\0',
         };
         let payload = serialize_trade_quote_ticks(&[tick]);
         let row = payload["ticks"].as_array().unwrap().first().unwrap();
@@ -1745,7 +1740,7 @@ mod tests {
 
     #[test]
     fn serialize_greeks_ticks_includes_all_22_greeks() {
-        let tick = sample_greeks_tick(0, 0.0, 0);
+        let tick = sample_greeks_tick(0, 0.0, '\0');
         let payload = serialize_greeks_all_ticks(&[tick]);
         let row = payload["ticks"].as_array().unwrap().first().unwrap();
         for key in [

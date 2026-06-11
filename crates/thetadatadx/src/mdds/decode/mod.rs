@@ -27,21 +27,16 @@ pub mod transport;
 
 // `parse_calendar_days_v3` and `parse_option_contracts_v3` are used by the
 // generated MDDS endpoint macros (`mdds_parsed_endpoints_generated.rs`) — keep
-// them always-compiled. The `CALENDAR_STATUS_*` constants are used only by
-// workspace bindings (`sdks/python`); gate those on `__internal`.
+// them always-compiled. The calendar day-type vocabulary is the typed
+// `tdbe::CalendarStatus` enum carried on `CalendarDay.status` directly.
 pub use dual_type_columns::{parse_calendar_days_v3, parse_option_contracts_v3};
-#[cfg(feature = "__internal")]
-pub use dual_type_columns::{
-    CALENDAR_STATUS_EARLY_CLOSE, CALENDAR_STATUS_FULL_CLOSE, CALENDAR_STATUS_OPEN,
-    CALENDAR_STATUS_UNKNOWN, CALENDAR_STATUS_WEEKEND,
-};
 pub use error::DecodeError;
 // `extract_number_column` and `extract_price_column` are used by workspace
 // bindings only; gate them under `__internal`. `extract_text_column` may be
 // used in the `cell` generated parsers — keep it always-available.
-pub use extract::extract_text_column;
 #[cfg(feature = "__internal")]
 pub use extract::{extract_number_column, extract_price_column};
+pub use extract::{extract_text_column, sorted_list_values};
 // `decode_data_table` and `decompress_response` (non-`_with_max` variants)
 // plus `decompress_response_with_max` are only used by workspace
 // bindings and tests; gate them under `__internal`.

@@ -42,7 +42,7 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
 
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str(
-        "use arrow_array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
+        "use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str("use arrow_array::RecordBatch;\n");
@@ -70,14 +70,14 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
 // ── Arrow impl ──────────────────────────────────────────────────────────
 //
 // Mirror of `python_arrow::render_python_slice_reader`. Same column set,
-// same dtype mapping, same `right: i32` → `"C"/"P"/""` string projection
-// on contract-id ticks + `OptionContract`.
+// same dtype mapping, same logical-column projections (`right` char →
+// one-char string, calendar status → vendor vocabulary string, absent
+// contract identity → Arrow null).
 
 fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let is_quote_tick = type_name == "QuoteTick";
     let is_contract = def.contract_id;
-    let is_option_contract = type_name == "OptionContract";
 
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"arrow\")))]\n");
@@ -92,58 +92,47 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("        let n = self.len();\n");
 
     // Column vectors.
-    let mut column_decls: Vec<(String, String, bool)> = Vec::new();
+    let mut column_decls: Vec<(String, String)> = Vec::new();
     for column in &def.columns {
-        let (rust_ty, effective_type) = if is_option_contract && column.field == "right" {
-            ("String", "String")
-        } else {
-            let ty = tick_struct_field_type(column.r#type.as_str());
-            (ty, column.r#type.as_str())
-        };
+        let rust_ty = tick_struct_field_type(column.r#type.as_str());
         writeln!(
             out,
             "        let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
             field = column.field
         )
         .unwrap();
-        column_decls.push((
-            column.field.clone(),
-            effective_type.to_string(),
-            rust_ty == "String",
-        ));
+        column_decls.push((column.field.clone(), column.r#type.clone()));
     }
     if is_quote_tick {
         out.push_str("        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
     }
     if is_contract {
-        out.push_str("        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_strike: Vec<f64> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_right: Vec<String> = Vec::with_capacity(n);\n");
+        // Absent contract identity buffers as Arrow nulls.
+        out.push_str("        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);\n");
+        out.push_str("        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);\n");
+        out.push_str("        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);\n");
     }
 
     // Fill loop.
     out.push_str("        for t in self {\n");
-    for (field, _effective, is_string) in &column_decls {
-        if is_option_contract && field == "right" {
-            out.push_str(
-                "            col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
-            );
-            continue;
-        }
-        if *is_string {
-            writeln!(out, "            col_{field}.push(t.{field}.clone());").unwrap();
-        } else {
-            writeln!(out, "            col_{field}.push(t.{field});").unwrap();
-        }
+    for (field, column_type) in &column_decls {
+        writeln!(
+            out,
+            "            col_{field}.push({});",
+            column_push_expr(column_type, field)
+        )
+        .unwrap();
     }
     if is_quote_tick {
         out.push_str("            col_midpoint.push(t.midpoint);\n");
     }
     if is_contract {
-        out.push_str("            col_expiration.push(t.expiration);\n");
-        out.push_str("            col_strike.push(t.strike);\n");
         out.push_str(
-            "            col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
+            "            col_expiration.push(t.has_contract_id().then_some(t.expiration));\n",
+        );
+        out.push_str("            col_strike.push(t.has_contract_id().then_some(t.strike));\n");
+        out.push_str(
+            "            col_right.push(if t.right == '\\0' { None } else { Some(t.right.to_string()) });\n",
         );
     }
     out.push_str("        }\n");
@@ -151,16 +140,10 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     // Schema.
     out.push_str("        let schema = Arc::new(ArrowSchema::new(vec![\n");
     for column in &def.columns {
-        let dt = if is_option_contract && column.field == "right" {
-            "DataType::Utf8"
-        } else {
-            arrow_data_type_expr(column.r#type.as_str())
-        };
+        let dt = arrow_data_type_expr(column.r#type.as_str());
         // Arrow / Polars schema names mirror the public struct field name
-        // (matches the Rust / Python / TypeScript / Go surfaces). For most
-        // ticks `name` and `field` coincide; the divergence appears on
-        // `OptionContract` where the wire ships `root` but the public
-        // surface emits `symbol` per the v3 vendor migration guide.
+        // (matches the Rust / Python / TypeScript surfaces); wire
+        // spellings (`column.name`) stay in the decode layer.
         writeln!(
             out,
             "            Field::new(\"{name}\", {dt}, false),",
@@ -172,15 +155,16 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         out.push_str("            Field::new(\"midpoint\", DataType::Float64, false),\n");
     }
     if is_contract {
-        out.push_str("            Field::new(\"expiration\", DataType::Int32, false),\n");
-        out.push_str("            Field::new(\"strike\", DataType::Float64, false),\n");
-        out.push_str("            Field::new(\"right\", DataType::Utf8, false),\n");
+        // Nullable: absent contract identity is an Arrow null.
+        out.push_str("            Field::new(\"expiration\", DataType::Int32, true),\n");
+        out.push_str("            Field::new(\"strike\", DataType::Float64, true),\n");
+        out.push_str("            Field::new(\"right\", DataType::Utf8, true),\n");
     }
     out.push_str("        ]));\n");
 
     // Columns.
     out.push_str("        let columns: Vec<ArrayRef> = vec![\n");
-    for (field, column_type, _is_string) in &column_decls {
+    for (field, column_type) in &column_decls {
         let ctor = arrow_array_ctor(column_type);
         writeln!(
             out,
@@ -215,7 +199,6 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let is_quote_tick = type_name == "QuoteTick";
     let is_contract = def.contract_id;
-    let is_option_contract = type_name == "OptionContract";
 
     out.push_str("#[cfg(feature = \"polars\")]\n");
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"polars\")))]\n");
@@ -228,57 +211,46 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("        let n = self.len();\n");
 
     // Column buffers.
-    let mut column_decls: Vec<(String, String, bool)> = Vec::new();
+    let mut column_decls: Vec<(String, String)> = Vec::new();
     for column in &def.columns {
-        let (rust_ty, effective_type) = if is_option_contract && column.field == "right" {
-            ("String", "String")
-        } else {
-            let ty = tick_struct_field_type(column.r#type.as_str());
-            (ty, column.r#type.as_str())
-        };
+        let rust_ty = tick_struct_field_type(column.r#type.as_str());
         writeln!(
             out,
             "        let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
             field = column.field
         )
         .unwrap();
-        column_decls.push((
-            column.field.clone(),
-            effective_type.to_string(),
-            rust_ty == "String",
-        ));
+        column_decls.push((column.field.clone(), column.r#type.clone()));
     }
     if is_quote_tick {
         out.push_str("        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
     }
     if is_contract {
-        out.push_str("        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_strike: Vec<f64> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_right: Vec<String> = Vec::with_capacity(n);\n");
+        // Absent contract identity becomes a Polars null.
+        out.push_str("        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);\n");
+        out.push_str("        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);\n");
+        out.push_str("        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);\n");
     }
 
     out.push_str("        for t in self {\n");
-    for (field, _effective, is_string) in &column_decls {
-        if is_option_contract && field == "right" {
-            out.push_str(
-                "            col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
-            );
-            continue;
-        }
-        if *is_string {
-            writeln!(out, "            col_{field}.push(t.{field}.clone());").unwrap();
-        } else {
-            writeln!(out, "            col_{field}.push(t.{field});").unwrap();
-        }
+    for (field, column_type) in &column_decls {
+        writeln!(
+            out,
+            "            col_{field}.push({});",
+            column_push_expr(column_type, field)
+        )
+        .unwrap();
     }
     if is_quote_tick {
         out.push_str("            col_midpoint.push(t.midpoint);\n");
     }
     if is_contract {
-        out.push_str("            col_expiration.push(t.expiration);\n");
-        out.push_str("            col_strike.push(t.strike);\n");
         out.push_str(
-            "            col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
+            "            col_expiration.push(t.has_contract_id().then_some(t.expiration));\n",
+        );
+        out.push_str("            col_strike.push(t.has_contract_id().then_some(t.strike));\n");
+        out.push_str(
+            "            col_right.push(if t.right == '\\0' { None } else { Some(t.right.to_string()) });\n",
         );
     }
     out.push_str("        }\n");
@@ -326,8 +298,23 @@ fn tick_struct_field_type(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
-        "String" => "String",
+        "String" | "right" | "calendar_status" => "String",
+        "bool" => "bool",
         other => panic!("unsupported tick-struct field type '{other}'"),
+    }
+}
+
+/// Per-column push expression — mirrors
+/// `python_arrow::column_push_expr` so the Rust and Python columnar
+/// outputs project logical columns identically.
+fn column_push_expr(column_type: &str, field: &str) -> String {
+    match column_type {
+        "right" => {
+            format!("if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}")
+        }
+        "calendar_status" => format!("t.{field}.as_str().to_string()"),
+        "String" => format!("t.{field}.clone()"),
+        _ => format!("t.{field}"),
     }
 }
 
@@ -336,7 +323,8 @@ fn arrow_data_type_expr(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "DataType::Int32",
         "i64" | "eod_num64" => "DataType::Int64",
         "f64" | "price" | "eod_price" => "DataType::Float64",
-        "String" => "DataType::Utf8",
+        "String" | "right" | "calendar_status" => "DataType::Utf8",
+        "bool" => "DataType::Boolean",
         other => panic!("unsupported Arrow data type for column type '{other}'"),
     }
 }
@@ -346,7 +334,8 @@ fn arrow_array_ctor(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "Int32Array",
         "i64" | "eod_num64" => "Int64Array",
         "f64" | "price" | "eod_price" => "Float64Array",
-        "String" => "StringArray",
+        "String" | "right" | "calendar_status" => "StringArray",
+        "bool" => "BooleanArray",
         other => panic!("unsupported Arrow array ctor for column type '{other}'"),
     }
 }

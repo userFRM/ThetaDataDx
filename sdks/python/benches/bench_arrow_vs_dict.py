@@ -41,8 +41,8 @@ def build_eod_ticks(n: int) -> List["thetadatadx.EodTick"]:
     """Construct N EodTick instances with varying values."""
     return [
         thetadatadx.EodTick(
-            ms_of_day=i,
-            ms_of_day2=i,
+            created_ms_of_day=i,
+            last_trade_ms_of_day=i,
             open=float(100 + (i % 1000) * 0.01),
             high=float(101 + (i % 1000) * 0.01),
             low=float(99 + (i % 1000) * 0.01),

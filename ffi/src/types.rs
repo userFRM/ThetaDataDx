@@ -278,9 +278,14 @@ tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 pub struct TdxOptionContract {
     /// Heap-allocated NUL-terminated C string. Freed with the array.
     pub symbol: *const c_char,
+    /// Expiration date as a `YYYYMMDD` integer.
     pub expiration: i32,
+    /// Strike price in dollars.
     pub strike: f64,
-    pub right: i32,
+    /// Contract right as the Unicode scalar value of the character:
+    /// `'C'` (67) for a call, `'P'` (80) for a put. Cast to `char` for
+    /// display. Same 4-byte slot the previous ASCII integer occupied.
+    pub right: u32,
 }
 
 /// Array of FFI-safe option contracts.
@@ -308,7 +313,7 @@ impl TdxOptionContractArray {
                     symbol: CString::new(c.symbol)?.into_raw().cast_const(),
                     expiration: c.expiration,
                     strike: c.strike,
-                    right: c.right,
+                    right: c.right as u32,
                 })
             })
             .collect::<Result<Vec<_>, std::ffi::NulError>>()?;

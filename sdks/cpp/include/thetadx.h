@@ -53,18 +53,33 @@ typedef struct TdxUnified TdxUnified;
  * Explicit tail padding is part of that ABI contract so C/C++ array stepping
  * stays byte-for-byte compatible with Rust. Price fields are f64 (double). */
 
+/* Calendar day-type codes carried by TdxCalendarDay.status — the
+ * vendor's own vocabulary. Resolve the text form with
+ * tdx_calendar_status_name(). */
+#define TDX_CALENDAR_STATUS_OPEN 0
+#define TDX_CALENDAR_STATUS_EARLY_CLOSE 1
+#define TDX_CALENDAR_STATUS_FULL_CLOSE 2
+#define TDX_CALENDAR_STATUS_WEEKEND 3
+
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
-    int32_t is_open;
+    /* C99 bool (1 byte): whether the market trades at all on this date
+     * (true for open and early-close days). 3 bytes padding follow. */
+    bool is_open;
     int32_t open_time;
     int32_t close_time;
+    /* One of the TDX_CALENDAR_STATUS_* codes; string form via
+     * tdx_calendar_status_name(). */
     int32_t status;
     uint8_t _tail_padding[44];
 } TdxCalendarDay TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
-    int32_t ms_of_day;
-    int32_t ms_of_day2;
+    /* EOD report creation time (NOT a trade time), ms since midnight ET. */
+    int32_t created_ms_of_day;
+    /* Time of the day's last trade, ms since midnight ET. 0 when no
+     * trades printed that day (open/high/low/close are 0.0 then too). */
+    int32_t last_trade_ms_of_day;
     double open;
     double high;
     double low;
@@ -86,7 +101,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     /* 4 bytes padding before f64 */
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[4];
 } TdxEodTick TDX_ALIGN64_END;
 
@@ -124,7 +142,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[20];
 } TdxGreeksAllTick TDX_ALIGN64_END;
 
@@ -179,7 +200,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[4];
 } TdxGreeksEodTick TDX_ALIGN64_END;
 
@@ -203,7 +227,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[4];
 } TdxGreeksFirstOrderTick TDX_ALIGN64_END;
 
@@ -226,7 +253,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[12];
 } TdxGreeksSecondOrderTick TDX_ALIGN64_END;
 
@@ -249,7 +279,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[20];
 } TdxGreeksThirdOrderTick TDX_ALIGN64_END;
 
@@ -297,7 +330,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[60];
 } TdxTradeGreeksAllTick TDX_ALIGN64_END;
 
@@ -329,7 +365,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[44];
 } TdxTradeGreeksFirstOrderTick TDX_ALIGN64_END;
 
@@ -360,7 +399,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[52];
 } TdxTradeGreeksSecondOrderTick TDX_ALIGN64_END;
 
@@ -391,7 +433,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[60];
 } TdxTradeGreeksThirdOrderTick TDX_ALIGN64_END;
 
@@ -419,7 +464,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[28];
 } TdxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
 
@@ -452,7 +500,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[28];
 } TdxIvTick TDX_ALIGN64_END;
 
@@ -465,7 +516,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[8];
 } TdxMarketValueTick TDX_ALIGN64_END;
 
@@ -486,7 +540,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[44];
 } TdxOhlcTick TDX_ALIGN64_END;
 
@@ -496,7 +553,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[32];
 } TdxOpenInterestTick TDX_ALIGN64_END;
 
@@ -544,7 +604,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     /* 4 bytes padding before f64 */
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     /* 4 bytes padding before f64 */
     double midpoint;
     uint8_t _tail_padding[40];
@@ -581,7 +644,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     /* 4 bytes padding before f64 */
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[48];
 } TdxTradeQuoteTick TDX_ALIGN64_END;
 
@@ -604,7 +670,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t expiration;
     double strike;
-    int32_t right;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
     uint8_t _tail_padding[40];
 } TdxTradeTick TDX_ALIGN64_END;
 
@@ -639,10 +708,12 @@ typedef struct { const TdxTradeQuoteTick* data; size_t len; } TdxTradeQuoteTickA
 
 typedef struct {
     const char* symbol;     /* heap-allocated, freed with tdx_option_contract_array_free */
-    int32_t expiration;
+    int32_t expiration;     /* YYYYMMDD */
     /* 4 bytes padding before f64 */
-    double strike;
-    int32_t right;
+    double strike;          /* dollars */
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put. Cast to char for display. */
+    uint32_t right;
 } TdxOptionContract;
 
 typedef struct { const TdxOptionContract* data; size_t len; } TdxOptionContractArray;
@@ -1407,6 +1478,18 @@ const char* tdx_exchange_name(int32_t code);
 
 /** Exchange MIC-like symbol lookup (e.g. 3 -> "NYSE"). */
 const char* tdx_exchange_symbol(int32_t code);
+
+/** Calendar day-type vocabulary lookup (0 -> "open", 1 -> "early_close",
+ *  2 -> "full_close", 3 -> "weekend"; "UNKNOWN" otherwise). 'static
+ *  lifetime — DO NOT FREE. */
+const char* tdx_calendar_status_name(int32_t code);
+
+/** Combine an Eastern-Time YYYYMMDD date and milliseconds-of-day into
+ *  Unix epoch milliseconds (UTC, DST-aware). Usable with any
+ *  (date, *_ms_of_day) pair on the tick structs. Returns -1 when date
+ *  is not a valid YYYYMMDD (including the 0 absent fill) or ms_of_day
+ *  is outside 0..86,400,000. */
+int64_t tdx_timestamp_ms(int32_t date, int32_t ms_of_day);
 
 /** Convert a signed wire-encoded trade-sequence value to its unsigned
  *  monotonic form. */

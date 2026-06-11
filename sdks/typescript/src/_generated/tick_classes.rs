@@ -10,10 +10,10 @@ use napi::bindgen_prelude::BigInt;
 #[derive(Clone)]
 pub struct CalendarDay {
     pub date: i32,
-    pub is_open: i32,
+    pub is_open: bool,
     pub open_time: i32,
     pub close_time: i32,
-    pub status: i32,
+    pub status: String,
 }
 
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
@@ -21,8 +21,8 @@ pub struct CalendarDay {
 #[napi(object)]
 #[derive(Clone)]
 pub struct EodTick {
-    pub ms_of_day: i32,
-    pub ms_of_day2: i32,
+    pub created_ms_of_day: i32,
+    pub last_trade_ms_of_day: i32,
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -38,9 +38,9 @@ pub struct EodTick {
     pub ask: f64,
     pub ask_condition: i32,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Full union Greeks tick -- every Greek the v3 server publishes on the
@@ -76,9 +76,9 @@ pub struct GreeksAllTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// End-of-day union Greeks tick -- every Greek the v3 server publishes on
@@ -126,9 +126,9 @@ pub struct GreeksEodTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// First-order Greeks tick -- the strict column subset emitted by the
@@ -150,9 +150,9 @@ pub struct GreeksFirstOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Second-order Greeks tick -- the strict column subset emitted by the
@@ -173,9 +173,9 @@ pub struct GreeksSecondOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Third-order Greeks tick -- the strict column subset emitted by the
@@ -195,9 +195,9 @@ pub struct GreeksThirdOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Index price-at-time tick -- the trade-shaped row the v3 server
@@ -243,9 +243,9 @@ pub struct IvTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
@@ -258,9 +258,9 @@ pub struct MarketValueTick {
     pub market_ask: f64,
     pub market_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// OHLC tick. Aggregated bar data including SIP-rule VWAP.
@@ -277,9 +277,9 @@ pub struct OhlcTick {
     pub count: BigInt,
     pub vwap: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Open interest tick.
@@ -290,9 +290,9 @@ pub struct OpenInterestTick {
     pub ms_of_day: i32,
     pub open_interest: i32,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Option contract. Contract specification.
@@ -332,9 +332,9 @@ pub struct QuoteTick {
     pub ask_condition: i32,
     pub date: i32,
     pub midpoint: f64,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Per-trade union Greeks tick -- every Greek the v3 server publishes on
@@ -377,9 +377,9 @@ pub struct TradeGreeksAllTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
@@ -408,9 +408,9 @@ pub struct TradeGreeksFirstOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Per-trade implied-volatility tick (single `implied_volatility` +
@@ -433,9 +433,9 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
@@ -463,9 +463,9 @@ pub struct TradeGreeksSecondOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
@@ -492,9 +492,9 @@ pub struct TradeGreeksThirdOrderTick {
     pub underlying_ms_of_day: i32,
     pub underlying_price: f64,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Combined trade + quote tick.
@@ -526,9 +526,9 @@ pub struct TradeQuoteTick {
     pub ask: f64,
     pub ask_condition: i32,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 /// Trade tick. Core unit of trade data.
@@ -551,9 +551,9 @@ pub struct TradeTick {
     pub volume_type: i32,
     pub records_back: i32,
     pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: String,
+    pub expiration: Option<i32>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
 }
 
 fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
@@ -565,7 +565,7 @@ fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: t.status,
+                status: t.status.as_str().to_string(),
             }
         })
         .collect()
@@ -576,8 +576,8 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
         .iter()
         .map(|t| {
             EodTick {
-                ms_of_day: t.ms_of_day,
-                ms_of_day2: t.ms_of_day2,
+                created_ms_of_day: t.created_ms_of_day,
+                last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -593,9 +593,9 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -634,9 +634,9 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -687,9 +687,9 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -714,9 +714,9 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -740,9 +740,9 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -765,9 +765,9 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -822,9 +822,9 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -840,9 +840,9 @@ fn market_value_ticks_to_class_vec(ticks: &[tick::MarketValueTick]) -> Vec<Marke
                 market_ask: t.market_ask,
                 market_price: t.market_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -862,9 +862,9 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 count: BigInt::from(t.count),
                 vwap: t.vwap,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -878,9 +878,9 @@ fn open_interest_ticks_to_class_vec(ticks: &[tick::OpenInterestTick]) -> Vec<Ope
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -894,7 +894,7 @@ fn option_contracts_to_class_vec(ticks: &[tick::OptionContract]) -> Vec<OptionCo
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
         })
         .collect()
@@ -929,9 +929,9 @@ fn quote_ticks_to_class_vec(ticks: &[tick::QuoteTick]) -> Vec<QuoteTick> {
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -977,9 +977,9 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1011,9 +1011,9 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1039,9 +1039,9 @@ fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeks
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1072,9 +1072,9 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1104,9 +1104,9 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1141,9 +1141,9 @@ fn trade_quote_ticks_to_class_vec(ticks: &[tick::TradeQuoteTick]) -> Vec<TradeQu
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()
@@ -1169,9 +1169,9 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 volume_type: t.volume_type,
                 records_back: t.records_back,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         })
         .collect()

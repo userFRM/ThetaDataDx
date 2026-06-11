@@ -2,6 +2,7 @@
 
 use std::fmt::Write as _;
 
+use super::idents::c_field_ident;
 use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::Schema;
 use super::sorted_type_names;
@@ -40,6 +41,7 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         // QuoteTick.midpoint). Field-offset drift can sneak past total-
         // size asserts when two same-size fields swap order.
         for (field, offset) in tick_ffi_offsets(type_name, def) {
+            let field = c_field_ident(&field);
             writeln!(out, "static_assert(offsetof({alias}, {field}) == {offset},").unwrap();
             writeln!(
                 out,

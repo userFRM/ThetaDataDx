@@ -14,10 +14,10 @@ static_assert(offsetof(CalendarDay, status) == 16,
               "TdxCalendarDay.status offset drifted from Rust");
 static_assert(sizeof(EodTick) == 128 && alignof(EodTick) == 64,
               "TdxEodTick layout drifted from Rust");
-static_assert(offsetof(EodTick, ms_of_day) == 0,
-              "TdxEodTick.ms_of_day offset drifted from Rust");
-static_assert(offsetof(EodTick, ms_of_day2) == 4,
-              "TdxEodTick.ms_of_day2 offset drifted from Rust");
+static_assert(offsetof(EodTick, created_ms_of_day) == 0,
+              "TdxEodTick.created_ms_of_day offset drifted from Rust");
+static_assert(offsetof(EodTick, last_trade_ms_of_day) == 4,
+              "TdxEodTick.last_trade_ms_of_day offset drifted from Rust");
 static_assert(offsetof(EodTick, open) == 8,
               "TdxEodTick.open offset drifted from Rust");
 static_assert(offsetof(EodTick, high) == 16,

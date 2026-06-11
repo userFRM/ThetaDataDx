@@ -6,7 +6,7 @@
 // and the trait definitions share a single compilation unit.
 
 #[cfg(feature = "arrow")]
-use arrow_array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
+use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
 #[cfg(feature = "arrow")]
 use arrow_array::RecordBatch;
 #[cfg(feature = "arrow")]
@@ -23,30 +23,30 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::CalendarDay] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_is_open: Vec<i32> = Vec::with_capacity(n);
+        let mut col_is_open: Vec<bool> = Vec::with_capacity(n);
         let mut col_open_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_close_time: Vec<i32> = Vec::with_capacity(n);
-        let mut col_status: Vec<i32> = Vec::with_capacity(n);
+        let mut col_status: Vec<String> = Vec::with_capacity(n);
         for t in self {
             col_date.push(t.date);
             col_is_open.push(t.is_open);
             col_open_time.push(t.open_time);
             col_close_time.push(t.close_time);
-            col_status.push(t.status);
+            col_status.push(t.status.as_str().to_string());
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("date", DataType::Int32, false),
-            Field::new("is_open", DataType::Int32, false),
+            Field::new("is_open", DataType::Boolean, false),
             Field::new("open_time", DataType::Int32, false),
             Field::new("close_time", DataType::Int32, false),
-            Field::new("status", DataType::Int32, false),
+            Field::new("status", DataType::Utf8, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
-            Arc::new(Int32Array::from(col_is_open)) as ArrayRef,
+            Arc::new(BooleanArray::from(col_is_open)) as ArrayRef,
             Arc::new(Int32Array::from(col_open_time)) as ArrayRef,
             Arc::new(Int32Array::from(col_close_time)) as ArrayRef,
-            Arc::new(Int32Array::from(col_status)) as ArrayRef,
+            Arc::new(StringArray::from(col_status)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns)
     }
@@ -58,16 +58,16 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::CalendarDay] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_is_open: Vec<i32> = Vec::with_capacity(n);
+        let mut col_is_open: Vec<bool> = Vec::with_capacity(n);
         let mut col_open_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_close_time: Vec<i32> = Vec::with_capacity(n);
-        let mut col_status: Vec<i32> = Vec::with_capacity(n);
+        let mut col_status: Vec<String> = Vec::with_capacity(n);
         for t in self {
             col_date.push(t.date);
             col_is_open.push(t.is_open);
             col_open_time.push(t.open_time);
             col_close_time.push(t.close_time);
-            col_status.push(t.status);
+            col_status.push(t.status.as_str().to_string());
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
@@ -84,8 +84,8 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::CalendarDay] {
 impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
-        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ms_of_day2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_last_trade_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_open: Vec<f64> = Vec::with_capacity(n);
         let mut col_high: Vec<f64> = Vec::with_capacity(n);
         let mut col_low: Vec<f64> = Vec::with_capacity(n);
@@ -101,12 +101,12 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
-            col_ms_of_day.push(t.ms_of_day);
-            col_ms_of_day2.push(t.ms_of_day2);
+            col_created_ms_of_day.push(t.created_ms_of_day);
+            col_last_trade_ms_of_day.push(t.last_trade_ms_of_day);
             col_open.push(t.open);
             col_high.push(t.high);
             col_low.push(t.low);
@@ -122,13 +122,13 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
-            Field::new("ms_of_day", DataType::Int32, false),
-            Field::new("ms_of_day2", DataType::Int32, false),
+            Field::new("created_ms_of_day", DataType::Int32, false),
+            Field::new("last_trade_ms_of_day", DataType::Int32, false),
             Field::new("open", DataType::Float64, false),
             Field::new("high", DataType::Float64, false),
             Field::new("low", DataType::Float64, false),
@@ -144,13 +144,13 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
             Field::new("ask", DataType::Float64, false),
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
-            Arc::new(Int32Array::from(col_ms_of_day2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_created_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_last_trade_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_open)) as ArrayRef,
             Arc::new(Float64Array::from(col_high)) as ArrayRef,
             Arc::new(Float64Array::from(col_low)) as ArrayRef,
@@ -179,8 +179,8 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
 impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
-        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ms_of_day2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_last_trade_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_open: Vec<f64> = Vec::with_capacity(n);
         let mut col_high: Vec<f64> = Vec::with_capacity(n);
         let mut col_low: Vec<f64> = Vec::with_capacity(n);
@@ -196,12 +196,12 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
-            col_ms_of_day.push(t.ms_of_day);
-            col_ms_of_day2.push(t.ms_of_day2);
+            col_created_ms_of_day.push(t.created_ms_of_day);
+            col_last_trade_ms_of_day.push(t.last_trade_ms_of_day);
             col_open.push(t.open);
             col_high.push(t.high);
             col_low.push(t.low);
@@ -217,13 +217,13 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
-            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
-            Series::new(PlSmallStr::from_static("ms_of_day2"), col_ms_of_day2).into(),
+            Series::new(PlSmallStr::from_static("created_ms_of_day"), col_created_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("last_trade_ms_of_day"), col_last_trade_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("open"), col_open).into(),
             Series::new(PlSmallStr::from_static("high"), col_high).into(),
             Series::new(PlSmallStr::from_static("low"), col_low).into(),
@@ -279,9 +279,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksAllTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -311,9 +311,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksAllTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -344,9 +344,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksAllTick] {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -418,9 +418,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksAllTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -450,9 +450,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksAllTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -535,9 +535,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksEodTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open.push(t.open);
@@ -579,9 +579,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksEodTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -624,9 +624,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksEodTick] {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -722,9 +722,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksEodTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open.push(t.open);
@@ -766,9 +766,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksEodTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -837,9 +837,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksFirstOrderTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -855,9 +855,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksFirstOrderTick] 
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -874,9 +874,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksFirstOrderTick] 
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -920,9 +920,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksFirstOrderTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -938,9 +938,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksFirstOrderTick]
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -982,9 +982,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksSecondOrderTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -999,9 +999,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksSecondOrderTick]
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1017,9 +1017,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksSecondOrderTick]
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1061,9 +1061,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksSecondOrderTick
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -1078,9 +1078,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksSecondOrderTick
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1120,9 +1120,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksThirdOrderTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -1136,9 +1136,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksThirdOrderTick] 
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1153,9 +1153,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksThirdOrderTick] 
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1195,9 +1195,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -1211,9 +1211,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick]
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1396,9 +1396,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -1411,9 +1411,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::IvTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1427,9 +1427,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::IvTick] {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1467,9 +1467,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid.push(t.bid);
@@ -1482,9 +1482,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IvTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1515,18 +1515,18 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::MarketValueTick] {
         let mut col_market_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_market_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_market_bid.push(t.market_bid);
             col_market_ask.push(t.market_ask);
             col_market_price.push(t.market_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1534,9 +1534,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::MarketValueTick] {
             Field::new("market_ask", DataType::Float64, false),
             Field::new("market_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1562,18 +1562,18 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::MarketValueTick] {
         let mut col_market_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_market_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_market_bid.push(t.market_bid);
             col_market_ask.push(t.market_ask);
             col_market_price.push(t.market_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1602,9 +1602,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OhlcTick] {
         let mut col_count: Vec<i64> = Vec::with_capacity(n);
         let mut col_vwap: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open.push(t.open);
@@ -1615,9 +1615,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OhlcTick] {
             col_count.push(t.count);
             col_vwap.push(t.vwap);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1629,9 +1629,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OhlcTick] {
             Field::new("count", DataType::Int64, false),
             Field::new("vwap", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1665,9 +1665,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OhlcTick] {
         let mut col_count: Vec<i64> = Vec::with_capacity(n);
         let mut col_vwap: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open.push(t.open);
@@ -1678,9 +1678,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OhlcTick] {
             col_count.push(t.count);
             col_vwap.push(t.vwap);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1707,24 +1707,24 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OpenInterestTick] {
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_open_interest: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open_interest.push(t.open_interest);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("open_interest", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1746,16 +1746,16 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OpenInterestTick] {
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_open_interest: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_open_interest.push(t.open_interest);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -1781,7 +1781,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OptionContract] {
             col_symbol.push(t.symbol.clone());
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_right.push(if t.right == '\0' { String::new() } else { t.right.to_string() });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("symbol", DataType::Utf8, false),
@@ -1812,7 +1812,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OptionContract] {
             col_symbol.push(t.symbol.clone());
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_right.push(if t.right == '\0' { String::new() } else { t.right.to_string() });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("symbol"), col_symbol).into(),
@@ -1887,9 +1887,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::QuoteTick] {
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -1902,9 +1902,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::QuoteTick] {
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
             col_midpoint.push(t.midpoint);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1918,9 +1918,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::QuoteTick] {
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
             Field::new("midpoint", DataType::Float64, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1958,9 +1958,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -1973,9 +1973,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
             col_midpoint.push(t.midpoint);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2036,9 +2036,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2075,9 +2075,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -2115,9 +2115,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -2203,9 +2203,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksAllTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2242,9 +2242,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksAllTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2315,9 +2315,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderT
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2340,9 +2340,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderT
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -2366,9 +2366,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderT
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -2426,9 +2426,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksFirstOrder
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2451,9 +2451,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksFirstOrder
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2504,9 +2504,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVola
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2523,9 +2523,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVola
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -2543,9 +2543,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVola
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -2591,9 +2591,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksImpliedVol
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2610,9 +2610,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksImpliedVol
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2662,9 +2662,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrder
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2686,9 +2686,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrder
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -2711,9 +2711,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrder
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -2769,9 +2769,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksSecondOrde
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2793,9 +2793,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksSecondOrde
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2849,9 +2849,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderT
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2872,9 +2872,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderT
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -2896,9 +2896,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderT
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -2952,9 +2952,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksThirdOrder
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -2975,9 +2975,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksThirdOrder
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -3035,9 +3035,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -3063,9 +3063,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -3092,9 +3092,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
             Field::new("ask", DataType::Float64, false),
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -3158,9 +3158,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeQuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -3186,9 +3186,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeQuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -3242,9 +3242,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeTick] {
         let mut col_volume_type: Vec<i32> = Vec::with_capacity(n);
         let mut col_records_back: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -3261,9 +3261,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeTick] {
             col_volume_type.push(t.volume_type);
             col_records_back.push(t.records_back);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -3281,9 +3281,9 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeTick] {
             Field::new("volume_type", DataType::Int32, false),
             Field::new("records_back", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("expiration", DataType::Int32, false),
-            Field::new("strike", DataType::Float64, false),
-            Field::new("right", DataType::Utf8, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -3329,9 +3329,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeTick] {
         let mut col_volume_type: Vec<i32> = Vec::with_capacity(n);
         let mut col_records_back: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
-        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
-        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
@@ -3348,9 +3348,9 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeTick] {
             col_volume_type.push(t.volume_type);
             col_records_back.push(t.records_back);
             col_date.push(t.date);
-            col_expiration.push(t.expiration);
-            col_strike.push(t.strike);
-            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+            col_expiration.push(t.has_contract_id().then_some(t.expiration));
+            col_strike.push(t.has_contract_id().then_some(t.strike));
+            col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),

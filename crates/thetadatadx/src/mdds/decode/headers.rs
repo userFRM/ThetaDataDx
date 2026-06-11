@@ -16,7 +16,6 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     // Generic time column: MDDS sends a proto `Timestamp`, the tick schema
     // models it as an i32 ms-of-day. `row_number` handles the conversion.
     ("ms_of_day", "timestamp"),
-    ("ms_of_day", "created"),
     // Combined trade + quote responses split the two time columns into
     // `trade_timestamp` (the trade side → `ms_of_day`) and `quote_timestamp`
     // (the quote side → `quote_ms_of_day`). Without these aliases the
@@ -24,8 +23,12 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     // produces an empty Vec on ~1M-row responses (P11).
     ("ms_of_day", "trade_timestamp"),
     ("quote_ms_of_day", "quote_timestamp"),
-    ("ms_of_day2", "timestamp2"),
-    ("ms_of_day2", "last_trade"),
+    // The EOD schema columns carry the v3 wire names directly
+    // (`created` / `last_trade`, capture-verified); `timestamp` /
+    // `timestamp2` are the legacy server spellings observed on older
+    // terminal builds.
+    ("created", "timestamp"),
+    ("last_trade", "timestamp2"),
     ("date", "timestamp"),
     ("date", "created"),
     ("date", "trade_timestamp"),

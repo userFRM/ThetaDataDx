@@ -519,8 +519,8 @@ fn raw_right_label(is_call: bool, is_put: bool) -> sonic_rs::Value {
 fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
-        "ms_of_day",
-        "ms_of_day2",
+        "created",
+        "last_trade",
         "open",
         "high",
         "low",
@@ -536,17 +536,16 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
         "ask",
         "ask_condition",
     ]);
-    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:21-64
-    // (eod_ticks_to_columnar): ms_of_day, ms_of_day2, open, high, low, close,
-    // volume, count, bid_size, bid_exchange, bid, bid_condition, ask_size,
-    // ask_exchange, ask, ask_condition, date, expiration, strike, right.
+    // Canonical schema -- the EOD time pair carries the vendor's v3
+    // semantics: `created` is the report-creation time, `last_trade`
+    // the day's final trade time (0 on no-trade days).
     td.set_raw_headers(EOD_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
                 format_date(t.date),
-                format_ms(t.ms_of_day),
-                format_ms(t.ms_of_day2),
+                format_ms(t.created_ms_of_day),
+                format_ms(t.last_trade_ms_of_day),
                 format_price_f64(t.open),
                 format_price_f64(t.high),
                 format_price_f64(t.low),
@@ -563,8 +562,8 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
                 format!("{}", t.ask_condition),
             ],
             vec![
-                raw_ms(t.ms_of_day),
-                raw_ms(t.ms_of_day2),
+                raw_ms(t.created_ms_of_day),
+                raw_ms(t.last_trade_ms_of_day),
                 raw_f64(t.open),
                 raw_f64(t.high),
                 raw_f64(t.low),
@@ -1657,8 +1656,9 @@ fn render_index_price_at_time(
 fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:6-19
-    // (calendar_days_to_columnar). is_open is i32 (matches Python columnar
-    // form, not the Go bool projection).
+    // `is_open` is a logical boolean and `status` carries the vendor
+    // day-type vocabulary (open / early_close / full_close / weekend),
+    // matching the Python / TypeScript row surfaces.
     td.set_raw_headers(CALENDAR_DAY_RAW_HEADERS.to_vec());
     for d in days {
         td.push_with_raw(
@@ -1667,14 +1667,14 @@ fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) 
                 format!("{}", d.is_open),
                 format_ms(d.open_time),
                 format_ms(d.close_time),
-                format!("{}", d.status),
+                d.status.as_str().to_string(),
             ],
             vec![
                 raw_date(d.date),
-                raw_i32(d.is_open),
+                sonic_rs::Value::from(d.is_open),
                 raw_ms(d.open_time),
                 raw_ms(d.close_time),
-                raw_i32(d.status),
+                raw_str(d.status.as_str()),
             ],
         );
     }
@@ -1697,10 +1697,9 @@ fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &Ou
 
 fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["symbol", "expiration", "strike", "right"]);
-    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:220-231
-    // (option_contracts_to_columnar). Note: Python emits `right` as a raw
-    // i32 here (NOT the "C"/"P"/"" string mapping used for tick types),
-    // because OptionContract carries the raw upstream code.
+    // Canonical schema -- `right` renders as the logical character
+    // ("C" / "P"), the same projection every tick type and the Python /
+    // TypeScript surfaces use.
     td.set_raw_headers(OPTION_CONTRACT_RAW_HEADERS.to_vec());
     for c in contracts {
         td.push_with_raw(
@@ -1714,7 +1713,7 @@ fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt:
                 raw_str(&c.symbol),
                 raw_date(c.expiration),
                 raw_f64(c.strike),
-                raw_i32(c.right),
+                raw_right_label(c.is_call(), c.is_put()),
             ],
         );
     }

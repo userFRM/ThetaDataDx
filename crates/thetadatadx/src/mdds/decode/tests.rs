@@ -9,11 +9,6 @@ use super::dual_type_columns::{
     parse_calendar_days_v3, parse_iso_date, parse_option_contracts_v3, parse_time_text,
 };
 #[cfg(feature = "__internal")]
-use super::dual_type_columns::{
-    CALENDAR_STATUS_EARLY_CLOSE, CALENDAR_STATUS_FULL_CLOSE, CALENDAR_STATUS_OPEN,
-    CALENDAR_STATUS_WEEKEND,
-};
-#[cfg(feature = "__internal")]
 use super::extract_number_column;
 use super::{
     parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
@@ -275,8 +270,8 @@ fn parse_eod_timestamp_aliases_decode_time_and_date_separately() {
 
     let ticks = parse_eod_ticks(&table).unwrap();
     assert_eq!(ticks.len(), 1);
-    assert_eq!(ticks[0].ms_of_day, 34_200_000);
-    assert_eq!(ticks[0].ms_of_day2, 34_200_000);
+    assert_eq!(ticks[0].created_ms_of_day, 34_200_000);
+    assert_eq!(ticks[0].last_trade_ms_of_day, 34_200_000);
     assert_eq!(ticks[0].date, 20260401);
     assert!((ticks[0].open - 15000.0).abs() < 1e-10);
     assert!((ticks[0].close - 15100.0).abs() < 1e-10);
@@ -448,10 +443,10 @@ fn parse_calendar_v3_holiday() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 20250101);
-    assert_eq!(d.is_open, 0);
+    assert!(!d.is_open);
     assert_eq!(d.open_time, 0);
     assert_eq!(d.close_time, 0);
-    assert_eq!(d.status, CALENDAR_STATUS_FULL_CLOSE);
+    assert_eq!(d.status, tdbe::CalendarStatus::FullClose);
 }
 
 #[cfg(feature = "__internal")]
@@ -472,10 +467,10 @@ fn parse_calendar_v3_open_day() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 0); // no date column
-    assert_eq!(d.is_open, 1);
+    assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000); // 9:30 AM = 9*3600+30*60 = 34200 seconds = 34200000 ms
     assert_eq!(d.close_time, 57_600_000); // 4:00 PM = 16*3600 = 57600 seconds = 57600000 ms
-    assert_eq!(d.status, CALENDAR_STATUS_OPEN);
+    assert_eq!(d.status, tdbe::CalendarStatus::Open);
 }
 
 #[cfg(feature = "__internal")]
@@ -496,10 +491,10 @@ fn parse_calendar_v3_early_close() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 20251128);
-    assert_eq!(d.is_open, 1);
+    assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000);
     assert_eq!(d.close_time, 46_800_000); // 1:00 PM = 13*3600 = 46800 seconds = 46800000 ms
-    assert_eq!(d.status, CALENDAR_STATUS_EARLY_CLOSE);
+    assert_eq!(d.status, tdbe::CalendarStatus::EarlyClose);
 }
 
 #[cfg(feature = "__internal")]
@@ -513,8 +508,8 @@ fn parse_calendar_v3_weekend() {
     let days = parse_calendar_days_v3(&table).unwrap();
     assert_eq!(days.len(), 1);
     let d = &days[0];
-    assert_eq!(d.is_open, 0);
-    assert_eq!(d.status, CALENDAR_STATUS_WEEKEND);
+    assert!(!d.is_open);
+    assert_eq!(d.status, tdbe::CalendarStatus::Weekend);
 }
 
 #[test]
@@ -774,7 +769,7 @@ fn parse_eod_ticks_errors_on_unset_cell() {
     assert_eq!(
         err,
         DecodeError::ColumnTypeMismatch {
-            header: "ms_of_day",
+            header: "created",
             column: 0,
             row: 0,
             expected: "Number|Price|Timestamp",
@@ -1864,7 +1859,7 @@ fn parse_option_contracts_v3_accepts_numeric_right_call_byte() {
     };
     let contracts = parse_option_contracts_v3(&table).unwrap();
     assert_eq!(contracts.len(), 1);
-    assert_eq!(contracts[0].right, 67);
+    assert_eq!(contracts[0].right, 'C');
 }
 
 #[test]
@@ -1876,7 +1871,7 @@ fn parse_option_contracts_v3_accepts_numeric_right_put_byte() {
     };
     let contracts = parse_option_contracts_v3(&table).unwrap();
     assert_eq!(contracts.len(), 1);
-    assert_eq!(contracts[0].right, 80);
+    assert_eq!(contracts[0].right, 'P');
 }
 
 #[test]
@@ -2025,7 +2020,7 @@ fn parse_quote_ticks_rejects_overflowing_bid_size() {
 #[test]
 fn parse_eod_ticks_rejects_overflowing_numeric_field() {
     let table = proto::DataTable {
-        headers: vec!["ms_of_day".into(), "open".into()],
+        headers: vec!["created".into(), "open".into()],
         data_table: vec![row_of(vec![dv_number(4_329_167_296), dv_number(15_000)])],
     };
     assert_eq!(

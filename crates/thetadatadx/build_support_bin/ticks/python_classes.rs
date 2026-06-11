@@ -9,7 +9,9 @@
 
 use std::fmt::Write as _;
 
+use super::idents::python_field_ident;
 use super::schema::{render_for_type, Schema, TickTypeDef};
+use super::tdbe_structs::timestamp_accessor_fields;
 use super::{pyclass_name, sorted_type_names};
 
 pub(super) fn render_python_tick_classes(
@@ -354,32 +356,29 @@ pub(super) fn strip_field_count_from_doc(doc: &str) -> String {
 /// `high`, `low`), never the trailing `expiration`/`strike`/`right`
 /// triple which is identical across a result set and carries no
 /// per-row diagnostic signal.
-fn repr_fields_for_tick<'a>(
-    type_name: &str,
-    def: &'a TickTypeDef,
-    max_fields: usize,
-) -> Vec<ReprField<'a>> {
-    let mut fields: Vec<ReprField<'a>> = Vec::new();
+fn repr_fields_for_tick(_type_name: &str, def: &TickTypeDef, max_fields: usize) -> Vec<ReprField> {
+    let mut fields: Vec<ReprField> = Vec::new();
     for column in &def.columns {
         if fields.len() >= max_fields {
             break;
         }
-        // `OptionContract.right` is surfaced as a String (see
-        // `render_python_tick_class_struct`), so prefer `{:?}` so the
-        // quotes are visible — consistent with other String fields
-        // like `QuoteTick` never exposing `right` directly.
-        let is_string = (type_name == "OptionContract" && column.field == "right")
-            || matches!(column.r#type.as_str(), "String");
+        // String-backed pyclass fields (`String` columns, the `right`
+        // character, the calendar `status` vocabulary) render with
+        // `{:?}` so the quotes are visible in the repr.
+        let is_string = matches!(
+            column.r#type.as_str(),
+            "String" | "right" | "calendar_status"
+        );
         fields.push(ReprField {
-            name: &column.field,
+            name: python_field_ident(&column.field),
             is_string,
         });
     }
     fields
 }
 
-struct ReprField<'a> {
-    name: &'a str,
+struct ReprField {
+    name: String,
     is_string: bool,
 }
 
@@ -415,26 +414,29 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub(crate) struct {class} {{").unwrap();
     for column in &def.columns {
-        // Special case: `OptionContract.right` is stored on the wire as
-        // `i32` (ASCII 67/80), but every other tick surfaces `right` as
-        // a Python `"C" | "P" | ""` string (via the contract_id injection
-        // below). Emit it as String here too so the two paths match and
-        // consumer code doesn't get an integer on one endpoint and a
-        // string on the others.
-        let rust_type = if type_name == "OptionContract" && column.field == "right" {
-            "String"
-        } else {
-            pyclass_field_type(column.r#type.as_str(), type_name)
-        };
-        writeln!(out, "    #[pyo3(get)] pub {}: {},", column.field, rust_type).unwrap();
+        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
+        // Keyword-colliding column names take the PEP 8 trailing
+        // underscore (`lambda` -> `lambda_`) so the attribute stays
+        // reachable with normal Python syntax; Arrow / pandas columns
+        // keep the logical name.
+        writeln!(
+            out,
+            "    #[pyo3(get)] pub {}: {},",
+            python_field_ident(&column.field),
+            rust_type
+        )
+        .unwrap();
     }
     if is_quote_tick {
         out.push_str("    #[pyo3(get)] pub midpoint: f64,\n");
     }
     if def.contract_id {
-        out.push_str("    #[pyo3(get)] pub expiration: i32,\n");
-        out.push_str("    #[pyo3(get)] pub strike: f64,\n");
-        out.push_str("    #[pyo3(get)] pub right: String,\n");
+        // Contract identity is populated on wildcard queries only —
+        // absent identity is `None`, matching the streaming
+        // `ContractRef` convention (one absence shape per binding).
+        out.push_str("    #[pyo3(get)] pub expiration: Option<i32>,\n");
+        out.push_str("    #[pyo3(get)] pub strike: Option<f64>,\n");
+        out.push_str("    #[pyo3(get)] pub right: Option<String>,\n");
     }
     out.push_str("}\n");
 
@@ -471,7 +473,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
             if idx > 0 {
                 fmt_string.push_str(", ");
             }
-            fmt_string.push_str(field.name);
+            fmt_string.push_str(&field.name);
             fmt_string.push('=');
             // `{:?}` quotes strings (`right="C"`), `{}` for numerics —
             // matches the shape an engineer expects in a debugger line.
@@ -486,6 +488,36 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         writeln!(out, "        format!(\"{class}({fmt_string})\", {args})").unwrap();
         out.push_str("    }\n");
     }
+    // Epoch-instant convenience properties: one per milliseconds-of-day
+    // field on types that also carry `date`. The raw integer fields
+    // stay primary per the raw-ms doctrine; the property computes the
+    // epoch value on read and returns `None` when `date` is absent.
+    for (accessor, field) in timestamp_accessor_fields(def) {
+        writeln!(
+            out,
+            "\n    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    /// `{field}` (Eastern-Time milliseconds-of-day). `None` when `date`"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    /// is absent (`0`). The raw integer fields stay primary; this is a"
+        )
+        .unwrap();
+        writeln!(out, "    /// convenience at the epoch boundary.").unwrap();
+        writeln!(out, "    #[getter]").unwrap();
+        writeln!(out, "    fn {accessor}(&self) -> Option<i64> {{").unwrap();
+        writeln!(
+            out,
+            "        tdbe::time::date_ms_to_epoch_ms(self.date, self.{field})"
+        )
+        .unwrap();
+        out.push_str("    }\n");
+    }
     out.push_str("}\n");
     out
 }
@@ -496,6 +528,11 @@ fn pyclass_field_type(column_type: &str, type_name: &str) -> &'static str {
         "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
         "String" => "String",
+        // Logical char surfaces as a Python one-character string
+        // (`"C"` / `"P"`); the calendar day type surfaces as the
+        // vendor vocabulary string.
+        "right" | "calendar_status" => "String",
+        "bool" => "bool",
         other => panic!("unsupported column type '{other}' in pyclass for {type_name}"),
     }
 }
@@ -506,54 +543,56 @@ fn pyclass_field_type(column_type: &str, type_name: &str) -> &'static str {
 /// about: `EodTick(ms_of_day=1, volume=1_000)`.
 fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
-    struct CtorField<'a> {
-        name: &'a str,
-        rust_type: &'a str,
+    struct CtorField {
+        name: String,
+        rust_type: &'static str,
         default: &'static str,
     }
     let mut fields: Vec<CtorField> = Vec::new();
     for column in &def.columns {
-        // Same OptionContract.right special case as the struct emitter.
-        let rust_type = if type_name == "OptionContract" && column.field == "right" {
-            "String"
-        } else {
-            pyclass_field_type(column.r#type.as_str(), type_name)
-        };
-        let default = match rust_type {
-            "i32" => "0i32",
-            "i64" => "0i64",
-            "f64" => "0.0f64",
-            "String" => "String::new()",
-            other => panic!("unhandled pyclass ctor default for {other}"),
+        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
+        let default = match column.r#type.as_str() {
+            // The calendar day-type default pairs with the
+            // `is_open = false` default: a bare fixture row reads as a
+            // closed day, never as a phantom open session.
+            "calendar_status" => "\"full_close\".to_string()",
+            _ => match rust_type {
+                "i32" => "0i32",
+                "i64" => "0i64",
+                "f64" => "0.0f64",
+                "bool" => "false",
+                "String" => "String::new()",
+                other => panic!("unhandled pyclass ctor default for {other}"),
+            },
         };
         fields.push(CtorField {
-            name: column.field.as_str(),
+            name: python_field_ident(&column.field),
             rust_type,
             default,
         });
     }
     if type_name == "QuoteTick" {
         fields.push(CtorField {
-            name: "midpoint",
+            name: "midpoint".to_string(),
             rust_type: "f64",
             default: "0.0f64",
         });
     }
     if def.contract_id {
         fields.push(CtorField {
-            name: "expiration",
-            rust_type: "i32",
-            default: "0i32",
+            name: "expiration".to_string(),
+            rust_type: "Option<i32>",
+            default: "None",
         });
         fields.push(CtorField {
-            name: "strike",
-            rust_type: "f64",
-            default: "0.0f64",
+            name: "strike".to_string(),
+            rust_type: "Option<f64>",
+            default: "None",
         });
         fields.push(CtorField {
-            name: "right",
-            rust_type: "String",
-            default: "String::new()",
+            name: "right".to_string(),
+            rust_type: "Option<String>",
+            default: "None",
         });
     }
 
@@ -596,9 +635,14 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
 /// `<TickName>List` — users pass a list of pyclass instances, the
 /// generator-emitted loop pushes `tick::T` values into the inner Vec.
 ///
-/// Inverse of `pyclass_from_tick_expr`. Handles the `right: String` ->
-/// `right: i32` ASCII projection (pyclass exposes `"C" | "P" | ""`, the
-/// Rust tick holds 67 / 80 / 0).
+/// Inverse of `pyclass_from_tick_expr`. Logical columns reverse their
+/// typed projections: `right` strings parse back to the `char`
+/// (`"C"`/`"P"`; empty/absent -> `'\0'`; anything else raises
+/// `ValueError`), the calendar `status` vocabulary parses back to the
+/// `CalendarStatus` enum (unknown text raises `ValueError`), and the
+/// `None` contract-identity convention maps back to the struct's
+/// documented absent fills. The emitted expressions use `?`, so the
+/// surrounding function must return `PyResult`.
 fn pyclass_to_tick_expr(
     out: &mut String,
     type_name: &str,
@@ -608,44 +652,55 @@ fn pyclass_to_tick_expr(
 ) {
     writeln!(out, "{indent}tick::{type_name} {{").unwrap();
     for column in &def.columns {
-        if type_name == "OptionContract" && column.field == "right" {
-            // `OptionContract.right` is stored as `i32` on the tick
-            // struct; pyclass surfaces it as "C" / "P" / "". Reverse
-            // the projection here.
-            writeln!(
-                out,
-                "{indent}    right: match {source_expr}.right.as_str() {{ \"C\" => 67, \"P\" => 80, _ => 0 }},",
-            )
-            .unwrap();
-            continue;
-        }
-        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
-        if rust_type == "String" {
-            writeln!(
-                out,
-                "{indent}    {}: {source_expr}.{}.clone(),",
-                column.field, column.field
-            )
-            .unwrap();
-        } else {
-            writeln!(
-                out,
-                "{indent}    {}: {source_expr}.{},",
-                column.field, column.field
-            )
-            .unwrap();
+        let field = &column.field;
+        let py_ident = python_field_ident(field);
+        match column.r#type.as_str() {
+            "right" => {
+                writeln!(
+                    out,
+                    "{indent}    {field}: match {source_expr}.{py_ident}.as_str() {{ \"C\" => 'C', \"P\" => 'P', \"\" => '\\0', other => return Err(pyo3::exceptions::PyValueError::new_err(format!(\"right must be \\\"C\\\" or \\\"P\\\", got {{other:?}}\"))) }},",
+                )
+                .unwrap();
+            }
+            "calendar_status" => {
+                writeln!(
+                    out,
+                    "{indent}    {field}: match tdbe::CalendarStatus::from_wire_text(&{source_expr}.{py_ident}) {{ Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!(\"status must be one of open, early_close, full_close, weekend; got {{:?}}\", {source_expr}.{py_ident}))) }},",
+                )
+                .unwrap();
+            }
+            "String" => {
+                writeln!(
+                    out,
+                    "{indent}    {field}: {source_expr}.{py_ident}.clone(),"
+                )
+                .unwrap();
+            }
+            _ => {
+                writeln!(out, "{indent}    {field}: {source_expr}.{py_ident},").unwrap();
+            }
         }
     }
     if type_name == "QuoteTick" {
         writeln!(out, "{indent}    midpoint: {source_expr}.midpoint,").unwrap();
     }
     if def.contract_id {
-        writeln!(out, "{indent}    expiration: {source_expr}.expiration,").unwrap();
-        writeln!(out, "{indent}    strike: {source_expr}.strike,").unwrap();
-        // Same "C"/"P"/"" -> 67/80/0 projection as the OptionContract case above.
+        // `None` is the absence convention on the Python surface; the
+        // struct's documented fills (0 / 0.0 / '\0') are the reverse
+        // projection.
         writeln!(
             out,
-            "{indent}    right: match {source_expr}.right.as_str() {{ \"C\" => 67, \"P\" => 80, _ => 0 }},",
+            "{indent}    expiration: {source_expr}.expiration.unwrap_or(0),"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "{indent}    strike: {source_expr}.strike.unwrap_or(0.0),"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "{indent}    right: match {source_expr}.right.as_deref() {{ Some(\"C\") => 'C', Some(\"P\") => 'P', None | Some(\"\") => '\\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!(\"right must be \\\"C\\\" or \\\"P\\\", got {{other:?}}\"))) }},",
         )
         .unwrap();
     }
@@ -671,40 +726,55 @@ fn pyclass_from_tick_expr(
     let is_quote_tick = type_name == "QuoteTick";
     writeln!(out, "{indent}{class} {{").unwrap();
     for column in &def.columns {
-        if type_name == "OptionContract" && column.field == "right" {
-            writeln!(
-                out,
-                "{indent}    right: (if {source_expr}.is_call() {{ \"C\" }} else if {source_expr}.is_put() {{ \"P\" }} else {{ \"\" }}).to_string(),",
-            )
-            .unwrap();
-            continue;
-        }
-        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
-        if rust_type == "String" {
-            writeln!(
-                out,
-                "{indent}    {}: {source_expr}.{}.clone(),",
-                column.field, column.field
-            )
-            .unwrap();
-        } else {
-            writeln!(
-                out,
-                "{indent}    {}: {source_expr}.{},",
-                column.field, column.field
-            )
-            .unwrap();
+        let field = &column.field;
+        let py_ident = python_field_ident(field);
+        match column.r#type.as_str() {
+            "right" => {
+                writeln!(
+                    out,
+                    "{indent}    {py_ident}: if {source_expr}.{field} == '\\0' {{ String::new() }} else {{ {source_expr}.{field}.to_string() }},",
+                )
+                .unwrap();
+            }
+            "calendar_status" => {
+                writeln!(
+                    out,
+                    "{indent}    {py_ident}: {source_expr}.{field}.as_str().to_string(),"
+                )
+                .unwrap();
+            }
+            "String" => {
+                writeln!(
+                    out,
+                    "{indent}    {py_ident}: {source_expr}.{field}.clone(),"
+                )
+                .unwrap();
+            }
+            _ => {
+                writeln!(out, "{indent}    {py_ident}: {source_expr}.{field},").unwrap();
+            }
         }
     }
     if is_quote_tick {
         writeln!(out, "{indent}    midpoint: {source_expr}.midpoint,").unwrap();
     }
     if def.contract_id {
-        writeln!(out, "{indent}    expiration: {source_expr}.expiration,").unwrap();
-        writeln!(out, "{indent}    strike: {source_expr}.strike,").unwrap();
+        // Absent contract identity (single-contract queries) is `None`
+        // on the Python surface; the struct's documented fills (0 /
+        // 0.0 / '\0') only appear on the Rust / C ABI rows.
         writeln!(
             out,
-            "{indent}    right: (if {source_expr}.is_call() {{ \"C\" }} else if {source_expr}.is_put() {{ \"P\" }} else {{ \"\" }}).to_string(),",
+            "{indent}    expiration: {source_expr}.has_contract_id().then_some({source_expr}.expiration),",
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "{indent}    strike: {source_expr}.has_contract_id().then_some({source_expr}.strike),",
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "{indent}    right: if {source_expr}.right == '\\0' {{ None }} else {{ Some({source_expr}.right.to_string()) }},",
         )
         .unwrap();
     }
@@ -773,7 +843,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("    #[pyo3(signature = (ticks = Vec::new()))]\n");
     writeln!(
         out,
-        "    fn py_new(ticks: Vec<pyo3::PyRef<'_, {class}>>) -> Self {{"
+        "    fn py_new(ticks: Vec<pyo3::PyRef<'_, {class}>>) -> PyResult<Self> {{"
     )
     .unwrap();
     out.push_str("        let mut inner = Vec::with_capacity(ticks.len());\n");
@@ -782,7 +852,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     pyclass_to_tick_expr(&mut out, type_name, def, "t", "            ");
     out.push_str("            );\n");
     out.push_str("        }\n");
-    out.push_str("        Self { inner }\n");
+    out.push_str("        Ok(Self { inner })\n");
     out.push_str("    }\n\n");
 
     // __len__

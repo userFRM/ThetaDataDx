@@ -1145,7 +1145,7 @@ pub struct TradeTick {
     pub date: i32,              // Date as YYYYMMDD integer
     pub expiration: i32,        // Contract expiration (YYYYMMDD, 0 if absent)
     pub strike: f64,            // Contract strike (f64, decoded)
-    pub right: i32,             // C=67, P=80 (ASCII)
+    pub right: char,             // C=67, P=80 (ASCII)
 }
 ```
 
@@ -1182,7 +1182,7 @@ pub struct QuoteTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1202,7 +1202,7 @@ pub struct OhlcTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1214,8 +1214,8 @@ End-of-day snapshot with OHLC and quote data.
 
 ```rust
 pub struct EodTick {
-    pub ms_of_day: i32,
-    pub ms_of_day2: i32,
+    pub created_ms_of_day: i32,
+    pub last_trade_ms_of_day: i32,
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -1233,7 +1233,7 @@ pub struct EodTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1248,7 +1248,7 @@ pub struct OpenInterestTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1287,7 +1287,7 @@ pub struct TradeQuoteTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1304,7 +1304,7 @@ pub struct MarketValueTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1338,7 +1338,7 @@ pub struct GreeksTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1352,7 +1352,7 @@ pub struct IvTick {
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 
@@ -1405,7 +1405,7 @@ pub struct OptionContract {
     pub symbol: String,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: char,
 }
 ```
 

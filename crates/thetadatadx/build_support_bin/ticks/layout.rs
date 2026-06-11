@@ -48,7 +48,7 @@ fn tick_ffi_fields<'a>(type_name: &'a str, def: &'a TickTypeDef) -> Vec<(&'a str
     if def.contract_id {
         fields.push(("expiration", "i32"));
         fields.push(("strike", "price"));
-        fields.push(("right", "i32"));
+        fields.push(("right", "right"));
     }
     if type_name == "QuoteTick" {
         fields.push(("midpoint", "price"));
@@ -58,8 +58,13 @@ fn tick_ffi_fields<'a>(type_name: &'a str, def: &'a TickTypeDef) -> Vec<(&'a str
 
 fn tick_ffi_field_layout(kind: &str) -> (usize, usize) {
     match kind {
-        "i32" | "eod_num" | "eod_date" => (4, 4),
+        // `right` is a Rust `char` / C `uint32_t` (Unicode scalar value
+        // of 'C' / 'P') — same 4-byte slot the wire's i32 occupied.
+        // `calendar_status` is a `repr(i32)` enum / C `int32_t`.
+        "i32" | "eod_num" | "eod_date" | "right" | "calendar_status" => (4, 4),
         "i64" | "eod_num64" | "f64" | "price" | "eod_price" => (8, 8),
+        // Rust `bool` / C99 `bool`: one byte, one-byte alignment.
+        "bool" => (1, 1),
         "String" => (
             std::mem::size_of::<*const ()>(),
             std::mem::align_of::<*const ()>(),

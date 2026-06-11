@@ -75,6 +75,13 @@ fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static
         "i64" => ("row_number_i64", "0"),
         "f64" | "price" => ("row_price_f64", "0.0"),
         "String" => ("row_text", "String::new()"),
+        // Logical char: `'\0'` is the absent fill (no contract right).
+        "right" => ("row_contract_right", "'\\0'"),
+        "bool" => ("row_bool", "false"),
+        // Conservative absent fill: pairs with the `is_open: false`
+        // seed so a (never observed) type-less calendar row reads as a
+        // closed day rather than an open one.
+        "calendar_status" => ("row_calendar_status", "tdbe::CalendarStatus::FullClose"),
         "eod_num" => ("row_eod_number", "0"),
         "eod_num64" => ("row_eod_number_i64", "0"),
         "eod_date" => ("row_eod_date", "0"),
@@ -170,7 +177,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     if def.contract_id {
         out.push_str("            expiration: 0,\n");
         out.push_str("            strike: 0.0,\n");
-        out.push_str("            right: 0,\n");
+        out.push_str("            right: '\\0',\n");
     }
     if is_quote_tick {
         out.push_str("            midpoint: 0.0,\n");
@@ -187,11 +194,11 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     for col in &def.columns {
         let var = format!("{}_idx", col.name);
-        let (decoder, _) = column_decoder(def, col);
+        let (decoder, fill) = column_decoder(def, col);
         let name = &col.name;
         let field = &col.field;
         let call = format!(
-            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {decoder}, |t, v| t.{field} = v)?;"
+            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v| t.{field} = v)?;"
         );
         if !def.eod_style && def.required.contains(&col.name) {
             writeln!(out, "        {}", call.replace("{idx}", &var)).unwrap();
@@ -207,16 +214,17 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // (ISO "2026-04-13") depending on upstream version — dispatch on the
     // cell's own type rather than coalescing silently. `strike` decodes
     // through the same Price|Number accept-set as every price column;
-    // `right` is an ASCII code (Number) or text — strict dispatch.
+    // `right` decodes both wire encodings (Number ASCII code, Text
+    // "CALL"/"C"/"PUT"/"P") to the logical character — strict dispatch.
     if def.contract_id {
         out.push_str("        if let Some(idx) = _cid_exp_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"expiration\", row_contract_expiration, |t, v| t.expiration = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"expiration\", 0, row_contract_expiration, |t, v| t.expiration = v)?;\n");
         out.push_str("        }\n");
         out.push_str("        if let Some(idx) = _cid_strike_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"strike\", row_price_f64, |t, v| t.strike = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"strike\", 0.0, row_price_f64, |t, v| t.strike = v)?;\n");
         out.push_str("        }\n");
         out.push_str("        if let Some(idx) = _cid_right_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"right\", row_contract_right, |t, v| t.right = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"right\", '\\0', row_contract_right, |t, v| t.right = v)?;\n");
         out.push_str("        }\n");
     }
 

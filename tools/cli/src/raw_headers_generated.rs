@@ -9,8 +9,8 @@ pub(crate) const CALENDAR_DAY_RAW_HEADERS: &[&str] = &[
 ];
 
 pub(crate) const EOD_TICK_RAW_HEADERS: &[&str] = &[
-    "ms_of_day",
-    "ms_of_day2",
+    "created_ms_of_day",
+    "last_trade_ms_of_day",
     "open",
     "high",
     "low",

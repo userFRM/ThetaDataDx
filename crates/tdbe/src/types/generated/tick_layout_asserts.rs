@@ -27,8 +27,8 @@ mod layout_asserts {
     fn eod_tick_layout() {
         assert_eq!(size_of::<EodTick>(), 128);
         assert_eq!(align_of::<EodTick>(), 64);
-        assert_eq!(offset_of!(EodTick, ms_of_day), 0);
-        assert_eq!(offset_of!(EodTick, ms_of_day2), 4);
+        assert_eq!(offset_of!(EodTick, created_ms_of_day), 0);
+        assert_eq!(offset_of!(EodTick, last_trade_ms_of_day), 4);
         assert_eq!(offset_of!(EodTick, open), 8);
         assert_eq!(offset_of!(EodTick, high), 16);
         assert_eq!(offset_of!(EodTick, low), 24);

@@ -106,35 +106,15 @@ pub fn parse_option_contracts_v3(
                 None => 0.0,
             };
 
-            // Right: `Number` carries the ASCII code directly; `Text`
-            // carries "PUT"/"CALL"/"P"/"C". Numeric arms accept only
-            // the canonical bytes 67 (`'C'`) and 80 (`'P'`); any other
-            // value surfaces as `UnknownEnumVariant`. `NullValue` -> 0.
+            // Right: both wire encodings decode to the logical
+            // character — `Number` carries the ASCII code (67 / 80),
+            // `Text` carries "PUT"/"CALL"/"P"/"C". Any other value
+            // surfaces as `UnknownEnumVariant`. `NullValue` -> '\0'.
             let right = match right_idx {
                 Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Number(n)) => {
-                        let n32 = match i32::try_from(*n) {
-                            Ok(v) => v,
-                            Err(_) => {
-                                return Err(DecodeError::UnknownEnumVariant {
-                                    field: "right",
-                                    raw: n.to_string(),
-                                });
-                            }
-                        };
-                        match n32 {
-                            67 | 80 => n32,
-                            _ => {
-                                return Err(DecodeError::UnknownEnumVariant {
-                                    field: "right",
-                                    raw: n32.to_string(),
-                                });
-                            }
-                        }
-                    }
-                    Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
-                        "CALL" | "C" => 67, // ASCII 'C'
-                        "PUT" | "P" => 80,  // ASCII 'P'
+                    Some(proto::data_value::DataType::Number(n)) => match *n {
+                        67 => 'C',
+                        80 => 'P',
                         other => {
                             return Err(DecodeError::UnknownEnumVariant {
                                 field: "right",
@@ -142,7 +122,17 @@ pub fn parse_option_contracts_v3(
                             });
                         }
                     },
-                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
+                        "CALL" | "C" => 'C',
+                        "PUT" | "P" => 'P',
+                        other => {
+                            return Err(DecodeError::UnknownEnumVariant {
+                                field: "right",
+                                raw: other.to_string(),
+                            });
+                        }
+                    },
+                    Some(proto::data_value::DataType::NullValue(_)) => '\0',
                     None => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -158,7 +148,7 @@ pub fn parse_option_contracts_v3(
                         });
                     }
                 },
-                None => 0,
+                None => '\0',
             };
 
             Ok(OptionContract {
@@ -233,52 +223,20 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     Err(DecodeError::InvalidTime { raw: s.to_string() })
 }
 
-/// Calendar day status constants.
-///
-/// The v3 MDDS server sends a `type` column with text values. We map them to
-/// integer constants for the `CalendarDay.status` field:
-///
-/// | Server text    | Constant | Meaning                           |
-/// |----------------|----------|-----------------------------------|
-/// | `"open"`       | `0`      | Normal trading day                |
-/// | `"early_close"`| `1`      | Early close (e.g. day after Thanksgiving) |
-/// | `"full_close"` | `2`      | Market closed (holiday)           |
-/// | `"weekend"`    | `3`      | Weekend                           |
-///
-/// The `CALENDAR_STATUS_UNKNOWN` sentinel is retained for downstream
-/// consumers that need to label data they synthesise locally (e.g.
-/// gap-fill for missing dates) but the wire decoder no longer maps
-/// unknown server text to it — unknown text now surfaces as
-/// [`DecodeError::UnknownEnumVariant`] so schema drift is loud, not
-/// silent.
-pub const CALENDAR_STATUS_OPEN: i32 = 0;
-pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
-pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
-pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
-// `CALENDAR_STATUS_UNKNOWN` is retained for workspace bindings that need to
-// label synthesised / gap-fill data locally; the decoder itself never emits
-// it (unknown text surfaces as `DecodeError::UnknownEnumVariant`). Gate on
-// `__internal` because it has no crate-internal callers.
-#[cfg(feature = "__internal")]
-pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
-
 /// Map a v3 calendar `type` text to `(is_open, status)`.
 ///
-/// Returns [`DecodeError::UnknownEnumVariant`] when the text falls
-/// outside the documented vendor vocabulary (`open` / `early_close` /
-/// `full_close` / `weekend`). Previously this swallowed the unknown
-/// case to `(0, CALENDAR_STATUS_UNKNOWN)` which silently mis-classified
-/// a future schema change as "market closed, unknown reason" — losing
-/// the diagnostic context downstream consumers need to alert on.
-fn calendar_type_text(s: &str) -> Result<(i32, i32), DecodeError> {
-    match s {
-        "open" => Ok((1, CALENDAR_STATUS_OPEN)),
-        "early_close" => Ok((1, CALENDAR_STATUS_EARLY_CLOSE)),
-        "full_close" => Ok((0, CALENDAR_STATUS_FULL_CLOSE)),
-        "weekend" => Ok((0, CALENDAR_STATUS_WEEKEND)),
-        other => Err(DecodeError::UnknownEnumVariant {
+/// The status vocabulary is the exported [`tdbe::CalendarStatus`] enum
+/// — the typed form of the vendor's text values (`open` /
+/// `early_close` / `full_close` / `weekend`). Returns
+/// [`DecodeError::UnknownEnumVariant`] when the text falls outside the
+/// documented vendor vocabulary so a future schema change surfaces as
+/// a loud typed error instead of a silent mis-classification.
+fn calendar_type_text(s: &str) -> Result<(bool, tdbe::CalendarStatus), DecodeError> {
+    match tdbe::CalendarStatus::from_wire_text(s) {
+        Some(status) => Ok((status.is_open(), status)),
+        None => Err(DecodeError::UnknownEnumVariant {
             field: "calendar.type",
-            raw: other.to_string(),
+            raw: s.to_string(),
         }),
     }
 }
@@ -292,18 +250,24 @@ fn calendar_type_text(s: &str) -> Result<(i32, i32), DecodeError> {
 /// | Schema field | Server header | Server type | Mapping                               |
 /// |--------------|---------------|-------------|---------------------------------------|
 /// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
-/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> 1, else -> 0  |
+/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> true, else -> false |
 /// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
 /// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
-/// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
+/// | `status`     | `type`        | Text        | [`tdbe::CalendarStatus`] vocabulary   |
 ///
-/// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
-/// Each column dispatches on the cell's own type rather than coalescing
-/// silently — mismatched types propagate as [`DecodeError::TypeMismatch`].
+/// Note: `calendar_on_date` and `calendar_open_today` omit the `date`
+/// column (the `date` field is `0` on those rows). The `type` column is
+/// required whenever the response has rows — it is the sole source of
+/// both `is_open` and `status`, so its absence is schema drift and
+/// surfaces as [`DecodeError::MissingRequiredHeader`] rather than a
+/// silent closed-day fill. Each column dispatches on the cell's own
+/// type rather than coalescing silently — mismatched types propagate as
+/// [`DecodeError::TypeMismatch`].
 ///
 /// # Errors
 ///
-/// Returns [`DecodeError`] on type mismatch or missing cell.
+/// Returns [`DecodeError`] on type mismatch, missing cell, or a
+/// rows-present response without the `type` column.
 pub fn parse_calendar_days_v3(
     table: &crate::proto::DataTable,
 ) -> Result<Vec<CalendarDay>, DecodeError> {
@@ -314,7 +278,19 @@ pub fn parse_calendar_days_v3(
         .collect();
 
     let date_idx = h.iter().position(|&s| s == "date");
-    let type_idx = h.iter().position(|&s| s == "type");
+    let type_idx = match h.iter().position(|&s| s == "type") {
+        Some(i) => Some(i),
+        None => {
+            if table.data_table.is_empty() {
+                return Ok(vec![]);
+            }
+            return Err(DecodeError::MissingRequiredHeader {
+                header: "type",
+                rows: table.data_table.len(),
+                available: h.join(","),
+            });
+        }
+    };
     let open_idx = h.iter().position(|&s| s == "open");
     let close_idx = h.iter().position(|&s| s == "close");
 
@@ -364,12 +340,17 @@ pub fn parse_calendar_days_v3(
             };
 
             // type: Text "open"/"full_close"/"early_close"/"weekend"
-            // (the documented v3 wire shape). `NullValue` -> (0, 0).
-            // Any other variant -> TypeMismatch.
+            // (the documented v3 wire shape). `NullValue` -> the
+            // conservative closed-day fill, matching the generated
+            // parser's absent-column seed. Any other variant ->
+            // TypeMismatch. The column itself is required (guard
+            // above), so the `None` arm is unreachable but kept total.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
-                    Some(proto::data_value::DataType::NullValue(_)) => (0, 0),
+                    Some(proto::data_value::DataType::NullValue(_)) => {
+                        (false, tdbe::CalendarStatus::FullClose)
+                    }
                     None => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -385,7 +366,7 @@ pub fn parse_calendar_days_v3(
                         });
                     }
                 },
-                None => (0, 0),
+                None => (false, tdbe::CalendarStatus::FullClose),
             };
 
             let open_time = decode_calendar_time(row, open_idx)?;
