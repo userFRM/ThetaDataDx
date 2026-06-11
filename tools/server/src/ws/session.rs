@@ -11,11 +11,17 @@ use super::subscribe;
 
 /// Main WebSocket connection handler.
 ///
-/// Multiplexes three event sources in `tokio::select!`:
-/// 1. Heartbeat tick (1s) -> send STATUS
-/// 2. Per-client mpsc events -> forward to client (zero-copy `Arc<str>`)
-/// 3. Client messages -> process subscription commands
+/// Multiplexes four event sources in `tokio::select!`:
+/// 1. Session close signal (a newer client replaced this session)
+///    -> send a Close frame and exit
+/// 2. Heartbeat tick (1s) -> send STATUS
+/// 3. Per-client mpsc events -> forward to client (zero-copy `Arc<str>`)
+/// 4. Client messages -> process subscription commands
 pub(super) async fn handle_socket(mut socket: WebSocket, state: AppState) {
+    // Beginning the session fires the close signal of any session that
+    // was already active — single-client semantics with replacement,
+    // matching the legacy terminal.
+    let close_signal = state.begin_ws_session();
     let mut ws_rx: mpsc::Receiver<Arc<str>> = state.register_ws_client().await;
     let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(1));
 
@@ -23,6 +29,18 @@ pub(super) async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
     loop {
         tokio::select! {
+            _ = close_signal.notified() => {
+                tracing::info!("WebSocket session replaced by a new client; closing");
+                // Best-effort Close frame so the displaced client learns
+                // WHY instead of seeing a bare TCP reset.
+                let frame = axum::extract::ws::CloseFrame {
+                    code: axum::extract::ws::close_code::NORMAL,
+                    reason: "replaced by a new client connection".into(),
+                };
+                let _ = socket.send(Message::Close(Some(frame))).await;
+                break;
+            }
+
             _ = heartbeat.tick() => {
                 let status = state.fpss_status();
                 let msg = sonic_rs::json!({
@@ -87,7 +105,9 @@ pub(super) async fn handle_socket(mut socket: WebSocket, state: AppState) {
     ws_rx.close();
     // Clean up our entry from the client list.
     state.cleanup_ws_clients().await;
-    state.release_ws();
+    // Clears the active-session slot only if this session still owns it —
+    // a replaced session exiting late must not evict its replacement.
+    state.end_ws_session(&close_signal);
     tracing::debug!("WebSocket connection closed");
 }
 

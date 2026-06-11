@@ -30,15 +30,28 @@ pub fn ok_envelope(response: Vec<sonic_rs::Value>) -> sonic_rs::Value {
 }
 
 /// Error envelope matching the Java terminal's error format.
+///
+/// Canonical shape across every route family (registry endpoints, flat
+/// files, rate-limit rejections):
+///
+/// ```json
+/// {
+///     "header": { "error_type": "<type>", "error_msg": "<detail>" },
+///     "response": []
+/// }
+/// ```
+///
+/// Clients parse `header.error_type` to drive retry / backoff logic, so
+/// the keys must be identical regardless of which layer produced the
+/// failure. The serialise-failure fallbacks in `handler::error_response`
+/// and `flatfile_routes::error_response` hand-write the same shape.
 pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
     sonic_rs::json!({
         "header": {
-            "format": "json",
-            "error_type": error_type
+            "error_type": error_type,
+            "error_msg": message
         },
-        "error": {
-            "message": message
-        }
+        "response": []
     })
 }
 
@@ -914,7 +927,42 @@ fn escape_csv_field(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sonic_rs::JsonContainerTrait;
     use tdbe::types::tick::{GreeksAllTick, QuoteTick, TradeQuoteTick};
+
+    /// The error envelope must carry `header.error_type` + `header.error_msg`
+    /// with an empty `response` array — the same shape the Java terminal
+    /// emits and the flat-file / handler fallback strings hand-write. The
+    /// nested `error.message` form must never come back: clients parse one
+    /// shape across every route family.
+    #[test]
+    fn error_envelope_uses_canonical_error_msg_shape() {
+        let envelope = error_envelope("bad_request", "missing required parameter: 'date'");
+
+        let header = envelope
+            .get("header")
+            .and_then(|h: &sonic_rs::Value| h.as_object())
+            .expect("envelope must carry a header object");
+        assert_eq!(
+            header.get(&"error_type").and_then(sonic_rs::Value::as_str),
+            Some("bad_request")
+        );
+        assert_eq!(
+            header.get(&"error_msg").and_then(sonic_rs::Value::as_str),
+            Some("missing required parameter: 'date'")
+        );
+
+        let response = envelope
+            .get("response")
+            .and_then(|r: &sonic_rs::Value| r.as_array())
+            .expect("envelope must carry a response array");
+        assert!(response.is_empty(), "error envelope response must be []");
+
+        assert!(
+            envelope.get("error").is_none(),
+            "nested error.message form must not be emitted"
+        );
+    }
 
     #[test]
     fn json_to_csv_formats_scalar_lists_as_single_column() {

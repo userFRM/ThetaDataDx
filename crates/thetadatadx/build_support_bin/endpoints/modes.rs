@@ -534,9 +534,12 @@ const UNSET_WIRE_ARG_SENTINEL: &str = "<unset>";
 /// Used by `collapse_redundant_wires` to decide whether two cells produce
 /// identical wire requests.
 fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
-    use super::super::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
+    use super::super::wire_semantics::{
+        normalize_date, normalize_expiration, wire_right_opt, wire_strike_opt,
+    };
     match param_name {
         "expiration" => normalize_expiration(value),
+        "date" | "start_date" | "end_date" => normalize_date(value),
         "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
         // Build-time only: fixture inputs come from this repo's TOML, so a
         // bad `right` here is a build script bug -- treat it as the sentinel

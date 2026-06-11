@@ -659,14 +659,30 @@ mod tests {
     }
 
     #[test]
-    fn required_date_enforces_yyyymmdd() {
+    fn required_date_accepts_both_compact_and_iso_forms() {
+        // `date` accepts the same two textual forms `expiration` always
+        // accepted; ISO input is canonicalized to the compact wire form
+        // at request construction by `wire_semantics::normalize_date`.
         let mut args = EndpointArgs::new();
         args.insert("date".into(), EndpointArgValue::Str("2026-04-09".into()));
+        assert_eq!(args.required_date("date").unwrap(), "2026-04-09");
 
-        let err = args.required_date("date").unwrap_err();
-        assert!(
-            matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
-        );
+        let mut args = EndpointArgs::new();
+        args.insert("date".into(), EndpointArgValue::Str("20260409".into()));
+        assert_eq!(args.required_date("date").unwrap(), "20260409");
+    }
+
+    #[test]
+    fn required_date_rejects_malformed_shapes() {
+        for bad in ["2026-4-09", "garbage", "202604", "2026/04/09"] {
+            let mut args = EndpointArgs::new();
+            args.insert("date".into(), EndpointArgValue::Str(bad.into()));
+            let err = args.required_date("date").unwrap_err();
+            assert!(
+                matches!(err, EndpointError::InvalidParams(message) if message.contains("YYYYMMDD")),
+                "expected shape rejection for {bad}"
+            );
+        }
     }
 
     #[test]

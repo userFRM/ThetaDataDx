@@ -30,7 +30,9 @@ use tdbe::types::tick::{
 
 use super::client::MddsClient;
 use super::validate::validate_date_required;
-use super::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
+use super::wire_semantics::{
+    normalize_date, normalize_expiration, wire_right_opt, wire_strike_opt,
+};
 
 /// Accepted symbol input for endpoints whose MDDS wire field is
 /// `repeated string symbol`.
@@ -109,7 +111,12 @@ impl From<&[String]> for SymbolInput {
 ///
 /// The full upstream enum is reproduced verbatim in
 /// `docs.thetadata.us/operations/option_history_quote.html` (and every
-/// other endpoint with an `interval` parameter).
+/// other endpoint with an `interval` parameter). The enum tops out at
+/// `1h`: larger shorthand (`2h` / `4h` / `1d`) is rejected by the
+/// service with `Invalid interval` (verified live), so millisecond
+/// inputs past one hour snap DOWN to `1h` — the largest legal bar —
+/// rather than forwarding a string the upstream cannot serve. Daily
+/// bars come from the `*_history_eod` endpoints.
 ///
 /// The historical SDK accepted `"0"` and silently mapped it to
 /// `"100ms"`. That contradicted the previously-documented behaviour
@@ -295,6 +302,13 @@ mod tests {
         assert_eq!(normalize_interval("300000"), "5m");
         assert_eq!(normalize_interval("900000"), "15m");
         assert_eq!(normalize_interval("3600000"), "1h");
+        // Millisecond inputs past one hour snap DOWN to `1h`, the
+        // largest bar in the upstream enum — `2h` / `4h` / `1d` wire
+        // strings are rejected by the service with `Invalid interval`
+        // (verified live), so forwarding them would turn a servable
+        // request into an upstream failure.
+        assert_eq!(normalize_interval("7200000"), "1h");
+        assert_eq!(normalize_interval("86400000"), "1h");
     }
 
     #[test]

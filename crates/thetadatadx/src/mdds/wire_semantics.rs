@@ -23,6 +23,25 @@ pub(crate) fn normalize_expiration(expiration: &str) -> String {
     }
 }
 
+/// Canonicalize a `date` / `start_date` / `end_date` parameter for the
+/// MDDS server.
+///
+/// The validators accept both `YYYYMMDD` and the ISO-dashed
+/// `YYYY-MM-DD` form (see `crate::mdds::validate::validate_date`); the
+/// wire contract is the compact 8-digit form only. Mirrors the
+/// ISO-normalization branch of [`normalize_expiration`]. Anything that
+/// is not ISO-dashed forwards verbatim — by the time this runs, the
+/// validators have already rejected malformed input on validated
+/// paths, and unvalidated pass-through setters keep their existing
+/// let-the-server-decide contract.
+pub(crate) fn normalize_date(date: &str) -> String {
+    if is_iso_date(date) {
+        date.replace('-', "")
+    } else {
+        date.to_string()
+    }
+}
+
 /// Map the SDK `strike` vocabulary to the wire representation.
 ///
 /// The MDDS v3 server differentiates between an **absent** optional
@@ -70,4 +89,42 @@ pub(crate) fn is_iso_date(value: &str) -> bool {
                 && m.bytes().all(|b| b.is_ascii_digit())
                 && d.bytes().all(|b| b.is_ascii_digit())
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_date_strips_dashes_from_iso_form() {
+        assert_eq!(normalize_date("2026-06-03"), "20260603");
+        assert_eq!(normalize_date("2024-02-29"), "20240229");
+    }
+
+    #[test]
+    fn normalize_date_passes_compact_form_through() {
+        assert_eq!(normalize_date("20260603"), "20260603");
+    }
+
+    #[test]
+    fn normalize_date_passes_non_date_shapes_through() {
+        // Pass-through setters (`opt_str` builder fields) keep their
+        // let-the-server-decide contract for anything that is not the
+        // exact ISO shape; validated paths never reach here with
+        // malformed input.
+        for raw in ["2026-1-3", "garbage", "", "2026/06/03"] {
+            assert_eq!(normalize_date(raw), raw);
+        }
+    }
+
+    #[test]
+    fn normalize_date_agrees_with_normalize_expiration_on_iso_input() {
+        // The two canonicalizers share `is_iso_date`; pin the
+        // agreement so the date and expiration wire forms cannot
+        // drift.
+        assert_eq!(
+            normalize_date("2026-06-19"),
+            normalize_expiration("2026-06-19")
+        );
+    }
 }

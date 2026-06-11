@@ -58,10 +58,6 @@ fn check_gregorian(
 /// Calendar correctness is left to [`check_gregorian`] so the shape
 /// check and the calendar check stay independent of each other and
 /// can be composed by callers that already know which form they hold.
-// Only compiled under `__internal`: called exclusively by `validate_expiration`
-// which is itself gated (only reached from `EndpointArgs::required_expiration`
-// and friends in the gated `impl EndpointArgs` block).
-#[cfg(feature = "__internal")]
 fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
     let mut parts = value.splitn(3, '-');
     let (y, m, d) = match (parts.next(), parts.next(), parts.next(), parts.next()) {
@@ -88,10 +84,25 @@ fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
     Some((year, month, day))
 }
 
+/// Validate a date parameter: accepts `YYYYMMDD` and `YYYY-MM-DD`.
+///
+/// Both textual forms run the same calendar check, so the surface
+/// accepts exactly the same set of real dates regardless of which
+/// shape the caller used. ISO-dashed input is canonicalized to the
+/// compact wire form by [`crate::mdds::wire_semantics::normalize_date`]
+/// at request-construction time, mirroring `normalize_expiration`.
 pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
+    // ISO-dashed shape (`YYYY-MM-DD`): parse components and run the
+    // same calendar check the compact path uses. Date-typed formatters
+    // (Pandas / Polars / `datetime.date.isoformat()`) emit this form by
+    // default; rejecting it while `expiration` accepts it was a
+    // vocabulary split on the same surface.
+    if let Some((year, month, day)) = parse_iso_date_components(value) {
+        return check_gregorian(year, month, day, value, param_name);
+    }
     if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_digit()) {
         return Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be exactly 8 digits (YYYYMMDD), got: '{value}'"
+            "'{param_name}' must be 'YYYYMMDD' (8 digits) or 'YYYY-MM-DD', got: '{value}'"
         )));
     }
     // Shape passed; now apply the calendar check. Rejects the
@@ -122,18 +133,18 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
     if matches!(value, "*" | "0") {
         return Ok(());
     }
-    // ISO-dashed shape: parse components and run the same calendar
-    // check the `YYYYMMDD` path uses, so the two surface forms accept
-    // exactly the same set of dates. A shape mismatch falls through
-    // to the digits-only path which may still recognise the input.
-    if let Some((year, month, day)) = parse_iso_date_components(value) {
-        return check_gregorian(year, month, day, value, param_name);
-    }
-    validate_date(value, param_name).map_err(|_| {
-        EndpointError::InvalidParams(format!(
+    // Shape gate first so garbage input surfaces the full expiration
+    // vocabulary (wildcards included). Anything date-shaped delegates
+    // to the shared date validator, which runs the same calendar
+    // check on both textual forms and yields the precise Gregorian
+    // diagnostic on impossible dates.
+    let is_compact_shape = value.len() == 8 && value.bytes().all(|b| b.is_ascii_digit());
+    if !is_compact_shape && parse_iso_date_components(value).is_none() {
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be '*' (wildcard), '0' (legacy wildcard), 'YYYYMMDD', or 'YYYY-MM-DD', got: '{value}'"
-        ))
-    })
+        )));
+    }
+    validate_date(value, param_name)
 }
 
 /// Validate the `strike` parameter.
@@ -181,6 +192,12 @@ pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), Endpo
 /// before the gRPC dispatch.
 ///
 /// Only compiled under `__internal` — used by `validate_interval`.
+///
+/// The list intentionally tops out at `1h`: the upstream rejects
+/// larger shorthand (`2h` / `4h` / `1d` return `Invalid interval`,
+/// verified against the live service), so accepting them here would
+/// only convert a clean local 400 into an opaque upstream failure.
+/// Daily bars are served by the `*_history_eod` endpoints.
 #[cfg(feature = "__internal")]
 const VALID_INTERVAL_PRESETS: &[&str] = &[
     "tick", "10ms", "100ms", "500ms", "1s", "5s", "10s", "15s", "30s", "1m", "5m", "10m", "15m",
@@ -205,10 +222,31 @@ pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), End
         // here; the snap range covers `0` (-> "tick") through `1h`.
         return Ok(());
     }
+    // Targeted diagnostic for multi-hour / daily / weekly shorthand
+    // (`2h`, `4h`, `1d`, `1w`, ...): the shape is plausible but the
+    // upstream enum tops out at `1h` (larger values return `Invalid
+    // interval` from the service), so point the caller at the working
+    // alternatives instead of only echoing the preset list.
+    if is_beyond_hour_shorthand(value) {
+        return Err(EndpointError::InvalidParams(format!(
+            "'{param_name}' '{value}' exceeds the upstream interval enum (largest preset is '1h'); use '1h' for hourly bars or the *_history_eod endpoints for daily bars"
+        )));
+    }
     Err(EndpointError::InvalidParams(format!(
         "'{param_name}' must be one of the upstream presets ({}) or a millisecond value (e.g. '60000'), got: '{value}'",
         VALID_INTERVAL_PRESETS.join(", "),
     )))
+}
+
+/// Whether `value` is hour / day / week shorthand (`<digits>h|d|w`)
+/// outside the accepted preset set — i.e. a bar size beyond the `1h`
+/// ceiling of the upstream enum. Drives the targeted diagnostic in
+/// [`validate_interval`]. Presets (`1h`) never reach this check.
+#[cfg(feature = "__internal")]
+fn is_beyond_hour_shorthand(value: &str) -> bool {
+    value
+        .strip_suffix(['h', 'd', 'w'])
+        .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
@@ -349,6 +387,60 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn validate_date_accepts_iso_dashed_form() {
+        // `date` / `start_date` / `end_date` accept the same
+        // ISO-dashed form `expiration` always accepted, so date-typed
+        // formatters (Pandas, Polars, `datetime.date.isoformat()`)
+        // work uniformly across every date parameter.
+        for good in ["2026-01-01", "2024-02-29", "2000-02-29", "1900-01-01"] {
+            assert!(
+                validate_date(good, "start_date").is_ok(),
+                "expected ISO acceptance: {good}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_date_iso_dashed_form_enforces_calendar_bounds() {
+        // The dashed form runs the same Gregorian check as the compact
+        // form — impossible dates are rejected on both shapes.
+        for bad in [
+            "2026-02-30", // Feb 30 — no such day
+            "2026-13-01", // month 13
+            "2026-04-31", // Apr 31 — only 30 days
+            "1899-12-31", // year < 1900
+            "2101-01-01", // year > 2100
+            "0000-00-00", // sentinel
+            "1900-02-29", // /100 non-leap
+        ] {
+            assert!(
+                validate_date(bad, "date").is_err(),
+                "expected calendar rejection on dashed form: {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_date_rejects_malformed_dashed_shapes() {
+        // Near-miss dashed shapes fall through to the digits-only path
+        // and reject — only the exact `4-2-2` digit layout parses.
+        for bad in [
+            "2026-1-01",
+            "2026-011",
+            "26-01-01",
+            "2026-01-01x",
+            "2026/01/01",
+        ] {
+            let err = validate_date(bad, "date").expect_err(bad);
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("YYYY-MM-DD"),
+                "shape error must name both accepted forms, got: {msg}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -426,6 +518,27 @@ mod internal_tests {
             "15m", "30m", "1h", "0", "60000", "300000",
         ] {
             assert!(validate_interval(good, "interval").is_ok(), "{good}");
+        }
+    }
+
+    #[test]
+    fn interval_rejects_beyond_hour_shorthand_with_targeted_diagnostic() {
+        // The upstream enum tops out at `1h` — `2h` / `4h` / `1d`
+        // return `Invalid interval` from the service (verified live).
+        // The local validator rejects them with a diagnostic that
+        // names the ceiling and the daily-bar alternative instead of
+        // forwarding a string the upstream cannot serve.
+        for bad in ["2h", "4h", "1d", "1w", "25h"] {
+            let err = validate_interval(bad, "interval").unwrap_err();
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("largest preset is '1h'"),
+                "diagnostic must name the 1h ceiling for {bad}: {msg}"
+            );
+            assert!(
+                msg.contains("eod"),
+                "diagnostic must point at the eod endpoints for {bad}: {msg}"
+            );
         }
     }
 

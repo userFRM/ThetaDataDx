@@ -72,34 +72,41 @@ const WS_GENERAL_BURST_SIZE: u32 = 40;
 /// 2. `DefaultBodyLimit` caps the upgrade request body at
 ///    [`WS_BODY_LIMIT_BYTES`].
 /// 3. `GovernorLayer` keyed on the peer connect-info IP enforces
-///    [`WS_GENERAL_PER_SECOND`] rps with a burst of [`WS_GENERAL_BURST_SIZE`].
-///    Peer-IP-only — `X-Forwarded-For` is ignored (see `router.rs` for
-///    rationale).
-pub fn router(state: AppState) -> Router {
-    let governor = Arc::new(
-        GovernorConfigBuilder::default()
-            .key_extractor(PeerIpKeyExtractor)
-            .per_second(WS_GENERAL_PER_SECOND)
-            .burst_size(WS_GENERAL_BURST_SIZE)
-            .finish()
-            .expect("ws governor config invariants hold at build time"),
-    );
-
-    // Matches the REST router: periodically purge stale per-IP buckets so
-    // the rate-limit map cannot grow unbounded under churn.
-    let cleanup = Arc::clone(&governor);
-    tokio::spawn(async move {
-        let interval = Duration::from_secs(60);
-        loop {
-            tokio::time::sleep(interval).await;
-            cleanup.limiter().retain_recent();
-        }
-    });
-
-    Router::new()
+///    [`WS_GENERAL_PER_SECOND`] rps with a burst of [`WS_GENERAL_BURST_SIZE`]
+///    — only when `rate_limit_general` is set (non-loopback binds; see
+///    `router::is_loopback_bind`). Peer-IP-only — `X-Forwarded-For` is
+///    ignored (see `router.rs` for rationale).
+pub fn router(state: AppState, rate_limit_general: bool) -> Router {
+    let mut app = Router::new()
         .route("/v1/events", get(upgrade::ws_upgrade))
         .layer(ConcurrencyLimitLayer::new(WS_CONCURRENCY_LIMIT))
-        .layer(DefaultBodyLimit::max(WS_BODY_LIMIT_BYTES))
-        .layer(GovernorLayer::new(governor))
-        .with_state(state)
+        .layer(DefaultBodyLimit::max(WS_BODY_LIMIT_BYTES));
+
+    if rate_limit_general {
+        let governor = Arc::new(
+            GovernorConfigBuilder::default()
+                .key_extractor(PeerIpKeyExtractor)
+                .per_second(WS_GENERAL_PER_SECOND)
+                .burst_size(WS_GENERAL_BURST_SIZE)
+                .finish()
+                .expect("ws governor config invariants hold at build time"),
+        );
+
+        // Matches the REST router: periodically purge stale per-IP buckets so
+        // the rate-limit map cannot grow unbounded under churn.
+        let cleanup = Arc::clone(&governor);
+        tokio::spawn(async move {
+            let interval = Duration::from_secs(60);
+            loop {
+                tokio::time::sleep(interval).await;
+                cleanup.limiter().retain_recent();
+            }
+        });
+
+        app = app.layer(
+            GovernorLayer::new(governor).error_handler(crate::router::governor_error_response),
+        );
+    }
+
+    app.with_state(state)
 }

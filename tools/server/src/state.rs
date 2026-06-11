@@ -59,8 +59,15 @@ struct Inner {
     ws_clients: WsClients,
     /// Shutdown signal.
     shutdown: tokio::sync::Notify,
-    /// WebSocket single-connection enforcement.
-    ws_connected: AtomicBool,
+    /// Close signal of the currently active WebSocket session, if any.
+    ///
+    /// Single-client semantics with REPLACEMENT: when a new client
+    /// connects, the previous session's `Notify` fires and that session
+    /// closes its socket — matching the legacy terminal, which drops the
+    /// existing client to let the new one in. A plain `Mutex` (never held
+    /// across `.await`) is sufficient; the critical sections are
+    /// pointer swaps.
+    ws_session: std::sync::Mutex<Option<Arc<tokio::sync::Notify>>>,
     /// Random token required by the shutdown endpoint.
     shutdown_token: String,
     /// Monotonic count of FPSS events dropped on the bounded
@@ -81,7 +88,7 @@ impl AppState {
                 fpss_connected: AtomicBool::new(false),
                 ws_clients: Arc::new(RwLock::new(Vec::new())),
                 shutdown: tokio::sync::Notify::new(),
-                ws_connected: AtomicBool::new(false),
+                ws_session: std::sync::Mutex::new(None),
                 shutdown_token,
                 fpss_broadcast_dropped: AtomicU64::new(0),
             }),
@@ -200,18 +207,47 @@ impl AppState {
             .retain(|tx| !tx.is_closed());
     }
 
-    /// Try to acquire the single WebSocket connection slot.
-    /// Returns `true` if this caller got it, `false` if already taken.
-    pub fn try_acquire_ws(&self) -> bool {
-        self.inner
-            .ws_connected
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_ok()
+    /// Begin a WebSocket session, atomically replacing any active one.
+    ///
+    /// Returns the close signal for the NEW session. If another session
+    /// was active, its close signal fires so that session sends a Close
+    /// frame and exits — the legacy terminal's drop-the-existing-client
+    /// behavior. `Notify::notify_one` stores a permit when the previous
+    /// session has not reached its `notified().await` yet, so the
+    /// replacement signal can never be lost to a race.
+    pub fn begin_ws_session(&self) -> Arc<tokio::sync::Notify> {
+        let session = Arc::new(tokio::sync::Notify::new());
+        let previous = self
+            .inner
+            .ws_session
+            .lock()
+            .expect("ws session lock is never poisoned: critical sections cannot panic")
+            .replace(Arc::clone(&session));
+        if let Some(previous) = previous {
+            tracing::info!("new WebSocket client connected; closing the existing session");
+            previous.notify_one();
+        }
+        session
     }
 
-    /// Release the WebSocket connection slot.
-    pub fn release_ws(&self) {
-        self.inner.ws_connected.store(false, Ordering::Release);
+    /// End a WebSocket session previously begun with
+    /// [`Self::begin_ws_session`].
+    ///
+    /// Clears the active slot only when `session` is still the current
+    /// one — a replaced session exiting late must not evict its
+    /// replacement.
+    pub fn end_ws_session(&self, session: &Arc<tokio::sync::Notify>) {
+        let mut slot = self
+            .inner
+            .ws_session
+            .lock()
+            .expect("ws session lock is never poisoned: critical sections cannot panic");
+        if slot
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, session))
+        {
+            *slot = None;
+        }
     }
 
     /// Validate a shutdown token against the one generated at startup.
@@ -238,6 +274,84 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::ct_eq;
+    use std::sync::Arc;
+
+    /// Stand-in for the `Inner.ws_session` slot so the begin/end
+    /// semantics can be pinned without constructing a live
+    /// `ThetaDataDxClient`. Mirrors `AppState::begin_ws_session` /
+    /// `end_ws_session` exactly.
+    struct SessionSlot(std::sync::Mutex<Option<Arc<tokio::sync::Notify>>>);
+
+    impl SessionSlot {
+        fn new() -> Self {
+            Self(std::sync::Mutex::new(None))
+        }
+
+        fn begin(&self) -> Arc<tokio::sync::Notify> {
+            let session = Arc::new(tokio::sync::Notify::new());
+            let previous = self.0.lock().unwrap().replace(Arc::clone(&session));
+            if let Some(previous) = previous {
+                previous.notify_one();
+            }
+            session
+        }
+
+        fn end(&self, session: &Arc<tokio::sync::Notify>) {
+            let mut slot = self.0.lock().unwrap();
+            if slot
+                .as_ref()
+                .is_some_and(|current| Arc::ptr_eq(current, session))
+            {
+                *slot = None;
+            }
+        }
+
+        fn active(&self) -> bool {
+            self.0.lock().unwrap().is_some()
+        }
+    }
+
+    /// A second session begin fires the first session's close signal —
+    /// the replacement contract the WS handler's select loop relies on.
+    #[tokio::test]
+    async fn second_session_fires_first_sessions_close_signal() {
+        let slot = SessionSlot::new();
+        let first = slot.begin();
+        let _second = slot.begin();
+
+        // `notify_one` stores a permit, so the displaced session
+        // observes the signal even though it subscribes after the swap.
+        tokio::time::timeout(std::time::Duration::from_secs(1), first.notified())
+            .await
+            .expect("displaced session must observe its close signal");
+    }
+
+    /// A replaced session exiting late must not evict its replacement
+    /// from the active slot.
+    #[tokio::test]
+    async fn stale_session_end_does_not_evict_replacement() {
+        let slot = SessionSlot::new();
+        let first = slot.begin();
+        let second = slot.begin();
+
+        slot.end(&first);
+        assert!(slot.active(), "replacement session must stay active");
+
+        slot.end(&second);
+        assert!(!slot.active(), "current session end clears the slot");
+    }
+
+    #[tokio::test]
+    async fn first_session_begin_fires_no_signal() {
+        let slot = SessionSlot::new();
+        let only = slot.begin();
+        let waited =
+            tokio::time::timeout(std::time::Duration::from_millis(50), only.notified()).await;
+        assert!(
+            waited.is_err(),
+            "a lone session must not receive a close signal"
+        );
+    }
 
     #[test]
     fn ct_eq_equal_returns_true() {

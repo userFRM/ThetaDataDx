@@ -175,6 +175,8 @@ for (const auto& t : data) {
 
 Milliseconds are auto-converted to the nearest valid preset internally. Either form can be used.
 
+The full preset set is `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h` — the enum tops out at `1h`. Multi-hour and daily shorthand (`2h`, `4h`, `1d`) is not served by the upstream and is rejected with a diagnostic naming the ceiling; millisecond values past one hour snap down to `1h`. For daily bars use the [EOD endpoint](./eod) instead.
+
 ## Notes
 
 - Use the single-date variant for intraday analysis of a specific session.
