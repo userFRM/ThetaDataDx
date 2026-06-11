@@ -50,8 +50,17 @@
 //! - `THETADATADX_BENCH_QUICK=1` — one repeat, short windows, levels
 //!   1/8, small frames only (harness smoke run).
 //! - `THETADATADX_BENCH_LEVELS=1,2,4` — override the concurrency sweep.
-//! - `THETADATADX_BENCH_SIZES=small,large` — override the frame sizes.
+//! - `THETADATADX_BENCH_SIZES=small,large,multi` — override the frame
+//!   shapes. `multi` streams 16 chunks of ~640 KiB per RPC on one
+//!   stream — the fan-in shape where many response chunks land on one
+//!   decode path (the decoder-pool rationale's home turf).
 //! - `THETADATADX_BENCH_REPEATS=3` — repeats per cell.
+//! - `THETADATADX_BENCH_CONNS=1` — pin the TCP connection count per
+//!   side instead of `min(concurrency, 16)`. `1` measures a single
+//!   multiplexed connection carrying every worker (the pool-vs-single
+//!   question); unset keeps the production pool shape.
+//! - `THETADATADX_BENCH_TRANSPORTS=reference` — run a subset of the
+//!   transports (comma-separated `in_house` / `reference`).
 //!
 //! The shipped dependency graph stays free of the reference stack: it
 //! is a `[dev-dependencies]` entry only, and
@@ -179,9 +188,12 @@ fn process_cpu_micros() -> u64 {
 
 #[derive(Clone)]
 struct ServerConfig {
-    /// Pre-framed gRPC message: 5-byte length prefix + encoded
-    /// `ResponseData`. Cloning is a refcount bump.
-    framed: Bytes,
+    /// Pre-framed gRPC messages (5-byte length prefix + encoded
+    /// `ResponseData` each), sent in order on every response stream.
+    /// Single-frame payloads carry one entry; the multi-chunk shape
+    /// carries one entry per chunk. Cloning is a refcount bump per
+    /// entry.
+    framed: Vec<Bytes>,
 }
 
 struct MockServer {
@@ -249,7 +261,7 @@ async fn serve_connection(
 async fn handle_request(
     request: http::Request<h2::RecvStream>,
     mut respond: h2::server::SendResponse<Bytes>,
-    framed: Bytes,
+    framed: Vec<Bytes>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut body = request.into_body();
     while let Some(chunk) = body.data().await {
@@ -263,7 +275,9 @@ async fn handle_request(
         HeaderValue::from_static("application/grpc+proto"),
     );
     let mut send_stream = respond.send_response(response, false)?;
-    send_stream.send_data(framed, false)?;
+    for frame in framed {
+        send_stream.send_data(frame, false)?;
+    }
     let mut trailers = HeaderMap::new();
     trailers.insert(
         HeaderName::from_static("grpc-status"),
@@ -275,14 +289,18 @@ async fn handle_request(
 
 // ─── Payload synthesis ──────────────────────────────────────────────
 
-/// A synthesized response chunk plus the facts the report needs.
+/// A synthesized response — one or more chunks — plus the facts the
+/// report needs. Single-frame payloads carry one chunk; the
+/// multi-chunk shape carries `chunk_count` identical-schema chunks
+/// that the client must decode and merge per RPC.
 struct SynthPayload {
-    response: ResponseData,
-    /// Length of the framed gRPC message on the wire (5-byte prefix +
-    /// encoded `ResponseData`).
+    responses: Vec<ResponseData>,
+    /// Total length of the framed gRPC messages on the wire (5-byte
+    /// prefix + encoded `ResponseData`, summed across chunks).
     framed_len: usize,
-    /// Decompressed `DataTable` encoding length.
+    /// Total decompressed `DataTable` encoding length across chunks.
     decoded_len: usize,
+    /// Total row count across chunks (the per-RPC row assertion).
     rows: usize,
 }
 
@@ -333,7 +351,7 @@ fn compress_table(table: &DataTable) -> SynthPayload {
     };
     let framed_len = 5 + response.encoded_len();
     SynthPayload {
-        response,
+        responses: vec![response],
         framed_len,
         decoded_len: inner.len(),
         rows: table.data_table.len(),
@@ -362,6 +380,34 @@ fn synthesize_response(target_wire_len: usize) -> SynthPayload {
         }
     }
     best
+}
+
+/// Synthesize a `chunk_count`-chunk response stream: each chunk lands
+/// close to `per_chunk_wire_len` on the wire and every chunk carries
+/// the same column schema (the wire contract `collect_stream`
+/// enforces). Per-chunk row payloads differ (distinct seeds) so the
+/// decode work is not artificially cache-warm across chunks.
+fn synthesize_multi_chunk(chunk_count: usize, per_chunk_wire_len: usize) -> SynthPayload {
+    let shape = synthesize_response(per_chunk_wire_len);
+    let rows_per_chunk = shape.rows.max(1);
+    let mut responses = Vec::with_capacity(chunk_count);
+    let mut framed_len = 0usize;
+    let mut decoded_len = 0usize;
+    let mut rows = 0usize;
+    for chunk_idx in 0..chunk_count {
+        let seed = 0x7e7a_da7a ^ (chunk_idx as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        let chunk = compress_table(&build_rows(rows_per_chunk, seed));
+        framed_len += chunk.framed_len;
+        decoded_len += chunk.decoded_len;
+        rows += chunk.rows;
+        responses.extend(chunk.responses);
+    }
+    SynthPayload {
+        responses,
+        framed_len,
+        decoded_len,
+        rows,
+    }
 }
 
 fn frame(msg: &ResponseData) -> Bytes {
@@ -615,10 +661,10 @@ async fn run_window_reference(
 /// Build the per-transport client state, run warmup + measured repeats,
 /// and aggregate. Fresh runtime, mock, connections, and decoder pool
 /// per cell so no state crosses cells.
-fn run_cell(spec: &CellSpec, payload: &ResponseData) -> CellResult {
+fn run_cell(spec: &CellSpec, payload: &[ResponseData]) -> CellResult {
     let rt = Runtime::new().expect("tokio runtime");
     let config = ServerConfig {
-        framed: frame(payload),
+        framed: payload.iter().map(frame).collect(),
     };
     let mock = rt.block_on(spawn_mock(&rt, config));
     let addr = mock.addr;
@@ -652,8 +698,15 @@ fn run_cell(spec: &CellSpec, payload: &ResponseData) -> CellResult {
 
     // One connection per worker up to the production pool ceiling;
     // synthetic levels above it multiplex workers over 16 connections
-    // on both sides (h2 streams carry the fan-in).
-    let connections = spec.concurrency.min(MAX_CONNECTIONS_PER_SIDE);
+    // on both sides (h2 streams carry the fan-in). The
+    // `THETADATADX_BENCH_CONNS` override pins the count instead —
+    // `1` measures every worker multiplexed onto a single connection
+    // (the pool-vs-single-channel question).
+    let connections = std::env::var("THETADATADX_BENCH_CONNS")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or_else(|| spec.concurrency.min(MAX_CONNECTIONS_PER_SIDE));
 
     match spec.transport {
         Transport::InHouse => {
@@ -771,6 +824,10 @@ fn human_ns(ns: u64) -> String {
 struct PayloadSpec {
     name: &'static str,
     target_wire_len: usize,
+    /// Number of response chunks streamed per RPC. `1` is the
+    /// dominant production shape; the `multi` payload streams 16 so
+    /// many chunks fan into one decode path per request.
+    chunk_count: usize,
     max_message_size: usize,
     warmup: Duration,
     measure: Duration,
@@ -830,6 +887,7 @@ fn main() {
         PayloadSpec {
             name: "small",
             target_wire_len: 1024,
+            chunk_count: 1,
             max_message_size: 4 * 1024 * 1024,
             warmup: small_window.0,
             measure: small_window.1,
@@ -838,11 +896,27 @@ fn main() {
         PayloadSpec {
             name: "large",
             target_wire_len: 10 * 1024 * 1024,
+            chunk_count: 1,
             max_message_size: 64 * 1024 * 1024,
             warmup: large_window.0,
             measure: large_window.1,
             // 10 MB frames above the upstream concurrency ceiling would
             // measure allocator pressure, not transport — skip.
+            max_concurrency: 16,
+        },
+        PayloadSpec {
+            name: "multi",
+            // 16 chunks x ~640 KiB lands the same ~10 MiB per RPC as
+            // `large`, but as a chunked stream: per chunk the client
+            // runs one zstd decompress + one prost decode, so 16
+            // decodes fan into one decode path per request — the
+            // fan-in shape the decoder-pool rationale targets.
+            target_wire_len: 640 * 1024,
+            chunk_count: 16,
+            max_message_size: 64 * 1024 * 1024,
+            warmup: large_window.0,
+            measure: large_window.1,
+            // Same in-flight-bytes ceiling rationale as `large`.
             max_concurrency: 16,
         },
     ];
@@ -861,13 +935,18 @@ fn main() {
     );
 
     for payload_spec in &payloads {
-        let synth = synthesize_response(payload_spec.target_wire_len);
+        let synth = if payload_spec.chunk_count > 1 {
+            synthesize_multi_chunk(payload_spec.chunk_count, payload_spec.target_wire_len)
+        } else {
+            synthesize_response(payload_spec.target_wire_len)
+        };
         println!();
         println!(
-            "## payload `{}`: wire frame {} ({} rows, decoded table {}), \
+            "## payload `{}`: wire {} across {} chunk(s) ({} rows, decoded {}), \
              decode ceiling {}",
             payload_spec.name,
             human_bytes(synth.framed_len),
+            synth.responses.len(),
             synth.rows,
             human_bytes(synth.decoded_len),
             human_bytes(payload_spec.max_message_size),
@@ -878,6 +957,19 @@ fn main() {
         );
         println!("|---|---|---|---|---|---|---|---|---|---|");
 
+        let transports: Vec<Transport> = env_list("THETADATADX_BENCH_TRANSPORTS")
+            .map(|names| {
+                names
+                    .iter()
+                    .map(|name| match name.as_str() {
+                        "in_house" => Transport::InHouse,
+                        "reference" => Transport::Reference,
+                        other => panic!("unknown transport filter {other:?}"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![Transport::InHouse, Transport::Reference]);
+
         for &concurrency in &levels {
             if concurrency > payload_spec.max_concurrency {
                 eprintln!(
@@ -886,7 +978,7 @@ fn main() {
                 );
                 continue;
             }
-            for transport in [Transport::InHouse, Transport::Reference] {
+            for &transport in &transports {
                 let spec = CellSpec {
                     transport,
                     concurrency,
@@ -898,7 +990,7 @@ fn main() {
                     measure: payload_spec.measure,
                     repeats,
                 };
-                let mut cell = run_cell(&spec, &synth.response);
+                let mut cell = run_cell(&spec, &synth.responses);
                 cell.latencies_ns.sort_unstable();
 
                 let total_wall: f64 = cell.wall_per_repeat.iter().map(Duration::as_secs_f64).sum();
