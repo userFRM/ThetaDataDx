@@ -1984,6 +1984,7 @@ pub unsafe extern "C" fn tdx_client_connect(
     config: *const TdxConfig,
 ) -> *mut TdxClient {
     ffi_boundary!(ptr::null_mut(), {
+        crate::ensure_crypto_provider();
         if creds.is_null() {
             set_error("credentials handle is null");
             return ptr::null_mut();

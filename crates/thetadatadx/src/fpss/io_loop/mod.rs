@@ -1109,7 +1109,12 @@ where
 /// Dropping the producer at io_loop exit stores the shutdown sequence
 /// on the ring; the consumer side then drains every published event
 /// and signals shutdown once it reaches that sequence — the EOF-drain guarantee.
-pub(in crate::fpss) fn build_poller_producer(
+///
+/// Declared `pub` so the `__test-helpers`-gated `fpss::__test_internals`
+/// re-export can hand it to the out-of-crate streaming bench; the
+/// enclosing `mod io_loop` is private, so this stays crate-internal in
+/// shipped builds and never reaches the public API or `cargo-semver-checks`.
+pub fn build_poller_producer(
     ring_size: usize,
     cursors: Arc<RingCursors>,
 ) -> (

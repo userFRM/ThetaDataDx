@@ -10,7 +10,9 @@
 //!
 //! These benches exercise the post-#513 pipeline end-to-end so the
 //! release notes can quote a numbers-against-numbers comparison rather
-//! than sketches. Four variants are timed.
+//! than sketches. Five variants are timed; the fifth is compiled only
+//! under the private `__test-helpers` feature (it reaches the crate's
+//! production ring constructor, which is not part of the public API).
 //!
 //! # Methodology
 //!
@@ -53,8 +55,18 @@
 //!    runs on a worker thread spawned per iteration so the topology
 //!    matches the live deployment (TLS reader thread != Disruptor
 //!    consumer thread).
+//! 5. `disruptor_production_ctor` — same cross-thread topology as
+//!    variant 4, but the pipeline is built through the crate's
+//!    production ring constructor (`build_poller_producer`) instead of
+//!    a raw `build_single_producer` ring. That constructor installs the
+//!    sequence-recording producer adapter and returns the matching
+//!    poller, so this variant measures the instrumented publish path the
+//!    live client ships — one relaxed occupancy store per publish on the
+//!    producer side, one per drained batch on the consumer side — rather
+//!    than the bare ring. Compiled only under the private
+//!    `__test-helpers` feature because the constructor is crate-internal.
 //!
-//! All four variants drive exactly `EVENTS_PER_ITER` (= 100_000)
+//! Every variant drives exactly `EVENTS_PER_ITER` (= 100_000)
 //! `FpssEvent::Control(FpssControl::Connected)` deliveries per Criterion sample.
 //! `Throughput::Elements(EVENTS_PER_ITER as u64)` is exact by
 //! construction; the reported ns/event are callback-delivery cost.
@@ -70,6 +82,17 @@ use std::thread;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
 use thetadatadx::fpss::{FpssControl, FpssEvent};
+
+// Variant 5 drives the crate's production ring constructor, which is
+// crate-internal and only re-exported under the private `__test-helpers`
+// feature (see `fpss::__test_internals`). `build_poller_producer` is the
+// constructor that installs the sequence-recording producer adapter.
+// VOCAB-OK: `build_poller_producer` / `RingProducer` are bench symbols
+// from the crate under test, not user-facing prose.
+#[cfg(feature = "__test-helpers")]
+use thetadatadx::fpss::__test_internals::{
+    build_poller_producer, Polling, RingCursors, RingProducer,
+};
 
 /// Number of events shipped through the pipeline per criterion sample.
 /// Sized so the per-iteration wall-clock dwarfs criterion's measurement
@@ -279,6 +302,85 @@ fn run_disruptor_cross_thread() -> (u64, u64) {
     (delivered.load(Ordering::Relaxed), dropped)
 }
 
+// ─── Variant 5: production ring constructor (instrumented adapter) ─────
+//
+// Variants 1-4 build a raw `build_single_producer` ring, so the
+// before/after guard for the ring-occupancy feature pinned the shared
+// ring machinery rather than the sequence-recording producer adapter the
+// live client installs. This variant routes the whole pipeline through
+// `build_poller_producer` — the production constructor — so the adapter's
+// documented cost model (one relaxed occupancy store per successful
+// publish, one per drained batch) has a standing measurement. The
+// topology matches variant 4: the producer runs on a spawned worker
+// thread, the consumer drains the returned poller on the bench thread,
+// mirroring the live "TLS reader thread != consumer thread" deployment.
+
+#[cfg(feature = "__test-helpers")]
+fn run_disruptor_production_ctor() -> (u64, u64) {
+    // Shared occupancy cursors the production adapter records into — the
+    // exact pair `FpssClient::ring_occupancy` samples in the live client.
+    let cursors = Arc::new(RingCursors::new());
+    let (mut producer, mut poller) = build_poller_producer(RING_SIZE, Arc::clone(&cursors));
+
+    // Producer thread: publish via the instrumented adapter. Each
+    // successful `try_publish` records the published sequence into the
+    // shared cursors (the adapter's per-publish relaxed store). Dropping
+    // the producer at thread exit stores the shutdown sequence so the
+    // consumer's poll observes `Polling::Shutdown` once the ring drains.
+    let producer_thread = thread::spawn(move || {
+        let mut dropped: u64 = 0;
+        for _ in 0..EVENTS_PER_ITER {
+            // Retry-on-overflow so the bench measures cost
+            // per-DELIVERED-event, matching the other variants.
+            loop {
+                if producer
+                    .try_publish(|slot| {
+                        slot.set_public(FpssEvent::Control(FpssControl::Connected));
+                    })
+                    .is_ok()
+                {
+                    break;
+                }
+                dropped += 1;
+                std::hint::spin_loop();
+            }
+        }
+        drop(producer);
+        dropped
+    });
+
+    // Consumer: drain the poller on this thread exactly as the live
+    // `poll_batch` path does — count every released slot, record one
+    // consumed-cursor store per drained batch (never per event), and
+    // stop once the producer has dropped and the ring is fully drained.
+    let mut delivered: u64 = 0;
+    let mut consumed_seq: i64 = -1;
+    loop {
+        match poller.poll() {
+            Ok(mut batch) => {
+                let mut batch_len: i64 = 0;
+                for ring_event in &mut batch {
+                    batch_len += 1;
+                    if ring_event.as_public().is_some() {
+                        delivered += 1;
+                    }
+                }
+                // One relaxed store per drained batch — the consumer side
+                // of the adapter's documented cost model.
+                consumed_seq += batch_len;
+                cursors.record_consumed(consumed_seq);
+            }
+            Err(Polling::NoEvents) => std::hint::spin_loop(),
+            Err(Polling::Shutdown) => break,
+        }
+    }
+
+    let dropped = producer_thread
+        .join()
+        .expect("disruptor production-constructor producer panicked");
+    (delivered, dropped)
+}
+
 // ─── Criterion driver ──────────────────────────────────────────────────
 
 /// Wrap a `() -> (delivered, dropped)` runner so the per-iteration
@@ -335,11 +437,34 @@ fn bench_disruptor_cross_thread(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "__test-helpers")]
+fn bench_disruptor_production_ctor(c: &mut Criterion) {
+    let mut group = c.benchmark_group("streaming_channels/disruptor_production_ctor");
+    group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
+    group.sample_size(10);
+    group.bench_function("100k_events", |b| drive(b, run_disruptor_production_ctor));
+    group.finish();
+}
+
+// Variant 5 is only compiled under `__test-helpers` (it reaches the
+// crate-internal production ring constructor), so the group it belongs to
+// is selected by feature: with the feature off the four public-symbol
+// variants run; with it on the production-constructor variant is appended.
+#[cfg(not(feature = "__test-helpers"))]
 criterion_group!(
     streaming_channels,
     bench_disruptor_consumer_panic_isolated,
     bench_disruptor_consumer_no_catch_unwind,
     bench_direct_callback,
     bench_disruptor_cross_thread,
+);
+#[cfg(feature = "__test-helpers")]
+criterion_group!(
+    streaming_channels,
+    bench_disruptor_consumer_panic_isolated,
+    bench_disruptor_consumer_no_catch_unwind,
+    bench_direct_callback,
+    bench_disruptor_cross_thread,
+    bench_disruptor_production_ctor,
 );
 criterion_main!(streaming_channels);
