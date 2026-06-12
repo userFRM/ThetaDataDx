@@ -185,7 +185,7 @@ disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build DataFrame from Series.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels.
-polars = { version = "0.53", optional = true, default-features = false }
+polars = { version = "0.54", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only.
 arrow-array = { version = "58.1.0", optional = true }
