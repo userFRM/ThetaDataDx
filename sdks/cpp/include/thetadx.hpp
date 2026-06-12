@@ -528,8 +528,16 @@ public:
     /** Stage FPSS config (port 20100, testing, unstable). */
     static Config stage();
 
-    /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. */
-    void set_reconnect_policy(int policy) { tdx_config_set_reconnect_policy(handle_.get(), policy); }
+    /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. Throws
+     *  @c tdx::InvalidParameterError when @p policy is outside the
+     *  documented `{0, 1}` set, matching the Python `ValueError` /
+     *  TypeScript `InvalidParameterError` rather than silently coercing
+     *  an unknown value to Auto. */
+    void set_reconnect_policy(int policy) {
+        if (tdx_config_set_reconnect_policy(handle_.get(), policy) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
 
     /** Set the per-class transient-failure attempt budget. Default 3. */
     void set_reconnect_max_attempts(uint32_t max_attempts) {
@@ -638,15 +646,13 @@ public:
     }
 
     /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
-     *  2=Decorrelated, 3=None. Throws std::runtime_error on an
-     *  invalid mode. */
+     *  2=Decorrelated, 3=None. Throws @c tdx::InvalidParameterError on
+     *  an out-of-domain mode (and @c tdx::ThetaDataError on a null
+     *  handle), routing through the typed leaf the FFI error code
+     *  selects. */
     void set_reconnect_jitter(int32_t mode) {
-        const int32_t rc = tdx_config_set_reconnect_jitter(handle_.get(), mode);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_reconnect_jitter failed: ") +
-                (err ? err : "unknown error"));
+        if (tdx_config_set_reconnect_jitter(handle_.get(), mode) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -788,14 +794,13 @@ public:
     }
 
     /** Set the FPSS host-selection policy: 0=Shuffled (default),
-     *  1=FixedOrder. Throws std::runtime_error on an invalid policy. */
+     *  1=FixedOrder. Throws @c tdx::InvalidParameterError on an
+     *  out-of-domain policy (and @c tdx::ThetaDataError on a null
+     *  handle), routing through the typed leaf the FFI error code
+     *  selects. */
     void set_fpss_host_selection(int32_t policy) {
-        const int32_t rc = tdx_config_set_fpss_host_selection(handle_.get(), policy);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_fpss_host_selection failed: ") +
-                (err ? err : "unknown error"));
+        if (tdx_config_set_fpss_host_selection(handle_.get(), policy) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -923,16 +928,13 @@ public:
      * Set the Nexus auth URL. Default is the upstream production
      * endpoint; redirect at a staging cluster for testing.
      *
-     * Throws @c std::runtime_error if the FFI rejects the value
-     * (null handle or non-UTF-8 input).
+     * Throws a @c tdx::ThetaDataError leaf if the FFI rejects the value
+     * (null handle or non-UTF-8 input), routing through the typed class
+     * the FFI error code selects.
      */
     void set_nexus_url(const std::string& url) {
-        const int32_t rc = tdx_config_set_nexus_url(handle_.get(), url.c_str());
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_nexus_url failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
+        if (tdx_config_set_nexus_url(handle_.get(), url.c_str()) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -948,16 +950,13 @@ public:
      * @c "rust-thetadatadx"; override to identify a deployment fleet
      * in server-side dashboards.
      *
-     * Throws @c std::runtime_error if the FFI rejects the value
-     * (null handle or non-UTF-8 input).
+     * Throws a @c tdx::ThetaDataError leaf if the FFI rejects the value
+     * (null handle or non-UTF-8 input), routing through the typed class
+     * the FFI error code selects.
      */
     void set_client_type(const std::string& client_type) {
-        const int32_t rc = tdx_config_set_client_type(handle_.get(), client_type.c_str());
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_client_type failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
+        if (tdx_config_set_client_type(handle_.get(), client_type.c_str()) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -976,18 +975,14 @@ public:
      * @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
      * when the @c metrics-prometheus feature is compiled in.
      *
-     * Throws @c std::runtime_error on null-handle FFI failure.
+     * Throws a @c tdx::ThetaDataError leaf on a null-handle FFI failure,
+     * routing through the typed class the FFI error code selects.
      */
     void set_metrics_port(std::optional<std::uint16_t> port) {
         const bool has_value = port.has_value();
         const std::uint16_t arg = port.value_or(0);
-        const int32_t rc =
-            tdx_config_set_metrics_port(handle_.get(), has_value, arg);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_metrics_port failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
+        if (tdx_config_set_metrics_port(handle_.get(), has_value, arg) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -996,32 +991,26 @@ public:
      * @c std::nullopt for the disabled (`None`) sentinel; returns the
      * wrapped @c std::uint16_t when an explicit port is pinned.
      *
-     * Throws @c std::runtime_error on null-handle FFI failure.
+     * Throws a @c tdx::ThetaDataError leaf on a null-handle FFI failure,
+     * routing through the typed class the FFI error code selects.
      */
     std::optional<std::uint16_t> get_metrics_port() const {
         bool has_value = false;
         std::uint16_t port = 0;
-        const int32_t rc =
-            tdx_config_get_metrics_port(handle_.get(), &has_value, &port);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_get_metrics_port failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
+        if (tdx_config_get_metrics_port(handle_.get(), &has_value, &port) != 0) {
+            detail::throw_last_ffi_error();
         }
         return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
     }
 
-    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate.
-     *  Throws std::runtime_error when @p mode is outside the documented
-     *  `{0, 1}` set or when the underlying FFI returns an error. */
+    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. Throws
+     *  @c tdx::InvalidParameterError when @p mode is outside the
+     *  documented `{0, 1}` set (and @c tdx::ThetaDataError on a null
+     *  handle), routing through the typed leaf the FFI error code
+     *  selects. */
     void set_flush_mode(int mode) {
-        const int rc = tdx_config_set_flush_mode(handle_.get(), mode);
-        if (rc != 0) {
-            const char* err = tdx_last_error();
-            throw std::runtime_error(
-                std::string("tdx_config_set_flush_mode failed: ") +
-                (err == nullptr ? "(null config handle)" : err));
+        if (tdx_config_set_flush_mode(handle_.get(), mode) != 0) {
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -2255,14 +2244,31 @@ inline std::string exchange_symbol(int32_t code) {
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
 /// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+/// `signed_value` must lie in the i32 wire range
+/// (`-2'147'483'648 ..= 2'147'483'647`); a value outside that domain
+/// throws @c tdx::InvalidParameterError rather than being silently
+/// reinterpreted, matching the Python `ValueError` / TypeScript
+/// `InvalidParameterError` for the same input.
 inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
-    return tdx_sequence_signed_to_unsigned(signed_value);
+    uint64_t out = 0;
+    if (tdx_sequence_signed_to_unsigned(signed_value, &out) != 0) {
+        detail::throw_last_ffi_error();
+    }
+    return out;
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its
 /// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+/// `unsigned_value` must lie in the unsigned wire range
+/// (`0 ..= 2^32 - 1`); a value above that domain throws
+/// @c tdx::InvalidParameterError rather than being silently
+/// reinterpreted.
 inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
-    return tdx_sequence_unsigned_to_signed(unsigned_value);
+    int64_t out = 0;
+    if (tdx_sequence_unsigned_to_signed(unsigned_value, &out) != 0) {
+        detail::throw_last_ffi_error();
+    }
+    return out;
 }
 
 } // namespace util

@@ -86,7 +86,7 @@ impl Util {
     #[napi(js_name = "sequenceSignedToUnsigned")]
     pub fn sequence_signed_to_unsigned(signed_value: BigInt) -> napi::Result<BigInt> {
         let signed: i64 = bigint_to_i32(&signed_value).map(i64::from).ok_or_else(|| {
-            napi::Error::from_reason(
+            crate::invalid_parameter_err(
                 "sequenceSignedToUnsigned: BigInt outside the i32 wire range \
                  (-2_147_483_648 ..= 2_147_483_647)",
             )
@@ -105,20 +105,20 @@ impl Util {
     #[napi(js_name = "sequenceUnsignedToSigned")]
     pub fn sequence_unsigned_to_signed(unsigned_value: BigInt) -> napi::Result<BigInt> {
         if unsigned_value.sign_bit && !unsigned_value.words.iter().all(|w| *w == 0) {
-            return Err(napi::Error::from_reason(
+            return Err(crate::invalid_parameter_err(
                 "sequenceUnsignedToSigned: negative BigInt rejected; the unsigned \
                  monotonic sequence id is always non-negative",
             ));
         }
         if unsigned_value.words.len() > 1 {
-            return Err(napi::Error::from_reason(
+            return Err(crate::invalid_parameter_err(
                 "sequenceUnsignedToSigned: BigInt above the wire range \
                  (0 ..= 2^32 - 1)",
             ));
         }
         let value = unsigned_value.words.first().copied().unwrap_or(0);
         if value > u32::MAX as u64 {
-            return Err(napi::Error::from_reason(
+            return Err(crate::invalid_parameter_err(
                 "sequenceUnsignedToSigned: BigInt above the wire range \
                  (0 ..= 2^32 - 1)",
             ));

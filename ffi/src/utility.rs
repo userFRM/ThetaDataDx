@@ -278,16 +278,89 @@ pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
 /// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+///
+/// `signed` must lie in the i32 wire range
+/// (`-2_147_483_648 ..= 2_147_483_647`): the upstream terminal encodes
+/// trade sequences as i32, so a value outside that domain is not a wire
+/// sequence and would otherwise be silently reinterpreted into a
+/// look-correct-but-wrong id. Writes the converted value to `out` and
+/// returns `0` on success; returns `-1` and sets `tdx_last_error` /
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `signed` is
+/// outside the wire range or `out` is null, matching the typed class the
+/// Python / TypeScript bindings raise for the same input.
+///
+/// # Safety
+/// `out` must be a valid, non-null pointer to a `uint64_t` the caller
+/// keeps alive for the call duration.
 #[no_mangle]
-pub extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64) -> u64 {
-    tdbe::sequences::signed_to_unsigned(signed)
+pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut u64) -> i32 {
+    ffi_boundary!(-1, {
+        if out.is_null() {
+            crate::error::set_error_with_code(
+                "tdx_sequence_signed_to_unsigned: out pointer is null",
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+            );
+            return -1;
+        }
+        if !(tdbe::sequences::SEQUENCE_MIN..=tdbe::sequences::SEQUENCE_MAX).contains(&signed) {
+            crate::error::set_error_with_code(
+                &format!(
+                    "tdx_sequence_signed_to_unsigned: {signed} is outside the i32 wire range (-2_147_483_648 ..= 2_147_483_647)"
+                ),
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+            );
+            return -1;
+        }
+        // SAFETY: `out` is non-null per the guard above and the FFI
+        // contract pins the storage for the call duration.
+        unsafe {
+            *out = tdbe::sequences::signed_to_unsigned(signed);
+        }
+        0
+    })
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its
 /// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+///
+/// `unsigned` must lie in the unsigned wire range (`0 ..= 2^32 - 1`):
+/// the monotonic sequence id is never wider than one i32 cycle, so a
+/// value above that domain is not a wire sequence and would otherwise be
+/// silently reinterpreted. Writes the converted value to `out` and
+/// returns `0` on success; returns `-1` and sets `tdx_last_error` /
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `unsigned` is
+/// above the wire range or `out` is null, matching the typed class the
+/// Python / TypeScript bindings raise for the same input.
+///
+/// # Safety
+/// `out` must be a valid, non-null pointer to an `int64_t` the caller
+/// keeps alive for the call duration.
 #[no_mangle]
-pub extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64) -> i64 {
-    tdbe::sequences::unsigned_to_signed(unsigned)
+pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mut i64) -> i32 {
+    ffi_boundary!(-1, {
+        if out.is_null() {
+            crate::error::set_error_with_code(
+                "tdx_sequence_unsigned_to_signed: out pointer is null",
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+            );
+            return -1;
+        }
+        if unsigned > u64::from(u32::MAX) {
+            crate::error::set_error_with_code(
+                &format!(
+                    "tdx_sequence_unsigned_to_signed: {unsigned} is above the unsigned wire range (0 ..= 2^32 - 1)"
+                ),
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+            );
+            return -1;
+        }
+        // SAFETY: `out` is non-null per the guard above and the FFI
+        // contract pins the storage for the call duration.
+        unsafe {
+            *out = tdbe::sequences::unsigned_to_signed(unsigned);
+        }
+        0
+    })
 }
 
 /// Look up the vendor vocabulary text for a `TdxCalendarDay.status`
@@ -442,4 +515,77 @@ pub extern "C" fn tdx_test_panic_string() -> i32 {
     ffi_boundary!(-1, {
         panic!("{}", String::from("intentional test panic via String"));
     })
+}
+
+#[cfg(test)]
+mod sequence_tests {
+    //! Wire-range validation for the trade-sequence converters. Out-of
+    //! -wire-range inputs must be rejected with the typed
+    //! invalid-parameter class rather than silently reinterpreted — the
+    //! cross-binding contract the Python `ValueError` / TypeScript
+    //! `InvalidParameterError` already honour.
+
+    #[test]
+    fn signed_to_unsigned_round_trips_in_wire_range() {
+        for signed in [i64::from(i32::MIN), -1, 0, 1, i64::from(i32::MAX)] {
+            let mut out: u64 = 0;
+            // SAFETY: `out` points at a live stack slot for the call.
+            let rc = unsafe { super::tdx_sequence_signed_to_unsigned(signed, &mut out) };
+            assert_eq!(rc, 0, "in-range input {signed} accepted");
+            assert_eq!(out, tdbe::sequences::signed_to_unsigned(signed));
+        }
+    }
+
+    #[test]
+    fn signed_to_unsigned_rejects_out_of_wire_range() {
+        for signed in [i64::from(i32::MAX) + 1, i64::from(i32::MIN) - 1] {
+            let mut out: u64 = 0;
+            crate::error::tdx_clear_error();
+            // SAFETY: `out` points at a live stack slot for the call.
+            let rc = unsafe { super::tdx_sequence_signed_to_unsigned(signed, &mut out) };
+            assert_eq!(rc, -1, "out-of-range input {signed} rejected");
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER
+            );
+        }
+    }
+
+    #[test]
+    fn unsigned_to_signed_round_trips_in_wire_range() {
+        for unsigned in [0u64, 1, u64::from(i32::MAX as u32), u64::from(u32::MAX)] {
+            let mut out: i64 = 0;
+            // SAFETY: `out` points at a live stack slot for the call.
+            let rc = unsafe { super::tdx_sequence_unsigned_to_signed(unsigned, &mut out) };
+            assert_eq!(rc, 0, "in-range input {unsigned} accepted");
+            assert_eq!(out, tdbe::sequences::unsigned_to_signed(unsigned));
+        }
+    }
+
+    #[test]
+    fn unsigned_to_signed_rejects_above_wire_range() {
+        // 2^32 is the first value past the unsigned wire range.
+        let mut out: i64 = 0;
+        crate::error::tdx_clear_error();
+        // SAFETY: `out` points at a live stack slot for the call.
+        let rc =
+            unsafe { super::tdx_sequence_unsigned_to_signed(u64::from(u32::MAX) + 1, &mut out) };
+        assert_eq!(rc, -1, "2^32 rejected as above the wire range");
+        assert_eq!(
+            crate::error::tdx_last_error_code(),
+            crate::error::TDX_ERR_INVALID_PARAMETER
+        );
+    }
+
+    #[test]
+    fn null_out_pointer_rejected() {
+        crate::error::tdx_clear_error();
+        // SAFETY: deliberately passing null to exercise the guard.
+        let rc = unsafe { super::tdx_sequence_signed_to_unsigned(0, std::ptr::null_mut()) };
+        assert_eq!(rc, -1);
+        assert_eq!(
+            crate::error::tdx_last_error_code(),
+            crate::error::TDX_ERR_INVALID_PARAMETER
+        );
+    }
 }
