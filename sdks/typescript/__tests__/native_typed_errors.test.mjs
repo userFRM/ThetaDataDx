@@ -18,6 +18,19 @@
 // variant (the prior `unwrap_or(Weekend)` / `chars().next()` truncation
 // corrupted data instead of failing loudly).
 //
+// And they pin the user-input validation parity on the `Config` setters
+// and the FLATFILES enum parsers: an invalid enum / out-of-range value
+// rejected by a hand-written guard before the call reaches the core
+// client must surface as `InvalidParameterError`, the same class the
+// Python binding raises (`ValueError`) for the identical bad input — so
+// a caller's `catch (e) { if (e instanceof InvalidParameterError) }`
+// branch ports across bindings. The `Config` cases are reachable
+// without a connection; the FLATFILES parsers sit on a connected
+// namespace, so that block builds a client from a credentials file and
+// skips when none is available (set `THETADATADX_TEST_CREDS` to point at
+// one), exercising only the synchronous enum parse that runs before any
+// network round-trip.
+//
 // Loads the wrapped surface (`../streaming-session.js`), the package
 // `main`, so the assertions observe exactly what a consumer sees. When
 // the native addon cannot be dlopen'd (no `.node` built) the suite
@@ -25,8 +38,28 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 
 const wrapperImportPath = '../streaming-session.js';
+
+// Optional credentials file for the FLATFILES enum-parse block. The
+// parsers live on `tdx.flat_files` / `tdx.flatFileToPath`, which require
+// a built client; the enum parse itself is synchronous and runs before
+// any network I/O, so a connected client is enough to exercise it. When
+// no credentials file is present the block skips, keeping the suite
+// runnable offline and on CI.
+const TEST_CREDS_PATH = process.env.THETADATADX_TEST_CREDS ?? '/home/theta-gamma/thetadx/creds.txt';
+
+// Build a client from the credentials file, or return `null` when none
+// is available / the connect fails — the caller skips in that case.
+function tryConnect(mod) {
+  if (!existsSync(TEST_CREDS_PATH)) return null;
+  try {
+    return mod.ThetaDataDxClient.connectFromFile(TEST_CREDS_PATH);
+  } catch {
+    return null;
+  }
+}
 
 async function loadWrapped() {
   try {
@@ -148,5 +181,105 @@ describe('Arrow-IPC logical-enum validation parity (native)', () => {
     const buf = mod.eodTickToArrowIpc([validEodTick('C')]);
     assert.ok(Buffer.isBuffer(buf), 'a valid right must serialise to a Buffer');
     assert.ok(looksLikeArrowIpcStream(buf), 'expected an Arrow IPC stream');
+  });
+});
+
+describe('Config setter input-validation parity (native)', () => {
+  it('setReconnectPolicy with an unknown policy throws InvalidParameterError', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    const cfg = mod.Config.production();
+    assert.throws(
+      () => cfg.setReconnectPolicy('bogus'),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'an unknown reconnect policy must reclassify to InvalidParameterError, matching the Python ValueError',
+    );
+  });
+
+  it('setReconnectPolicy accepts a valid policy', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    const cfg = mod.Config.production();
+    assert.doesNotThrow(
+      () => cfg.setReconnectPolicy('manual'),
+      'a valid reconnect policy must be accepted',
+    );
+  });
+
+  it('setFpssRingSize rejects a non-power-of-two as InvalidParameterError', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    // The setter rejects eagerly with the typed class; the core's
+    // connect-time validation of `fpss.ring_size` is unchanged.
+    const cfg = mod.Config.production();
+    assert.throws(
+      () => cfg.setFpssRingSize(100),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'a non-power-of-two ring size must reclassify to InvalidParameterError',
+    );
+  });
+
+  it('setFpssRingSize accepts a valid power-of-two >= 64', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    const cfg = mod.Config.production();
+    assert.doesNotThrow(
+      () => cfg.setFpssRingSize(65536),
+      'a valid power-of-two ring size must be accepted',
+    );
+  });
+
+  it('setReconnectWaitMs keeps an integer-domain overflow as a plain Error', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    // A value too large for u64 is a representation overflow, not an
+    // invalid parameter: Python raises the built-in OverflowError here,
+    // so TypeScript intentionally leaves it a plain Error rather than
+    // inventing a typed class the parity binding does not raise.
+    const cfg = mod.Config.production();
+    assert.throws(
+      () => cfg.setReconnectWaitMs(2n ** 70n),
+      (err) => err instanceof Error && !(err instanceof mod.InvalidParameterError),
+      'an integer-domain overflow must stay a plain Error, not reclassify',
+    );
+  });
+});
+
+describe('FLATFILES enum-parse input-validation parity (native)', () => {
+  it('flatFiles.request with an unknown sec_type throws InvalidParameterError', async (t) => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const tdx = tryConnect(mod);
+    if (!tdx) {
+      t.skip('no credentials available to build a client for the FLATFILES surface');
+      return;
+    }
+
+    assert.throws(
+      () => tdx.flatFiles.request('BOGUS', 'QUOTE', '20260102'),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'an unknown flat-file sec_type must reclassify to InvalidParameterError, matching the Python ValueError',
+    );
+  });
+
+  it('flatFileToPath with an unknown req_type throws InvalidParameterError', async (t) => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const tdx = tryConnect(mod);
+    if (!tdx) {
+      t.skip('no credentials available to build a client for the FLATFILES surface');
+      return;
+    }
+
+    assert.throws(
+      () => tdx.flatFileToPath('OPTION', 'BOGUS', '20260102', '/tmp/thetadatadx-test.csv'),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'an unknown flat-file req_type must reclassify to InvalidParameterError',
+    );
   });
 });

@@ -33,7 +33,7 @@ fn parse_flatfile_sec_type(sec: &str) -> napi::Result<SecType> {
         "OPTION" => Ok(SecType::Option),
         "STOCK" => Ok(SecType::Stock),
         "INDEX" => Ok(SecType::Index),
-        other => Err(napi::Error::from_reason(format!(
+        other => Err(crate::invalid_parameter_err(format!(
             "unknown flat-file sec_type: {other:?} (expected OPTION, STOCK, or INDEX)"
         ))),
     }
@@ -47,7 +47,7 @@ fn parse_flatfile_req_type(req: &str) -> napi::Result<ReqType> {
         "OHLC" => Ok(ReqType::Ohlc),
         "TRADE" => Ok(ReqType::Trade),
         "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(napi::Error::from_reason(format!(
+        other => Err(crate::invalid_parameter_err(format!(
             "unknown flat-file req_type: {other:?} (expected EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE, TRADE_QUOTE)"
         ))),
     }
@@ -57,7 +57,7 @@ fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
     match fmt.unwrap_or("csv").to_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
         "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
-        other => Err(napi::Error::from_reason(format!(
+        other => Err(crate::invalid_parameter_err(format!(
             "unknown flat-file format: {other:?} (expected csv or jsonl)"
         ))),
     }
