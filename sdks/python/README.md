@@ -154,6 +154,8 @@ with tdx.streaming(on_event) as session:
     session.subscribe_many([option.quote(), option.trade(), option.open_interest()])
 ```
 
+The option constructor is `Contract.option(symbol, *, expiration, strike, right)` — the leg parameters are keyword-only, so the call site always reads `expiration=…, strike=…, right=…` and never depends on argument order. Pair it with `Contract.stock(symbol)` for equities.
+
 Or take a whole-market feed — every option trade across the universe, no per-contract setup:
 
 ```python

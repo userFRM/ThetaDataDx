@@ -171,7 +171,7 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
   // the camelCase parity of the Python `*_timestamp_ms` property and the
   // C++ `tdx::timestamp_ms` free function. The value is Unix epoch
   // milliseconds (UTC, DST-aware), computed once at conversion time
-  // through the one shared core (`tdbe::time::date_ms_to_epoch_ms`); the
+  // through the one shared core (`thetadatadx::time::date_ms_to_epoch_ms`); the
   // raw milliseconds-of-day columns stay primary and the field is
   // optional (`undefined` when `date` is absent). These assertions pin
   // the JS-visible shape — name, `bigint` type, optionality — so a
@@ -242,7 +242,7 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
 
   it('every epoch field is computed through the one shared DST-aware core, not reimplemented', () => {
     // The generated factory resolves each accessor by calling the same
-    // `tdbe::time::date_ms_to_epoch_ms(date, ms_of_day)` the Python
+    // `thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)` the Python
     // property and the `tdx_timestamp_ms` FFI route through — the single
     // DST-aware implementation. No binding reimplements the Eastern-Time
     // offset rules, so the epoch value is identical across a DST boundary
@@ -253,7 +253,7 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
       resolve(__dirname, '..', 'src', '_generated', 'tick_classes.rs'),
       'utf8'
     );
-    const assignments = factorySrc.match(/\w*timestamp_ms:\s*tdbe::time::date_ms_to_epoch_ms\([^)]*\)\.map\(BigInt::from\)/g);
+    const assignments = factorySrc.match(/\w*timestamp_ms:\s*thetadatadx::time::date_ms_to_epoch_ms\([^)]*\)\.map\(BigInt::from\)/g);
     assert.ok(assignments, 'expected generated timestamp_ms factory assignments');
     // 1 created + 1 last_trade + 19 timestamp_ms + 11 underlying + 1 quote
     // = 33 epoch-millisecond fields, one per (date, *_ms_of_day) pair.
