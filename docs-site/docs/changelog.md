@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The C ABI now installs the ring rustls `CryptoProvider` from each connect entrypoint (`tdx_client_connect`, `tdx_unified_connect`, `tdx_fpss_connect`). A C ABI library has no module-init hook, so consumers linking the shared library — the C++ binding among them — previously hit an unconfigured-provider panic on the first TLS handshake and could not open a connection. The Python, TypeScript, CLI, and server entrypoints already installed it at load time.
+- The CLI's raw OHLC output (`--format json-raw` / `csv`) emits the `vwap` value in its own column. The raw value row was one field short of its header set, so `vwap` was dropped and `date`, `expiration`, `strike`, and `right` rendered under the wrong column names. The typed SDK surfaces and the CLI's presentation `json` were unaffected.
+
 ## [12.0.0] - 2026-06-04
 
 ### Breaking changes

@@ -616,6 +616,7 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
                 raw_f64(t.close),
                 raw_i64(t.volume),
                 raw_i64(t.count),
+                raw_f64(t.vwap),
                 raw_date(t.date),
                 raw_i32(t.expiration),
                 raw_f64(t.strike),
@@ -1861,7 +1862,9 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{raw_date, raw_f64, raw_i32, raw_ms, raw_right_label, OutputFormat, TabularData};
+    use super::{
+        raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label, OutputFormat, TabularData,
+    };
     use sonic_rs::JsonValueTrait;
 
     #[test]
@@ -1955,6 +1958,55 @@ mod tests {
         assert_eq!(td.raw_headers.len(), 6);
         assert_eq!(td.raw_rows[0].len(), 6);
         assert_eq!(td.raw_headers[0], "ms_of_day"); // canonical, not "time"
+    }
+
+    #[test]
+    fn ohlc_raw_row_matches_header_set_with_vwap_in_place() {
+        // The raw OHLC row must carry exactly one value per raw header,
+        // with `vwap` between `count` and `date`. A short row pairs by
+        // position and silently shifts every later column — the
+        // `push_with_raw` length guard is a `debug_assert`, compiled out
+        // in release, so only this test catches a release-mode drift.
+        use super::OHLC_TICK_RAW_HEADERS;
+        let tick = tdbe::types::tick::OhlcTick {
+            ms_of_day: 34_200_000,
+            open: 309.625,
+            high: 310.94,
+            low: 307.8,
+            close: 307.84,
+            volume: 8_697_937,
+            count: 203_083,
+            vwap: 309.64,
+            date: 20_260_601,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        };
+        let raw = vec![
+            raw_ms(tick.ms_of_day),
+            raw_f64(tick.open),
+            raw_f64(tick.high),
+            raw_f64(tick.low),
+            raw_f64(tick.close),
+            raw_i64(tick.volume),
+            raw_i64(tick.count),
+            raw_f64(tick.vwap),
+            raw_date(tick.date),
+            raw_i32(tick.expiration),
+            raw_f64(tick.strike),
+            raw_right_label(tick.is_call(), tick.is_put()),
+        ];
+        assert_eq!(raw.len(), OHLC_TICK_RAW_HEADERS.len());
+        let vwap_idx = OHLC_TICK_RAW_HEADERS
+            .iter()
+            .position(|h| *h == "vwap")
+            .expect("vwap header present");
+        assert_eq!(raw[vwap_idx].as_f64(), Some(309.64));
+        let date_idx = OHLC_TICK_RAW_HEADERS
+            .iter()
+            .position(|h| *h == "date")
+            .expect("date header present");
+        assert_eq!(raw[date_idx].as_i64(), Some(20_260_601));
     }
 
     #[test]
