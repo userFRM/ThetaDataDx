@@ -132,7 +132,7 @@ The [server binary](/server/) bridges the stream onto a local WebSocket — see 
 
 Build a typed subscription from a `Contract` (per-contract scope) or a `SecType` (full-stream scope), then pass it to `subscribe` / `unsubscribe`:
 
-- Per contract: `Contract.stock("AAPL")`, `Contract.option("SPY", "20260618", "570", "C")`, `Contract.index("SPX")` — then `.quote()`, `.trade()`, or `.open_interest()`.
+- Per contract: `Contract.stock("AAPL")`, `Contract.option("SPY", { expiration: "20260618", strike: "570", right: "C" })`, `Contract.index("SPX")` — then `.quote()`, `.trade()`, or `.open_interest()`. The option leg is named (a keyword argument in Python, an options object in TypeScript, a struct in Rust / C++) so a swapped expiration/strike/right cannot pass silently.
 - Full stream (every contract of a security type, stocks and options only): `SecType` + `.full_trades()` / `.full_open_interest()`.
 - `subscribe_many([...])` installs a batch in one call; `active_subscriptions()` snapshots what is installed.
 

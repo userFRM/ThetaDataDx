@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
 use thetadatadx::fpss::protocol::test_wire::{build_credentials_payload, build_subscribe_payload};
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::fpss::protocol::{Contract, OptionLeg};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FPSS protocol benchmarks
@@ -18,7 +18,15 @@ fn bench_contract_stock_to_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_option_to_bytes(c: &mut Criterion) {
-    let contract = Contract::option("SPY", "20261218", "60", "C").unwrap();
+    let contract = Contract::option(
+        "SPY",
+        OptionLeg {
+            expiration: "20261218",
+            strike: "60",
+            right: "C",
+        },
+    )
+    .unwrap();
     c.bench_function("contract_option_to_bytes", |b| {
         b.iter(|| {
             black_box(black_box(&contract).to_bytes());
@@ -27,7 +35,15 @@ fn bench_contract_option_to_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_from_bytes(c: &mut Criterion) {
-    let contract = Contract::option("SPY", "20261218", "60", "C").unwrap();
+    let contract = Contract::option(
+        "SPY",
+        OptionLeg {
+            expiration: "20261218",
+            strike: "60",
+            right: "C",
+        },
+    )
+    .unwrap();
     let bytes = contract.to_bytes();
     c.bench_function("contract_from_bytes", |b| {
         b.iter(|| {
@@ -37,7 +53,15 @@ fn bench_contract_from_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_roundtrip(c: &mut Criterion) {
-    let contract = Contract::option("AAPL", "20261220", "17.5", "P").unwrap();
+    let contract = Contract::option(
+        "AAPL",
+        OptionLeg {
+            expiration: "20261220",
+            strike: "17.5",
+            right: "P",
+        },
+    )
+    .unwrap();
     c.bench_function("contract_roundtrip", |b| {
         b.iter(|| {
             let bytes = black_box(&contract).to_bytes();
@@ -59,7 +83,15 @@ fn bench_build_credentials_payload(c: &mut Criterion) {
 }
 
 fn bench_build_subscribe_payload(c: &mut Criterion) {
-    let contract = Contract::option("SPY", "20261218", "60", "C").unwrap();
+    let contract = Contract::option(
+        "SPY",
+        OptionLeg {
+            expiration: "20261218",
+            strike: "60",
+            right: "C",
+        },
+    )
+    .unwrap();
     c.bench_function("build_subscribe_payload", |b| {
         b.iter(|| {
             let _ = black_box(build_subscribe_payload(black_box(42), black_box(&contract)));

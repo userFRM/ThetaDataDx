@@ -27,7 +27,7 @@ describe('toString on the fluent value classes', () => {
   it('ContractRef renders symbol and option identity', () => {
     assert.equal(Contract.stock('AAPL').toString(), 'AAPL STOCK');
     assert.equal(
-      Contract.option('SPY', '20260620', '550', 'C').toString(),
+      Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' }).toString(),
       'SPY OPTION 20260620 C 550000'
     );
   });
@@ -38,7 +38,7 @@ describe('toString on the fluent value classes', () => {
   });
 
   it('Subscription renders scope, kind, and contract', () => {
-    const perContract = Contract.option('SPY', '20260620', '550', 'C').trade();
+    const perContract = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' }).trade();
     assert.equal(perContract.toString(), 'Subscription(Trade, SPY OPTION 20260620 C 550000)');
     const full = SecType.option().fullOpenInterest();
     assert.equal(full.toString(), 'Subscription(full OpenInterest, Option)');

@@ -31,7 +31,7 @@ TEST_CASE("FluentContract renders symbol and option identity", "[fluent][offline
     REQUIRE(render(stock) == "AAPL STOCK");
     REQUIRE(tdx::str(stock) == "AAPL STOCK");
 
-    const auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
+    const auto option = tdx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"});
     REQUIRE(render(option) == "SPY OPTION 20260620 C 550");
     REQUIRE(tdx::str(option) == "SPY OPTION 20260620 C 550");
 }
@@ -44,7 +44,7 @@ TEST_CASE("FluentSecType renders its symbolic name", "[fluent][offline]") {
 }
 
 TEST_CASE("FluentSubscription renders scope, kind, and contract", "[fluent][offline]") {
-    const auto per_contract = tdx::Contract::option("SPY", "20260620", "550", "C").trade();
+    const auto per_contract = tdx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"}).trade();
     REQUIRE(tdx::str(per_contract) == "Subscription(Trade, SPY OPTION 20260620 C 550)");
 
     const auto stock_quote = tdx::Contract::stock("AAPL").quote();

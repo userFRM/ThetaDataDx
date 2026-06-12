@@ -967,7 +967,7 @@ exp    = "${exp()}"
 strikes = client.option_list_strikes(symbol, exp)
 for strike in strikes:
     for right in ["C", "P"]:
-        client.subscribe(Contract.option(symbol, exp, strike, right).quote())
+        client.subscribe(Contract.option(symbol, expiration=exp, strike=strike, right=right).quote())
 
 print(f"Live chain: {symbol} {exp}  ({len(strikes) * 2} contracts)")
 print(f"{'Contract':<30}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
@@ -1361,8 +1361,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let strikes = client.option_list_strikes(symbol, exp).await?;
     for strike in &strikes {
         let strike_str = strike.to_string();
-        client.subscribe(Contract::option(symbol, exp, &strike_str, "C")?.quote())?;
-        client.subscribe(Contract::option(symbol, exp, &strike_str, "P")?.quote())?;
+        client.subscribe(Contract::option(symbol, OptionLeg { expiration: exp, strike: &strike_str, right: "C" })?.quote())?;
+        client.subscribe(Contract::option(symbol, OptionLeg { expiration: exp, strike: &strike_str, right: "P" })?.quote())?;
     }
     println!("Live chain: {} {}  ({} contracts)", symbol, exp, strikes.len() * 2);
 

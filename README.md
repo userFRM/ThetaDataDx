@@ -140,9 +140,10 @@ client.startStreaming((event) => {
   }
 });
 
+const leg = { expiration: '20260619', strike: '550', right: 'C' };
 client.subscribeMany([
-  Contract.option('SPY', '20260619', '550', 'C').quote(),
-  Contract.option('SPY', '20260619', '550', 'C').trade(),
+  Contract.option('SPY', leg).quote(),
+  Contract.option('SPY', leg).trade(),
 ]);
 ```
 
@@ -200,7 +201,7 @@ tdx.start_streaming(|event: &FpssEvent| {
 })?;
 
 let stock  = Contract::stock("AAPL");
-let option = Contract::option("SPY", "20260620", "550", "C")?;
+let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
 tdx.subscribe(stock.quote())?;
 tdx.subscribe(option.trade())?;
 ```

@@ -427,12 +427,16 @@ export declare class ContractRef {
   /** Construct an index contract. */
   static index(symbol: string): ContractRef
   /**
-   * Construct an option contract. `right` accepts `"C"` / `"CALL"`
-   * / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
-   * dollars and accepts a number or a string (`550`, `550.5`, and
-   * `"550"` are equivalent).
+   * Construct an option contract. The expiration / strike / right
+   * travel in a single `OptionLeg` object with named keys —
+   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
+   * right: "C" })` — rather than as adjacent positional strings, so a
+   * swapped expiration/strike/right pair cannot pass silently. `right`
+   * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
+   * `strike` is the price in dollars as a number or string (`550`,
+   * `550.5`, and `"550"` are equivalent).
    */
-  static option(symbol: string, expiration: string, strike: number | string, right: string): ContractRef
+  static option(symbol: string, leg: OptionLeg): ContractRef
   /** Per-contract Quote subscription. */
   quote(): Subscription
   /** Per-contract Trade subscription. */
@@ -2910,6 +2914,30 @@ export interface OptionHistoryTradeQuoteOptions {
    * rejects and the underlying request is cancelled.
    */
   timeoutMs?: number
+}
+
+/**
+ * The expiration / strike / right of an option leg, passed to
+ * `Contract.option(symbol, leg)` as a single object with named keys.
+ *
+ * Naming the three values — all of which are strings — keeps the
+ * contract identity non-transposable: `{ expiration, strike, right }`
+ * cannot silently accept a swapped pair the way three adjacent
+ * positional string arguments could.
+ */
+export interface OptionLeg {
+  /** Expiration date as `YYYYMMDD` (e.g. `"20260620"`). */
+  expiration: string
+  /**
+   * Strike price in dollars, as a number or string (`550`, `550.5`,
+   * `"550"` are equivalent).
+   */
+  strike: number | string
+  /**
+   * Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+   * (case-insensitive).
+   */
+  right: string
 }
 
 /**

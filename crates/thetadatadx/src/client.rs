@@ -823,11 +823,11 @@ impl ThetaDataDxClient {
     ///
     /// ```rust,no_run
     /// # use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
-    /// # use thetadatadx::fpss::protocol::{Contract, SecTypeExt};
+    /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
     /// # use tdbe::types::enums::SecType;
     /// # async fn doc(client: &ThetaDataDxClient) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
-    /// let option = Contract::option("SPY", "20260620", "550", "C")?;
+    /// let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
     /// client.subscribe(stock.quote())?;
     /// client.subscribe(option.trade())?;
     /// client.subscribe(SecType::Option.full_trades())?;
@@ -1574,6 +1574,8 @@ fn downcast_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::fpss::protocol::OptionLeg;
+
     use super::*;
 
     /// Lightweight stand-in for `StreamingSlot` carrying just enough
@@ -1983,7 +1985,15 @@ mod tests {
     #[test]
     fn subscribe_dispatch_routes_per_contract_kinds() {
         let aapl = Contract::stock("AAPL");
-        let opt = Contract::option("SPY", "20260620", "550", "C").unwrap();
+        let opt = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "550",
+                right: "C",
+            },
+        )
+        .unwrap();
         assert!(matches!(
             dispatch_probe(aapl.quote()),
             DispatchProbe::ContractQuote(c) if &*c.symbol == "AAPL"

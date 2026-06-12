@@ -170,7 +170,8 @@ int main(int argc, char** argv) {
 
         // Fluent contract-first subscriptions.
         auto stock = tdx::Contract::stock(kSymbol);
-        auto option = tdx::Contract::option(kOptionSymbol, kExpiration, kStrike, kRight);
+        auto option = tdx::Contract::option(
+            kOptionSymbol, {.expiration = kExpiration, .strike = kStrike, .right = kRight});
         fpss.subscribe(stock.quote());
         fpss.subscribe(stock.trade());
         fpss.subscribe(option.quote());

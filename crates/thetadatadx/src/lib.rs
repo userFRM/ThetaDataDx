@@ -341,7 +341,7 @@ pub mod mimalloc {
 /// let creds  = Credentials::from_file("creds.txt")?;
 /// let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 /// let stock  = Contract::stock("AAPL");
-/// let option = Contract::option("SPX", "20260620", "5400", "C")?;
+/// let option = Contract::option("SPX", OptionLeg { expiration: "20260620", strike: "5400", right: "C" })?;
 /// client.subscribe(stock.quote())?;
 /// client.subscribe(option.trade())?;
 /// client.subscribe(SecType::Option.full_trades())?;
@@ -353,7 +353,7 @@ pub mod prelude {
     pub use crate::config::DirectConfig;
     pub use crate::error::Error;
     pub use crate::fpss::protocol::{
-        Contract, FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind,
+        Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
     };
     pub use tdbe::types::enums::SecType;
 }

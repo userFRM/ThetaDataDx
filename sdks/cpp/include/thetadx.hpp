@@ -1907,6 +1907,24 @@ private:
     bool is_option_{false};
 };
 
+/// The expiration / strike / right of an option leg, passed to
+/// `FluentContract::option(symbol, leg)` by name.
+///
+/// All three are strings, so a positional `(expiration, strike, right)`
+/// argument list lets a transposed pair compile silently. Passing them as
+/// named members — ideally via designated initialisers,
+/// `tdx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
+/// "C"}` — makes the contract identity non-transposable.
+struct OptionLeg {
+    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    std::string expiration;
+    /// Strike price in dollars (e.g. `"550"` or `"550.50"`).
+    std::string strike;
+    /// Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    std::string right;
+};
+
 /// Fluent contract identifier — stock or option.
 class FluentContract {
 public:
@@ -1920,12 +1938,16 @@ public:
     static FluentContract index(std::string symbol) {
         return FluentContract{std::move(symbol), false, "", "", ""};
     }
-    /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
-    /// / `"P"` / `"PUT"` (case-insensitive).
-    static FluentContract option(std::string symbol, std::string expiration,
-                                  std::string strike, std::string right) {
-        return FluentContract{std::move(symbol), true, std::move(expiration),
-                              std::move(strike), std::move(right)};
+    /// Construct an option contract. The expiration / strike / right
+    /// travel in a single `OptionLeg` with named members —
+    /// `Contract::option("SPY", {.expiration = "20260620", .strike =
+    /// "550", .right = "C"})` — rather than as adjacent positional
+    /// strings, so a swapped expiration/strike/right pair cannot pass
+    /// silently. `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    static FluentContract option(std::string symbol, OptionLeg leg) {
+        return FluentContract{std::move(symbol), true, std::move(leg.expiration),
+                              std::move(leg.strike), std::move(leg.right)};
     }
 
     FluentSubscription quote() const {

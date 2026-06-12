@@ -95,6 +95,25 @@ impl SecType {
     }
 }
 
+/// The expiration / strike / right of an option leg, passed to
+/// `Contract.option(symbol, leg)` as a single object with named keys.
+///
+/// Naming the three values — all of which are strings — keeps the
+/// contract identity non-transposable: `{ expiration, strike, right }`
+/// cannot silently accept a swapped pair the way three adjacent
+/// positional string arguments could.
+#[napi(object)]
+pub struct OptionLeg {
+    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    pub expiration: String,
+    /// Strike price in dollars, as a number or string (`550`, `550.5`,
+    /// `"550"` are equivalent).
+    pub strike: Either<f64, String>,
+    /// Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    pub right: String,
+}
+
 /// Fluent contract identifier — stock or option.
 ///
 /// Exposed to JS as `ContractRef` (the bare `Contract` name on the JS
@@ -127,24 +146,30 @@ impl ContractRef {
         Self::from_inner(protocol::Contract::index(&symbol))
     }
 
-    /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
-    /// / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
-    /// dollars and accepts a number or a string (`550`, `550.5`, and
-    /// `"550"` are equivalent).
+    /// Construct an option contract. The expiration / strike / right
+    /// travel in a single `OptionLeg` object with named keys —
+    /// `Contract.option("SPY", { expiration: "20260620", strike: "550",
+    /// right: "C" })` — rather than as adjacent positional strings, so a
+    /// swapped expiration/strike/right pair cannot pass silently. `right`
+    /// accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
+    /// `strike` is the price in dollars as a number or string (`550`,
+    /// `550.5`, and `"550"` are equivalent).
     #[napi(factory)]
-    pub fn option(
-        symbol: String,
-        expiration: String,
-        strike: Either<f64, String>,
-        right: String,
-    ) -> napi::Result<Self> {
-        let strike = match strike {
+    pub fn option(symbol: String, leg: OptionLeg) -> napi::Result<Self> {
+        let strike = match leg.strike {
             Either::A(dollars) => dollars.to_string(),
             Either::B(text) => text,
         };
-        protocol::Contract::option(&symbol, &expiration, &strike, &right)
-            .map(Self::from_inner)
-            .map_err(|e| napi::Error::from_reason(e.to_string()))
+        protocol::Contract::option(
+            &symbol,
+            protocol::OptionLeg {
+                expiration: &leg.expiration,
+                strike: &strike,
+                right: &leg.right,
+            },
+        )
+        .map(Self::from_inner)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
     }
 
     /// Per-contract Quote subscription.

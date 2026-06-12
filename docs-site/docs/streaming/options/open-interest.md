@@ -25,7 +25,7 @@ tdx.start_streaming(|event: &FpssEvent| {
     }
 })?;
 
-let sub = Contract::option("SPY", "20260618", "570", "C")?.open_interest();
+let sub = Contract::option("SPY", OptionLeg { expiration: "20260618", strike: "570", right: "C" })?.open_interest();
 tdx.subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
@@ -45,7 +45,7 @@ def on_event(event):
 
 tdx.start_streaming(on_event)
 
-sub = Contract.option("SPY", "20260618", "570", "C").open_interest()
+sub = Contract.option("SPY", expiration="20260618", strike="570", right="C").open_interest()
 tdx.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
@@ -66,7 +66,7 @@ tdx.startStreaming((event) => {
   }
 });
 
-const sub = Contract.option('SPY', '20260618', '570', 'C').openInterest();
+const sub = Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).openInterest();
 tdx.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
@@ -85,7 +85,7 @@ client.set_callback([](const tdx::FpssEvent& event) {
     }
 });
 
-auto sub = tdx::Contract::option("SPY", "20260618", "570", "C").open_interest();
+auto sub = tdx::Contract::option("SPY", {.expiration = "20260618", .strike = "570", .right = "C"}).open_interest();
 client.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.

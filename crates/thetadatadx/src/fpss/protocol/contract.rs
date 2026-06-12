@@ -19,6 +19,35 @@ use crate::error::Error;
 // Contract
 // ---------------------------------------------------------------------------
 
+/// The expiration / strike / right of an option leg, passed by name to
+/// [`Contract::option`].
+///
+/// All three are strings, so a positional `(expiration, strike, right)`
+/// argument list lets a transposed pair compile silently. Taking them as
+/// named struct fields makes the contract identity non-transposable: the
+/// caller spells each field, so a swap is a visible mislabel rather than a
+/// silent positional error.
+///
+/// ```
+/// use thetadatadx::fpss::protocol::{Contract, OptionLeg};
+///
+/// let c = Contract::option(
+///     "SPY",
+///     OptionLeg { expiration: "20260417", strike: "550", right: "C" },
+/// )?;
+/// assert_eq!(c.expiration, Some(20_260_417));
+/// # Ok::<(), thetadatadx::Error>(())
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OptionLeg<'a> {
+    /// Expiration date as `YYYYMMDD` (dashes are stripped before parsing).
+    pub expiration: &'a str,
+    /// Strike price in dollars (e.g. `"550"` or `"550.50"`).
+    pub strike: &'a str,
+    /// Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive).
+    pub right: &'a str,
+}
+
 /// A contract identifier for FPSS subscriptions.
 ///
 /// Matches the wire format from `Contract.java`:
@@ -100,20 +129,21 @@ impl Contract {
 
     /// Create an option contract from string-formatted parameters.
     ///
-    /// # Arguments
-    /// - `symbol`: Underlying ticker (e.g., `"AAPL"`)
-    /// - `expiration`: Expiration date as `YYYYMMDD` (dashes stripped)
-    /// - `strike`: Strike price in dollars (e.g., `"550"` or `"550.50"`)
-    /// - `right`: `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive)
+    /// The expiration / strike / right travel as a named [`OptionLeg`] so
+    /// the contract identity cannot be transposed: all three are strings,
+    /// and a positional list would let a swapped pair compile silently.
     ///
     /// For callers that already hold wire-format integer triples (e.g.
     /// the in-process WS server parsing the JSON wire format), use
     /// [`Self::option_raw`] instead.
     ///
     /// ```
-    /// use thetadatadx::fpss::protocol::Contract;
+    /// use thetadatadx::fpss::protocol::{Contract, OptionLeg};
     ///
-    /// let c = Contract::option("SPY", "20260417", "550", "C")?;
+    /// let c = Contract::option(
+    ///     "SPY",
+    ///     OptionLeg { expiration: "20260417", strike: "550", right: "C" },
+    /// )?;
     /// assert_eq!(&*c.symbol, "SPY");
     /// assert_eq!(c.expiration, Some(20_260_417));
     /// assert_eq!(c.is_call, Some(true));
@@ -126,12 +156,12 @@ impl Contract {
     /// Returns [`Error::Config`] on validation failure: unparseable
     /// expiration, non-strict right value, unparseable strike, or
     /// strike outside `i32` range after `*1000` scaling.
-    pub fn option(
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<Self, Error> {
+    pub fn option(symbol: &str, leg: OptionLeg<'_>) -> Result<Self, Error> {
+        let OptionLeg {
+            expiration,
+            strike,
+            right,
+        } = leg;
         let exp: i32 = expiration.replace('-', "").parse().map_err(|e| {
             Error::config_invalid(
                 "contract.expiration",
@@ -204,8 +234,8 @@ impl Contract {
     /// option carries `strike_thousandths == Some(5_400_000)`); this
     /// accessor divides by `1000.0` so user code reads the dollar
     /// notation it writes when calling
-    /// `Contract::option(.., strike="5400.00", ..)`. Returns `None`
-    /// for non-option contracts.
+    /// `Contract::option("SPX", OptionLeg { strike: "5400.00", .. })`.
+    /// Returns `None` for non-option contracts.
     #[must_use]
     pub fn strike_dollars(&self) -> Option<f64> {
         self.strike_thousandths.map(|s| f64::from(s) / 1000.0)
@@ -833,7 +863,15 @@ mod tests {
 
     #[test]
     fn option_contract_roundtrip() {
-        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
+        let c = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20261218",
+                strike: "60",
+                right: "C",
+            },
+        )
+        .unwrap();
         let bytes = c.to_bytes();
         // 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15.
         assert_eq!(bytes.len(), 15);
@@ -876,7 +914,15 @@ mod tests {
 
     #[test]
     fn contract_display_option() {
-        let c = Contract::option("SPY", "20261218", "45", "P").unwrap();
+        let c = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20261218",
+                strike: "45",
+                right: "P",
+            },
+        )
+        .unwrap();
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
@@ -901,7 +947,15 @@ mod tests {
         // root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000.
         // Allocates 12 + 3 = 15 bytes.
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
-        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
+        let c = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20261218",
+                strike: "60",
+                right: "C",
+            },
+        )
+        .unwrap();
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 15); // size byte = 12 + root.length()
         assert_eq!(bytes[1], 3); // root_len
@@ -929,19 +983,43 @@ mod tests {
     #[test]
     fn option_rejects_invalid_strike() {
         // Garbage strike string -- must return Err, not panic.
-        assert!(Contract::option("SPY", "20261218", "not-a-number", "C").is_err());
+        assert!(Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20261218",
+                strike: "not-a-number",
+                right: "C"
+            }
+        )
+        .is_err());
     }
 
     #[test]
     fn option_rejects_overflowing_strike() {
         // Strike * 1000 exceeds i32::MAX. Must return Err, not wrap silently.
-        assert!(Contract::option("SPY", "20261218", "3000000", "C").is_err());
+        assert!(Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20261218",
+                strike: "3000000",
+                right: "C"
+            }
+        )
+        .is_err());
     }
 
     #[test]
     fn option_rejects_invalid_expiration() {
         // Non-numeric expiration -- must return Err, not panic.
-        assert!(Contract::option("SPY", "not-a-date", "60", "C").is_err());
+        assert!(Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "not-a-date",
+                strike: "60",
+                right: "C"
+            }
+        )
+        .is_err());
     }
 
     #[test]
@@ -951,7 +1029,15 @@ mod tests {
         // to the canonical Gregorian validator.
         for bad in ["00000000", "20260230", "19990431", "21010101", "18991231"] {
             assert!(
-                Contract::option("SPY", bad, "60", "C").is_err(),
+                Contract::option(
+                    "SPY",
+                    OptionLeg {
+                        expiration: bad,
+                        strike: "60",
+                        right: "C"
+                    }
+                )
+                .is_err(),
                 "expected impossible expiration {bad} to be rejected",
             );
         }

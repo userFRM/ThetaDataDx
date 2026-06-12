@@ -138,9 +138,16 @@ impl PyContract {
     #[staticmethod]
     #[pyo3(signature = (symbol, *, expiration, strike, right))]
     fn option(symbol: &str, expiration: &str, strike: StrikeArg, right: &str) -> PyResult<Self> {
-        protocol::Contract::option(symbol, expiration, &strike.into_string(), right)
-            .map(Self::from_inner)
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+        protocol::Contract::option(
+            symbol,
+            protocol::OptionLeg {
+                expiration,
+                strike: &strike.into_string(),
+                right,
+            },
+        )
+        .map(Self::from_inner)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Per-contract Quote subscription.

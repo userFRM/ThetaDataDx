@@ -116,10 +116,10 @@ describe('historical methods resolve off the execution thread', () => {
 describe('strike is dollars everywhere', () => {
   it('fluent builder accepts number | string and reads dollars back', () => {
     for (const strike of [550, '550']) {
-      const option = addon.ContractRef.option('SPY', '20260618', strike, 'C');
+      const option = addon.ContractRef.option('SPY', { expiration: '20260618', strike: strike, right: 'C' });
       assert.equal(option.strike, 550);
     }
-    const cents = addon.ContractRef.option('SPX', '20260618', '5400.50', 'P');
+    const cents = addon.ContractRef.option('SPX', { expiration: '20260618', strike: '5400.50', right: 'P' });
     assert.equal(cents.strike, 5400.5);
     assert.equal(cents.expiration, 20260618);
     assert.equal(cents.right, 'P');
@@ -167,7 +167,7 @@ describe('EOD and calendar row shapes', () => {
 
 describe('subscription getters', () => {
   it('per-contract subscriptions expose the bound contract; full streams expose secType', () => {
-    const option = addon.ContractRef.option('SPY', '20260618', 550, 'C');
+    const option = addon.ContractRef.option('SPY', { expiration: '20260618', strike: 550, right: 'C' });
     const sub = option.quote();
     assert.equal(sub.isFull, false);
     assert.equal(sub.contract.symbol, 'SPY');
