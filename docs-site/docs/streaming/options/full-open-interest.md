@@ -18,7 +18,7 @@ The snippets below assume a connected client with streaming started — see [Get
 ```rust
 use thetadatadx::fpss::protocol::SecTypeExt;
 use thetadatadx::fpss::{FpssData, FpssEvent};
-use tdbe::types::enums::SecType;
+use thetadatadx::SecType;
 
 tdx.start_streaming(|event: &FpssEvent| {
     if let FpssEvent::Data(FpssData::OpenInterest { contract, open_interest, .. }) = event {

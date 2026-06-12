@@ -255,7 +255,7 @@ common `ThetaDataError` base.
 | [`ffi/`](ffi/) | release artifacts | C ABI for embedders |
 | [`tools/cli`](tools/cli/) | `tdx` | Command-line client |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
