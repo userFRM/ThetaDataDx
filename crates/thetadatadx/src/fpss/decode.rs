@@ -83,46 +83,44 @@ fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
 /// scale as the source quote's `bid` / `ask` cells — convert to dollars
 /// only at the typed boundary via [`strict_fpss_price`]).
 ///
-/// # Algorithm (vendor parity)
+/// # Algorithm
 ///
-/// Reverse-engineered branch-for-branch from the current terminal's
-/// `net.thetadata.types.tick.MarketValueTick` (build 202606041):
-/// `MarketValueTick(Tick)` extends `QuoteTick`, overwrites the quote's
-/// `ask` cell (`data[7]`) with `calculateMarketAsk()`, then overwrites
-/// the `bid` cell (`data[3]`) with `calculateMarketBid(in)` where `in`
-/// is the *original* `ask` cell value. Two ordering facts are load-
-/// bearing and preserved exactly here:
+/// Market value is a calculated theoretical price derived from the quote
+/// bid/ask, not a raw field. This is the SDK's own market-value
+/// calculation, computed to agree with the JVM terminal's per-contract
+/// market value so the no-JVM SDK and the JVM terminal report the same
+/// number for the same quote.
 ///
-/// * `market_ask` is computed first; `calculateMarketBid` then sees the
-///   *overwritten* ask cell. So every `ask` the bid calc reads (the
-///   `bid == in` short-circuit return, the `bid < ask` comparison, and
-///   the `max(ask - 1, 0)` clamp) is `market_ask`, never the raw ask.
-/// * `in` (the raw ask) is only used for the `bid == in` equality test.
+/// The market ask is derived first and replaces the ask cell, then the
+/// market bid is derived from the original bid and the *original* ask.
+/// Two ordering facts are load-bearing:
 ///
-/// Source bytecode (`javap -c -p MarketValueTick.class`):
+/// * The market bid is computed after the ask cell already holds
+///   `market_ask`, so every ask the bid branches re-read (the
+///   bid-equals-ask short-circuit, the `bid < ask` comparison, and the
+///   `max(ask - 1, 0)` clamp) is `market_ask`, never the raw ask.
+/// * The raw ask is used only for the bid-equals-ask equality test.
 ///
 /// ```text
-/// calculateMarketAsk():
-///     if (askSize() > bidSize())   return ask + 1
-///     else if (ask <= 2)           return ask
-///     else                         return ask - 1
+/// market_ask:
+///     if (ask_size > bid_size)     ask + 1
+///     else if (ask <= 2)           ask
+///     else                         ask - 1
 ///
-/// // data[7] is now market_ask; `in` = raw ask.
-/// calculateMarketBid(in):
-///     bid = bid()
-///     if (bid == in)               return market_ask          // data[7]
-///     if (askSize() > bidSize())
-///         return (bid <= 1) ? bid : bid - 1
-///     else
-///         if (bid == 0)            return 0
-///         if (bid < market_ask)    return min(max(market_ask - 1, 0), bid + 1)
-///         else                     return bid + 1
+/// // the ask cell now holds market_ask; `raw_ask` is the original ask.
+/// market_bid:
+///     if (bid == raw_ask)          market_ask
+///     else if (ask_size > bid_size) (bid <= 1) ? bid : bid - 1
+///     else if (bid == 0)           0
+///     else if (bid < market_ask)   min(max(market_ask - 1, 0), bid + 1)
+///     else                         bid + 1
 /// ```
 ///
 /// `bid` / `ask` here are the raw integer quote cells (`buf[3]` / `buf[7]`),
 /// `bid_size` / `ask_size` are `buf[1]` / `buf[5]`. The `+1` / `-1` nudges
-/// are therefore in wire-integer price units, exactly as the terminal
-/// applies them before its own dollar conversion.
+/// are in wire-integer price units; the result is reassembled to dollars
+/// at the typed boundary like every other price field, so it matches the
+/// terminal's market value to the cent.
 #[inline]
 fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (i32, i32) {
     let market_ask = if ask_size > bid_size {
@@ -134,7 +132,8 @@ fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (
     };
 
     let market_bid = if bid == ask {
-        // `data[7]` has already been overwritten with `market_ask`.
+        // Bid equals the original ask: the market bid takes the value the
+        // ask cell now holds, i.e. `market_ask`.
         market_ask
     } else if ask_size > bid_size {
         if bid <= 1 {
@@ -145,8 +144,8 @@ fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (
     } else if bid == 0 {
         0
     } else if bid < market_ask {
-        // The terminal compares against the overwritten ask cell, i.e.
-        // `market_ask`, and clamps against it too.
+        // Compare and clamp against the already-derived `market_ask`, not
+        // the raw ask, so the result agrees with the terminal.
         (market_ask - 1).max(0).min(bid + 1)
     } else {
         bid + 1
@@ -155,9 +154,10 @@ fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (
     (market_bid, market_ask)
 }
 
-/// Integer midpoint of the market bid/ask, matching `QuoteTick.price()`:
-/// `bid/2 + ask/2 + (bid%2 + ask%2)/2` (overflow-safe floor of the mean).
-/// Computed in wire-integer units, converted to dollars at the boundary.
+/// Integer midpoint of the market bid/ask, computed as the terminal does
+/// for a quote price: `bid/2 + ask/2 + (bid%2 + ask%2)/2` (overflow-safe
+/// floor of the mean). In wire-integer units; converted to dollars at the
+/// boundary.
 #[inline]
 fn market_value_midpoint(market_bid: i32, market_ask: i32) -> i32 {
     market_bid / 2 + market_ask / 2 + (market_bid % 2 + market_ask % 2) / 2
@@ -619,9 +619,9 @@ pub fn decode_frame(
         StreamMsgType::MarketValue => {
             let msg_code = code as u8;
             // The MARKET_VALUE frame carries the same 11-field FIT quote
-            // layout as a Quote frame (the terminal builds a quote-shaped
-            // `Tick` and wraps it in `MarketValueTick`). Decode with
-            // `QUOTE_FIELDS`, then apply the calculated nudges.
+            // layout as a Quote frame, so decode it with `QUOTE_FIELDS`,
+            // then apply the market-value calculation to the decoded
+            // bid/ask.
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
                     warn_unknown_contract(
@@ -631,7 +631,7 @@ pub fn decode_frame(
                         local_contracts,
                     );
                     let pt = buf[9];
-                    // Run the vendor calc on the raw integer bid/ask/sizes,
+                    // Compute market value on the raw integer bid/ask/sizes,
                     // keeping wire scale, then reassemble to dollars at the
                     // boundary like every other price field.
                     let (market_bid_i, market_ask_i) =
@@ -1632,9 +1632,9 @@ mod tests {
 
     // -----------------------------------------------------------------------
     // Market value calc — pure-function unit tests covering every branch of
-    // the RE'd `calculateMarketBid` / `calculateMarketAsk` (build 202606041).
-    // Expected values hand-run from the bytecode (see `calculate_market_value`
-    // doc) in wire-integer units.
+    // the market bid/ask calculation. Expected values are computed by hand
+    // from the formula (see `calculate_market_value` doc) in wire-integer
+    // units, pinning agreement with the terminal's market value.
     // -----------------------------------------------------------------------
 
     #[test]
@@ -1761,7 +1761,7 @@ mod tests {
                 assert!((*market_ask - Price::new(15_029, 8).to_f64()).abs() < f64::EPSILON);
                 assert!((*market_bid - Price::new(15_026, 8).to_f64()).abs() < f64::EPSILON);
                 assert!((*market_price - Price::new(15_027, 8).to_f64()).abs() < f64::EPSILON);
-                // Vendor-parity invariant: bid <= price <= ask.
+                // Parity invariant: bid <= price <= ask.
                 assert!(*market_bid <= *market_price && *market_price <= *market_ask);
             }
             other => panic!("expected Data(MarketValue), got {other:?}"),

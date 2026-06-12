@@ -329,9 +329,10 @@ pub enum ReqType {
     EodOtc = 6,
     EodOtcbb = 7,
     EodTd = 8,
-    /// Calculated market value (per-contract). The terminal derives it
-    /// from the real-time bid/ask via a size-imbalance + spread-aware
-    /// nudge; this is the request type the snapshot/stream paths name.
+    /// Calculated market value (per-contract): a theoretical price
+    /// derived from the real-time bid/ask via a size-imbalance +
+    /// spread-aware nudge. This is the request type the snapshot and
+    /// stream paths name.
     MarketValue = 9,
     Default = 100,
     Quote = 101,

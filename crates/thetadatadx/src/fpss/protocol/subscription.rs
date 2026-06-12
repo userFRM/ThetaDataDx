@@ -196,11 +196,12 @@ impl Contract {
         }
     }
 
-    /// Per-contract market-value subscription.
+    /// Per-contract market-value subscription, matching the JVM
+    /// terminal's per-contract market value stream.
     ///
     /// The market value is a calculated theoretical price derived from
     /// the real-time bid/ask (see [`crate::fpss::FpssData::MarketValue`]).
-    /// The vendor offers it per-contract only — there is no full-stream
+    /// It is offered per-contract only — there is no full-stream
     /// market-value broadcast, so this lives on [`Contract`] and not on
     /// [`SecTypeExt`].
     #[must_use]
