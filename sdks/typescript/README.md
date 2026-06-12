@@ -1,16 +1,24 @@
-# thetadatadx (Node.js / TypeScript)
+# thetadatadx (TypeScript / Node.js)
 
-Drop-in Node.js SDK for ThetaData market data. Speaks ThetaData's
-wire protocols directly — historical gRPC, streaming TCP, and the
-native flat-file distribution for bulk pulls — without a JVM or a
-local proxy. Pre-built native addons for Linux x64, macOS Apple
-Silicon, and Windows x64; no Rust toolchain required on the
-consumer.
+The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
 
-Every call crosses the napi boundary into compiled Rust: gRPC,
-protobuf, zstd, FIT decoding, and TCP streaming all run natively.
+[![npm](https://img.shields.io/npm/v/thetadatadx?logo=npm)](https://www.npmjs.com/package/thetadatadx)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
+[![Node](https://img.shields.io/badge/node-20%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-> **Surface coverage:** the TypeScript binding exposes all three ThetaData surfaces — historical request/response, real-time streaming, and whole-universe daily blobs. Flat files land via `tdx.flatFiles.*()` with `.toArrowIpc()` and `.toJson()` terminals plus a `tdx.flatFileToPath(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+> [!IMPORTANT]
+> A valid [ThetaData](https://thetadata.us) subscription is required. The SDK
+> authenticates against ThetaData's Nexus API using your account credentials.
+
+## Features
+
+- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Fully typed** — every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
+- **Greeks on demand** — five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
+- **Arrow on the way out** — flat-file results emit Arrow IPC for a zero-copy handoff to `apache-arrow`.
+- **No terminal to run** — prebuilt native binaries; nothing to compile, nothing to babysit locally.
 
 ## Install
 
@@ -18,192 +26,172 @@ protobuf, zstd, FIT decoding, and TCP streaming all run natively.
 npm install thetadatadx
 ```
 
-Pre-built binaries are downloaded automatically for your platform. Supported:
-- Linux x64 (glibc)
-- macOS arm64 (Apple Silicon)
-- Windows x64 (MSVC)
+Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64 (MSVC). No Rust toolchain is required.
 
-## Usage
+## Quick start
 
-```js
-const { ThetaDataDxClient } = require('thetadatadx');
+> [!TIP]
+> Credentials can come from a `creds.txt` file (email on line 1, password on
+> line 2) via `connectFromFile`, or inline via `connect(email, password)`.
 
-async function main() {
-  // Connect (requires ThetaData credentials)
-  const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
-  // Or: const tdx = ThetaDataDxClient.connect('user@example.com', 'password');
+```typescript
+import { ThetaDataDxClient } from 'thetadatadx';
 
-  // Historical endpoints resolve a Promise of typed tick objects
-  // (`Promise<OhlcTick[]>`, `Promise<QuoteTick[]>`, ...) off the
-  // runtime's execution thread, so a fetch never holds the event loop.
-  // Await the call, then index into the array to read a per-row field.
-  const ohlc = await tdx.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
-  console.log(ohlc.length, ohlc[0].close);
+const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
 
-  // Optional parameters — including a per-call timeout — ride in the
-  // trailing options object.
-  const snap = await tdx.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
-
-  // Streaming — primary fluent contract-first API.
-  // `Contract.stock("AAPL").quote()` returns a typed `Subscription`
-  // value the polymorphic `client.subscribe(...)` accepts directly,
-  // matching the documented Rust / Python shape.
-  const stock  = ContractRef.stock('AAPL');
-  const option = ContractRef.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
-
-  await using session = await tdx.streaming((event) => {
-    if (event.kind === 'quote') {
-      console.log(event.quote.bid, event.quote.ask);
-    }
-  });
-  tdx.subscribe(stock.quote());
-  tdx.subscribe(option.trade());
-  tdx.subscribe(SecType.option().fullTrades());
-  tdx.subscribeMany([stock.quote(), option.quote()]);
-  // ...do other work; the callback fires on incoming events...
-  // `[Symbol.asyncDispose]` runs on scope exit:
-  //   stopStreaming(); await awaitDrain(5000);
-  // If the drain barrier times out, `console.warn` fires but the
-  // `using` scope still exits cleanly.
+// First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
+const greeks = await tdx.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
+for (const t of greeks.slice(0, 5)) {
+  console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
-
-main().catch(console.error);
 ```
 
-The `await using` form is the recommended API. The `StreamingSession`
-forwards every method call (`subscribe`, `subscribeMany`,
-`unsubscribe`, `unsubscribeMany`, `activeSubscriptions`,
-`droppedEventCount`, `reconnect`, ...) to the underlying `ThetaDataDxClient`
-through a `Proxy`, so adding a new method to the napi binding makes it
-callable through the session automatically -- the streaming surface is
-a single source of truth rooted in the Rust crate.
+Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
 
-For the lower-level escape hatch (e.g. cross-process lifecycle
-management, custom shutdown ordering), call the lifecycle methods
-explicitly:
+```typescript
+const eod = await tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
+console.log(eod.length, eod[0].close);
 
-```ts
-tdx.startStreaming((event) => { /* ... */ });
-tdx.subscribe(ContractRef.stock('AAPL').quote());
-// ...do other work...
+const bars = await tdx.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
+const exps = await tdx.optionListExpirations('SPY');
+
+// Optional parameters — including a per-call timeout — ride in the trailing options object
+const snap = await tdx.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
+```
+
+## Streaming
+
+Real-time quotes and trades flow through the same client. Register a callback with `startStreaming`; events are discriminated on `event.kind` and the typed payload narrows automatically:
+
+```typescript
+import { Contract, ThetaDataDxClient } from 'thetadatadx';
+
+const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+
+tdx.startStreaming((event) => {
+  if (event.kind === 'trade') {
+    const { contract, price, size } = event.trade!;
+    console.log(`${contract.symbol} trade ${price} x ${size}`);
+  } else if (event.kind === 'quote') {
+    const { contract, bid, ask } = event.quote!;
+    console.log(`${contract.symbol} quote ${bid} / ${ask}`);
+  }
+});
+
+const leg = { expiration: '20260620', strike: '550', right: 'C' };
+tdx.subscribeMany([
+  Contract.option('SPY', leg).quote(),
+  Contract.option('SPY', leg).trade(),
+]);
+```
+
+Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribeMany`. Every subscription is the same typed value, so quotes, trades, and open interest across contracts mix freely in one array:
+
+```typescript
+import { Contract, SecType } from 'thetadatadx';
+
+const stock = Contract.stock('AAPL');
+const option = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
+
+tdx.subscribe(stock.quote());
+tdx.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
+```
+
+Or take a whole-market feed — every option trade across the universe, no per-contract setup:
+
+```typescript
+import { SecType } from 'thetadatadx';
+
+tdx.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
+```
+
+When you are done, stop the stream and drain it. By the time `awaitDrain` resolves, the callback has stopped firing, so any state it closed over can be released safely:
+
+```typescript
 tdx.stopStreaming();
-// Drain barrier: by the time `awaitDrain(5000)` resolves, the
-// consumer thread is guaranteed to have finished firing the
-// callback, so the JS closure can be released without a
-// use-after-free race against the dispatcher thread.
 const drained = await tdx.awaitDrain(5000);
-if (!drained) console.warn('drain timed out');
 ```
 
-## TypeScript types
+> [!TIP]
+> On an involuntary disconnect the client recovers on its own — exponential
+> backoff with jitter, host failover, then a paced re-subscribe of every active
+> contract.
 
-Every tick type and FPSS event is emitted as a `#[napi(object)]` struct on
-the Rust side, so the full typed surface lives in `index.d.ts`
-(auto-generated by napi-rs). Import directly from the package:
+## Types
 
-```ts
-import type { OhlcTick, GreeksTick, Quote, Trade, FpssEvent } from 'thetadatadx';
+Every tick type and streaming event is exported. Import the ones you need:
+
+```typescript
+import type { OhlcTick, GreeksAllTick, Quote, Trade, FpssEvent } from 'thetadatadx';
 ```
 
-Historical endpoints return `Tick[]`. Streaming events arrive through the
-`startStreaming(callback)` registration; the callback receives a
-discriminated `FpssEvent`, narrowed on `event.kind`:
+The streaming callback receives a discriminated `FpssEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
 
-```ts
+```typescript
 tdx.startStreaming((event: FpssEvent) => {
   switch (event.kind) {
-    // Market-data ticks
-    case 'quote':         /* event.quote is Quote */                    break;
-    case 'trade':         /* event.trade is Trade */                    break;
-    case 'ohlcvc':        /* event.ohlcvc is Ohlcvc */                  break;
-    case 'open_interest': /* event.openInterest is OpenInterest */      break;
-
-    // Control / lifecycle events — one typed payload per FpssControl variant
-    case 'login_success':       /* event.loginSuccess is LoginSuccess */              break;
-    case 'contract_assigned':   /* event.contractAssigned is ContractAssigned */      break;
-    case 'req_response':        /* event.reqResponse is ReqResponse */                break;
-    case 'market_open':         /* event.marketOpen is MarketOpen */                  break;
-    case 'market_close':        /* event.marketClose is MarketClose */                break;
-    case 'server_error':        /* event.serverError is ServerError */                break;
-    case 'disconnected':        /* event.disconnected is Disconnected */              break;
-    case 'reconnecting':        /* event.reconnecting is Reconnecting */              break;
-    case 'reconnected':         /* event.reconnected is Reconnected */                break;
-    case 'error':               /* event.error is Error */                            break;
-    case 'unknown_frame':       /* event.unknownFrame is UnknownFrame */              break;
-    case 'connected':           /* event.connected is Connected */                    break;
-    case 'ping':                /* event.ping is Ping */                              break;
-    case 'reconnected_server':  /* event.reconnectedServer is ReconnectedServer */    break;
-    case 'restart':             /* event.restart is Restart */                        break;
-    case 'unknown_control':     /* event.unknownControl is UnknownControl */          break;
+    case 'trade':         /* event.trade is Trade */                break;
+    case 'quote':         /* event.quote is Quote */                break;
+    case 'ohlcvc':        /* event.ohlcvc is Ohlcvc */              break;
+    case 'open_interest': /* event.openInterest is OpenInterest */  break;
   }
 });
 ```
 
-Truncated / unrecognised wire frames are filtered before the callback
-fires and accounted on the `thetadatadx.fpss.decode_failures` metric
-counter on the Rust side; they never surface as an `FpssEvent`.
+`kind` is a string-literal union (not a `const enum`), so the type information stays self-contained under `"isolatedModules": true` and works across Vite, esbuild, ts-jest, and Next.js.
 
-The `kind` field is typed as a string-literal union narrowed by the
-generated `index.d.ts` — plain strings, not a TS `const enum`, so the
-type information stays self-contained under
-`"isolatedModules": true` and works in every toolchain including
-Vite, esbuild, ts-jest, and Next.js.
+> [!NOTE]
+> Wherever a 64-bit integer crosses the boundary it surfaces as `bigint`, not
+> `number` — `volume` and `count` on OHLC / EOD ticks, `droppedEventCount()`,
+> and `receivedAtNs` on every event. Use `42n` literals for comparisons, or
+> widen with `Number(x)` at the point of display.
 
-Each typed control payload mirrors the corresponding `FpssControl::*`
-Rust variant one-for-one — `Disconnected.reason` / `Reconnecting.reason`
-carry the `RemoveReason` discriminant as `i32`, `Reconnecting.delayMs` is
-`bigint` (`u64`), `Ping.payload` and `UnknownFrame.payload` are
-`Buffer`-backed byte arrays. Both Python and TypeScript surfaces are
-generated from `fpss_event_schema.toml`, so consumer code ports between
-the two languages without a discriminator rewrite.
+## Flat files
 
-### `bigint` fields
+Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so the binding emits Arrow IPC bytes — pair with `apache-arrow`'s `tableFromIPC` to materialise a typed `Table`:
 
-Anywhere a Rust `u64` or `i64` crosses the napi boundary it surfaces as
-JavaScript `bigint` (not `number`): `volume` and `count` on every
-OHLC / EOD tick, `droppedEventCount()` on the streaming client, and
-`received_at_ns` on every FPSS event. Use `bigint` literal syntax
-(`42n`) for comparisons or widen to `Number(x)` at the point of
-display (watch for loss of precision beyond 2^53).
+```typescript
+import { ThetaDataDxClient } from 'thetadatadx';
+import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
-## Flat Files
+const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
 
-Whole-universe daily snapshots over the legacy MDDS port. Decoded schema
-is determined at runtime by `(SecType, ReqType)`, so the binding emits
-Arrow IPC stream bytes — pair with `apache-arrow`'s `tableFromIPC` to
-materialise a typed `Table`.
-
-```ts
-import { ThetaDataDxClient } from "thetadatadx";
-import { tableFromIPC } from "apache-arrow"; // peer dep
-
-const tdx = ThetaDataDxClient.connectFromFile("creds.txt");
-
-const rows = tdx.flatFiles.optionQuote("20260428");
+const rows = tdx.flatFiles.optionQuote('20260428');
 console.log(rows.len());
 
-const ipc = rows.toArrowIpc();
-const table = tableFromIPC(ipc);
+const table = tableFromIPC(rows.toArrowIpc());
+// Or skip Arrow entirely: const json = JSON.parse(rows.toJson());
 
-// Or skip Arrow and emit a JSON array of objects
-const json = JSON.parse(rows.toJson());
+// Generic dispatcher when security type / request type come from config
+const oi = tdx.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428');
 
-// Generic dispatcher
-const oi = tdx.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
-
-// Raw vendor CSV / JSONL straight to disk
-tdx.flatFileToPath("OPTION", "QUOTE", "20260428",
-                   "/tmp/option-quote", "csv");
+// Or write the raw vendor file straight to disk
+tdx.flatFileToPath('OPTION', 'QUOTE', '20260428', '/tmp/option-quote', 'csv');
 ```
 
-Available `flatFiles.*` methods: `optionQuote`, `optionTrade`,
-`optionTradeQuote`, `optionOhlc`, `optionOpenInterest`, `optionEod`,
-`stockQuote`, `stockTrade`, `stockTradeQuote`, `stockEod`, plus
-`request(secType, reqType, date)`.
+Available `flatFiles.*` methods: `optionQuote`, `optionTrade`, `optionTradeQuote`, `optionOhlc`, `optionOpenInterest`, `optionEod`, `stockQuote`, `stockTrade`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`.
+
+## Endpoint coverage
+
+61 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+
+| Category | Endpoints | Examples |
+|---|---|---|
+| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Index | 9 | EOD, OHLC, price, snapshots |
+| Calendar | 3 | Market open/close, holidays, early closes |
+| Interest rate | 1 | EOD rate history |
+
+Every endpoint is a camelCase method on `ThetaDataDxClient`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+
+## Errors
+
+Every call rejects with a typed error under a common `ThetaDataError` base — authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest — so the same cases are catchable here exactly as they are in every other binding.
 
 ## Building from source
 
-Only needed if your platform doesn't have a pre-built binary or you want to develop locally:
+Only needed when a platform has no prebuilt binary or you are developing locally:
 
 ```bash
 cd sdks/typescript
@@ -211,11 +199,12 @@ npm install
 npm run build          # requires Rust stable + protoc
 ```
 
-## API reference
+## Documentation
 
-Every historical endpoint from `endpoint_surface.toml` is exposed as a camelCase method on `ThetaDataDxClient`. See `index.d.ts` for the complete method list with JSDoc comments.
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, flat files
+- [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
+- Community discussion on the [ThetaData Discord](https://discord.thetadata.us/)
 
-## Docs
+## License
 
-- [Main project README](../../README.md)
-- [API reference](https://userfrm.github.io/ThetaDataDx/reference/)
+Licensed under the Apache License, Version 2.0.

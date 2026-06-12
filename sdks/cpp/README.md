@@ -1,54 +1,196 @@
 # thetadatadx (C++)
 
-C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadatadx` Rust crate via the shared C FFI layer.
+The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
 
-Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://isocpp.org)
+[![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-> **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — historical request/response, real-time streaming, and whole-universe daily blobs. Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+> [!IMPORTANT]
+> A valid [ThetaData](https://thetadata.us) subscription is required. The SDK
+> authenticates against ThetaData's Nexus API using your account credentials.
 
-## Prerequisites
+## Features
 
-- C++17 compiler
-- CMake 3.16+
-- Rust toolchain (for building the FFI library)
+- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
+- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
+- **Header plus one library** — a single `thetadx.hpp` over a prebuilt C ABI shared library.
 
-## Platform Support
+## Install
 
-- Linux: CI-validated
-- macOS: CI-validated
-- Windows: CI-validated
-
-## Building
-
-First, build the Rust FFI library:
+The SDK is a single header (`sdks/cpp/include/thetadx.hpp`) over a prebuilt C ABI library. Build the library once, then point your compiler at the header and link the library.
 
 ```bash
-# From the repository root
+# Build the FFI library
 cargo build --release -p thetadatadx-ffi
+
+# Compile against the header and link the library
+g++ -std=c++17 -Isdks/cpp/include your_app.cpp \
+    -Ltarget/release -lthetadatadx_ffi -o your_app
 ```
 
-Then build the C++ SDK:
+A CMake build is also provided:
 
 ```bash
 cmake -S sdks/cpp -B build/cpp
 cmake --build build/cpp --config Release --target thetadatadx_cpp
 ```
 
-Run the example:
+- **Prerequisites:** a C++17 compiler, CMake 3.16+, and the Rust toolchain to build the library.
+- **Platforms:** Linux, macOS, and Windows.
 
-```bash
-./build/cpp/thetadatadx_example
+## Quick start
+
+> [!TIP]
+> Credentials can come from a `creds.txt` file (email on line 1, password on
+> line 2) via `Credentials::from_file`, or inline via
+> `Credentials::from_email(email, password)`.
+
+```cpp
+#include <thetadx.hpp>
+#include <cstdio>
+
+int main() {
+    auto client = tdx::Client::connect(
+        tdx::Credentials::from_file("creds.txt"),
+        tdx::Config::production());
+
+    // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
+    auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
+    for (const auto& t : greeks) {
+        std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
+                    t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
+    }
+}
 ```
+
+Every historical method returns a typed `std::vector` — iterate it directly:
+
+```cpp
+auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
+for (const auto& t : eod) {
+    std::printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f\n",
+                t.date, t.open, t.high, t.low, t.close);
+}
+
+auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOG"});
+auto exps   = client.option_list_expirations("SPY");
+```
+
+## Streaming
+
+Real-time streaming uses a dedicated `tdx::FpssClient` — separate from the historical `Client`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
+
+```cpp
+#include <thetadx.hpp>
+#include <cstdio>
+
+int main() {
+    auto creds  = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+
+    tdx::FpssClient fpss(creds, config);
+
+    fpss.set_callback([](const tdx::FpssEvent& event) {
+        switch (event.kind) {
+            case TDX_FPSS_TRADE:
+                std::printf("%s trade %.2f x %d\n",
+                            event.trade.contract.symbol,
+                            event.trade.price, event.trade.size);
+                break;
+            case TDX_FPSS_QUOTE:
+                std::printf("%s quote %.2f / %.2f\n",
+                            event.quote.contract.symbol,
+                            event.quote.bid, event.quote.ask);
+                break;
+            default:
+                break;
+        }
+    });
+
+    // Fluent contract-first subscriptions.
+    auto stock  = tdx::Contract::stock("AAPL");
+    auto option = tdx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"});
+
+    fpss.subscribe(stock.quote());
+    fpss.subscribe_many({option.quote(), option.trade()});
+
+    // ... let the callback run while events flow ...
+
+    fpss.shutdown();   // the destructor also calls this on scope exit
+}
+```
+
+Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup:
+
+```cpp
+fpss.subscribe(tdx::SecType::option().full_trades());   // the callback runs per event — keep it fast
+```
+
+> [!TIP]
+> On an involuntary disconnect the client recovers on its own — exponential
+> backoff with jitter, host failover, then a paced re-subscribe of every active
+> contract. `FpssClient` is non-copyable but movable, and its destructor stops
+> the stream and waits for the callback to quiesce before returning.
+
+## Greeks calculator
+
+A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver — runs locally, no connection required:
+
+```cpp
+auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
+std::printf("IV=%.4f delta=%.4f gamma=%.6f vega=%.4f\n", g.iv, g.delta, g.gamma, g.vega);
+
+auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
+```
+
+`right` accepts `"C"` / `"P"` or `"call"` / `"put"` (case-insensitive).
+
+## Flat files
+
+Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `tdx::UnifiedClient`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
+
+```cpp
+auto unified = tdx::UnifiedClient::connect(
+    tdx::Credentials::from_file("creds.txt"),
+    tdx::Config::production());
+
+auto rows = unified.flat_files().option_quote("20260428");
+auto ipc  = rows.to_arrow_ipc();              // std::vector<uint8_t>, Arrow IPC stream
+
+// Generic dispatcher when security type / request type come from config
+auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
+
+// Or write the raw vendor file straight to disk
+unified.flat_files().to_path("OPTION", "QUOTE", "20260428", "/tmp/option-quote", "csv");
+```
+
+Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `tdx::Client` remains the historical-only entry point; `tdx::UnifiedClient` adds streaming and flat files on the same connection.
+
+## Endpoint coverage
+
+61 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+
+| Category | Endpoints | Examples |
+|---|---|---|
+| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Index | 9 | EOD, OHLC, price, snapshots |
+| Calendar | 3 | Market open/close, holidays, early closes |
+| Interest rate | 1 | EOD rate history |
+
+Every historical endpoint is a method on `tdx::Client`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+
+## Errors
+
+Every method throws `std::runtime_error` on failure, carrying the same typed cases as every other binding — authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest.
 
 ## Tests
 
-Catch2 v3-based test suite under `sdks/cpp/tests/`. Two buckets:
-
-- **Offline** — type-level / null-safe / move-semantics checks; no
-  network, no credentials. Always runs.
-- **Live** — full FPSS / historical round-trip against the
-  production server. Each test calls `SKIP()` unless
-  `THETADX_LIVE_CREDS` points at a `creds.txt`.
+A Catch2 test suite lives under `sdks/cpp/tests/`. Offline tests (type, null-safety, and move-semantics checks) always run; live tests round-trip against the production server and are skipped unless `THETADX_LIVE_CREDS` points at a `creds.txt`:
 
 ```bash
 cmake -S sdks/cpp -B build/cpp-tests -DTHETADATADX_CPP_BUILD_TESTS=ON
@@ -56,396 +198,12 @@ cmake --build build/cpp-tests --target thetadatadx_cpp_tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
 
-Run with live credentials:
+## Documentation
 
-```bash
-THETADX_LIVE_CREDS=/path/to/creds.txt \
-    ctest --test-dir build/cpp-tests --output-on-failure
-```
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, flat files
+- [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
+- Community discussion on the [ThetaData Discord](https://discord.thetadata.us/)
 
-The Catch2 dependency is fetched via CMake's `FetchContent` from
-`github.com/catchorg/Catch2` (pinned tag `v3.5.4`). The test target
-is opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON` so downstream
-consumers building only the production library do not pay the
-test-dependency cost.
+## License
 
-## Quick Start
-
-```cpp
-#include "thetadx.hpp"
-#include <iostream>
-
-int main() {
-    auto creds = tdx::Credentials::from_file("creds.txt");
-    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
-    auto client = tdx::Client::connect(creds, tdx::Config::production());
-
-    // Fetch EOD stock data -- all prices are f64, no decoding needed
-    auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
-    for (auto& tick : eod) {
-        std::cout << tick.date << ": O=" << tick.open
-                  << " H=" << tick.high << " L=" << tick.low
-                  << " C=" << tick.close << std::endl;
-    }
-
-    // Snapshot: latest quote for multiple symbols
-    auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOG"});
-    for (auto& q : quotes) {
-        std::cout << "bid=" << q.bid
-                  << " ask=" << q.ask << std::endl;
-    }
-
-    // Greeks (no server connection needed)
-    auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
-    std::cout << "IV=" << g.iv << " Delta=" << g.delta << std::endl;
-}
-```
-
-## API
-
-### Credentials
-
-- `Credentials::from_file(path)` - load from file (line 1 = email, line 2 = password)
-- `Credentials::from_email(email, password)` - direct construction
-
-### Config
-
-- `Config::production()` - ThetaData NJ production servers
-- `Config::dev()` - Dev FPSS servers (port 20200, infinite historical replay)
-- `Config::stage()` - Stage FPSS servers (port 20100, testing, unstable)
-
-### Client
-
-RAII class. All methods throw `std::runtime_error` on failure.
-
-```cpp
-auto client = tdx::Client::connect(creds, tdx::Config::production());
-```
-
-#### Stock - List (2)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `stock_list_symbols()` | `vector<string>` | All stock symbols |
-| `stock_list_dates(req_type, symbol)` | `vector<string>` | Available dates for a stock |
-
-#### Stock - Snapshot (4)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `stock_snapshot_ohlc(symbols)` | `vector<OhlcTick>` | Latest OHLC snapshot |
-| `stock_snapshot_trade(symbols)` | `vector<TradeTick>` | Latest trade snapshot |
-| `stock_snapshot_quote(symbols)` | `vector<QuoteTick>` | Latest NBBO quote snapshot |
-| `stock_snapshot_market_value(symbols)` | `vector<MarketValueTick>` | Latest market value snapshot |
-
-#### Stock - History (6)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `stock_history_eod(sym, start_date, end_date)` | `vector<EodTick>` | EOD data |
-| `stock_history_ohlc(sym, date, interval)` | `vector<OhlcTick>` | Intraday OHLC bars. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
-| `stock_history_ohlc_range(sym, start_date, end_date, interval)` | `vector<OhlcTick>` | OHLC bars across date range. `interval` accepts ms or shorthand. |
-| `stock_history_trade(sym, date)` | `vector<TradeTick>` | All trades on a date |
-| `stock_history_quote(sym, date, interval)` | `vector<QuoteTick>` | NBBO quotes. `interval` accepts ms or shorthand. |
-| `stock_history_trade_quote(sym, date)` | `vector<TradeQuoteTick>` | Combined trade + quote ticks |
-
-#### Stock - At-Time (2)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `stock_at_time_trade(sym, start_date, end_date, time)` | `vector<TradeTick>` | Trade at a specific time across date range |
-| `stock_at_time_quote(sym, start_date, end_date, time)` | `vector<QuoteTick>` | Quote at a specific time across date range |
-
-#### Option - List (5)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `option_list_symbols()` | `vector<string>` | All option underlyings |
-| `option_list_dates(req, sym, expiration, strike, right)` | `vector<string>` | Available dates for an option contract |
-| `option_list_expirations(sym)` | `vector<string>` | Expiration dates |
-| `option_list_strikes(sym, expiration)` | `vector<string>` | Strike prices |
-| `option_list_contracts(req, sym, date)` | `vector<OptionContract>` | All option contracts on a date |
-
-#### Option - Snapshot (10)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `option_snapshot_ohlc(sym, expiration, strike, right)` | `vector<OhlcTick>` | Latest OHLC snapshot |
-| `option_snapshot_trade(sym, expiration, strike, right)` | `vector<TradeTick>` | Latest trade snapshot |
-| `option_snapshot_quote(sym, expiration, strike, right)` | `vector<QuoteTick>` | Latest quote snapshot |
-| `option_snapshot_open_interest(sym, expiration, strike, right)` | `vector<OpenInterestTick>` | Latest open interest snapshot |
-| `option_snapshot_market_value(sym, expiration, strike, right)` | `vector<MarketValueTick>` | Latest market value snapshot |
-| `option_snapshot_greeks_implied_volatility(sym, expiration, strike, right)` | `vector<IvTick>` | IV snapshot |
-| `option_snapshot_greeks_all(sym, expiration, strike, right)` | `vector<GreeksTick>` | All Greeks snapshot |
-| `option_snapshot_greeks_first_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | First-order Greeks snapshot |
-| `option_snapshot_greeks_second_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | Second-order Greeks snapshot |
-| `option_snapshot_greeks_third_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | Third-order Greeks snapshot |
-
-#### Option - History (6)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `option_history_eod(sym, expiration, strike, right, start_date, end_date)` | `vector<EodTick>` | EOD option data |
-| `option_history_ohlc(sym, expiration, strike, right, date, interval)` | `vector<OhlcTick>` | Intraday OHLC for options |
-| `option_history_trade(sym, expiration, strike, right, date)` | `vector<TradeTick>` | All trades for an option |
-| `option_history_quote(sym, expiration, strike, right, date, interval)` | `vector<QuoteTick>` | Quotes for an option |
-| `option_history_trade_quote(sym, expiration, strike, right, date)` | `vector<TradeQuoteTick>` | Combined trade + quote for an option |
-| `option_history_open_interest(sym, expiration, strike, right, date)` | `vector<OpenInterestTick>` | Open interest history |
-
-#### Option - History Greeks (11)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `option_history_greeks_eod(sym, expiration, strike, right, start_date, end_date[, options])` | `vector<GreeksTick>` | EOD Greeks history. Optional `EndpointRequestOptions` exposes filters such as `strike_range`. |
-| `option_history_greeks_all(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | All Greeks history (intraday) |
-| `option_history_trade_greeks_all(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | All Greeks on each trade |
-| `option_history_greeks_first_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | First-order Greeks history |
-| `option_history_trade_greeks_first_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | First-order Greeks on each trade |
-| `option_history_greeks_second_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | Second-order Greeks history |
-| `option_history_trade_greeks_second_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | Second-order Greeks on each trade |
-| `option_history_greeks_third_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | Third-order Greeks history |
-| `option_history_trade_greeks_third_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | Third-order Greeks on each trade |
-| `option_history_greeks_implied_volatility(sym, expiration, strike, right, date, interval)` | `vector<IvTick>` | IV history (intraday) |
-| `option_history_trade_greeks_implied_volatility(sym, expiration, strike, right, date)` | `vector<IvTick>` | IV on each trade |
-
-#### Option - At-Time (2)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `option_at_time_trade(sym, expiration, strike, right, start_date, end_date, time)` | `vector<TradeTick>` | Trade at a specific time for an option |
-| `option_at_time_quote(sym, expiration, strike, right, start_date, end_date, time)` | `vector<QuoteTick>` | Quote at a specific time for an option |
-
-#### Index - List (2)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `index_list_symbols()` | `vector<string>` | All index symbols |
-| `index_list_dates(sym)` | `vector<string>` | Available dates for an index |
-
-#### Index - Snapshot (3)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `index_snapshot_ohlc(symbols)` | `vector<OhlcTick>` | Latest OHLC snapshot for indices |
-| `index_snapshot_price(symbols)` | `vector<PriceTick>` | Latest price snapshot for indices |
-| `index_snapshot_market_value(symbols)` | `vector<MarketValueTick>` | Latest market value for indices |
-
-#### Index - History (3)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `index_history_eod(sym, start_date, end_date)` | `vector<EodTick>` | EOD index data |
-| `index_history_ohlc(sym, start_date, end_date, interval)` | `vector<OhlcTick>` | Intraday OHLC for an index |
-| `index_history_price(sym, date, interval)` | `vector<PriceTick>` | Intraday price history |
-
-#### Index - At-Time (1)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `index_at_time_price(sym, start_date, end_date, time)` | `vector<PriceTick>` | Index price at a specific time |
-
-#### Calendar (3)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `calendar_open_today()` | `vector<CalendarDay>` | Whether the market is open today |
-| `calendar_on_date(date)` | `vector<CalendarDay>` | Calendar for a specific date |
-| `calendar_year(year)` | `vector<CalendarDay>` | Calendar for an entire year |
-
-#### Interest Rate (1)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `interest_rate_history_eod(sym, start_date, end_date)` | `vector<InterestRateTick>` | EOD interest rate history |
-
-### Standalone Functions
-
-```cpp
-// All 23 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
-auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, "C");
-// g.iv, g.delta, g.gamma, g.theta, g.vega, g.rho, g.vanna, g.charm, etc.
-
-// Just IV
-auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, "C");
-```
-
-### Tick Types
-
-All endpoints return fully typed C++ structs. No raw JSON.
-
-| Struct | Fields | Used by |
-|--------|--------|---------|
-| `EodTick` | ms_of_day, open, high, low, close, volume, count, bid, ask, date, **expiration, strike, right** | EOD endpoints |
-| `OhlcTick` | ms_of_day, open, high, low, close, volume, count, date, **expiration, strike, right** | OHLC endpoints |
-| `TradeTick` | ms_of_day, sequence, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, **expiration, strike, right** | Trade endpoints |
-| `QuoteTick` | ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, midpoint, date, **expiration, strike, right** | Quote endpoints |
-| `TradeQuoteTick` | ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, quote_ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right** | Trade+quote endpoints |
-| `OpenInterestTick` | ms_of_day, open_interest, date, **expiration, strike, right** | Open interest endpoints |
-| `GreeksTick` | ms_of_day, implied_volatility, delta, gamma, theta, vega, rho, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date, **expiration, strike, right** | Greeks snapshot/history |
-| `IvTick` | ms_of_day, implied_volatility, iv_error, date, **expiration, strike, right** | IV-only endpoints |
-| `PriceTick` | ms_of_day, price, date | Index price endpoints |
-| `MarketValueTick` | ms_of_day, market_bid, market_ask, market_price, date, **expiration, strike, right** | Market value endpoints |
-| `OptionContract` | symbol, expiration, strike, right | option_list_contracts |
-| `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
-| `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
-| `Greeks` | implied_volatility, delta, gamma, theta, vega, rho, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera | Standalone all_greeks() |
-
-All price fields (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double` (f64) -- decoded during parsing. No `price_type` in the public API.
-
-**Contract identification fields** (bold above): `expiration`, `strike`, `right` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` input parameter accepts `"call"`, `"put"`, `"C"`, `"P"` (case-insensitive), plus `"both"`/`"*"` on endpoints that support a wildcard -- not `"0"`. Output values stay `"C"`/`"P"`.
-
-## FPSS Streaming
-
-Real-time market data via ThetaData's FPSS servers. Streaming uses a **separate `FpssClient` class**, not methods on `Client`. Events are returned as typed `#[repr(C)]` structs -- no JSON parsing on the hot path.
-
-```cpp
-#include "thetadx.hpp"
-#include <iostream>
-
-int main() {
-    auto creds = tdx::Credentials::from_file("creds.txt");
-    auto config = tdx::Config::production();
-
-    // Create a streaming client (separate from the historical Client)
-    tdx::FpssClient fpss(creds, config);
-
-    // Register a queued callback. The dispatcher thread invokes `fn`
-    // for every event under `catch_unwind`; the FPSS reader thread
-    // never blocks on user code.
-    fpss.set_callback([](const tdx::FpssEvent& event) {
-        if (event.kind == TDX_FPSS_QUOTE) {
-            std::cout << "quote bid=" << event.quote.bid
-                      << " ask=" << event.quote.ask << std::endl;
-        }
-    });
-
-    // Fluent contract-first subscriptions (primary surface). U3
-    // closure: every call below targets the same `fpss` handle
-    // constructed above — the previous example referenced an
-    // undefined `unified` variable and would not compile.
-    auto stock  = tdx::Contract::stock("AAPL");
-    auto option = tdx::Contract::option("SPY", {.expiration="20260620", .strike="550", .right="C"});
-
-    fpss.subscribe(stock.quote());
-    fpss.subscribe(option.trade());
-    fpss.subscribe(tdx::SecType::option().full_trades());
-
-    // Bulk install:
-    fpss.subscribe_many({stock.quote(), option.quote()});
-
-    // ... let the callback run ...
-
-    fpss.shutdown();
-}
-```
-
-All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event.quote.bid`, `event.trade.price`, etc. No `price_type` decoding needed.
-
-### Fluent contract-first API
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `tdx::Contract::stock(symbol)` | `Contract` | Stock contract |
-| `tdx::Contract::option(symbol, {.expiration=, .strike=, .right=})` | `Contract` | Option contract |
-| `contract.quote()` / `.trade()` / `.open_interest()` | `SubscriptionRef` | Per-contract subscription |
-| `tdx::SecType::option().full_trades()` / `.full_open_interest()` | `SubscriptionRef` | Full-stream subscription |
-| `unified.subscribe(sub)` | `void` | Install a subscription |
-| `unified.subscribe_many({sub, ...})` | `void` | Install many subscriptions |
-| `unified.unsubscribe(sub)` / `unsubscribe_many({...})` | `void` | Drop subscriptions |
-| `fpss.subscribe(sub)` / `subscribe_many({...})` | `void` | Same shape on the standalone FpssClient |
-| `fpss.unsubscribe(sub)` / `unsubscribe_many({...})` | `void` | Standalone-FpssClient drop |
-
-### FpssClient lifecycle
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `FpssClient(creds, config)` | - | Connect to FPSS streaming servers |
-| `is_authenticated()` | `bool` | Check if the client is currently authenticated |
-| `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Dispatcher thread invokes `fn` under `catch_unwind`; reader never blocks |
-| `dropped_events()` | `uint64_t` | Cumulative ring-buffer overflow count (`Producer::try_publish` failures) |
-| `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
-| `shutdown()` | `void` | Shut down the FPSS client |
-
-### FPSS Event Types
-
-| Type | Fields | Used when |
-|------|--------|-----------|
-| `TdxFpssQuote` | contract, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
-| `TdxFpssTrade` | contract, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
-| `TdxFpssOpenInterest` | contract, ms_of_day, open_interest, date, received_at_ns | `kind == TDX_FPSS_OPEN_INTEREST` |
-| `TdxFpssOhlcvc` | contract, ms_of_day, open, high, low, close, volume (i64), count (i64), date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
-| `TdxFpssLoginSuccess` | permissions (nullable C string) | `kind == TDX_FPSS_LOGIN_SUCCESS` |
-| `TdxFpssContractAssigned` | id (i32), contract (TdxContract) | `kind == TDX_FPSS_CONTRACT_ASSIGNED` |
-| `TdxFpssReqResponse` | req_id (i32), result (i32) | `kind == TDX_FPSS_REQ_RESPONSE` |
-| `TdxFpssMarketOpen` | (none) | `kind == TDX_FPSS_MARKET_OPEN` |
-| `TdxFpssMarketClose` | (none) | `kind == TDX_FPSS_MARKET_CLOSE` |
-| `TdxFpssServerError` | message (nullable C string) | `kind == TDX_FPSS_SERVER_ERROR` |
-| `TdxFpssDisconnected` | reason (i32 RemoveReason) | `kind == TDX_FPSS_DISCONNECTED` |
-| `TdxFpssReconnecting` | reason (i32), attempt (i32), delay_ms (u64) | `kind == TDX_FPSS_RECONNECTING` |
-| `TdxFpssReconnected` | (none) | `kind == TDX_FPSS_RECONNECTED` |
-| `TdxFpssError` | message (nullable C string) | `kind == TDX_FPSS_ERROR` |
-| `TdxFpssUnknownFrame` | code (u8), payload (`uint8_t*`), payload_len (size_t) | `kind == TDX_FPSS_UNKNOWN_FRAME` |
-| `TdxFpssConnected` | (none) | `kind == TDX_FPSS_CONNECTED` |
-| `TdxFpssPing` | payload (`uint8_t*`), payload_len (size_t) | `kind == TDX_FPSS_PING` |
-| `TdxFpssReconnectedServer` | (none) | `kind == TDX_FPSS_RECONNECTED_SERVER` |
-| `TdxFpssRestart` | (none) | `kind == TDX_FPSS_RESTART` |
-| `TdxFpssUnknownControl` | (none) | `kind == TDX_FPSS_UNKNOWN_CONTROL` |
-
-Truncated / unrecognised wire frames are filtered before the user
-callback fires and accounted on the `thetadatadx.fpss.decode_failures`
-metric counter on the Rust side; they never surface through the C ABI
-event stream.
-
-`FpssClient` is non-copyable but movable. The destructor calls `shutdown()` automatically.
-
-## Flat Files
-
-Whole-universe daily snapshots over the legacy MDDS port. Decoded
-schema is determined at runtime by `(SecType, ReqType)`, so the C++
-wrapper exposes Arrow IPC stream bytes — pair with arrow-cpp on the
-consumer side to materialise an `arrow::Table`.
-
-```cpp
-#include "thetadx.hpp"
-
-auto creds = tdx::Credentials::from_file("creds.txt");
-auto config = tdx::Config::production();
-auto unified = tdx::UnifiedClient::connect(creds, config);
-
-auto rows = unified.flat_files().option_quote("20260428");
-auto ipc = rows.to_arrow_ipc();              // std::vector<uint8_t>
-
-// Generic dispatcher
-auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
-
-// Raw vendor CSV / JSONL straight to disk
-unified.flat_files().to_path("OPTION", "QUOTE", "20260428",
-                             "/tmp/option-quote", "csv");
-```
-
-Available `flat_files().*` methods: `option_quote`, `option_trade`,
-`option_trade_quote`, `option_ohlc`, `option_open_interest`,
-`option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`,
-`stock_eod`, plus `request(sec_type, req_type, date)` and
-`to_path(...)`. The `tdx::UnifiedClient` wraps `TdxUnified`; the
-existing `tdx::Client` (wrapping `TdxClient`) remains the
-historical-only entry point.
-
-## Architecture
-
-```
-C++ code
-    |  (RAII wrappers)
-    v
-thetadatadx.h (C FFI)
-    |
-    v
-libthetadatadx_ffi.so / .a
-    |  (Rust FFI crate)
-    v
-thetadatadx Rust crate
-    |  (direct HTTP/2 + TCP transport)
-    v
-ThetaData servers
-```
+Licensed under the Apache License, Version 2.0.
