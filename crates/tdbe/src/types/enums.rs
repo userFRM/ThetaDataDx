@@ -329,6 +329,10 @@ pub enum ReqType {
     EodOtc = 6,
     EodOtcbb = 7,
     EodTd = 8,
+    /// Calculated market value (per-contract). The terminal derives it
+    /// from the real-time bid/ask via a size-imbalance + spread-aware
+    /// nudge; this is the request type the snapshot/stream paths name.
+    MarketValue = 9,
     Default = 100,
     Quote = 101,
     Volume = 102,
@@ -366,6 +370,7 @@ impl ReqType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Eod => "EOD",
+            Self::MarketValue => "MARKET_VALUE",
             Self::Quote => "QUOTE",
             Self::Trade => "TRADE",
             Self::Ohlc => "OHLC",
@@ -399,6 +404,7 @@ pub enum StreamMsgType {
     Trade = 22,
     OpenInterest = 23,
     Ohlcvc = 24,
+    MarketValue = 25,
     Start = 30,
     Restart = 31,
     Stop = 32,
@@ -406,6 +412,7 @@ pub enum StreamMsgType {
     RemoveQuote = 51,
     RemoveTrade = 52,
     RemoveOpenInterest = 53,
+    RemoveMarketValue = 54,
 }
 
 impl StreamMsgType {
@@ -427,6 +434,7 @@ impl StreamMsgType {
             22 => Some(Self::Trade),
             23 => Some(Self::OpenInterest),
             24 => Some(Self::Ohlcvc),
+            25 => Some(Self::MarketValue),
             30 => Some(Self::Start),
             31 => Some(Self::Restart),
             32 => Some(Self::Stop),
@@ -434,6 +442,7 @@ impl StreamMsgType {
             51 => Some(Self::RemoveQuote),
             52 => Some(Self::RemoveTrade),
             53 => Some(Self::RemoveOpenInterest),
+            54 => Some(Self::RemoveMarketValue),
             _ => None,
         }
     }

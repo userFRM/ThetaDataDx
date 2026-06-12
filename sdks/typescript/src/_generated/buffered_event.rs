@@ -25,6 +25,16 @@ pub(crate) enum BufferedEvent {
     MarketClose,
     /// FPSS market-open signal (wire code 30). Mirrors `FpssControl::MarketOpen`. Carries no payload.
     MarketOpen,
+    /// FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+    MarketValue {
+        contract: fpss::protocol::Contract,
+        ms_of_day: i32,
+        market_bid: f64,
+        market_ask: f64,
+        market_price: f64,
+        date: i32,
+        received_at_ns: u64,
+    },
     /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
     Ohlcvc {
         contract: fpss::protocol::Contract,
@@ -127,6 +137,24 @@ pub(crate) enum BufferedEvent {
 pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
     match event {
         fpss::FpssEvent::Data(data) => match data {
+            fpss::FpssData::MarketValue {
+                contract,
+                ms_of_day,
+                market_bid,
+                market_ask,
+                market_price,
+                date,
+                received_at_ns,
+                ..
+            } => BufferedEvent::MarketValue {
+                contract: (**contract).clone(),
+                ms_of_day: *ms_of_day,
+                market_bid: *market_bid,
+                market_ask: *market_ask,
+                market_price: *market_price,
+                date: *date,
+                received_at_ns: *received_at_ns,
+            },
             fpss::FpssData::Ohlcvc {
                 contract,
                 ms_of_day,

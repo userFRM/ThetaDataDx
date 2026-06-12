@@ -50,6 +50,9 @@ TEST_CASE("FluentSubscription renders scope, kind, and contract", "[fluent][offl
     const auto stock_quote = tdx::Contract::stock("AAPL").quote();
     REQUIRE(tdx::str(stock_quote) == "Subscription(Quote, AAPL STOCK)");
 
+    const auto market_value = tdx::Contract::stock("AAPL").market_value();
+    REQUIRE(tdx::str(market_value) == "Subscription(MarketValue, AAPL STOCK)");
+
     const auto full = tdx::SecType::option().full_open_interest();
     REQUIRE(tdx::str(full) == "Subscription(full OpenInterest, OPTION)");
 }

@@ -1099,7 +1099,10 @@ impl ThetaDataDxClient {
                     sec_type,
                     kind: FullSubscriptionKind::OpenInterest,
                 })),
-                SubscriptionKind::Quote => None,
+                // Quote and MarketValue are per-contract only — the
+                // vendor has no full-stream broadcast for either, so a
+                // full-type restore is a no-op.
+                SubscriptionKind::Quote | SubscriptionKind::MarketValue => None,
             },
         );
 
@@ -1964,6 +1967,7 @@ mod tests {
         ContractQuote(Contract),
         ContractTrade(Contract),
         ContractOpenInterest(Contract),
+        ContractMarketValue(Contract),
         FullTrades(SecType),
         FullOpenInterest(SecType),
     }
@@ -1974,6 +1978,7 @@ mod tests {
                 SubscriptionKind::Quote => DispatchProbe::ContractQuote(contract),
                 SubscriptionKind::Trade => DispatchProbe::ContractTrade(contract),
                 SubscriptionKind::OpenInterest => DispatchProbe::ContractOpenInterest(contract),
+                SubscriptionKind::MarketValue => DispatchProbe::ContractMarketValue(contract),
             },
             Subscription::Full { sec_type, kind } => match kind {
                 FullSubscriptionKind::Trades => DispatchProbe::FullTrades(sec_type),
@@ -2005,6 +2010,10 @@ mod tests {
         assert!(matches!(
             dispatch_probe(opt.open_interest()),
             DispatchProbe::ContractOpenInterest(c) if c.is_call == Some(true)
+        ));
+        assert!(matches!(
+            dispatch_probe(aapl.market_value()),
+            DispatchProbe::ContractMarketValue(c) if &*c.symbol == "AAPL"
         ));
     }
 

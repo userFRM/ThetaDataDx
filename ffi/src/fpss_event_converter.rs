@@ -10,6 +10,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::UnknownControl,
                 unknown_control: ZERO_UNKNOWN_CONTROL,
+                market_value: ZERO_MARKET_VALUE,
                 ohlcvc: ZERO_OHLCVC,
                 open_interest: ZERO_OI,
                 quote: ZERO_QUOTE,
@@ -39,6 +40,75 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
     }
 
     match event {
+        FpssEvent::Data(FpssData::MarketValue {
+            contract,
+            ms_of_day,
+            market_bid,
+            market_ask,
+            market_price,
+            date,
+            received_at_ns,
+            ..
+        }) => {
+            let contract_symbol_cstring = if contract.symbol.is_empty() {
+                None
+            } else {
+                std::ffi::CString::new(&contract.symbol[..]).ok()
+            };
+            let contract_symbol_ptr = contract_symbol_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let tdx_contract = TdxContract {
+                symbol: contract_symbol_ptr,
+                sec_type: contract.sec_type as i32,
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
+                has_strike: contract.strike_thousandths.is_some(),
+                strike: contract.strike_dollars().unwrap_or(0.0),
+            };
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::MarketValue,
+                    market_value: TdxFpssMarketValue {
+                        contract: tdx_contract,
+                        ms_of_day: *ms_of_day,
+                        market_bid: *market_bid,
+                        market_ask: *market_ask,
+                        market_price: *market_price,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
+                    },
+                    ohlcvc: ZERO_OHLCVC,
+                    open_interest: ZERO_OI,
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    connected: ZERO_CONNECTED,
+                    contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                    disconnected: ZERO_DISCONNECTED,
+                    login_success: ZERO_LOGIN_SUCCESS,
+                    market_close: ZERO_MARKET_CLOSE,
+                    market_open: ZERO_MARKET_OPEN,
+                    parse_error: ZERO_PARSE_ERROR,
+                    ping: ZERO_PING,
+                    reconnected: ZERO_RECONNECTED,
+                    reconnected_server: ZERO_RECONNECTED_SERVER,
+                    reconnecting: ZERO_RECONNECTING,
+                    reconnects_exhausted: ZERO_RECONNECTS_EXHAUSTED,
+                    req_response: ZERO_REQ_RESPONSE,
+                    restart: ZERO_RESTART,
+                    server_error: ZERO_SERVER_ERROR,
+                    unknown_control: ZERO_UNKNOWN_CONTROL,
+                    unknown_frame: ZERO_UNKNOWN_FRAME,
+                },
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
+            }
+        }
+
         FpssEvent::Data(FpssData::Ohlcvc {
             contract,
             ms_of_day,
@@ -85,6 +155,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         date: *date,
                         received_at_ns: *received_at_ns,
                     },
+                    market_value: ZERO_MARKET_VALUE,
                     open_interest: ZERO_OI,
                     quote: ZERO_QUOTE,
                     trade: ZERO_TRADE,
@@ -149,6 +220,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         date: *date,
                         received_at_ns: *received_at_ns,
                     },
+                    market_value: ZERO_MARKET_VALUE,
                     ohlcvc: ZERO_OHLCVC,
                     quote: ZERO_QUOTE,
                     trade: ZERO_TRADE,
@@ -227,6 +299,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         date: *date,
                         received_at_ns: *received_at_ns,
                     },
+                    market_value: ZERO_MARKET_VALUE,
                     ohlcvc: ZERO_OHLCVC,
                     open_interest: ZERO_OI,
                     trade: ZERO_TRADE,
@@ -315,6 +388,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         date: *date,
                         received_at_ns: *received_at_ns,
                     },
+                    market_value: ZERO_MARKET_VALUE,
                     ohlcvc: ZERO_OHLCVC,
                     open_interest: ZERO_OI,
                     quote: ZERO_QUOTE,
@@ -351,6 +425,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         connected: TdxFpssConnected {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -404,6 +479,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             id: *id,
                             contract: tdx_contract,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -438,6 +514,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         disconnected: TdxFpssDisconnected {
                             reason: *reason as i32,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -474,6 +551,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         login_success: TdxFpssLoginSuccess {
                             permissions: permissions_ptr,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -508,6 +586,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         market_close: TdxFpssMarketClose {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -542,6 +621,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         market_open: TdxFpssMarketOpen {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -578,6 +658,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         parse_error: TdxFpssParseError {
                             message: message_ptr,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -616,6 +697,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             payload: payload_ptr,
                             payload_len: payload_len_val,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -650,6 +732,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         reconnected: TdxFpssReconnected {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -684,6 +767,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         reconnected_server: TdxFpssReconnectedServer {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -720,6 +804,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                             delay_ms: *delay_ms,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -755,6 +840,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             reason: *reason as i32,
                             attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -790,6 +876,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             req_id: *req_id,
                             result: *result as i32,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -824,6 +911,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         restart: TdxFpssRestart {
                             _padding: 0,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -860,6 +948,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                         server_error: TdxFpssServerError {
                             message: message_ptr,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,
@@ -899,6 +988,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             payload: payload_ptr,
                             payload_len: payload_len_val,
                         },
+                        market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
                         open_interest: ZERO_OI,
                         quote: ZERO_QUOTE,

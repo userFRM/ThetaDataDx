@@ -19,21 +19,22 @@ pub enum TdxFpssEventKind {
     LoginSuccess = 3,
     MarketClose = 4,
     MarketOpen = 5,
-    Ohlcvc = 6,
-    OpenInterest = 7,
-    ParseError = 8,
-    Ping = 9,
-    Quote = 10,
-    Reconnected = 11,
-    ReconnectedServer = 12,
-    Reconnecting = 13,
-    ReconnectsExhausted = 14,
-    ReqResponse = 15,
-    Restart = 16,
-    ServerError = 17,
-    Trade = 18,
-    UnknownControl = 19,
-    UnknownFrame = 20,
+    MarketValue = 6,
+    Ohlcvc = 7,
+    OpenInterest = 8,
+    ParseError = 9,
+    Ping = 10,
+    Quote = 11,
+    Reconnected = 12,
+    ReconnectedServer = 13,
+    Reconnecting = 14,
+    ReconnectsExhausted = 15,
+    ReqResponse = 16,
+    Restart = 17,
+    ServerError = 18,
+    Trade = 19,
+    UnknownControl = 20,
+    UnknownFrame = 21,
 }
 
 /// FPSS `Contract` shared across every data event.
@@ -74,6 +75,18 @@ right: 0,
 has_strike: false,
 strike: 0.0,
 };
+
+/// FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+#[repr(C)]
+pub struct TdxFpssMarketValue {
+    pub contract: TdxContract,
+    pub ms_of_day: i32,
+    pub market_bid: f64,
+    pub market_ask: f64,
+    pub market_price: f64,
+    pub date: i32,
+    pub received_at_ns: u64,
+}
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[repr(C)]
@@ -279,6 +292,7 @@ pub struct TdxFpssUnknownFrame {
 #[repr(C)]
 pub struct TdxFpssEvent {
     pub kind: TdxFpssEventKind,
+    pub market_value: TdxFpssMarketValue,
     pub ohlcvc: TdxFpssOhlcvc,
     pub open_interest: TdxFpssOpenInterest,
     pub quote: TdxFpssQuote,
@@ -303,6 +317,15 @@ pub struct TdxFpssEvent {
 }
 
 // Zero-initialized defaults for inactive union-style fields.
+pub(crate) const ZERO_MARKET_VALUE: TdxFpssMarketValue = TdxFpssMarketValue {
+    contract: ZERO_CONTRACT_STRUCT,
+    ms_of_day: 0,
+    market_bid: 0.0,
+    market_ask: 0.0,
+    market_price: 0.0,
+    date: 0,
+    received_at_ns: 0,
+};
 pub(crate) const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,

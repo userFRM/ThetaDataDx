@@ -1794,6 +1794,7 @@ int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback,
 #define TDX_SUB_KIND_QUOTE         0
 #define TDX_SUB_KIND_TRADE         1
 #define TDX_SUB_KIND_OPEN_INTEREST 2
+#define TDX_SUB_KIND_MARKET_VALUE  3
 
 /** Polymorphic subscribe / unsubscribe request payload.
  *
@@ -1805,7 +1806,7 @@ int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback,
  */
 typedef struct {
     int32_t scope;            /* TDX_SUB_SCOPE_CONTRACT or TDX_SUB_SCOPE_FULL */
-    int32_t kind;             /* TDX_SUB_KIND_QUOTE / _TRADE / _OPEN_INTEREST */
+    int32_t kind;             /* TDX_SUB_KIND_QUOTE / _TRADE / _OPEN_INTEREST / _MARKET_VALUE */
     const char* symbol;       /* per-contract only */
     const char* expiration;   /* per-contract option only */
     const char* strike;       /* per-contract option only */

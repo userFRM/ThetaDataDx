@@ -1095,6 +1095,7 @@ using FpssQuote = TdxFpssQuote;
 using FpssTrade = TdxFpssTrade;
 using FpssOpenInterest = TdxFpssOpenInterest;
 using FpssOhlcvc = TdxFpssOhlcvc;
+using FpssMarketValue = TdxFpssMarketValue;
 // Typed control variants — one alias per `FpssControl::*` Rust variant.
 using FpssConnected = TdxFpssConnected;
 using FpssContractAssigned = TdxFpssContractAssigned;
@@ -1845,7 +1846,7 @@ class FluentSecType;
 class FluentSubscription {
 public:
     enum class Scope { Contract, Full };
-    enum class Kind { Quote, Trade, OpenInterest };
+    enum class Kind { Quote, Trade, OpenInterest, MarketValue };
 
     Scope scope() const noexcept { return scope_; }
     Kind kind() const noexcept { return kind_; }
@@ -1969,6 +1970,16 @@ public:
         return FluentSubscription::per_contract_stock(
             symbol_, FluentSubscription::Kind::OpenInterest);
     }
+    /// Per-contract market-value subscription.
+    FluentSubscription market_value() const {
+        if (is_option_) {
+            return FluentSubscription::per_contract_option(
+                symbol_, expiration_, strike_, right_,
+                FluentSubscription::Kind::MarketValue);
+        }
+        return FluentSubscription::per_contract_stock(
+            symbol_, FluentSubscription::Kind::MarketValue);
+    }
 
     const std::string& symbol() const noexcept { return symbol_; }
     bool is_option() const noexcept { return is_option_; }
@@ -2053,6 +2064,7 @@ inline std::ostream& operator<<(std::ostream& os, const FluentSubscription& sub)
         case FluentSubscription::Kind::Quote:        kind_name = "Quote"; break;
         case FluentSubscription::Kind::Trade:        kind_name = "Trade"; break;
         case FluentSubscription::Kind::OpenInterest: kind_name = "OpenInterest"; break;
+        case FluentSubscription::Kind::MarketValue:  kind_name = "MarketValue"; break;
     }
     if (sub.scope() == FluentSubscription::Scope::Full) {
         return os << "Subscription(full " << kind_name << ", " << sub.sec_type() << ')';
@@ -2109,6 +2121,7 @@ inline TdxSubscriptionRequest build_subscription_request(const FluentSubscriptio
         case K::Quote:        req.kind = TDX_SUB_KIND_QUOTE;         break;
         case K::Trade:        req.kind = TDX_SUB_KIND_TRADE;         break;
         case K::OpenInterest: req.kind = TDX_SUB_KIND_OPEN_INTEREST; break;
+        case K::MarketValue:  req.kind = TDX_SUB_KIND_MARKET_VALUE;  break;
     }
     if (sub.scope() == FluentSubscription::Scope::Full) {
         req.scope = TDX_SUB_SCOPE_FULL;
