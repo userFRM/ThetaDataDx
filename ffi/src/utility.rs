@@ -6,6 +6,7 @@
 use std::os::raw::c_char;
 
 use crate::error::set_error;
+use crate::streaming::TdxContract;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Greeks (standalone, not client methods)
@@ -319,6 +320,46 @@ pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
 pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
     ffi_boundary!(-1, {
         tdbe::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
+    })
+}
+
+/// Read the option strike of a streaming `TdxContract` in dollars, folding
+/// the `has_strike` presence flag into the return value. Mirrors the C++
+/// `tdx::strike(const TdxContract&)` accessor and the Python / TypeScript
+/// `contract.strike` surface, which return an absent value for non-option
+/// contracts rather than a bare `0.0` the caller must special-case.
+///
+/// `contract.strike` already carries dollars, so this only surfaces the
+/// presence flag a plain field read would otherwise drop: writes the
+/// dollar value to `out_dollars` and returns `true` when the contract is
+/// an option, leaves `out_dollars` untouched and returns `false`
+/// otherwise (non-option, or a null contract / output pointer).
+///
+/// # Safety
+/// `contract` must be a valid `TdxContract` pointer (e.g. the
+/// `event.<variant>.contract` field of a `TdxFpssEvent`). `out_dollars`
+/// must be a valid, writable `double` pointer.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_contract_strike_dollars(
+    contract: *const TdxContract,
+    out_dollars: *mut f64,
+) -> bool {
+    ffi_boundary!(false, {
+        if contract.is_null() || out_dollars.is_null() {
+            return false;
+        }
+        // SAFETY: both pointers null-checked above; the caller pins the
+        // contract and output storage for the call duration.
+        let contract = unsafe { &*contract };
+        if !contract.has_strike {
+            return false;
+        }
+        // SAFETY: out_dollars null-checked above; the caller pins the
+        // output storage for the call duration.
+        unsafe {
+            *out_dollars = contract.strike;
+        }
+        true
     })
 }
 

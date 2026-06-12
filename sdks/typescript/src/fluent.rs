@@ -84,6 +84,15 @@ impl SecType {
     pub fn name(&self) -> String {
         format!("{:?}", self.inner).to_uppercase()
     }
+
+    /// String rendering for `console.log` / template literals. Returns
+    /// the symbolic name (`"OPTION"`), matching the Python `SecType`
+    /// `__str__`. Without it a `SecType` instance prints as an opaque
+    /// `SecType {}` because its getters do not surface on inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        format!("{:?}", self.inner).to_uppercase()
+    }
 }
 
 /// Fluent contract identifier — stock or option.
@@ -193,6 +202,17 @@ impl ContractRef {
             .is_call
             .map(|c| if c { "C".to_string() } else { "P".to_string() })
     }
+
+    /// String rendering for `console.log` / template literals, e.g.
+    /// `"SPY OPTION 20260620 C 550000"` or `"AAPL STOCK"`. Delegates to
+    /// the same core rendering the Python `Contract` `__str__` uses, so
+    /// the two bindings print a contract identically. Without it a
+    /// `ContractRef` prints as an opaque `ContractRef {}` because its
+    /// getters do not surface on inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        format!("{}", self.inner)
+    }
 }
 
 /// Typed market-data subscription.
@@ -262,6 +282,26 @@ impl Subscription {
         match &*guard {
             protocol::Subscription::Full { sec_type, .. } => Some(SecType::from_inner(*sec_type)),
             _ => None,
+        }
+    }
+
+    /// String rendering for `console.log` / template literals, e.g.
+    /// `"Subscription(Trade, SPY OPTION 20260620 C 550000)"` or
+    /// `"Subscription(full Trades, OPTION)"`. Mirrors the Python
+    /// `Subscription` `__repr__`. Without it a `Subscription` prints as
+    /// an opaque `Subscription {}` because its getters do not surface on
+    /// inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &*guard {
+            protocol::Subscription::Contract { contract, kind } => {
+                format!("Subscription({kind:?}, {contract})")
+            }
+            protocol::Subscription::Full { sec_type, kind } => {
+                format!("Subscription(full {kind:?}, {sec_type:?})")
+            }
+            _ => "Subscription(<unknown>)".to_string(),
         }
     }
 }

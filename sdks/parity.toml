@@ -1186,3 +1186,39 @@ python = "f64"
 class = "GreeksAllTick"
 name = "lambda"
 typescript = "f64"
+
+# ─── TradeTick flag-word accessors ────────────────────────────────────
+#
+# Boolean accessors decoded from the integer condition / flag columns
+# (`is_cancelled`, `regular_trading_hours`, ...). One schema source
+# (`tick_schema.toml::[types.TradeTick].flag_accessors`) projects them
+# into all four surfaces, so they stay in lockstep by construction and
+# the `generate_sdk_surfaces --check` drift gate — not this matrix —
+# guards a regression: a flag added or dropped in the schema regenerates
+# Rust (hand-written `impl TradeTick`), the Python computed properties,
+# the TypeScript object fields, and the C++ free functions atomically.
+#
+# The shape is the idiomatic one per binding, so the surface is not
+# uniform across them: Rust + Python expose methods / computed
+# properties, C++ exposes `tdx::<name>(const TradeTick&)` free functions
+# (tick rows are C struct aliases with no member methods), and
+# TypeScript carries precomputed `bool` fields on the `#[napi(object)]`
+# row (TS tick rows are plain data objects, also method-less). Only the
+# TypeScript half lands as a struct field this checker can read, so the
+# `[[value_field]]` rows below pin that half; the other three are pinned
+# by the shared-source drift gate.
+
+[[value_field]]
+class = "TradeTick"
+name = "is_cancelled"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "regular_trading_hours"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "is_seller"
+typescript = "bool"

@@ -1512,8 +1512,8 @@ int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 /* Streaming event structs are schema-driven. The include below pulls in
- * the same typedefs the Go SDK uses, generated at build time — so the
- * C++ header can never drift from the Rust `#[repr(C)]` layout again.
+ * the typedefs generated at build time from the same schema as the Rust
+ * `#[repr(C)]` layout — so the C++ header can never drift from it again.
  * See `thetadx.hpp` for `static_assert(offsetof)` guards that fail the
  * build at compile time if the schema and the C++ consumer ever
  * disagree.
@@ -1532,6 +1532,15 @@ int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
  * `UnknownFrame.payload`) are valid only for the duration of the
  * user callback — copy out before returning. Do NOT free. */
 #include "fpss_event_structs.h.inc"
+
+/** Read the option strike of a streaming TdxContract in dollars, folding
+ *  the has_strike presence flag into the return value. TdxContract.strike
+ *  already carries dollars; this surfaces the presence flag a plain field
+ *  read would drop. Writes the dollar value to *out_dollars and returns
+ *  true when the contract is an option; returns false (leaving *out_dollars
+ *  untouched) for a non-option, null contract, or null output pointer.
+ *  Mirrors the C++ tdx::strike(const TdxContract&) accessor. */
+bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollars);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Real-time streaming client                                            */

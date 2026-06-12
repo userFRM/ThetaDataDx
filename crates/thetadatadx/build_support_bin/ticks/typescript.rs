@@ -87,6 +87,16 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
         out.push_str("    pub strike: Option<f64>,\n");
         out.push_str("    pub right: Option<String>,\n");
     }
+    // Boolean flag-word accessors decoded from the integer condition /
+    // flag columns. TypeScript tick rows are `#[napi(object)]` plain
+    // data (no methods), so the decoded booleans ride as precomputed
+    // fields — the caller reads `tick.isCancelled` instead of
+    // hand-decoding `conditionFlags`. The napi object key camelCases the
+    // snake_case schema name.
+    for flag in &def.flag_accessors {
+        writeln!(out, "    /// {}", flag.doc).unwrap();
+        writeln!(out, "    pub {}: bool,", flag.name).unwrap();
+    }
     out.push_str("}\n");
     out
 }
@@ -140,6 +150,17 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
         out.push_str(
             "                right: if t.right == '\\0' { None } else { Some(t.right.to_string()) },\n",
         );
+    }
+    // Decode each flag-word accessor once at conversion time; the result
+    // rides as a precomputed boolean field on the JS object.
+    for flag in &def.flag_accessors {
+        writeln!(
+            out,
+            "                {}: {},",
+            rust_field_ident(&flag.name),
+            flag.rust_predicate("t")
+        )
+        .unwrap();
     }
     out.push_str("            }\n");
     out.push_str("        })\n");

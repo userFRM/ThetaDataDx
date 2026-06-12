@@ -554,6 +554,18 @@ pub struct TradeTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// True when the trade carries a cancelled-trade condition (codes 40-44).
+    pub is_cancelled: bool,
+    /// True when the trade condition flags set the 'no last' bit (this trade must not update the last price).
+    pub trade_condition_no_last: bool,
+    /// True when the price flags set the 'set last' bit (this trade sets the last price).
+    pub price_condition_set_last: bool,
+    /// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
+    pub is_incremental_volume: bool,
+    /// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
+    pub regular_trading_hours: bool,
+    /// True when the trade is seller-initiated (ext_condition1 == 12).
+    pub is_seller: bool,
 }
 
 fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
@@ -1172,6 +1184,12 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                is_cancelled: (40..=44).contains(&t.condition),
+                trade_condition_no_last: t.condition_flags & 1 == 1,
+                price_condition_set_last: t.price_flags & 1 == 1,
+                is_incremental_volume: t.volume_type == 0,
+                regular_trading_hours: (34200000..=57600000).contains(&t.ms_of_day),
+                is_seller: t.ext_condition1 == 12,
             }
         })
         .collect()

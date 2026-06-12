@@ -103,6 +103,14 @@ fn render_sdk_generated_files(
             contents: cpp::render_cpp_tick_layout_asserts(&schema),
         },
         GeneratedSourceFile {
+            // C++ free-function flag-word accessors (`tdx::is_cancelled`,
+            // ...). Included from `thetadx.hpp`; mirrors the Python
+            // computed properties and TypeScript precomputed fields from
+            // the same schema flag_accessors rows.
+            relative_path: "sdks/cpp/include/tick_flag_accessors.hpp.inc",
+            contents: cpp::render_cpp_tick_flag_accessors(&schema),
+        },
+        GeneratedSourceFile {
             relative_path: "tools/cli/src/raw_headers_generated.rs",
             contents: cli_headers::render_cli_raw_headers(&schema),
         },

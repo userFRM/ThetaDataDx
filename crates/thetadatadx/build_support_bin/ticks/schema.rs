@@ -41,9 +41,100 @@ pub(crate) struct TickTypeDef {
     #[serde(default)]
     pub(crate) contract_id: bool,
     pub(crate) columns: Vec<ColumnDef>,
+    /// Declarative boolean flag-word accessors decoded from the tick's
+    /// integer flag / condition columns (e.g. `is_cancelled`,
+    /// `regular_trading_hours`). The Rust core hand-writes these in
+    /// `crates/tdbe/src/types/tick.rs`; this list is the single source
+    /// the SDK emitters project into Python (computed `#[getter]`),
+    /// TypeScript (precomputed `#[napi(object)]` field), and C++ (a free
+    /// function in `thetadx.hpp`) so a binding caller never hand-decodes
+    /// `condition_flags` / `price_flags`. Empty for most tick types.
+    #[serde(default)]
+    pub(crate) flag_accessors: Vec<FlagAccessorDef>,
     /// Per-language binding name map. Populated for every tick type so
     /// the SDK projection emitters reach for one TOML row per tick type.
     pub(crate) render: TickRenderDef,
+}
+
+/// One boolean accessor decoded from a tick's integer flag columns. The
+/// `kind` selects the predicate shape; each emitter renders the
+/// idiomatic form for its language from the same operands so the three
+/// bindings agree by construction with the Rust core.
+#[derive(Debug, Deserialize, Clone)]
+pub(crate) struct FlagAccessorDef {
+    /// Accessor name in snake_case (Python getter / C++ free function);
+    /// the TypeScript emitter camelCases it for the object key.
+    pub(crate) name: String,
+    /// One-sentence description rendered as the accessor's doc comment.
+    pub(crate) doc: String,
+    /// Source column the predicate reads (must be an `i32` column on the
+    /// owning tick type).
+    pub(crate) field: String,
+    /// Predicate shape — `"range_inclusive"`, `"bit_set"`, or `"eq"`.
+    pub(crate) kind: String,
+    /// `range_inclusive`: inclusive lower bound. Unused by other kinds.
+    #[serde(default)]
+    pub(crate) lo: i32,
+    /// `range_inclusive`: inclusive upper bound. Unused by other kinds.
+    #[serde(default)]
+    pub(crate) hi: i32,
+    /// `bit_set`: bitmask tested with `field & mask == mask`.
+    /// `eq`: the value `field` is compared equal to. Unused by
+    /// `range_inclusive`.
+    #[serde(default)]
+    pub(crate) value: i32,
+}
+
+impl FlagAccessorDef {
+    /// Render the predicate as a boolean Rust expression over `{src}.<field>`
+    /// (e.g. `self` for a pyclass getter, `t` for a TS factory closure).
+    /// Shared by the Python and TypeScript emitters, which both generate
+    /// Rust source.
+    pub(crate) fn rust_predicate(&self, src: &str) -> String {
+        let field = &self.field;
+        match self.kind.as_str() {
+            "range_inclusive" => {
+                let (lo, hi) = (self.lo, self.hi);
+                format!("({lo}..={hi}).contains(&{src}.{field})")
+            }
+            "bit_set" => {
+                let mask = self.value;
+                format!("{src}.{field} & {mask} == {mask}")
+            }
+            "eq" => {
+                let value = self.value;
+                format!("{src}.{field} == {value}")
+            }
+            other => panic!(
+                "unsupported flag_accessor kind '{other}' for '{}'; expected range_inclusive / bit_set / eq",
+                self.name
+            ),
+        }
+    }
+
+    /// Render the predicate as a boolean C++ expression over `c.<field>`
+    /// (the streaming/tick struct argument named `c`).
+    pub(crate) fn cpp_predicate(&self, src: &str) -> String {
+        let field = &self.field;
+        match self.kind.as_str() {
+            "range_inclusive" => {
+                let (lo, hi) = (self.lo, self.hi);
+                format!("{src}.{field} >= {lo} && {src}.{field} <= {hi}")
+            }
+            "bit_set" => {
+                let mask = self.value;
+                format!("({src}.{field} & {mask}) == {mask}")
+            }
+            "eq" => {
+                let value = self.value;
+                format!("{src}.{field} == {value}")
+            }
+            other => panic!(
+                "unsupported flag_accessor kind '{other}' for '{}'; expected range_inclusive / bit_set / eq",
+                self.name
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
