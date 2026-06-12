@@ -169,8 +169,7 @@ impl MddsClient {
 /// Decode a single `ResponseData` chunk (zstd decompress + `DataTable`
 /// decode) inline on the caller's task — the measured-fastest shape
 /// for this workload at every production-reachable concurrency,
-/// including multi-chunk streams (see
-/// `docs/architecture/in-house-grpc-transport.md`, "Migration").
+/// including multi-chunk streams.
 fn decode_chunk(
     response: proto::ResponseData,
     max_message_size: usize,

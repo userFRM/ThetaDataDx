@@ -2,7 +2,7 @@
 
 Command-line interface for querying ThetaData market data.
 
-> **FLATFILES coverage:** the `tdx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status. Example: `tdx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
+> **FLATFILES coverage:** the `tdx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). Example: `tdx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
 
 ## Install
 

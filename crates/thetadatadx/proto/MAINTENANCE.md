@@ -183,5 +183,5 @@ are all in the same package as the request/response types.
 
 ## Questions?
 
-If anything is unclear, check `docs/endpoint-schema.md` for the full TOML schema
-reference, or look at the existing entries in `tick_schema.toml` as examples.
+If anything is unclear, check the header comments in `tick_schema.toml` for the
+TOML schema reference, or look at the existing entries there as examples.

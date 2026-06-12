@@ -10,10 +10,9 @@
 //! `DataTable` decode + row merge + typed `EodTick` build) inline on
 //! the request task.
 //!
-//! Compare runs against the measured tables recorded in
-//! `docs/architecture/in-house-grpc-transport.md` ("Measured
-//! comparison" + "Migration") — those numbers are the baseline this
-//! harness pins the transport against.
+//! This harness is the baseline the transport is pinned against: run it
+//! before and after a transport-touching change and compare the
+//! reported throughput / latency / allocation tables.
 //!
 //! Topology controls:
 //!

@@ -390,8 +390,7 @@ fn effective_pool_size(
 /// Per-chunk payload decode (zstd + protobuf) runs inline on each
 /// request's task — measured faster than a dedicated decode pool at
 /// every production-reachable concurrency, including multi-chunk
-/// fan-in (see `docs/architecture/in-house-grpc-transport.md`,
-/// "Migration").
+/// fan-in.
 async fn open_channel_pool(
     host: &str,
     port: u16,

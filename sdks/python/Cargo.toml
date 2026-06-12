@@ -7,7 +7,7 @@ description = "Python bindings for thetadatadx — native ThetaData SDK powered 
 license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
-documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
+documentation = "https://userfrm.github.io/ThetaDataDx/reference/"
 readme = "README.md"
 # PyPI package only; never publish this PyO3 shim to crates.io.
 publish = false

@@ -335,9 +335,8 @@ required-features = ["__internal"]
 # Closed-loop measurement of the MDDS transport against a loopback
 # mock server: per-request latency percentiles, aggregate throughput,
 # allocation, and CPU per request across a concurrency x frame-shape
-# matrix. The regression pin for the transport — compare runs against
-# the recorded numbers in
-# `docs/architecture/in-house-grpc-transport.md`. Gated on
+# matrix. The regression pin for the transport — compare before/after
+# runs of this harness across a transport change. Gated on
 # `__test-helpers` for the `grpc` / `wire` / `decode` re-exports.
 name = "grpc_transport_comparison"
 harness = false

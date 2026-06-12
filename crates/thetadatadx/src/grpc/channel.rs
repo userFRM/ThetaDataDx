@@ -11,8 +11,7 @@
 //! [`Channel::server_streaming`] sends a single server-streaming RPC and
 //! returns a [`ServerStreaming`] that yields decoded response messages.
 //! Per-chunk payload decode (zstd + prost `DataTable`) runs inline on
-//! the request task — the measured-fastest shape for this workload (see
-//! `docs/architecture/in-house-grpc-transport.md`).
+//! the request task — the measured-fastest shape for this workload.
 //!
 //! # Connector
 //!

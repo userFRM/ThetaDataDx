@@ -193,7 +193,6 @@ def check_static_docs() -> None:
     # thousandths note on server/websocket.md spells the exception
     # without the banned phrasing).
     strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
-        ROOT / "docs/api-reference.md",
         ROOT / "tools/cli/README.md",
         DOCS_SITE / "cli.md",
         ROOT / "tools/server/README.md",
@@ -217,10 +216,6 @@ def check_static_docs() -> None:
         ROOT / "tools/cli/README.md",
         "tdx stock at_time_trade AAPL 20240101 20240301 09:30:00.000",
     )
-    expect_contains(
-        ROOT / "docs/api-reference.md",
-        '`time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted.',
-    )
     # The generated at-time pages inherit the same wording from the
     # registry; pin one so a registry rewrite that loses the format
     # note fails here too.
@@ -237,10 +232,6 @@ def check_static_docs() -> None:
         '34200000   # 9:30 AM',
     )
 
-    # Streaming section guards — catch stale FPSS counts and wrong return types
-    expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
-    expect_not_contains(ROOT / "docs/architecture.md", "18 FFI FPSS functions")
-    expect_not_contains(ROOT / "docs/architecture.md", "symbol-level subscribe/unsubscribe only")
     # Wave K replaced the per-tick subscribe_* family with the polymorphic
     # subscribe(Subscription) entry point that takes a typed value built
     # via Contract.option(...).quote() / .trade() / .open_interest(). The
