@@ -1365,4 +1365,27 @@ impl Config {
             _ => "unknown",
         })
     }
+
+    /// Set whether to derive OHLCVC bars locally from trade events.
+    /// When `false`, only server-sent OHLCVC frames are emitted,
+    /// reducing per-trade throughput overhead. Default `true`.
+    #[napi(js_name = "setDeriveOhlcvc")]
+    pub fn set_derive_ohlcvc(&self, enabled: bool) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.derive_ohlcvc = enabled;
+        Ok(())
+    }
+
+    /// Current OHLCVC derivation setting.
+    #[napi(getter, js_name = "deriveOhlcvc")]
+    pub fn derive_ohlcvc(&self) -> napi::Result<bool> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.fpss.derive_ohlcvc)
+    }
 }

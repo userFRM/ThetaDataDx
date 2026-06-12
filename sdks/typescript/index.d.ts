@@ -409,6 +409,14 @@ export declare class Config {
    * `"immediate"`).
    */
   get flushMode(): string
+  /**
+   * Set whether to derive OHLCVC bars locally from trade events.
+   * When `false`, only server-sent OHLCVC frames are emitted,
+   * reducing per-trade throughput overhead. Default `true`.
+   */
+  setDeriveOhlcvc(enabled: boolean): void
+  /** Current OHLCVC derivation setting. */
+  get deriveOhlcvc(): boolean
 }
 
 /**

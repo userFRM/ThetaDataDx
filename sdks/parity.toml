@@ -640,14 +640,14 @@ python = true
 typescript = true
 cpp = true
 
-# `FpssConfig.derive_ohlcvc` is exposed on the C ABI
-# (`tdx_config_set_derive_ohlcvc`) + Python (`Config.derive_ohlcvc`)
-# + C++ (`set_derive_ohlcvc`) but not on TypeScript. The row
-# captures the partial-binding state.
+# `FpssConfig.derive_ohlcvc` is exposed on every binding: the C ABI
+# (`tdx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
+# C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
+# / `deriveOhlcvc`).
 [[class]]
 name = "FpssConfig.derive_ohlcvc"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 # ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
