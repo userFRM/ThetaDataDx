@@ -275,9 +275,156 @@ if (
 }
 
 
+// Re-cast typed errors on every native entrypoint — instance method,
+// static factory, or free function. The Rust binding tags every
+// `thetadatadx::Error` with a `[ClassName] ...` prefix on the napi
+// `reason`; this interceptor parses it and re-throws the matching
+// subclass so the caller can branch on `instanceof`. Errors without
+// the prefix (napi argument coercion, etc.) surface unchanged. The
+// single helper keeps the sync-throw and async-rejection handling
+// identical across every call shape — there is no second copy of the
+// try/`rethrowTyped` logic to drift.
+function installTypedErrorInterceptor(original, boundThis) {
+  return function typedErrorBoundary(...args) {
+    let result;
+    try {
+      result = original.apply(boundThis !== undefined ? boundThis : this, args);
+    } catch (err) {
+      rethrowTyped(err);
+    }
+    // napi-rs async methods return a Promise; intercept the
+    // rejection without altering the resolved value.
+    if (result && typeof result.then === 'function') {
+      return result.then(
+        (value) => value,
+        (err) => rethrowTyped(err),
+      );
+    }
+    return result;
+  };
+}
+
+// Intrinsic own props every function carries; never wrappable members.
+const FUNCTION_INTRINSICS = new Set(['prototype', 'length', 'name', 'constructor']);
+
+// `true` when `value` is a native class constructor rather than a free
+// function. napi-rs emits both as plain (writable-`prototype`)
+// functions, so the ES2015 `prototype` non-writability test does not
+// apply; a class is distinguished structurally — it carries instance
+// members on its prototype and/or static methods on itself, whereas a
+// free function's prototype holds only `constructor` and it has no own
+// statics.
+function isNativeClass(value) {
+  if (typeof value !== 'function') return false;
+  const proto = value.prototype;
+  if (proto && Object.getOwnPropertyNames(proto).some((n) => n !== 'constructor')) {
+    return true;
+  }
+  return Object.getOwnPropertyNames(value).some(
+    (n) => !FUNCTION_INTRINSICS.has(n) && typeof value[n] === 'function',
+  );
+}
+
+// Re-cast typed errors thrown by a class's instance methods. Instance
+// methods live on `klass.prototype` and napi-rs emits them as writable
+// data properties, so they are patched in place. Static / factory
+// methods cannot be patched this way — napi-rs seals them as
+// non-writable, non-configurable own props of the constructor — so
+// those are re-exposed through a subclass below.
+function wrapInstanceMethods(klass) {
+  if (!klass || !klass.prototype) return;
+  for (const name of Object.getOwnPropertyNames(klass.prototype)) {
+    if (name === 'constructor') continue;
+    const desc = Object.getOwnPropertyDescriptor(klass.prototype, name);
+    if (!desc || typeof desc.value !== 'function') continue;
+    klass.prototype[name] = installTypedErrorInterceptor(desc.value);
+  }
+}
+
+// Re-expose a native class through a thin subclass whose static methods
+// carry the typed-error interceptor. napi-rs seals factory statics
+// (`ThetaDataDxClient.connectFromFile`, `Contract.option`, ...) as
+// non-writable, non-configurable own props, so they cannot be patched
+// in place; a subclass owns fresh static slots that shadow them while
+// inheriting everything else. Each wrapped static invokes the native
+// static with `this` bound to the native class, so the value it returns
+// is a genuine native instance — `result instanceof NativeClass` stays
+// true. `Symbol.hasInstance` defers to the native class so
+// `x instanceof Exported` continues to recognise those native instances
+// even though their prototype chain points at the native class, not the
+// subclass. Returns the native class unchanged when it has no statics
+// (nothing to re-expose), so non-factory classes keep their identity.
+function wrapClassStatics(klass) {
+  const staticNames = Object.getOwnPropertyNames(klass).filter(
+    (n) => !FUNCTION_INTRINSICS.has(n) && typeof klass[n] === 'function',
+  );
+  if (staticNames.length === 0) return klass;
+
+  const Exported = class extends klass {};
+  for (const name of staticNames) {
+    const nativeStatic = klass[name];
+    Object.defineProperty(Exported, name, {
+      value: installTypedErrorInterceptor(nativeStatic, klass),
+      writable: true,
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  // Native factory statics return native-class instances, never
+  // subclass instances; keep `instanceof Exported` recognising them.
+  Object.defineProperty(Exported, Symbol.hasInstance, {
+    value: (inst) => inst instanceof klass,
+    configurable: true,
+  });
+  // Preserve the readable class name (`extends` would otherwise leave
+  // the anonymous-class name empty).
+  Object.defineProperty(Exported, 'name', {
+    value: klass.name,
+    configurable: true,
+  });
+  return Exported;
+}
+
+// Every exported native class: patch its instance methods in place,
+// then re-expose it (static-wrapped). Discovered structurally so a
+// newly added native class is covered with no edit here. Aliased
+// exports (`Contract` shares `ContractRef`'s constructor) are
+// processed once per distinct native constructor — keyed by identity —
+// so instance methods are not double-wrapped and every alias receives
+// the same re-exposed subclass.
+const exportedClasses = {};
+const wrappedByNativeClass = new Map();
+for (const name of Object.getOwnPropertyNames(native)) {
+  const value = native[name];
+  if (!isNativeClass(value)) continue;
+  let wrapped = wrappedByNativeClass.get(value);
+  if (wrapped === undefined) {
+    wrapInstanceMethods(value);
+    wrapped = wrapClassStatics(value);
+    wrappedByNativeClass.set(value, wrapped);
+  }
+  exportedClasses[name] = wrapped;
+}
+
+// Free functions (e.g. `calendarDayToArrowIpc`, `eodTickToArrowIpc`)
+// are exported directly on the native binding, not on a class. Wrap
+// every own function-valued export that is not a class so a
+// `[ClassName] ...` error raised inside a free function reclassifies
+// the same way it does on a method — one rule: any native export
+// reclassifies typed errors.
+const exportedFreeFns = {};
+for (const name of Object.getOwnPropertyNames(native)) {
+  const value = native[name];
+  if (typeof value !== 'function' || isNativeClass(value)) continue;
+  exportedFreeFns[name] = installTypedErrorInterceptor(value);
+}
+
 // Re-export the entire native surface plus the StreamingSession class.
 // `Object.assign` rather than spread so non-enumerable properties on
-// the napi binding survive.
+// the napi binding survive. The static-wrapped classes
+// (`exportedClasses`) and reclassifying free functions
+// (`exportedFreeFns`) shadow their raw native counterparts so every
+// public entrypoint reaches the typed-error hierarchy.
 //
 // `Contract` aliases `ContractRef` — napi-rs exposes the fluent
 // contract type under the `ContractRef` symbol because `Contract`
@@ -285,48 +432,11 @@ if (
 // surface documented in the quickstart is `Contract.stock("AAPL")` /
 // `Contract.option(...)`, so the alias makes the JS export agree with
 // the docs without a second pyclass.
-// Patch every method on the native binding's exported classes so
-// rejections / throws get re-cast through the typed error hierarchy.
-// The shim parses the `[ClassName] ...` prefix the Rust shim emits;
-// errors without the prefix surface unchanged.
-function wrapMethodsWithTypedErrors(klass) {
-  if (!klass || !klass.prototype) return;
-  for (const name of Object.getOwnPropertyNames(klass.prototype)) {
-    if (name === 'constructor') continue;
-    const desc = Object.getOwnPropertyDescriptor(klass.prototype, name);
-    if (!desc || typeof desc.value !== 'function') continue;
-    const original = desc.value;
-    klass.prototype[name] = function patchedNapiMethod(...args) {
-      let result;
-      try {
-        result = original.apply(this, args);
-      } catch (err) {
-        rethrowTyped(err);
-      }
-      // napi-rs async methods return a Promise; intercept the
-      // rejection without altering the resolved value.
-      if (result && typeof result.then === 'function') {
-        return result.then(
-          (value) => value,
-          (err) => rethrowTyped(err),
-        );
-      }
-      return result;
-    };
-  }
-}
-
-for (const klassName of [
-  'ThetaDataDxClient',
-  'FlatFileRowList',
-]) {
-  const klass = native[klassName];
-  if (klass) wrapMethodsWithTypedErrors(klass);
-}
-
-module.exports = Object.assign({}, native, {
+module.exports = Object.assign({}, native, exportedClasses, exportedFreeFns, {
   StreamingSession,
-  Contract: native.ContractRef,
+  // The documented `Contract` name resolves to the same static-wrapped
+  // export as `ContractRef`, so `Contract.option(...)` reclassifies too.
+  Contract: exportedClasses.ContractRef ?? native.ContractRef,
   ThetaDataError,
   AuthenticationError,
   InvalidCredentialsError,

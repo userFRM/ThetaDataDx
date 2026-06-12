@@ -88,10 +88,26 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
         "pub fn {fn_name}(rows: Vec<{type_name}>) -> napi::Result<napi::bindgen_prelude::Buffer> {{"
     )
     .unwrap();
+    // Logical-enum columns (`right` / `calendar_status`) reject invalid
+    // input with `return Err(..)`; when the type carries one the
+    // reconstruct closure is fallible and its results are collected into a
+    // `napi::Result<Vec<..>>` and `?`-propagated. Types without such a
+    // column keep the infallible `.map(..).collect()` so a build that adds
+    // no validation pays no wrapping.
+    let fallible = ts_arrow_reconstruct_is_fallible(def);
     writeln!(out, "    let owned: Vec<tick::{type_name}> = rows").unwrap();
     out.push_str("        .into_iter()\n");
-    out.push_str("        .map(|r| {\n");
-    writeln!(out, "            tick::{type_name} {{").unwrap();
+    if fallible {
+        writeln!(
+            out,
+            "        .map(|r| -> napi::Result<tick::{type_name}> {{"
+        )
+        .unwrap();
+        writeln!(out, "            Ok(tick::{type_name} {{").unwrap();
+    } else {
+        out.push_str("        .map(|r| {\n");
+        writeln!(out, "            tick::{type_name} {{").unwrap();
+    }
     for column in &def.columns {
         let field = rust_field_ident(&column.field);
         let expr = ts_arrow_reconstruct_expr(&column.r#type, &field);
@@ -103,16 +119,28 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
     if def.contract_id {
         // Inverse of the factory's `has_contract_id().then_some(..)`: the
         // absent JS `undefined`/`null` round-trips back to the struct's
-        // documented zero / NUL fill.
+        // documented zero / NUL fill. `right` validates its inbound string
+        // the same way the standalone `right` column does, rejecting any
+        // value outside `"C"` / `"P"` (absent / empty → NUL).
         out.push_str("                expiration: r.expiration.unwrap_or(0),\n");
         out.push_str("                strike: r.strike.unwrap_or(0.0),\n");
         out.push_str(
-            "                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\\0'),\n",
+            "                right: match r.right.as_deref() { Some(\"C\") => 'C', Some(\"P\") => 'P', None | Some(\"\") => '\\0', Some(other) => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] right must be \\\"C\\\" or \\\"P\\\", got {other:?}\"))) },\n",
         );
     }
-    out.push_str("            }\n");
-    out.push_str("        })\n");
-    out.push_str("        .collect();\n");
+    if fallible {
+        out.push_str("            })\n");
+        out.push_str("        })\n");
+        writeln!(
+            out,
+            "        .collect::<napi::Result<Vec<tick::{type_name}>>>()?;"
+        )
+        .unwrap();
+    } else {
+        out.push_str("            }\n");
+        out.push_str("        })\n");
+        out.push_str("        .collect();\n");
+    }
     out.push_str(
         "    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())\n",
     );
@@ -138,23 +166,50 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
 
 /// Reconstruct one columnar field of `tick::T` from the JS object binding
 /// `r`. Inverse of the forward factory's per-type projection.
+///
+/// Logical-enum columns (`right`, `calendar_status`) validate the inbound
+/// string against the accepted vocabulary and `return Err(..)` on anything
+/// outside it, so an invalid value is rejected rather than silently coerced
+/// to a neighbouring variant — the same accepted set and message wording the
+/// Python `pyclass_to_tick_expr` reverse projection enforces, keeping the two
+/// bindings' rejection behaviour identical. The `napi::Error` carries the
+/// `[InvalidParameterError]` prefix so the wrapped free function re-throws it
+/// as the typed `InvalidParameterError` subclass. Because these arms emit
+/// `return Err(..)`, the surrounding reconstruct runs inside a fallible
+/// closure (see [`render_ts_tick_arrow_ipc`]).
 fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
     match column_type {
         // i64 columns cross from JS as `BigInt`; `get_i64` yields the value.
         "i64" | "eod_num64" => format!("{{ let (v, _) = r.{field}.get_i64(); v }}"),
-        // The logical right char arrives as a one-character string.
+        // The logical right char arrives as a one-character string; only
+        // `"C"` / `"P"` (and empty → NUL) are accepted, matching Python.
         "right" => format!(
-            "r.{field}.chars().next().unwrap_or('\\0')"
+            "match r.{field}.as_str() {{ \"C\" => 'C', \"P\" => 'P', \"\" => '\\0', other => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] right must be \\\"C\\\" or \\\"P\\\", got {{other:?}}\"))) }}"
         ),
         // The calendar day type arrives as the vendor vocabulary string;
-        // round-trip it back through the enum (unknown text → Weekend, the
-        // closed-day default, never a phantom open session).
+        // round-trip it back through the enum, rejecting anything outside the
+        // documented vocabulary rather than mis-classifying schema drift.
         "calendar_status" => format!(
-            "tdbe::types::enums::CalendarStatus::from_wire_text(&r.{field}).unwrap_or(tdbe::types::enums::CalendarStatus::Weekend)"
+            "match tdbe::types::enums::CalendarStatus::from_wire_text(&r.{field}) {{ Some(status) => status, None => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {{:?}}\", r.{field}))) }}"
         ),
         // Plain Copy primitives (i32 / f64 / bool) deref straight through.
         _ => format!("r.{field}"),
     }
+}
+
+/// `true` when a tick type's Arrow-IPC reconstruction validates at least one
+/// inbound string and so emits `return Err(..)`: either a logical-enum column
+/// (`right` / `calendar_status`) or the appended contract-identity `right`
+/// (present whenever `def.contract_id`). Such a reconstruct must run inside a
+/// fallible closure; types without any validated field keep the infallible
+/// `.map(..).collect()` form so a build that adds no validation pays no
+/// wrapping.
+fn ts_arrow_reconstruct_is_fallible(def: &TickTypeDef) -> bool {
+    def.contract_id
+        || def
+            .columns
+            .iter()
+            .any(|column| matches!(column.r#type.as_str(), "right" | "calendar_status"))
 }
 
 /// PascalCase tick type name → snake_case fn-name stem (`EodTick` →

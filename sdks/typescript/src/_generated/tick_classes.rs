@@ -1204,16 +1204,16 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
 pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::CalendarDay> = rows
         .into_iter()
-        .map(|r| {
-            tick::CalendarDay {
+        .map(|r| -> napi::Result<tick::CalendarDay> {
+            Ok(tick::CalendarDay {
                 date: r.date,
                 is_open: r.is_open,
                 open_time: r.open_time,
                 close_time: r.close_time,
-                status: tdbe::types::enums::CalendarStatus::from_wire_text(&r.status).unwrap_or(tdbe::types::enums::CalendarStatus::Weekend),
-            }
+                status: match tdbe::types::enums::CalendarStatus::from_wire_text(&r.status) { Some(status) => status, None => return Err(napi::Error::from_reason(format!("[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}", r.status))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::CalendarDay>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1242,8 +1242,8 @@ pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::b
 pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::EodTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::EodTick {
+        .map(|r| -> napi::Result<tick::EodTick> {
+            Ok(tick::EodTick {
                 created_ms_of_day: r.created_ms_of_day,
                 last_trade_ms_of_day: r.last_trade_ms_of_day,
                 open: r.open,
@@ -1263,10 +1263,10 @@ pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_p
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::EodTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1295,8 +1295,8 @@ pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_p
 pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::GreeksAllTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::GreeksAllTick {
+        .map(|r| -> napi::Result<tick::GreeksAllTick> {
+            Ok(tick::GreeksAllTick {
                 ms_of_day: r.ms_of_day,
                 bid: r.bid,
                 ask: r.ask,
@@ -1327,10 +1327,10 @@ pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<na
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::GreeksAllTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1359,8 +1359,8 @@ pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<na
 pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::GreeksEodTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::GreeksEodTick {
+        .map(|r| -> napi::Result<tick::GreeksEodTick> {
+            Ok(tick::GreeksEodTick {
                 ms_of_day: r.ms_of_day,
                 open: r.open,
                 high: r.high,
@@ -1403,10 +1403,10 @@ pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<na
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::GreeksEodTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1435,8 +1435,8 @@ pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<na
 pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::GreeksFirstOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::GreeksFirstOrderTick {
+        .map(|r| -> napi::Result<tick::GreeksFirstOrderTick> {
+            Ok(tick::GreeksFirstOrderTick {
                 ms_of_day: r.ms_of_day,
                 bid: r.bid,
                 ask: r.ask,
@@ -1453,10 +1453,10 @@ pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> 
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::GreeksFirstOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1485,8 +1485,8 @@ pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> 
 pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::GreeksSecondOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::GreeksSecondOrderTick {
+        .map(|r| -> napi::Result<tick::GreeksSecondOrderTick> {
+            Ok(tick::GreeksSecondOrderTick {
                 ms_of_day: r.ms_of_day,
                 bid: r.bid,
                 ask: r.ask,
@@ -1502,10 +1502,10 @@ pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::GreeksSecondOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1534,8 +1534,8 @@ pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -
 pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::GreeksThirdOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::GreeksThirdOrderTick {
+        .map(|r| -> napi::Result<tick::GreeksThirdOrderTick> {
+            Ok(tick::GreeksThirdOrderTick {
                 ms_of_day: r.ms_of_day,
                 bid: r.bid,
                 ask: r.ask,
@@ -1550,10 +1550,10 @@ pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> 
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::GreeksThirdOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1661,8 +1661,8 @@ pub fn interest_rate_tick_to_arrow_ipc(rows: Vec<InterestRateTick>) -> napi::Res
 pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::IvTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::IvTick {
+        .map(|r| -> napi::Result<tick::IvTick> {
+            Ok(tick::IvTick {
                 ms_of_day: r.ms_of_day,
                 bid: r.bid,
                 bid_implied_volatility: r.bid_implied_volatility,
@@ -1676,10 +1676,10 @@ pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_pre
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::IvTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1708,8 +1708,8 @@ pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_pre
 pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::MarketValueTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::MarketValueTick {
+        .map(|r| -> napi::Result<tick::MarketValueTick> {
+            Ok(tick::MarketValueTick {
                 ms_of_day: r.ms_of_day,
                 market_bid: r.market_bid,
                 market_ask: r.market_ask,
@@ -1717,10 +1717,10 @@ pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Resul
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::MarketValueTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1749,8 +1749,8 @@ pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Resul
 pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::OhlcTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::OhlcTick {
+        .map(|r| -> napi::Result<tick::OhlcTick> {
+            Ok(tick::OhlcTick {
                 ms_of_day: r.ms_of_day,
                 open: r.open,
                 high: r.high,
@@ -1762,10 +1762,10 @@ pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::OhlcTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1794,17 +1794,17 @@ pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen
 pub fn open_interest_tick_to_arrow_ipc(rows: Vec<OpenInterestTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::OpenInterestTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::OpenInterestTick {
+        .map(|r| -> napi::Result<tick::OpenInterestTick> {
+            Ok(tick::OpenInterestTick {
                 ms_of_day: r.ms_of_day,
                 open_interest: r.open_interest,
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::OpenInterestTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1869,8 +1869,8 @@ pub fn price_tick_to_arrow_ipc(rows: Vec<PriceTick>) -> napi::Result<napi::bindg
 pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::QuoteTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::QuoteTick {
+        .map(|r| -> napi::Result<tick::QuoteTick> {
+            Ok(tick::QuoteTick {
                 ms_of_day: r.ms_of_day,
                 bid_size: r.bid_size,
                 bid_exchange: r.bid_exchange,
@@ -1884,10 +1884,10 @@ pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindg
                 midpoint: r.midpoint,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::QuoteTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1916,8 +1916,8 @@ pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindg
 pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeGreeksAllTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeGreeksAllTick {
+        .map(|r| -> napi::Result<tick::TradeGreeksAllTick> {
+            Ok(tick::TradeGreeksAllTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -1955,10 +1955,10 @@ pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeGreeksAllTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -1987,8 +1987,8 @@ pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi
 pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeGreeksFirstOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeGreeksFirstOrderTick {
+        .map(|r| -> napi::Result<tick::TradeGreeksFirstOrderTick> {
+            Ok(tick::TradeGreeksFirstOrderTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2012,10 +2012,10 @@ pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrde
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeGreeksFirstOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -2044,8 +2044,8 @@ pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrde
 pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksImpliedVolatilityTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeGreeksImpliedVolatilityTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeGreeksImpliedVolatilityTick {
+        .map(|r| -> napi::Result<tick::TradeGreeksImpliedVolatilityTick> {
+            Ok(tick::TradeGreeksImpliedVolatilityTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2063,10 +2063,10 @@ pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksIm
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeGreeksImpliedVolatilityTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -2095,8 +2095,8 @@ pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksIm
 pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeGreeksSecondOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeGreeksSecondOrderTick {
+        .map(|r| -> napi::Result<tick::TradeGreeksSecondOrderTick> {
+            Ok(tick::TradeGreeksSecondOrderTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2119,10 +2119,10 @@ pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOr
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeGreeksSecondOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -2151,8 +2151,8 @@ pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOr
 pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeGreeksThirdOrderTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeGreeksThirdOrderTick {
+        .map(|r| -> napi::Result<tick::TradeGreeksThirdOrderTick> {
+            Ok(tick::TradeGreeksThirdOrderTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2174,10 +2174,10 @@ pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrde
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeGreeksThirdOrderTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -2206,8 +2206,8 @@ pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrde
 pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeQuoteTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeQuoteTick {
+        .map(|r| -> napi::Result<tick::TradeQuoteTick> {
+            Ok(tick::TradeQuoteTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2234,10 +2234,10 @@ pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeQuoteTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
@@ -2266,8 +2266,8 @@ pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<
 pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned: Vec<tick::TradeTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::TradeTick {
+        .map(|r| -> napi::Result<tick::TradeTick> {
+            Ok(tick::TradeTick {
                 ms_of_day: r.ms_of_day,
                 sequence: r.sequence,
                 ext_condition1: r.ext_condition1,
@@ -2285,10 +2285,10 @@ pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindg
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
                 strike: r.strike.unwrap_or(0.0),
-                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
-            }
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::TradeTick>>>()?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();

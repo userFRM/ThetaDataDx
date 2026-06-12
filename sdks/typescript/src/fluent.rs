@@ -169,7 +169,7 @@ impl ContractRef {
             },
         )
         .map(Self::from_inner)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))
+        .map_err(crate::to_napi_err)
     }
 
     /// Per-contract Quote subscription.
