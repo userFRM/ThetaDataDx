@@ -26,13 +26,15 @@ use super::contract::Contract;
 
 /// Returns the `StreamMsgType` code for subscribing to a given data type.
 ///
-/// Wire codes: `Quote` = 21, `Trade` = 22, `OpenInterest` = 23.
+/// Wire codes: `Quote` = 21, `Trade` = 22, `OpenInterest` = 23,
+/// `MarketValue` = 25.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SubscriptionKind {
     Quote,
     Trade,
     OpenInterest,
+    MarketValue,
 }
 
 impl SubscriptionKind {
@@ -43,6 +45,7 @@ impl SubscriptionKind {
             Self::Quote => StreamMsgType::Quote,
             Self::Trade => StreamMsgType::Trade,
             Self::OpenInterest => StreamMsgType::OpenInterest,
+            Self::MarketValue => StreamMsgType::MarketValue,
         }
     }
 
@@ -53,6 +56,7 @@ impl SubscriptionKind {
             Self::Quote => StreamMsgType::RemoveQuote,
             Self::Trade => StreamMsgType::RemoveTrade,
             Self::OpenInterest => StreamMsgType::RemoveOpenInterest,
+            Self::MarketValue => StreamMsgType::RemoveMarketValue,
         }
     }
 }
@@ -189,6 +193,21 @@ impl Contract {
         Subscription::Contract {
             contract: self.clone(),
             kind: SubscriptionKind::OpenInterest,
+        }
+    }
+
+    /// Per-contract market-value subscription.
+    ///
+    /// The market value is a calculated theoretical price derived from
+    /// the real-time bid/ask (see [`crate::fpss::FpssData::MarketValue`]).
+    /// The vendor offers it per-contract only — there is no full-stream
+    /// market-value broadcast, so this lives on [`Contract`] and not on
+    /// [`SecTypeExt`].
+    #[must_use]
+    pub fn market_value(&self) -> Subscription {
+        Subscription::Contract {
+            contract: self.clone(),
+            kind: SubscriptionKind::MarketValue,
         }
     }
 }

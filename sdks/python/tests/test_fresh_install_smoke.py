@@ -45,6 +45,7 @@ PUBLIC_CLASSES = [
     "Trade",
     "Ohlcvc",
     "OpenInterest",
+    "MarketValue",
     "ContractRef",
     "Connected",
     "Disconnected",

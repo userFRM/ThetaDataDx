@@ -546,12 +546,15 @@ pub const TDX_SUB_SCOPE_FULL: i32 = 1;
 /// Per-contract / full-stream tick kind discriminators. The set
 /// reachable from each scope is constrained:
 ///
-/// - `TDX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`.
+/// - `TDX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`,
+///   `MARKET_VALUE`.
 /// - `TDX_SUB_SCOPE_FULL` accepts `TRADE`, `OPEN_INTEREST` (full-stream
-///   quote is rejected — quotes are addressed per-contract only).
+///   quote and market value are rejected — both are addressed
+///   per-contract only).
 pub const TDX_SUB_KIND_QUOTE: i32 = 0;
 pub const TDX_SUB_KIND_TRADE: i32 = 1;
 pub const TDX_SUB_KIND_OPEN_INTEREST: i32 = 2;
+pub const TDX_SUB_KIND_MARKET_VALUE: i32 = 3;
 
 /// Polymorphic subscribe / unsubscribe request payload.
 ///
@@ -610,6 +613,7 @@ unsafe fn coerce_subscription(
                 TDX_SUB_KIND_QUOTE => SubscriptionKind::Quote,
                 TDX_SUB_KIND_TRADE => SubscriptionKind::Trade,
                 TDX_SUB_KIND_OPEN_INTEREST => SubscriptionKind::OpenInterest,
+                TDX_SUB_KIND_MARKET_VALUE => SubscriptionKind::MarketValue,
                 other => {
                     set_error(&format!("invalid kind {other}"));
                     return None;
@@ -646,6 +650,10 @@ unsafe fn coerce_subscription(
                 TDX_SUB_KIND_OPEN_INTEREST => FullSubscriptionKind::OpenInterest,
                 TDX_SUB_KIND_QUOTE => {
                     set_error("full-stream Quote is not a valid subscription");
+                    return None;
+                }
+                TDX_SUB_KIND_MARKET_VALUE => {
+                    set_error("full-stream MarketValue is not a valid subscription");
                     return None;
                 }
                 other => {

@@ -232,6 +232,7 @@ def _is_implicitly_tracked(name: str) -> bool:
         "Trade",
         "Ohlcvc",
         "OpenInterest",
+        "MarketValue",
         "ContractAssigned",
         "Connected",
         "Disconnected",

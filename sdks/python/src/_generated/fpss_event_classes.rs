@@ -144,6 +144,28 @@ impl MarketOpen {
     fn kind(&self) -> &'static str { "market_open" }
 }
 
+/// FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct MarketValue {
+    #[pyo3(get)] pub contract: Py<ContractRef>,
+    #[pyo3(get)] pub ms_of_day: i32,
+    #[pyo3(get)] pub market_bid: f64,
+    #[pyo3(get)] pub market_ask: f64,
+    #[pyo3(get)] pub market_price: f64,
+    #[pyo3(get)] pub date: i32,
+    #[pyo3(get)] pub received_at_ns: u64,
+}
+#[pymethods]
+impl MarketValue {
+    fn __repr__(&self) -> String {
+        format!("MarketValue(ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
+    }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "market_value" }
+}
+
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
@@ -470,6 +492,30 @@ pub(crate) fn buffered_event_to_typed(
             .map(|p| p.into_any()),
         BufferedEvent::MarketOpen => Py::new(py, MarketOpen)
             .map(|p| p.into_any()),
+        BufferedEvent::MarketValue {
+            contract,
+            ms_of_day,
+            market_bid,
+            market_ask,
+            market_price,
+            date,
+            received_at_ns,
+        } => {
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
+            Py::new(
+                py,
+                MarketValue {
+                    contract: contract_py.clone_ref(py),
+                    ms_of_day: *ms_of_day,
+                    market_bid: *market_bid,
+                    market_ask: *market_ask,
+                    market_price: *market_price,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any())
+        }
         BufferedEvent::Ohlcvc {
             contract,
             ms_of_day,
@@ -690,6 +736,7 @@ pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<LoginSuccess>()?;
     m.add_class::<MarketClose>()?;
     m.add_class::<MarketOpen>()?;
+    m.add_class::<MarketValue>()?;
     m.add_class::<Ohlcvc>()?;
     m.add_class::<OpenInterest>()?;
     m.add_class::<ParseError>()?;

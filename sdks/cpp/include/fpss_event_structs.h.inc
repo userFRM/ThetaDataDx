@@ -16,21 +16,22 @@ typedef enum {
     TDX_FPSS_LOGIN_SUCCESS = 3,
     TDX_FPSS_MARKET_CLOSE = 4,
     TDX_FPSS_MARKET_OPEN = 5,
-    TDX_FPSS_OHLCVC = 6,
-    TDX_FPSS_OPEN_INTEREST = 7,
-    TDX_FPSS_PARSE_ERROR = 8,
-    TDX_FPSS_PING = 9,
-    TDX_FPSS_QUOTE = 10,
-    TDX_FPSS_RECONNECTED = 11,
-    TDX_FPSS_RECONNECTED_SERVER = 12,
-    TDX_FPSS_RECONNECTING = 13,
-    TDX_FPSS_RECONNECTS_EXHAUSTED = 14,
-    TDX_FPSS_REQ_RESPONSE = 15,
-    TDX_FPSS_RESTART = 16,
-    TDX_FPSS_SERVER_ERROR = 17,
-    TDX_FPSS_TRADE = 18,
-    TDX_FPSS_UNKNOWN_CONTROL = 19,
-    TDX_FPSS_UNKNOWN_FRAME = 20,
+    TDX_FPSS_MARKET_VALUE = 6,
+    TDX_FPSS_OHLCVC = 7,
+    TDX_FPSS_OPEN_INTEREST = 8,
+    TDX_FPSS_PARSE_ERROR = 9,
+    TDX_FPSS_PING = 10,
+    TDX_FPSS_QUOTE = 11,
+    TDX_FPSS_RECONNECTED = 12,
+    TDX_FPSS_RECONNECTED_SERVER = 13,
+    TDX_FPSS_RECONNECTING = 14,
+    TDX_FPSS_RECONNECTS_EXHAUSTED = 15,
+    TDX_FPSS_REQ_RESPONSE = 16,
+    TDX_FPSS_RESTART = 17,
+    TDX_FPSS_SERVER_ERROR = 18,
+    TDX_FPSS_TRADE = 19,
+    TDX_FPSS_UNKNOWN_CONTROL = 20,
+    TDX_FPSS_UNKNOWN_FRAME = 21,
 } TdxFpssEventKind;
 
 /* FPSS Contract shared across every data event. `symbol` is a
@@ -51,6 +52,17 @@ char right;
 bool has_strike;
 double strike;
 } TdxContract;
+
+/* FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
+typedef struct {
+    TdxContract contract;
+    int32_t ms_of_day;
+    double market_bid;
+    double market_ask;
+    double market_price;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssMarketValue;
 
 /* FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
 typedef struct {
@@ -217,6 +229,7 @@ typedef struct {
  * mirror the Rust `FpssControl::*` enum one-for-one. */
 typedef struct {
     TdxFpssEventKind kind;
+    TdxFpssMarketValue market_value;
     TdxFpssOhlcvc ohlcvc;
     TdxFpssOpenInterest open_interest;
     TdxFpssQuote quote;

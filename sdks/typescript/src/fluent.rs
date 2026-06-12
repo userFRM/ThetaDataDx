@@ -196,6 +196,14 @@ impl ContractRef {
         }
     }
 
+    /// Per-contract market-value subscription.
+    #[napi(js_name = "marketValue")]
+    pub fn market_value(&self) -> Subscription {
+        Subscription {
+            inner: Arc::new(Mutex::new(self.inner.market_value())),
+        }
+    }
+
     #[napi(getter)]
     pub fn symbol(&self) -> String {
         self.inner.symbol.to_string()

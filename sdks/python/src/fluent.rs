@@ -171,6 +171,13 @@ impl PyContract {
         }
     }
 
+    /// Per-contract market-value subscription.
+    fn market_value(&self) -> PySubscription {
+        PySubscription {
+            inner: self.inner.market_value(),
+        }
+    }
+
     #[getter]
     fn symbol(&self) -> &str {
         &self.inner.symbol

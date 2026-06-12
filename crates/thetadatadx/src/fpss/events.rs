@@ -126,6 +126,32 @@ pub enum FpssData {
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
+    /// Decoded market-value tick (code 25).
+    ///
+    /// A calculated theoretical market value derived from the real-time
+    /// bid/ask of the underlying quote — not a raw field. The terminal
+    /// nudges the bid/ask by a size-imbalance + spread-aware rule
+    /// (see [`super::decode`] for the exact algorithm) and reports the
+    /// resulting `market_bid` / `market_ask` plus their integer midpoint
+    /// `market_price`. The feed is per-contract (no full-stream variant).
+    MarketValue {
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the matching `ContractAssigned` frame has not yet
+        /// arrived.
+        contract: Arc<Contract>,
+        ms_of_day: i32,
+        /// Calculated market bid (dollars), nudged from the quote bid.
+        market_bid: f64,
+        /// Calculated market ask (dollars), nudged from the quote ask.
+        market_ask: f64,
+        /// Integer midpoint of `market_bid` / `market_ask` (dollars).
+        market_price: f64,
+        date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
+    },
 }
 
 /// Control/lifecycle events from the FPSS stream.

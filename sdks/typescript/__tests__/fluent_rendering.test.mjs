@@ -40,6 +40,8 @@ describe('toString on the fluent value classes', () => {
   it('Subscription renders scope, kind, and contract', () => {
     const perContract = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' }).trade();
     assert.equal(perContract.toString(), 'Subscription(Trade, SPY OPTION 20260620 C 550000)');
+    const marketValue = Contract.stock('AAPL').marketValue();
+    assert.equal(marketValue.toString(), 'Subscription(MarketValue, AAPL STOCK)');
     const full = SecType.option().fullOpenInterest();
     assert.equal(full.toString(), 'Subscription(full OpenInterest, Option)');
   });

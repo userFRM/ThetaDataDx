@@ -44,6 +44,8 @@ static FPSS_OI_EVENTS: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest"));
 static FPSS_OHLCVC_EVENTS: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc"));
+static FPSS_MARKET_VALUE_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "market_value"));
 
 static FPSS_QUOTE_DECODE_FAILURES: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "quote"));
@@ -54,6 +56,9 @@ static FPSS_OI_DECODE_FAILURES: LazyLock<Counter> = LazyLock::new(
 );
 static FPSS_OHLCVC_DECODE_FAILURES: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc"));
+static FPSS_MARKET_VALUE_DECODE_FAILURES: LazyLock<Counter> = LazyLock::new(
+    || metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "market_value"),
+);
 
 static FPSS_INVALID_PRICE_TYPE_QUOTE: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "quote"));
@@ -61,6 +66,9 @@ static FPSS_INVALID_PRICE_TYPE_TRADE: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "trade"));
 static FPSS_INVALID_PRICE_TYPE_OHLCVC: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "ohlcvc"));
+static FPSS_INVALID_PRICE_TYPE_MARKET_VALUE: LazyLock<Counter> = LazyLock::new(
+    || metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "market_value"),
+);
 
 /// Reassemble an FPSS wire `Price` cell. Returns `None` when
 /// `price_type` is outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
@@ -69,6 +77,90 @@ fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
     Price::with_value_and_type(value, price_type)
         .ok()
         .map(|p| p.to_f64())
+}
+
+/// Calculated market bid/ask, in raw wire-integer price units (the same
+/// scale as the source quote's `bid` / `ask` cells — convert to dollars
+/// only at the typed boundary via [`strict_fpss_price`]).
+///
+/// # Algorithm (vendor parity)
+///
+/// Reverse-engineered branch-for-branch from the current terminal's
+/// `net.thetadata.types.tick.MarketValueTick` (build 202606041):
+/// `MarketValueTick(Tick)` extends `QuoteTick`, overwrites the quote's
+/// `ask` cell (`data[7]`) with `calculateMarketAsk()`, then overwrites
+/// the `bid` cell (`data[3]`) with `calculateMarketBid(in)` where `in`
+/// is the *original* `ask` cell value. Two ordering facts are load-
+/// bearing and preserved exactly here:
+///
+/// * `market_ask` is computed first; `calculateMarketBid` then sees the
+///   *overwritten* ask cell. So every `ask` the bid calc reads (the
+///   `bid == in` short-circuit return, the `bid < ask` comparison, and
+///   the `max(ask - 1, 0)` clamp) is `market_ask`, never the raw ask.
+/// * `in` (the raw ask) is only used for the `bid == in` equality test.
+///
+/// Source bytecode (`javap -c -p MarketValueTick.class`):
+///
+/// ```text
+/// calculateMarketAsk():
+///     if (askSize() > bidSize())   return ask + 1
+///     else if (ask <= 2)           return ask
+///     else                         return ask - 1
+///
+/// // data[7] is now market_ask; `in` = raw ask.
+/// calculateMarketBid(in):
+///     bid = bid()
+///     if (bid == in)               return market_ask          // data[7]
+///     if (askSize() > bidSize())
+///         return (bid <= 1) ? bid : bid - 1
+///     else
+///         if (bid == 0)            return 0
+///         if (bid < market_ask)    return min(max(market_ask - 1, 0), bid + 1)
+///         else                     return bid + 1
+/// ```
+///
+/// `bid` / `ask` here are the raw integer quote cells (`buf[3]` / `buf[7]`),
+/// `bid_size` / `ask_size` are `buf[1]` / `buf[5]`. The `+1` / `-1` nudges
+/// are therefore in wire-integer price units, exactly as the terminal
+/// applies them before its own dollar conversion.
+#[inline]
+fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (i32, i32) {
+    let market_ask = if ask_size > bid_size {
+        ask + 1
+    } else if ask <= 2 {
+        ask
+    } else {
+        ask - 1
+    };
+
+    let market_bid = if bid == ask {
+        // `data[7]` has already been overwritten with `market_ask`.
+        market_ask
+    } else if ask_size > bid_size {
+        if bid <= 1 {
+            bid
+        } else {
+            bid - 1
+        }
+    } else if bid == 0 {
+        0
+    } else if bid < market_ask {
+        // The terminal compares against the overwritten ask cell, i.e.
+        // `market_ask`, and clamps against it too.
+        (market_ask - 1).max(0).min(bid + 1)
+    } else {
+        bid + 1
+    };
+
+    (market_bid, market_ask)
+}
+
+/// Integer midpoint of the market bid/ask, matching `QuoteTick.price()`:
+/// `bid/2 + ask/2 + (bid%2 + ask%2)/2` (overflow-safe floor of the mean).
+/// Computed in wire-integer units, converted to dollars at the boundary.
+#[inline]
+fn market_value_midpoint(market_bid: i32, market_ask: i32) -> i32 {
+    market_bid / 2 + market_ask / 2 + (market_bid % 2 + market_ask % 2) / 2
 }
 
 /// Increment the per-kind invalid-price-type counter and emit a
@@ -519,6 +611,59 @@ pub fn decode_frame(
                 None if delta_state.last_was_date => (None, None),
                 None => {
                     FPSS_OHLCVC_DECODE_FAILURES.increment(1);
+                    (Some(FpssEventInternal::Unparseable), None)
+                }
+            }
+        }
+
+        StreamMsgType::MarketValue => {
+            let msg_code = code as u8;
+            // The MARKET_VALUE frame carries the same 11-field FIT quote
+            // layout as a Quote frame (the terminal builds a quote-shaped
+            // `Tick` and wraps it in `MarketValueTick`). Decode with
+            // `QUOTE_FIELDS`, then apply the calculated nudges.
+            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
+                    warn_unknown_contract(
+                        contract_id,
+                        "market_value",
+                        delta_state,
+                        local_contracts,
+                    );
+                    let pt = buf[9];
+                    // Run the vendor calc on the raw integer bid/ask/sizes,
+                    // keeping wire scale, then reassemble to dollars at the
+                    // boundary like every other price field.
+                    let (market_bid_i, market_ask_i) =
+                        calculate_market_value(buf[3], buf[7], buf[1], buf[5]);
+                    let market_price_i = market_value_midpoint(market_bid_i, market_ask_i);
+                    let (Some(market_bid), Some(market_ask), Some(market_price)) = (
+                        strict_fpss_price(market_bid_i, pt),
+                        strict_fpss_price(market_ask_i, pt),
+                        strict_fpss_price(market_price_i, pt),
+                    ) else {
+                        FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
+                        FPSS_INVALID_PRICE_TYPE_MARKET_VALUE.increment(1);
+                        warn_invalid_price_type("market_value", contract_id, pt);
+                        return (Some(FpssEventInternal::Unparseable), None);
+                    };
+                    FPSS_MARKET_VALUE_EVENTS.increment(1);
+                    (
+                        Some(FpssEventInternal::Data(FpssData::MarketValue {
+                            contract: resolve_contract(contract_id, local_contracts),
+                            ms_of_day: buf[0],
+                            market_bid,
+                            market_ask,
+                            market_price,
+                            date: buf[10],
+                            received_at_ns,
+                        })),
+                        None,
+                    )
+                }
+                None if delta_state.last_was_date => (None, None),
+                None => {
+                    FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -1483,6 +1628,170 @@ mod tests {
                 .unwrap_or(false),
             "invalid-price_type OHLCVC frame must not seed the accumulator"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Market value calc — pure-function unit tests covering every branch of
+    // the RE'd `calculateMarketBid` / `calculateMarketAsk` (build 202606041).
+    // Expected values hand-run from the bytecode (see `calculate_market_value`
+    // doc) in wire-integer units.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn calculate_market_value_balanced_book_below_ask() {
+        // bid < market_ask, balanced sizes, ask > 2.
+        // market_ask = ask-1 = 15029; market_bid = min(max(15028,0), 15026) = 15026.
+        let (mb, ma) = calculate_market_value(15_025, 15_030, 10, 10);
+        assert_eq!(ma, 15_029);
+        assert_eq!(mb, 15_026);
+        assert_eq!(market_value_midpoint(mb, ma), 15_027);
+    }
+
+    #[test]
+    fn calculate_market_value_ask_heavy_imbalance() {
+        // ask_size > bid_size: market_ask = ask+1; market_bid = bid-1.
+        let (mb, ma) = calculate_market_value(15_025, 15_030, 5, 40);
+        assert_eq!(ma, 15_031);
+        assert_eq!(mb, 15_024);
+        assert_eq!(market_value_midpoint(mb, ma), 15_027);
+    }
+
+    #[test]
+    fn calculate_market_value_locked_bid_equals_ask() {
+        // bid == raw ask short-circuits market_bid to the overwritten ask cell
+        // (market_ask), which itself is ask-1 here.
+        let (mb, ma) = calculate_market_value(15_030, 15_030, 10, 10);
+        assert_eq!(ma, 15_029);
+        assert_eq!(mb, 15_029);
+        assert_eq!(market_value_midpoint(mb, ma), 15_029);
+    }
+
+    #[test]
+    fn calculate_market_value_bid_at_or_above_market_ask() {
+        // Balanced sizes, bid not < market_ask → market_bid = bid+1.
+        let (mb, ma) = calculate_market_value(15_030, 15_031, 10, 10);
+        assert_eq!(ma, 15_030);
+        assert_eq!(mb, 15_031);
+        assert_eq!(market_value_midpoint(mb, ma), 15_030);
+    }
+
+    #[test]
+    fn calculate_market_value_tiny_ask_unchanged() {
+        // ask <= 2 and balanced sizes leaves the ask cell unchanged.
+        // bid(1) < market_ask(2) → min(max(2-1,0), 1+1) = min(1,2) = 1.
+        let (mb, ma) = calculate_market_value(1, 2, 10, 10);
+        assert_eq!(ma, 2);
+        assert_eq!(mb, 1);
+    }
+
+    #[test]
+    fn calculate_market_value_zero_bid_balanced_stays_zero() {
+        // Balanced sizes, bid == 0 → market_bid = 0.
+        let (mb, ma) = calculate_market_value(0, 50, 10, 10);
+        assert_eq!(ma, 49);
+        assert_eq!(mb, 0);
+    }
+
+    #[test]
+    fn calculate_market_value_ask_heavy_bid_one_floor() {
+        // ask_size > bid_size and bid <= 1 → market_bid = bid (no decrement).
+        let (mb, ma) = calculate_market_value(1, 30, 1, 9);
+        assert_eq!(ma, 31);
+        assert_eq!(mb, 1);
+    }
+
+    /// Drive the full `decode_frame` pipeline with a synthetic FIT
+    /// MARKET_VALUE frame (same 11-field quote layout) and assert the
+    /// emitted `FpssData::MarketValue` carries the calculated bid/ask/price
+    /// reassembled to dollars via the same `Price` path as every other tick.
+    #[test]
+    fn decode_frame_market_value_emits_calculated_fields() {
+        // 11-field quote layout (FIT prefix: contract_id):
+        //   [contract_id, ms_of_day, bid_size, bid_exchange, bid,
+        //    bid_condition, ask_size, ask_exchange, ask, ask_condition,
+        //    price_type, date]
+        let fit_payload = encode_fit_row(&[
+            100,        // contract_id
+            34_200_000, // ms_of_day
+            10,         // bid_size
+            4,          // bid_exchange
+            15_025,     // bid
+            0,          // bid_condition
+            10,         // ask_size
+            4,          // ask_exchange
+            15_030,     // ask
+            0,          // ask_condition
+            8,          // price_type
+            20_250_428, // date
+        ]);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(100, Arc::new(Contract::stock("AAPL")));
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::MarketValue,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        assert!(
+            secondary.is_none(),
+            "market value frame yields no secondary"
+        );
+        let evt = primary.expect("decode_frame must emit a primary MarketValue event");
+        match expect_public(&evt) {
+            FpssEvent::Data(FpssData::MarketValue {
+                contract,
+                ms_of_day,
+                market_bid,
+                market_ask,
+                market_price,
+                date,
+                ..
+            }) => {
+                assert_eq!(&*contract.symbol, "AAPL");
+                assert_eq!(*ms_of_day, 34_200_000);
+                assert_eq!(*date, 20_250_428);
+                // Balanced book, ask>2: market_ask=15029, market_bid=15026,
+                // mid=15027 — reassembled through Price(value, price_type=8).
+                assert!((*market_ask - Price::new(15_029, 8).to_f64()).abs() < f64::EPSILON);
+                assert!((*market_bid - Price::new(15_026, 8).to_f64()).abs() < f64::EPSILON);
+                assert!((*market_price - Price::new(15_027, 8).to_f64()).abs() < f64::EPSILON);
+                // Vendor-parity invariant: bid <= price <= ask.
+                assert!(*market_bid <= *market_price && *market_price <= *market_ask);
+            }
+            other => panic!("expected Data(MarketValue), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_frame_market_value_invalid_price_type_drops_to_unparseable() {
+        let fit_payload = encode_fit_row(&[
+            300, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 20, 20_250_428,
+        ]);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(300, Arc::new(Contract::stock("AAPL")));
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::MarketValue,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        assert!(secondary.is_none());
+        match primary {
+            Some(FpssEventInternal::Unparseable) => {}
+            other => panic!("expected Unparseable for out-of-range price_type, got {other:?}"),
+        }
     }
 
     #[test]

@@ -2108,7 +2108,10 @@ impl FpssClient {
                         kind: protocol::FullSubscriptionKind::OpenInterest,
                     }))
                 }
-                SubscriptionKind::Quote => None,
+                // Quote and MarketValue are per-contract only — the
+                // vendor has no full-stream broadcast for either, so a
+                // full-type restore is a no-op.
+                SubscriptionKind::Quote | SubscriptionKind::MarketValue => None,
             },
         );
         if failed.is_empty() {
