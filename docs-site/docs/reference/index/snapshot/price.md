@@ -60,7 +60,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-indexSnapshotPrice(symbols: Array<string>, options?: { ... }): Array<PriceTick>
+indexSnapshotPrice(symbols: Array<string>, options?: { ... }): Promise<Array<PriceTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `minTime?: string | Date`, `timeoutMs?: number`.
@@ -68,7 +68,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = tdx.indexSnapshotPrice(['SPX']);
+const rows = await tdx.indexSnapshotPrice(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }

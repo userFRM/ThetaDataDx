@@ -75,7 +75,7 @@ for t in rows:
 ```typescript
 optionSnapshotGreeksImpliedVolatility(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<IvTick>
+): Promise<Array<IvTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `stockPrice?: number`, `version?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `useMarketValue?: boolean`, `timeoutMs?: number`.
@@ -83,7 +83,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotGreeksImpliedVolatility('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.optionSnapshotGreeksImpliedVolatility('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.impliedVolatility, t.iVError);
 }

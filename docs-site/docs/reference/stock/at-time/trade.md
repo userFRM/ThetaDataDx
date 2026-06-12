@@ -74,7 +74,7 @@ for t in rows:
 stockAtTimeTrade(
   symbol: string, startDate: string | Date, endDate: string | Date,
   timeOfDay: string | Date, options?: { ... },
-): Array<TradeTick>
+): Promise<Array<TradeTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `venue?: string`, `timeoutMs?: number`.
@@ -82,7 +82,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = tdx.stockAtTimeTrade('AAPL', '20250303', '20250306', '10:30:00.000');
+const rows = await tdx.stockAtTimeTrade('AAPL', '20250303', '20250306', '10:30:00.000');
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }

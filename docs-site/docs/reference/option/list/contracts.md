@@ -70,7 +70,7 @@ for t in rows:
 ```typescript
 optionListContracts(
   requestType: string, symbol: string, date: string | Date, options?: { ... },
-): Array<OptionContract>
+): Promise<Array<OptionContract>>
 ```
 
 Optional parameters ride in a single trailing options object: `maxDTE?: number`, `timeoutMs?: number`.
@@ -78,7 +78,7 @@ Optional parameters ride in a single trailing options object: `maxDTE?: number`,
 **Example**
 
 ```typescript
-const rows = tdx.optionListContracts('trade', 'SPY', '20250303');
+const rows = await tdx.optionListContracts('trade', 'SPY', '20250303');
 for (const t of rows) {
   console.log(t.symbol, t.expiration, t.strike, t.right);
 }

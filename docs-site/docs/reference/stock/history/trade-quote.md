@@ -63,7 +63,7 @@ for t in rows:
 ```typescript
 stockHistoryTradeQuote(
   symbol: string, date: string | Date, options?: { ... },
-): Array<TradeQuoteTick>
+): Promise<Array<TradeQuoteTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `startTime?: string | Date`, `endTime?: string | Date`, `exclusive?: boolean`, `venue?: string`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
@@ -71,7 +71,7 @@ Optional parameters ride in a single trailing options object: `startTime?: strin
 **Example**
 
 ```typescript
-const rows = tdx.stockHistoryTradeQuote('AAPL', '20250303');
+const rows = await tdx.stockHistoryTradeQuote('AAPL', '20250303');
 for (const t of rows) {
   console.log(t.msOfDay, t.price, t.bid, t.ask);
 }

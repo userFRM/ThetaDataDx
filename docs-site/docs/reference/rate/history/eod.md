@@ -71,7 +71,7 @@ for t in rows:
 interestRateHistoryEOD(
   symbol: string, startDate: string | Date, endDate: string | Date,
   options?: { ... },
-): Array<InterestRateTick>
+): Promise<Array<InterestRateTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
@@ -79,7 +79,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = tdx.interestRateHistoryEOD('SOFR', '20250303', '20250306');
+const rows = await tdx.interestRateHistoryEOD('SOFR', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.rate);
 }

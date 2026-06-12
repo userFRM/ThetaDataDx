@@ -82,7 +82,7 @@ for t in rows:
 optionHistoryEOD(
   symbol: string, expiration: string | Date, startDate: string | Date,
   endDate: string | Date, options?: { ... },
-): Array<EodTick>
+): Promise<Array<EodTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `timeoutMs?: number`.
@@ -90,7 +90,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
+const rows = await tdx.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }

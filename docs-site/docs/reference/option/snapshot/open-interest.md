@@ -69,7 +69,7 @@ for t in rows:
 ```typescript
 optionSnapshotOpenInterest(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<OpenInterestTick>
+): Promise<Array<OpenInterestTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `timeoutMs?: number`.
@@ -77,7 +77,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotOpenInterest('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.optionSnapshotOpenInterest('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.openInterest);
 }

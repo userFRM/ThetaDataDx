@@ -67,7 +67,7 @@ for t in rows:
 ```typescript
 stockHistoryOHLC(
   symbol: string, date: string | Date, options?: { ... },
-): Array<OhlcTick>
+): Promise<Array<OhlcTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `interval?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `venue?: string`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
@@ -75,7 +75,7 @@ Optional parameters ride in a single trailing options object: `interval?: string
 **Example**
 
 ```typescript
-const rows = tdx.stockHistoryOHLC('AAPL', '20250303', { interval: '1m' });
+const rows = await tdx.stockHistoryOHLC('AAPL', '20250303', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

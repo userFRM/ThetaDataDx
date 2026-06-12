@@ -57,7 +57,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-calendarOpenToday(options?: { ... }): Array<CalendarDay>
+calendarOpenToday(options?: { ... }): Promise<Array<CalendarDay>>
 ```
 
 Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
@@ -65,7 +65,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = tdx.calendarOpenToday();
+const rows = await tdx.calendarOpenToday();
 for (const t of rows) {
   console.log(t.date, t.isOpen, t.status);
 }

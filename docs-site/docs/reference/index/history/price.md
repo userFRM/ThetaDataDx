@@ -68,7 +68,7 @@ for t in rows:
 ```typescript
 indexHistoryPrice(
   symbol: string, date: string | Date, options?: { ... },
-): Array<PriceTick>
+): Promise<Array<PriceTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `interval?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
@@ -76,7 +76,7 @@ Optional parameters ride in a single trailing options object: `interval?: string
 **Example**
 
 ```typescript
-const rows = tdx.indexHistoryPrice('SPX', '20250303', { interval: '1m' });
+const rows = await tdx.indexHistoryPrice('SPX', '20250303', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }
