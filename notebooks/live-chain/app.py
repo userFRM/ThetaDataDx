@@ -1,17 +1,18 @@
-"""ThetaDataDx Live Option Chain --- Streamlit Dashboard.
+"""ThetaDataDx Live Option Chain - Streamlit Dashboard.
 
-A real-time option chain viewer powered by thetadatadx's native Rust SDK.
-Connects directly to ThetaData servers (no JVM) and displays a live,
-color-coded option chain with Greeks computed via the built-in
-Black-Scholes calculator.
+A live option chain viewer powered by the thetadatadx native SDK.
+Connects directly to ThetaData servers (no JVM) and displays a
+color-coded option chain. Quotes, last trades, open interest, and Greeks
+all come from the snapshot endpoints, which refresh through the trading
+day and return no data when the market is closed.
 
 Run:
     pip install -r requirements.txt
     streamlit run app.py
 """
 
-import math
 import time
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -20,9 +21,7 @@ import streamlit as st
 from thetadatadx import (
     Config,
     Credentials,
-    ThetaDataDx,
-    all_greeks,
-    implied_volatility,
+    ThetaDataDxClient,
 )
 
 # ---------------------------------------------------------------------------
@@ -132,11 +131,6 @@ with st.sidebar:
         "Auto-refresh", value=st.session_state.auto_refresh,
     )
 
-    st.divider()
-    st.header("Greeks Parameters")
-    risk_free = st.number_input("Risk-free rate", value=0.05, format="%.4f", step=0.005)
-    div_yield = st.number_input("Dividend yield", value=0.013, format="%.4f", step=0.001)
-
 # ---------------------------------------------------------------------------
 # Connect to ThetaData
 # ---------------------------------------------------------------------------
@@ -150,7 +144,7 @@ if connect_btn and creds_ready:
                 creds = Credentials.from_file(creds_file)
 
             config = Config.production()
-            client = ThetaDataDx(creds, config)
+            client = ThetaDataDxClient(creds, config)
             st.session_state.client = client
             st.session_state.ticker = ticker
             st.session_state.connected = True
@@ -171,7 +165,7 @@ if not st.session_state.connected:
     st.info("Enter your ThetaData credentials in the sidebar and click Connect.")
     st.stop()
 
-client: ThetaDataDx = st.session_state.client
+client: ThetaDataDxClient = st.session_state.client
 ticker = st.session_state.ticker
 
 # ---------------------------------------------------------------------------
@@ -184,7 +178,7 @@ def fetch_spot(tkr: str) -> float:
     """Get the latest spot price for the underlying."""
     snap = client.stock_snapshot_ohlc([tkr])
     if snap:
-        return snap[0]["close"]
+        return snap[0].close
     return 0.0
 
 
@@ -202,7 +196,9 @@ except Exception as exc:
 
 @st.cache_data(ttl=60)
 def fetch_expirations(tkr: str) -> list[str]:
-    return client.option_list_expirations(tkr)
+    # Expirations are ISO date strings; keep upcoming ones.
+    today = datetime.now().date().isoformat()
+    return [e for e in client.option_list_expirations(tkr).to_list() if e > today]
 
 
 try:
@@ -220,8 +216,6 @@ if not expirations:
 # ---------------------------------------------------------------------------
 
 # Show the nearest 12 expirations as tabs
-from datetime import datetime
-
 max_tabs = 12
 tab_exps = expirations[:max_tabs]
 
@@ -229,7 +223,7 @@ tab_exps = expirations[:max_tabs]
 tab_labels = []
 today = datetime.now()
 for exp_str in tab_exps:
-    exp_dt = datetime.strptime(exp_str, "%Y%m%d")
+    exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
     dte = (exp_dt - today).days
     label = f"{exp_dt.strftime('%b %d')} ({dte}d)"
     tab_labels.append(label)
@@ -242,59 +236,52 @@ tabs = st.tabs(tab_labels)
 
 
 def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd.DataFrame:
-    """Fetch quotes + compute Greeks for an expiration, returning the chain DataFrame."""
+    """Fetch quotes, trades, OI, and snapshot Greeks for an expiration."""
 
-    exp_dt = datetime.strptime(exp_str, "%Y%m%d")
-    dte = (exp_dt - today).days
-    tte = max(dte / 365.0, 1 / 365.0)  # floor at 1 day to avoid div-by-zero
-
-    # 1. Get all strikes
-    all_strikes = client.option_list_strikes(tkr, exp_str)
+    # 1. Get all strikes (dollar-value strings).
+    all_strikes = client.option_list_strikes(tkr, exp_str).to_list()
     if not all_strikes:
         return pd.DataFrame()
 
-    # Convert strike encoding: ThetaData stores strikes * 1000 as strings
-    strike_pairs = [(s, float(s) / 1000) for s in all_strikes]
+    strike_pairs = sorted(((s, float(s)) for s in all_strikes), key=lambda x: x[1])
 
-    # 2. Find ATM and filter to N strikes around it
-    atm_idx = min(range(len(strike_pairs)), key=lambda i: abs(strike_pairs[i][1] - spot_price))
+    # 2. Find ATM and window to N strikes around it.
+    atm_idx = min(range(len(strike_pairs)),
+                  key=lambda i: abs(strike_pairs[i][1] - spot_price))
     half = n_strikes // 2
-    start = max(0, atm_idx - half)
-    end = min(len(strike_pairs), atm_idx + half + 1)
-    selected = strike_pairs[start:end]
+    selected = strike_pairs[max(0, atm_idx - half):atm_idx + half + 1]
 
-    # 3. Fetch call and put quotes for each strike
+    # 3. Fetch quotes, trades, OI, and Greeks for each strike.
     rows = []
     for strike_str, strike_val in selected:
         row = {"strike": strike_val, "strike_raw": strike_str}
 
         for right, prefix in [("C", "call_"), ("P", "put_")]:
+            # NBBO quote
             try:
-                quote = client.option_snapshot_quote(tkr, exp_str, strike_str, right)
+                quote = client.option_snapshot_quote(
+                    tkr, expiration=exp_str, strike=strike_str, right=right)
             except Exception:
                 quote = None
-
             if quote:
-                bid = quote[0]["bid"]
-                ask = quote[0]["ask"]
-                mid = (bid + ask) / 2
-                spread = ask - bid
-                row[f"{prefix}bid"] = bid
-                row[f"{prefix}ask"] = ask
-                row[f"{prefix}mid"] = mid
-                row[f"{prefix}spread"] = spread
+                q = quote[0]
+                row[f"{prefix}bid"] = q.bid
+                row[f"{prefix}ask"] = q.ask
+                row[f"{prefix}mid"] = (q.bid + q.ask) / 2
+                row[f"{prefix}spread"] = q.ask - q.bid
             else:
                 row[f"{prefix}bid"] = np.nan
                 row[f"{prefix}ask"] = np.nan
                 row[f"{prefix}mid"] = np.nan
                 row[f"{prefix}spread"] = np.nan
 
-            # Fetch last trade
+            # Last trade
             try:
-                trade = client.option_snapshot_trade(tkr, exp_str, strike_str, right)
+                trade = client.option_snapshot_trade(
+                    tkr, expiration=exp_str, strike=strike_str, right=right)
                 if trade:
-                    row[f"{prefix}last"] = trade[0]["price"]
-                    row[f"{prefix}volume"] = trade[0].get("size", 0)
+                    row[f"{prefix}last"] = trade[0].price
+                    row[f"{prefix}volume"] = trade[0].size
                 else:
                     row[f"{prefix}last"] = np.nan
                     row[f"{prefix}volume"] = 0
@@ -302,47 +289,26 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
                 row[f"{prefix}last"] = np.nan
                 row[f"{prefix}volume"] = 0
 
-            # Fetch open interest
+            # Open interest (updated overnight)
             try:
-                oi_data = client.option_snapshot_open_interest(tkr, exp_str, strike_str, right)
-                if oi_data:
-                    oi_val = oi_data[0].get("open_interest", 0)
-                    if isinstance(oi_val, dict):
-                        oi_val = oi_val.get("value", 0)
-                    row[f"{prefix}oi"] = int(oi_val) if oi_val else 0
-                else:
-                    row[f"{prefix}oi"] = 0
+                oi_data = client.option_snapshot_open_interest(
+                    tkr, expiration=exp_str, strike=strike_str, right=right)
+                row[f"{prefix}oi"] = oi_data[0].open_interest if oi_data else 0
             except Exception:
                 row[f"{prefix}oi"] = 0
 
-            # Compute Greeks from mid price
-            mid_price = row.get(f"{prefix}mid", np.nan)
-            if pd.notna(mid_price) and mid_price > 0.01:
-                try:
-                    g = all_greeks(
-                        spot=spot_price,
-                        strike=strike_val,
-                        rate=risk_free,
-                        div_yield=div_yield,
-                        tte=tte,
-                        option_price=mid_price,
-                        right=right,
-                    )
-                    if g["iv_error"] < 0.05:
-                        row[f"{prefix}iv"] = g["iv"]
-                        row[f"{prefix}delta"] = g["delta"]
-                        row[f"{prefix}gamma"] = g["gamma"]
-                        row[f"{prefix}theta"] = g["theta"]
-                    else:
-                        row[f"{prefix}iv"] = np.nan
-                        row[f"{prefix}delta"] = np.nan
-                        row[f"{prefix}gamma"] = np.nan
-                        row[f"{prefix}theta"] = np.nan
-                except Exception:
-                    row[f"{prefix}iv"] = np.nan
-                    row[f"{prefix}delta"] = np.nan
-                    row[f"{prefix}gamma"] = np.nan
-                    row[f"{prefix}theta"] = np.nan
+            # Snapshot Greeks (computed server-side)
+            try:
+                greeks = client.option_snapshot_greeks_all(
+                    tkr, expiration=exp_str, strike=strike_str, right=right)
+            except Exception:
+                greeks = None
+            if greeks and greeks[0].implied_volatility and greeks[0].implied_volatility > 0:
+                g = greeks[0]
+                row[f"{prefix}iv"] = g.implied_volatility
+                row[f"{prefix}delta"] = g.delta
+                row[f"{prefix}gamma"] = g.gamma
+                row[f"{prefix}theta"] = g.theta
             else:
                 row[f"{prefix}iv"] = np.nan
                 row[f"{prefix}delta"] = np.nan
@@ -465,7 +431,7 @@ def style_chain(df: pd.DataFrame, spot_price: float) -> pd.io.formats.style.Styl
 
 for tab, exp_str in zip(tabs, tab_exps):
     with tab:
-        exp_dt = datetime.strptime(exp_str, "%Y%m%d")
+        exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
         dte = (exp_dt - today).days
 
         col1, col2, col3 = st.columns([2, 2, 2])
