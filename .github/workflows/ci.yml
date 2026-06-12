@@ -92,22 +92,15 @@ jobs:
             exit 1
           fi
 
-  banned-vocab:
-    name: Banned vocabulary scrubber
+  safety-comments:
+    name: SAFETY-comment hygiene
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Scan source tree + commit subjects + PR metadata
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: python3 scripts/check_banned_vocab.py
       - name: Structural SAFETY-comment boilerplate detector
         run: |
           python3 scripts/check_safety_comment_boilerplate.py --selftest

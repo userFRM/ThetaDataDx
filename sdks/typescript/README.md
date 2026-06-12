@@ -218,4 +218,4 @@ Every historical endpoint from `endpoint_surface.toml` is exposed as a camelCase
 ## Docs
 
 - [Main project README](../../README.md)
-- [API reference](../../docs/api-reference.md)
+- [API reference](https://userfrm.github.io/ThetaDataDx/reference/)

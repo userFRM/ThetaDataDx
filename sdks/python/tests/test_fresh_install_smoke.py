@@ -20,9 +20,9 @@ import pytest
 
 
 # Top-level names the user-facing docs (lib.rs module doc, README.md,
-# api-reference.md) advertise as importable directly off the package
-# namespace. Grouped for readability; the test parametrises across the
-# flat union.
+# the published API reference) advertise as importable directly off the
+# package namespace. Grouped for readability; the test parametrises
+# across the flat union.
 PUBLIC_CLASSES = [
     # Credentials + config
     "Credentials",

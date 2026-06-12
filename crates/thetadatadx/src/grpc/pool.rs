@@ -8,8 +8,7 @@
 //! in-flight streams. Measured against a single multiplexed connection
 //! carrying the same workload, the per-worker connection fan-out
 //! delivers roughly 1.8x the small-frame throughput and 2.3x the
-//! large-frame throughput at the 16-concurrent account ceiling (see
-//! `docs/architecture/in-house-grpc-transport.md`, "Migration"), so the
+//! large-frame throughput at the 16-concurrent account ceiling, so the
 //! pool survives the transport swap unchanged.
 //!
 //! The pool is `Arc`-clone-cheap and `Send + Sync`; callers can clone

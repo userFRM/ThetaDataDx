@@ -2,7 +2,7 @@
 
 MCP (Model Context Protocol) server for [ThetaDataDxClient](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
-> **FLATFILES coverage:** the MCP server advertises eleven FLATFILES tools — `tdx_flatfile_request` plus ten convenience wrappers (`tdx_flatfile_option_quote`, `tdx_flatfile_option_trade_quote`, `tdx_flatfile_stock_eod`, …). Each call writes the decoded CSV / JSONL blob to disk and returns the path. See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the MCP server advertises eleven FLATFILES tools — `tdx_flatfile_request` plus ten convenience wrappers (`tdx_flatfile_option_quote`, `tdx_flatfile_option_trade_quote`, `tdx_flatfile_stock_eod`, …). Each call writes the decoded CSV / JSONL blob to disk and returns the path.
 
 ## Architecture
 

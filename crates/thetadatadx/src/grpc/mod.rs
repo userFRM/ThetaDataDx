@@ -26,8 +26,7 @@
 //!
 //! Per-chunk decode (zstd decompress + prost `DataTable` decode) runs
 //! inline on the request task — measured faster than handing chunks to
-//! a dedicated decoder pool at every production-reachable concurrency
-//! (see `docs/architecture/in-house-grpc-transport.md`).
+//! a dedicated decoder pool at every production-reachable concurrency.
 //!
 //! # Surface hygiene
 //!

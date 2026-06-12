@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Structural detector for stamped SAFETY-comment boilerplate.
 
-The original `check_banned_vocab.py` regression guard only catches the
-literal string that landed in #572. A future bot can defeat that gate by
-re-emitting a fresh boilerplate string at three or more sites — the
-text changes, but the lint pathology is identical: a copy-pasted
-SAFETY annotation that names neither the invariant nor any per-site
-detail, masquerading as a real safety review.
+A literal-string guard catches only the exact boilerplate text it knows
+about. A future bot can defeat that by re-emitting a fresh boilerplate
+string at three or more sites — the text changes, but the lint pathology
+is identical: a copy-pasted SAFETY annotation that names neither the
+invariant nor any per-site detail, masquerading as a real safety review.
 
 This detector closes that gap structurally:
 

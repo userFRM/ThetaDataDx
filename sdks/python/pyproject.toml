@@ -27,7 +27,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/userFRM/ThetaDataDx"
 Repository = "https://github.com/userFRM/ThetaDataDx"
-Documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
+Documentation = "https://userfrm.github.io/ThetaDataDx/reference/"
 Discord = "https://discord.thetadata.us/"
 
 [tool.maturin]

@@ -4,7 +4,7 @@ Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
-> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/flatfile/{sec_type}/{req_type}?date=YYYYMMDD&format=csv|jsonl` and `POST /v3/flatfile/request`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged. See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/flatfile/{sec_type}/{req_type}?date=YYYYMMDD&format=csv|jsonl` and `POST /v3/flatfile/request`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged.
 
 ## Quick start
 

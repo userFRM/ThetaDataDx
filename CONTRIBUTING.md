@@ -8,8 +8,7 @@ The SDK speaks three independent ThetaData surfaces — MDDS (gRPC), FPSS
 an issue or PR that touches any of them, name the surface in the title
 prefix: `feat(mdds): ...`, `feat(fpss): ...`, `feat(flatfiles): ...`.
 Cross-language binding parity is tracked under separate per-binding
-issues; see [`docs/ROADMAP.md`](docs/ROADMAP.md#flatfiles--binding-coverage)
-for the FLATFILES coverage matrix.
+issues.
 
 ## Prerequisites
 
@@ -138,10 +137,7 @@ feat(core)!: replace MddsClient with ThetaDataDx unified client
 
 ## How to Add a New Endpoint
 
-> **Deep dive:** see [`docs/macro-guide.md`](docs/macro-guide.md) for the
-> internal macro system and generated builder model.
-
-The endpoint-facing source of truth is now split across:
+The endpoint-facing source of truth is split across:
 - `crates/thetadatadx/proto/mdds.proto` for the wire contract
 - `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
 - `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
@@ -167,7 +163,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
 3. **Add the column schema** (if the response has a new layout)
    - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
    - `cargo build` generates the parser
-   - See `docs/endpoint-schema.md` for the TOML format
+   - The header comments in `tick_schema.toml` document the TOML format
    - Note: tick type structs, `Price`, enums, codecs, and Greeks live in `crates/tdbe/`.
      If you add a new tick type or modify existing types, edit `tdbe` first.
 
