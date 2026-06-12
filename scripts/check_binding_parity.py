@@ -66,6 +66,62 @@ FFI_SRC = REPO_ROOT / "ffi" / "src"
 CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
 
 
+# ─── Public-surface vocabulary guard ────────────────────────────────
+#
+# OUR Rust implementation-detail names that must never appear inside a
+# PUBLIC client identifier (class / method / field / setter / getter /
+# exported type). The bindings legitimately USE the async runtime, the
+# lock-free ring, and the lock primitives internally — those uses live
+# in implementation code and are out of scope here. This guard fires
+# only on the identifiers the parity collectors already harvest, i.e.
+# the names a user types. It catches the leak class structurally (a
+# banned token embedded in a snake_case / camelCase identifier) where
+# the text scrubber's `\bword\b` rule cannot, without false-positives
+# on internal code.
+#
+# ALLOW-LIST — kept deliberately aligned with `check_banned_vocab.py`:
+# `mdds` and `fpss` are ThetaData's PROPRIETARY PROTOCOL names (the
+# vendor this SDK wraps). They are NOT impl-detail leaks; the public
+# surface stays aligned with the vendor's vocabulary. They are NOT
+# listed below and MUST NOT be flagged. Only OUR own implementation
+# details (the async runtime, the disruptor-style ring, the lock
+# primitives, the I/O-bridge calls) are leaks.
+#
+# Lowercased; matched as a substring against the lowercased identifier
+# (so `Tokio`, `tokio`, `TOKIO`, and an embedded `_tokio_` all hit).
+BANNED_SURFACE_TOKENS: tuple[str, ...] = (
+    "tokio",
+    "disruptor",
+    "crossbeam",
+    "parking_lot",
+    "parkinglot",
+    "block_on",
+    "blockon",
+    "allow_threads",
+    "allowthreads",
+    "os_pipe",
+    "ospipe",
+)
+
+
+def _surface_token_hit(identifier: str) -> str | None:
+    """Return the banned implementation-detail token embedded in
+    `identifier`, or ``None`` if the identifier is clean.
+
+    The match is case-insensitive and substring-based so a token buried
+    inside a snake_case or camelCase name (`set_tokio_worker_threads`,
+    `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in
+    the text scrubber's word-boundary rule. Vendor protocol names
+    (`mdds`, `fpss`) are intentionally absent from the token list, so a
+    `MddsClient` / `setFpssRingSize` identifier is never flagged.
+    """
+    lowered = identifier.lower()
+    for token in BANNED_SURFACE_TOKENS:
+        if token in lowered:
+            return token
+    return None
+
+
 # ─── Class-level discovery (legacy / non-dotted rows) ───────────────
 
 
@@ -372,6 +428,174 @@ def _setter_present(canonical: str, setters: set[str]) -> bool:
         if f"{canonical}{suffix}" in setters:
             return True
     return False
+
+
+# ─── Client-facing setter-set parity ────────────────────────────────
+
+
+# Per-binding spelling differences that are pure transport / language
+# idiom, not a semantic divergence. Folding them away lets the four
+# setter sets be compared for exact equality:
+#
+#   * `_explicit` — the widened `(has_value, n)` ABI variant a binding
+#     emits for an `Option<usize>` field (`worker_threads_explicit` on
+#     the C ABI / C++ / napi vs the bare `worker_threads` on Python).
+#     Same knob, transport-only suffix.
+#   * `flat_files` → `flatfiles` — napi auto-camelCases `setFlatFiles*`
+#     to a multi-word `FlatFiles`, which lifts back to BOTH
+#     `flat_files_*` and `flatfiles_*`; the cross-binding canonical
+#     form is the single-token `flatfiles_*`.
+def _normalize_setter(name: str) -> str:
+    """Collapse a per-binding setter spelling to its cross-binding
+    canonical form so the four setter sets compare for equality.
+    """
+    for suffix in FFI_EXPLICIT_SUFFIXES:
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    name = name.replace("flat_files", "flatfiles")
+    return name
+
+
+# Client-facing setters that legitimately exist on only some bindings.
+# Each entry maps the canonical (normalized) setter name to a written
+# reason. This is the documented per-language-idiom carve-out the gate
+# tolerates — every entry is a reviewed decision, not a silencer.
+SETTER_PARITY_EXEMPT: dict[str, str] = {
+    "mdds_host": (
+        "advanced MDDS endpoint override, Python-only by design "
+        "(structural tests point the historical channel at a refused "
+        "endpoint); mdds is a vendor protocol name, kept verbatim"
+    ),
+    "mdds_port": (
+        "advanced MDDS endpoint override, Python-only by design "
+        "(companion to mdds_host); mdds is a vendor protocol name, "
+        "kept verbatim"
+    ),
+}
+
+
+def _check_setter_set_parity(
+    py_setters: set[str],
+    ts_setters: set[str],
+    cpp_setters: set[str],
+    ffi_setters: set[str],
+    exempt: dict[str, str] | None = None,
+) -> list[str]:
+    """Assert the client-facing setter SET matches across Python /
+    TypeScript / C++ / the C ABI after normalization.
+
+    The per-row dotted check (`_check_dotted_rows`) verifies each
+    declared knob resolves on the bindings it claims; this set-level
+    check is the complementary direction — it catches a knob that
+    landed on some bindings but silently never made it into the parity
+    matrix on the others (the `derive_ohlcvc`-missing-on-TS defect
+    class). Genuine per-language idioms are folded by
+    `_normalize_setter`; anything still divergent must be listed in
+    `exempt` (defaults to `SETTER_PARITY_EXEMPT`) with a reason or it
+    fails the gate. The `exempt` parameter is injectable so the
+    selftest can exercise the logic with synthetic carve-out lists.
+    """
+    if exempt is None:
+        exempt = SETTER_PARITY_EXEMPT
+    norm = {
+        "python": {_normalize_setter(s) for s in py_setters},
+        "typescript": {_normalize_setter(s) for s in ts_setters},
+        "cpp": {_normalize_setter(s) for s in cpp_setters},
+        "ffi": {_normalize_setter(s) for s in ffi_setters},
+    }
+    universe: set[str] = set().union(*norm.values())
+    errors: list[str] = []
+    for setter in sorted(universe - set(exempt)):
+        present_on = [lang for lang, names in norm.items() if setter in names]
+        if len(present_on) != len(norm):
+            missing = [lang for lang in norm if lang not in present_on]
+            errors.append(
+                f"  setter `{setter}`: present on {sorted(present_on)}, "
+                f"missing on {sorted(missing)}. Bind it on every binding, "
+                f"or add it to SETTER_PARITY_EXEMPT with a per-language-"
+                f"idiom reason."
+            )
+    # A stale exemption — the knob is now uniformly bound on every
+    # binding, so the carve-out is obsolete — is itself a drift; surface
+    # it so the list never rots. (A knob that is simply absent from the
+    # universe is not flagged: the exemption may guard a binding the
+    # current scan does not see.)
+    for setter, reason in exempt.items():
+        present_on = [lang for lang, names in norm.items() if setter in names]
+        if present_on and len(present_on) == len(norm):
+            errors.append(
+                f"  setter `{setter}`: listed in SETTER_PARITY_EXEMPT "
+                f"({reason!r}) but is now uniformly bound on every "
+                f"binding. Drop the stale exemption."
+            )
+    return errors
+
+
+# ─── Public-surface identifier collection (vocab guard) ─────────────
+
+
+def _check_public_surface_vocab(
+    py_classes: set[str],
+    ts_classes: set[str],
+    cpp_classes: set[str],
+    py_setters: set[str],
+    ts_setters: set[str],
+    cpp_setters: set[str],
+    ffi_setters: set[str],
+    py_methods: dict[str, set[str]],
+    ts_methods: dict[str, set[str]],
+    cpp_methods: dict[str, set[str]],
+) -> list[str]:
+    """Assert no PUBLIC client identifier embeds a banned architecture
+    token.
+
+    Scans the identifier sets the parity collectors already harvest —
+    classes, config setters, and per-class methods on every binding —
+    for an internal-architecture token (`tokio`, `mdds`, `disruptor`,
+    ...) buried inside the name. This is the structural counterpart to
+    the text scrubber: it sees only declared public API names, so it
+    never false-positives on the bindings' legitimate internal use of
+    the runtime / ring / lock primitives, and it catches a banned token
+    embedded in a snake_case / camelCase identifier that the scrubber's
+    `\\bword\\b` rule misses.
+    """
+    errors: list[str] = []
+
+    def _check(identifier: str, where: str) -> None:
+        token = _surface_token_hit(identifier)
+        if token is not None:
+            errors.append(
+                f"  {where}: public identifier `{identifier}` embeds "
+                f"banned architecture token `{token}`. Rename to a "
+                f"neutral client-facing name (the user concept, not the "
+                f"implementation)."
+            )
+
+    for cls in sorted(py_classes):
+        _check(cls, "python class")
+    for cls in sorted(ts_classes):
+        _check(cls, "typescript class")
+    for cls in sorted(cpp_classes):
+        _check(cls, "cpp class")
+    for setter in sorted(py_setters):
+        _check(setter, "python setter")
+    for setter in sorted(ts_setters):
+        _check(setter, "typescript setter")
+    for setter in sorted(cpp_setters):
+        _check(setter, "cpp setter")
+    for setter in sorted(ffi_setters):
+        _check(setter, "ffi setter")
+    for cls, methods in sorted(py_methods.items()):
+        for method in sorted(methods):
+            _check(method, f"python method {cls}.")
+    for cls, methods in sorted(ts_methods.items()):
+        for method in sorted(methods):
+            _check(method, f"typescript method {cls}.")
+    for cls, methods in sorted(cpp_methods.items()):
+        for method in sorted(methods):
+            _check(method, f"cpp method {cls}.")
+    return errors
 
 
 # ─── Rust field discovery (reverse-direction orphan check) ──────────
@@ -1091,6 +1315,35 @@ def main(argv: list[str] | None = None) -> int:
     # Value-field TYPE parity ([[value_field]] rows).
     value_field_errors = _check_value_field_rows(value_field_rows)
 
+    # Public-surface vocabulary: no public client identifier may embed
+    # one of OUR implementation-detail tokens (tokio / disruptor /
+    # crossbeam / parking_lot / block_on / allow_threads / os_pipe).
+    # Vendor protocol names (mdds / fpss) are allow-listed. This is the
+    # structural counterpart to the text scrubber — it sees only public
+    # API names, so it never false-positives on internal runtime use.
+    surface_vocab_errors = _check_public_surface_vocab(
+        py_classes,
+        ts_classes,
+        cpp_classes,
+        py_setters,
+        ts_setters,
+        cpp_setters,
+        ffi_setters,
+        py_class_methods,
+        ts_class_methods,
+        cpp_class_methods,
+    )
+
+    # Client-facing setter-SET equality across Python / TS / C++ / the
+    # C ABI after normalization (`_explicit` widened-ABI suffix and the
+    # `flat_files`↔`flatfiles` camelCase split folded away). Catches a
+    # knob bound on some bindings but silently absent from the matrix on
+    # the others. Genuine per-language idioms are exempted in
+    # `SETTER_PARITY_EXEMPT` with a written reason.
+    setter_set_errors = _check_setter_set_parity(
+        py_setters, ts_setters, cpp_setters, ffi_setters
+    )
+
     # Catch-all: every Python pyclass must be either tracked
     # explicitly or via the implicit pattern (mechanical parity).
     untracked: set[str] = {
@@ -1149,6 +1402,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         for e in value_field_errors:
             print(f"  {e}")
+        print()
+
+    if surface_vocab_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(surface_vocab_errors)} public "
+            f"identifier(s) embed an implementation-detail token:"
+        )
+        for e in surface_vocab_errors:
+            print(e)
+        print()
+
+    if setter_set_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(setter_set_errors)} client-facing "
+            f"setter(s) diverge across bindings (set-level parity):"
+        )
+        for e in setter_set_errors:
+            print(e)
         print()
 
     if untracked:
@@ -1679,6 +1952,207 @@ def _run_selftest() -> int:
     _case("value_field positive — Rust + C++ types match the declared", _case_value_field_positive_matches)
     _case("value_field negative — Rust strike type drift trips", _case_value_field_rust_type_mismatch_trips)
     _case("value_field negative — C++ right-as-int trips", _case_value_field_cpp_type_mismatch_trips)
+
+    # ── Public-surface vocabulary guard selftests ──────────────────
+
+    def _case_surface_vocab_flags_tokio_identifier() -> None:
+        """An impl-detail token embedded in a public identifier trips,
+        even though `\\btokio\\b` would not match it.
+        """
+        errors = _check_public_surface_vocab(
+            {"Config"},
+            set(),
+            set(),
+            {"tokio_worker_threads"},
+            set(),
+            set(),
+            set(),
+            {},
+            {},
+            {},
+        )
+        assert any("tokio" in e for e in errors), (
+            f"embedded tokio token must trip the guard; got {errors!r}"
+        )
+
+    def _case_surface_vocab_flags_camelcase_export() -> None:
+        """A camelCase export type embedding the token trips."""
+        errors = _check_public_surface_vocab(
+            set(),
+            {"TokioWorkerThreadsSetting"},
+            set(),
+            set(),
+            set(),
+            set(),
+            set(),
+            {},
+            {},
+            {},
+        )
+        assert any("tokio" in e for e in errors), (
+            f"camelCase Tokio export must trip; got {errors!r}"
+        )
+
+    def _case_surface_vocab_flags_other_impl_tokens() -> None:
+        """The other OUR-impl tokens (crossbeam / parking_lot /
+        disruptor / block_on / allow_threads / os_pipe) all trip when
+        embedded in a public identifier, in both snake_case and
+        camelCase spellings (the camelCase form collapses the
+        underscore, so `parkingLotGuard` hits the `parkinglot` variant).
+        """
+        for ident in [
+            "set_crossbeam_depth",
+            "parkingLotGuard",
+            "parking_lot_guard",
+            "disruptorRingSize",
+            "blockOnConnect",
+            "block_on_connect",
+            "allowThreadsFlag",
+            "allow_threads_flag",
+            "osPipeFd",
+        ]:
+            errors = _check_public_surface_vocab(
+                set(), set(), set(), {ident}, set(), set(), set(), {}, {}, {}
+            )
+            assert any(ident in e for e in errors), (
+                f"{ident!r} must trip the surface-vocab guard; got {errors!r}"
+            )
+
+    def _case_surface_vocab_allows_vendor_protocol_names() -> None:
+        """Vendor protocol names (mdds / fpss) are allow-listed and must
+        NEVER trip — `MddsClient`, `mdds_host`, `setFpssRingSize`,
+        `fpss_ring_size` are all clean.
+        """
+        errors = _check_public_surface_vocab(
+            {"MddsClient", "FpssClient", "FpssEvent"},
+            set(),
+            set(),
+            {"mdds_host", "mdds_port", "fpss_ring_size", "fpss_host_selection"},
+            {"fpss_ring_size"},
+            set(),
+            set(),
+            {"FpssClient": {"subscribe"}},
+            {},
+            {},
+        )
+        assert errors == [], (
+            f"vendor protocol names must be allow-listed; got {errors!r}"
+        )
+
+    def _case_surface_vocab_allows_neutral_names() -> None:
+        """The renamed neutral knob (`worker_threads`) is clean."""
+        errors = _check_public_surface_vocab(
+            {"Config", "WorkerThreadsSetting"},
+            set(),
+            set(),
+            {"worker_threads"},
+            {"worker_threads_explicit"},
+            {"worker_threads_explicit"},
+            {"worker_threads_explicit"},
+            {},
+            {},
+            {},
+        )
+        assert errors == [], (
+            f"neutral worker_threads names must be clean; got {errors!r}"
+        )
+
+    _case("surface-vocab — embedded tokio token trips", _case_surface_vocab_flags_tokio_identifier)
+    _case("surface-vocab — camelCase Tokio export trips", _case_surface_vocab_flags_camelcase_export)
+    _case("surface-vocab — other impl tokens trip", _case_surface_vocab_flags_other_impl_tokens)
+    _case("surface-vocab — vendor protocol names allow-listed", _case_surface_vocab_allows_vendor_protocol_names)
+    _case("surface-vocab — neutral names clean", _case_surface_vocab_allows_neutral_names)
+
+    # ── Setter normalizer + set-parity selftests ───────────────────
+
+    def _case_normalizer_folds_explicit_and_flatfiles() -> None:
+        """`_normalize_setter` folds the `_explicit` widened-ABI suffix
+        and the `flat_files`→`flatfiles` camelCase split.
+        """
+        assert _normalize_setter("worker_threads_explicit") == "worker_threads"
+        assert _normalize_setter("worker_threads") == "worker_threads"
+        assert _normalize_setter("flat_files_max_attempts") == "flatfiles_max_attempts"
+        assert _normalize_setter("flatfiles_max_attempts") == "flatfiles_max_attempts"
+        assert _normalize_setter("fpss_host_shuffle_seed_explicit") == "fpss_host_shuffle_seed"
+
+    def _case_setter_set_parity_positive_after_normalize() -> None:
+        """The four sets, spelled in their per-binding idioms, compare
+        equal after normalization — the gate is silent.
+        """
+        py = {"worker_threads", "flatfiles_jitter", "derive_ohlcvc"}
+        ts = {"worker_threads_explicit", "flat_files_jitter", "flatfiles_jitter", "derive_ohlcvc"}
+        cpp = {"worker_threads_explicit", "flatfiles_jitter", "derive_ohlcvc"}
+        ffi = {"worker_threads_explicit", "flatfiles_jitter", "derive_ohlcvc"}
+        errors = _check_setter_set_parity(py, ts, cpp, ffi, exempt={})
+        assert errors == [], (
+            f"normalized-equal sets must be silent; got {errors!r}"
+        )
+
+    def _case_setter_set_parity_missing_on_one_binding_trips() -> None:
+        """A knob bound on three bindings but absent from TS trips — the
+        `derive_ohlcvc`-missing-on-TS defect class.
+        """
+        py = {"derive_ohlcvc"}
+        ts: set[str] = set()
+        cpp = {"derive_ohlcvc"}
+        ffi = {"derive_ohlcvc"}
+        errors = _check_setter_set_parity(py, ts, cpp, ffi, exempt={})
+        assert any("derive_ohlcvc" in e and "typescript" in e for e in errors), (
+            f"missing-on-TS knob must trip the set-parity gate; got {errors!r}"
+        )
+
+    def _case_setter_set_parity_honours_exemption() -> None:
+        """A Python-only knob listed in the exemption map does NOT trip
+        — the documented per-language-idiom carve-out.
+        """
+        py = {"mdds_host", "shared"}
+        ts = {"shared"}
+        cpp = {"shared"}
+        ffi = {"shared"}
+        errors = _check_setter_set_parity(
+            py, ts, cpp, ffi, exempt={"mdds_host": "Python-only advanced override"}
+        )
+        assert errors == [], (
+            f"exempted Python-only knob must not trip; got {errors!r}"
+        )
+
+    def _case_setter_set_parity_stale_exemption_trips() -> None:
+        """An exempted knob that is now uniformly bound on every binding
+        is a stale carve-out and trips so the list never rots.
+        """
+        allfour = {"mdds_host"}
+        errors = _check_setter_set_parity(
+            allfour,
+            allfour,
+            allfour,
+            allfour,
+            exempt={"mdds_host": "Python-only advanced override"},
+        )
+        assert any("mdds_host" in e and "stale" in e for e in errors), (
+            f"uniformly-bound exemption must surface as stale; got {errors!r}"
+        )
+
+    def _case_setter_set_parity_shipped_exemption_is_live() -> None:
+        """The shipped `SETTER_PARITY_EXEMPT` carve-outs must be live
+        against the real binding sources — `mdds_host` / `mdds_port`
+        present on Python alone, so neither flags as stale and the live
+        gate stays silent on them.
+        """
+        py = _collect_python_setters(PY_SRC)
+        ts = _collect_typescript_setters(TS_SRC)
+        cpp = _collect_cpp_setters(CPP_HPP, CPP_H)
+        ffi = _collect_ffi_setters(FFI_SRC)
+        errors = _check_setter_set_parity(py, ts, cpp, ffi)
+        assert errors == [], (
+            f"live setter-set parity must be clean; got {errors!r}"
+        )
+
+    _case("normalizer — folds _explicit + flat_files", _case_normalizer_folds_explicit_and_flatfiles)
+    _case("setter-set — normalized-equal sets are silent", _case_setter_set_parity_positive_after_normalize)
+    _case("setter-set — missing-on-TS knob trips", _case_setter_set_parity_missing_on_one_binding_trips)
+    _case("setter-set — Python-only exemption honoured", _case_setter_set_parity_honours_exemption)
+    _case("setter-set — stale exemption trips", _case_setter_set_parity_stale_exemption_trips)
+    _case("setter-set — shipped exemptions live against real sources", _case_setter_set_parity_shipped_exemption_is_live)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1

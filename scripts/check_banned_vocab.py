@@ -104,6 +104,22 @@ BANNED = [
     # in user-facing surfaces (doc comments, public READMEs, marketing).
     # Protocol/vendor names (FPSS, MDDS) are ALLOW-listed — these banned
     # items are Rust impl-detail names.
+    #
+    # NOTE on identifier-embedded leaks: the patterns below match as
+    # whole tokens (`\bword\b`). An underscore is a regex word
+    # character, so a banned token buried inside a snake_case /
+    # camelCase PUBLIC identifier (`set_tokio_worker_threads`,
+    # `TokioWorkerThreadsSetting`) is intentionally NOT caught here — a
+    # substring scan over every source file would false-positive on the
+    # engine's and bindings' legitimate INTERNAL use of the same tokens
+    # (`tokio::runtime`, `crossbeam::channel`, `parking_lot::Mutex`,
+    # `Runtime::block_on`). That leak class is caught structurally,
+    # without false positives, by `check_binding_parity.py`
+    # (`_check_public_surface_vocab`), which inspects only the declared
+    # PUBLIC client identifiers the parity collectors harvest. The two
+    # guards are complementary: this scrubber owns standalone / phrase
+    # vocabulary across all prose; the parity guard owns
+    # identifier-embedded tokens on the public API surface.
     "MDDS gRPC",
     "FPSS TCP",
     "FIT nibble",
@@ -174,6 +190,15 @@ EXEMPT_PATHS = {
     "CHANGELOG.md",
     "docs-site/docs/changelog.md",
     "scripts/check_banned_vocab.py",
+    # The cross-binding parity gate is the SECOND vocabulary policy
+    # file: its `BANNED_SURFACE_TOKENS` list enumerates the same
+    # impl-detail token names, and its selftest fixtures spell them out
+    # to prove the public-surface guard fires. A file whose job is to
+    # name the banned tokens cannot be scrubbed for containing them —
+    # identical rationale to the `check_banned_vocab.py` self-exemption
+    # above. Its companion test file follows for the same reason.
+    "scripts/check_binding_parity.py",
+    "scripts/test_check_binding_parity.py",
     "scripts/__pycache__",
     ".github/release-notes",
     # The `tdbe` crate is an independent library with its own release cycle.

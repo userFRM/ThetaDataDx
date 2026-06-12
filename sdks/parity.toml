@@ -465,22 +465,26 @@ cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTim
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
 #
-# Two `MddsConfig` test-only setters (`mdds_host` / `mdds_port`) are
+# Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`) are
 # exposed on Python alone for structural-test usage (point the
 # historical channel at a refused endpoint to prove the streaming
-# surface never opens it). The dotted rows below capture the
-# partial-binding state via the `setter = "..."` override on Python.
+# surface never opens it). MDDS is a vendor protocol name, kept
+# verbatim; these knobs are Python-only by design — they are NOT
+# forced onto the other bindings, and the setter-set parity check
+# exempts them with a written reason. The dotted rows below capture
+# the partial-binding state via the `setter = "..."` override on
+# Python.
 
 [[class]]
 name = "MddsConfig.host"
-python = true       # `Config.mdds_host` test-only setter
+python = true       # `Config.mdds_host` advanced override (Python-only)
 typescript = false
 cpp = false
 setter = "mdds_host"
 
 [[class]]
 name = "MddsConfig.port"
-python = true       # `Config.mdds_port` test-only setter
+python = true       # `Config.mdds_port` advanced override (Python-only)
 typescript = false
 cpp = false
 setter = "mdds_port"
