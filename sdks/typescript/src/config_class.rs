@@ -3,15 +3,14 @@ use std::sync::{Arc, Mutex};
 
 use thetadatadx::config;
 
-/// `(has_value, n)` shape mirroring the FFI
-/// `tdx_config_get_tokio_worker_threads` out-params and the Python
-/// `Option<usize>` return — `has_value=false` encodes the `None`
-/// sentinel, `has_value=true` carries the explicit worker count
-/// (with `n=0` preserved verbatim, matching the widened-`Option`
-/// cross-binding contract).
+/// `(has_value, n)` shape mirroring the C-ABI `worker_threads`
+/// out-params and the Python `Option<usize>` return — `has_value=false`
+/// encodes the `None` sentinel, `has_value=true` carries the explicit
+/// worker count (with `n=0` preserved verbatim, matching the
+/// widened-`Option` cross-binding contract).
 #[napi(object)]
 #[derive(Clone, Copy)]
-pub struct TokioWorkerThreadsSetting {
+pub struct WorkerThreadsSetting {
     pub has_value: bool,
     pub n: u32,
 }
@@ -994,14 +993,13 @@ impl Config {
         Ok(guard.flatfiles.jitter)
     }
 
-    /// Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
-    /// runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
-    /// defers to tokio's default sizing; `hasValue=true` pins worker
-    /// count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
-    /// matching the widened-`Option` setter shape across the binding
-    /// matrix).
-    #[napi(js_name = "setTokioWorkerThreadsExplicit")]
-    pub fn set_tokio_worker_threads_explicit(&self, has_value: bool, n: u32) -> napi::Result<()> {
+    /// Set the async worker-thread count for embedded runtimes.
+    /// `hasValue=false` defers to the default sizing; `hasValue=true`
+    /// pins worker count to `n` (with `n=0` preserved as the `Some(0)`
+    /// sentinel, matching the widened-`Option` setter shape across the
+    /// binding matrix).
+    #[napi(js_name = "setWorkerThreadsExplicit")]
+    pub fn set_worker_threads_explicit(&self, has_value: bool, n: u32) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
@@ -1010,20 +1008,20 @@ impl Config {
         Ok(())
     }
 
-    /// Current `tokio_worker_threads` setting as `{ hasValue, n }`.
+    /// Current `workerThreads` setting as `{ hasValue, n }`.
     /// `hasValue=false` encodes the `None` (auto) sentinel.
-    #[napi(getter, js_name = "tokioWorkerThreads")]
-    pub fn tokio_worker_threads(&self) -> napi::Result<TokioWorkerThreadsSetting> {
+    #[napi(getter, js_name = "workerThreads")]
+    pub fn worker_threads(&self) -> napi::Result<WorkerThreadsSetting> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(match guard.runtime.tokio_worker_threads {
-            Some(n) => TokioWorkerThreadsSetting {
+            Some(n) => WorkerThreadsSetting {
                 has_value: true,
                 n: u32::try_from(n).unwrap_or(u32::MAX),
             },
-            None => TokioWorkerThreadsSetting {
+            None => WorkerThreadsSetting {
                 has_value: false,
                 n: 0,
             },
@@ -1366,5 +1364,28 @@ impl Config {
             config::FpssFlushMode::Immediate => "immediate",
             _ => "unknown",
         })
+    }
+
+    /// Set whether to derive OHLCVC bars locally from trade events.
+    /// When `false`, only server-sent OHLCVC frames are emitted,
+    /// reducing per-trade throughput overhead. Default `true`.
+    #[napi(js_name = "setDeriveOhlcvc")]
+    pub fn set_derive_ohlcvc(&self, enabled: bool) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.fpss.derive_ohlcvc = enabled;
+        Ok(())
+    }
+
+    /// Current OHLCVC derivation setting.
+    #[napi(getter, js_name = "deriveOhlcvc")]
+    pub fn derive_ohlcvc(&self) -> napi::Result<bool> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.fpss.derive_ohlcvc)
     }
 }

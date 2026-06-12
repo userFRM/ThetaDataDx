@@ -1251,30 +1251,29 @@ void tdx_config_set_flatfiles_jitter(TdxConfig* config, bool jitter);
 int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitter);
 
 /**
- * Set the RuntimeConfig.tokio_worker_threads knob for embedded
- * runtimes built via RuntimeConfig::build_runtime.
+ * Set the async worker-thread count for embedded runtimes.
  *
  *   has_value=false: encodes the auto-size sentinel (`None`); `n`
- *     is ignored. Defers to tokio's default sizing.
- *   has_value=true: encodes `Some(n)`. RuntimeConfig::build_runtime
- *     clamps `n=0` to `1`, but the explicit `Some(0)` is preserved
- *     across the C boundary matching the widened Option shape so
- *     Python / TS / C++ bindings agree.
+ *     is ignored. Defers to the default sizing.
+ *   has_value=true: encodes `Some(n)`. The builder clamps `n=0` to
+ *     `1`, but the explicit `Some(0)` is preserved across the C
+ *     boundary matching the widened Option shape so Python / TS / C++
+ *     bindings agree.
  *
  * Returns 0 on success, -1 if `config` is NULL.
  */
-int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has_value, size_t n);
+int32_t tdx_config_set_worker_threads_explicit(TdxConfig* config, bool has_value, size_t n);
 
 /**
- * Read the current RuntimeConfig.tokio_worker_threads setting. Same
- * widened (has_value, n) shape:
+ * Read the current async worker-thread count. Same widened
+ * (has_value, n) shape:
  *
  *   *out_has_value=false: config holds `None` (auto-size). *out_n=0.
  *   *out_has_value=true:  config holds `Some(*out_n)`.
  *
  * Returns 0 on success, -1 if any pointer is null.
  */
-int32_t tdx_config_get_tokio_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+int32_t tdx_config_get_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
 
 /* ── RetryPolicy field setters/getters ── */
 

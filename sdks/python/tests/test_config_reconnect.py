@@ -217,30 +217,30 @@ def test_reconnect_wait_ms_rejects_above_u64() -> None:
         cfg.reconnect_wait_rate_limited_ms = 1 << 65
 
 
-# ─── RuntimeConfig.tokio_worker_threads ────────────────────────────
+# ─── RuntimeConfig.worker_threads ──────────────────────────────────
 
 
-def test_tokio_worker_threads_default_is_none() -> None:
-    """Default is ``None`` (tokio default sizing, one worker per
-    logical CPU).
+def test_worker_threads_default_is_none() -> None:
+    """Default is ``None`` (default sizing, one worker per logical
+    CPU).
     """
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.tokio_worker_threads is None
+    assert cfg.worker_threads is None
 
 
-def test_tokio_worker_threads_round_trips_some_zero() -> None:
+def test_worker_threads_round_trips_some_zero() -> None:
     """``Some(0)`` is preserved verbatim across the binding boundary;
-    ``RuntimeConfig::build_runtime`` clamps it to ``1`` only inside
-    the runtime builder, never at the setter.
+    the runtime builder clamps it to ``1`` only inside the builder,
+    never at the setter.
     """
     mod = _import_module()
     cfg = mod.Config.production()
     for n in [0, 1, 2, 4, 8, 16, 64]:
-        cfg.tokio_worker_threads = n
-        assert cfg.tokio_worker_threads == n
-    cfg.tokio_worker_threads = None
-    assert cfg.tokio_worker_threads is None
+        cfg.worker_threads = n
+        assert cfg.worker_threads == n
+    cfg.worker_threads = None
+    assert cfg.worker_threads is None
 
 
 # ─── RetryPolicy field setters/getters ─────────────────────────────

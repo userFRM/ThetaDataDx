@@ -41,10 +41,13 @@ import check_binding_parity as cbp  # noqa: E402
 
 
 _fails: list[str] = []
+_total = 0
 
 
 def _check(label: str, fn) -> None:
     """Run a test closure under a label; record failures."""
+    global _total
+    _total += 1
     try:
         fn()
     except AssertionError as e:
@@ -256,23 +259,23 @@ def test_orphan_rust_field_trips(tmpdir: pathlib.Path) -> None:
 
 
 def test_explicit_widened_abi_accepted() -> None:
-    """FFI emits `tdx_config_set_tokio_worker_threads_explicit` for the
+    """FFI emits `tdx_config_set_worker_threads_explicit` for the
     widened `(has_value, n)` ABI shape; the parity row uses the bare
-    `tokio_worker_threads` name. The gate must accept the `_explicit`
+    public `worker_threads` name. The gate must accept the `_explicit`
     suffix as equivalent.
     """
     rows = [
         {
-            "name": "RuntimeConfig.tokio_worker_threads",
+            "name": "RuntimeConfig.worker_threads",
             "python": True,
             "typescript": True,
             "cpp": True,
         }
     ]
-    ffi_setters = {"tokio_worker_threads_explicit", "tokio_worker_threads"}
-    py_setters = {"tokio_worker_threads"}
-    ts_setters = {"tokio_worker_threads"}
-    cpp_setters = {"tokio_worker_threads"}
+    ffi_setters = {"worker_threads_explicit", "worker_threads"}
+    py_setters = {"worker_threads"}
+    ts_setters = {"worker_threads"}
+    cpp_setters = {"worker_threads"}
     errors = cbp._check_dotted_rows(
         rows, py_setters, ts_setters, cpp_setters, ffi_setters
     )
@@ -323,6 +326,95 @@ def test_unknown_struct_dotted_row_is_skipped() -> None:
     assert errors == [], f"unknown struct dotted row must skip; got {errors!r}"
 
 
+# ─── Public-surface vocabulary guard ────────────────────────────────
+
+
+def test_surface_vocab_flags_embedded_impl_token() -> None:
+    """A public identifier embedding one of OUR impl tokens (tokio)
+    trips the guard, even though `\\btokio\\b` would not match it.
+    """
+    errors = cbp._check_public_surface_vocab(
+        {"Config"}, set(), set(),
+        {"tokio_worker_threads"}, set(), set(), set(),
+        {}, {}, {},
+    )
+    assert any("tokio" in e for e in errors), (
+        f"embedded tokio identifier must trip; got {errors!r}"
+    )
+
+
+def test_surface_vocab_allows_vendor_protocol_names() -> None:
+    """Vendor protocol names (mdds / fpss) are allow-listed; the
+    `MddsClient` class and `mdds_host` / `fpss_ring_size` setters must
+    NOT trip.
+    """
+    errors = cbp._check_public_surface_vocab(
+        {"MddsClient", "FpssClient"}, set(), set(),
+        {"mdds_host", "mdds_port", "fpss_ring_size"}, set(), set(), set(),
+        {}, {}, {},
+    )
+    assert errors == [], f"vendor protocol names must be clean; got {errors!r}"
+
+
+def test_surface_vocab_allows_neutral_worker_threads() -> None:
+    """The renamed neutral knob is clean on every binding spelling."""
+    errors = cbp._check_public_surface_vocab(
+        {"WorkerThreadsSetting"}, set(), set(),
+        {"worker_threads"}, {"worker_threads_explicit"},
+        {"worker_threads_explicit"}, {"worker_threads_explicit"},
+        {}, {}, {},
+    )
+    assert errors == [], f"neutral worker_threads must be clean; got {errors!r}"
+
+
+# ─── Client-facing setter-SET parity ────────────────────────────────
+
+
+def test_setter_set_parity_normalizes_and_matches() -> None:
+    """Per-binding idioms (`_explicit`, `flat_files`↔`flatfiles`) fold
+    away; equal sets are silent.
+    """
+    py = {"worker_threads", "flatfiles_jitter"}
+    ts = {"worker_threads_explicit", "flat_files_jitter", "flatfiles_jitter"}
+    cpp = {"worker_threads_explicit", "flatfiles_jitter"}
+    ffi = {"worker_threads_explicit", "flatfiles_jitter"}
+    errors = cbp._check_setter_set_parity(py, ts, cpp, ffi, exempt={})
+    assert errors == [], f"normalized-equal sets must be silent; got {errors!r}"
+
+
+def test_setter_set_parity_missing_on_ts_trips() -> None:
+    """A knob bound on Python/C++/FFI but absent from TS trips — the
+    `derive_ohlcvc`-missing-on-TS defect class.
+    """
+    errors = cbp._check_setter_set_parity(
+        {"derive_ohlcvc"}, set(), {"derive_ohlcvc"}, {"derive_ohlcvc"}, exempt={}
+    )
+    assert any("derive_ohlcvc" in e and "typescript" in e for e in errors), (
+        f"missing-on-TS knob must trip; got {errors!r}"
+    )
+
+
+def test_setter_set_parity_exemption_honoured() -> None:
+    """A Python-only knob in the exemption map does NOT trip."""
+    errors = cbp._check_setter_set_parity(
+        {"mdds_host", "shared"}, {"shared"}, {"shared"}, {"shared"},
+        exempt={"mdds_host": "Python-only advanced override"},
+    )
+    assert errors == [], f"exempted Python-only knob must not trip; got {errors!r}"
+
+
+def test_setter_set_parity_live_sources_clean() -> None:
+    """The shipped exemptions are live against the real binding
+    sources: the full setter-set parity gate is clean.
+    """
+    py = cbp._collect_python_setters(cbp.PY_SRC)
+    ts = cbp._collect_typescript_setters(cbp.TS_SRC)
+    cpp = cbp._collect_cpp_setters(cbp.CPP_HPP, cbp.CPP_H)
+    ffi = cbp._collect_ffi_setters(cbp.FFI_SRC)
+    errors = cbp._check_setter_set_parity(py, ts, cpp, ffi)
+    assert errors == [], f"live setter-set parity must be clean; got {errors!r}"
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -343,13 +435,20 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         _check("setter override resolves alternate name", lambda: test_setter_override_resolves_alternate_name(pathlib.Path(tmp)))
     _check("unknown struct dotted row is skipped", test_unknown_struct_dotted_row_is_skipped)
+    _check("surface-vocab flags embedded impl token", test_surface_vocab_flags_embedded_impl_token)
+    _check("surface-vocab allows vendor protocol names", test_surface_vocab_allows_vendor_protocol_names)
+    _check("surface-vocab allows neutral worker_threads", test_surface_vocab_allows_neutral_worker_threads)
+    _check("setter-set normalizes and matches", test_setter_set_parity_normalizes_and_matches)
+    _check("setter-set missing-on-TS trips", test_setter_set_parity_missing_on_ts_trips)
+    _check("setter-set exemption honoured", test_setter_set_parity_exemption_honoured)
+    _check("setter-set live sources clean", test_setter_set_parity_live_sources_clean)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")
         for line in _fails:
             print(f"  {line}")
         return 1
-    print("test_check_binding_parity: all 12 cases passed")
+    print(f"test_check_binding_parity: all {_total} cases passed")
     return 0
 
 

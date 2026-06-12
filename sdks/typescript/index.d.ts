@@ -288,19 +288,18 @@ export declare class Config {
   /** Current `flatfiles.jitter` value (default `true`). */
   get flatFilesJitter(): boolean
   /**
-   * Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
-   * runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
-   * defers to tokio's default sizing; `hasValue=true` pins worker
-   * count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
-   * matching the widened-`Option` setter shape across the binding
-   * matrix).
+   * Set the async worker-thread count for embedded runtimes.
+   * `hasValue=false` defers to the default sizing; `hasValue=true`
+   * pins worker count to `n` (with `n=0` preserved as the `Some(0)`
+   * sentinel, matching the widened-`Option` setter shape across the
+   * binding matrix).
    */
-  setTokioWorkerThreadsExplicit(hasValue: boolean, n: number): void
+  setWorkerThreadsExplicit(hasValue: boolean, n: number): void
   /**
-   * Current `tokio_worker_threads` setting as `{ hasValue, n }`.
+   * Current `workerThreads` setting as `{ hasValue, n }`.
    * `hasValue=false` encodes the `None` (auto) sentinel.
    */
-  get tokioWorkerThreads(): TokioWorkerThreadsSetting
+  get workerThreads(): WorkerThreadsSetting
   /**
    * Set the initial backoff delay (ms) for the historical-channel retry policy.
    * Default `250n`. Subsequent retries double from here, capped at
@@ -410,6 +409,14 @@ export declare class Config {
    * `"immediate"`).
    */
   get flushMode(): string
+  /**
+   * Set whether to derive OHLCVC bars locally from trade events.
+   * When `false`, only server-sent OHLCVC frames are emitted,
+   * reducing per-trade throughput overhead. Default `true`.
+   */
+  setDeriveOhlcvc(enabled: boolean): void
+  /** Current OHLCVC derivation setting. */
+  get deriveOhlcvc(): boolean
 }
 
 /**
@@ -3739,19 +3746,6 @@ export interface StockSnapshotTradeOptions {
   timeoutMs?: number
 }
 
-/**
- * `(has_value, n)` shape mirroring the FFI
- * `tdx_config_get_tokio_worker_threads` out-params and the Python
- * `Option<usize>` return — `has_value=false` encodes the `None`
- * sentinel, `has_value=true` carries the explicit worker count
- * (with `n=0` preserved verbatim, matching the widened-`Option`
- * cross-binding contract).
- */
-export interface TokioWorkerThreadsSetting {
-  hasValue: boolean
-  n: number
-}
-
 /** FPSS Trade tick. Mirrors `FpssData::Trade`. */
 export interface Trade {
   contract: Contract
@@ -4065,6 +4059,18 @@ export declare const enum Venue {
 export declare const enum Version {
   Latest = 'latest',
   V1 = '1'
+}
+
+/**
+ * `(has_value, n)` shape mirroring the C-ABI `worker_threads`
+ * out-params and the Python `Option<usize>` return — `has_value=false`
+ * encodes the `None` sentinel, `has_value=true` carries the explicit
+ * worker count (with `n=0` preserved verbatim, matching the
+ * widened-`Option` cross-binding contract).
+ */
+export interface WorkerThreadsSetting {
+  hasValue: boolean
+  n: number
 }
 
 // ─────────────────────────────────────────────────────────────

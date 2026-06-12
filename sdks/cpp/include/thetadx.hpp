@@ -841,17 +841,17 @@ public:
     }
 
 
-    /** Set the RuntimeConfig.tokio_worker_threads knob using the
-     *  (has_value, n) shape that preserves Some(0) across the C
-     *  boundary. has_value=false defers to tokio's default sizing. */
-    int32_t set_tokio_worker_threads_explicit(bool has_value, size_t n) {
-        return tdx_config_set_tokio_worker_threads_explicit(handle_.get(), has_value, n);
+    /** Set the async worker-thread count using the (has_value, n) shape
+     *  that preserves Some(0) across the C boundary. has_value=false
+     *  defers to the default sizing. */
+    int32_t set_worker_threads_explicit(bool has_value, size_t n) {
+        return tdx_config_set_worker_threads_explicit(handle_.get(), has_value, n);
     }
 
-    /** Read tokio_worker_threads back. *out_has_value=false encodes
-     *  the None (auto-size) sentinel. */
-    int32_t get_tokio_worker_threads(bool* out_has_value, size_t* out_n) const {
-        return tdx_config_get_tokio_worker_threads(handle_.get(), out_has_value, out_n);
+    /** Read worker_threads back. *out_has_value=false encodes the None
+     *  (auto-size) sentinel. */
+    int32_t get_worker_threads(bool* out_has_value, size_t* out_n) const {
+        return tdx_config_get_worker_threads(handle_.get(), out_has_value, out_n);
     }
 
     // ── RetryPolicy field setters/getters ──

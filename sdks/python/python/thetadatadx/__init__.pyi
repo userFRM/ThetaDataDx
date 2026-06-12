@@ -108,11 +108,10 @@ class Config:
     # Write-only: reading the configured callable back is not
     # supported (`reconnect_policy` reports "custom").
     reconnect_callback: Optional[Callable[[int, int], Optional[int]]]
-    # Tokio worker-thread count for embedded runtimes built via
-    # `RuntimeConfig::build_runtime`. `None` defers to tokio's default
-    # sizing; `int` (including `0`, which clamps to `1` inside the
-    # builder) pins worker count.
-    tokio_worker_threads: Optional[int]
+    # Async worker-thread count for embedded runtimes. `None` defers to
+    # the default sizing; `int` (including `0`, which clamps to `1`)
+    # pins worker count.
+    worker_threads: Optional[int]
     # RetryPolicy fields — per-field access on `DirectConfig.retry`.
     # Defaults: `initial=250ms`, `max=30s`, `attempts=20`,
     # `max_elapsed_secs=300` (0 disables the wall-clock envelope),

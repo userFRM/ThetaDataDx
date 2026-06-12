@@ -345,15 +345,19 @@ cpp = true
 
 # ─── RuntimeConfig cross-binding setters ───────────────────────────────
 #
-# Async-runtime sub-config knobs honoured by embedded bindings that own
-# their tokio runtime (FFI / Python / napi). The
-# `tokio_worker_threads` field uses the widened `(has_value, n)` ABI
-# shape on the C surface so the `Some(0)` sentinel survives the C
-# boundary. `RuntimeConfig::build_runtime` interprets the field for
-# callers building their own runtime.
+# Async worker-thread sub-config knob honoured by embedded bindings
+# that own their runtime (FFI / Python / napi). The public setter is
+# `worker_threads` on every binding (Python `Config.worker_threads`,
+# TypeScript `Config.setWorkerThreadsExplicit` / `workerThreads`, C++
+# `set_worker_threads_explicit`, FFI
+# `tdx_config_set_worker_threads_explicit`). The row name carries the
+# public concept; the internal storage field maps to it through the
+# rename table in `check_binding_parity.py`. The widened
+# `(has_value, n)` ABI shape on the C surface lets the `Some(0)`
+# sentinel survive the C boundary.
 
 [[class]]
-name = "RuntimeConfig.tokio_worker_threads"
+name = "RuntimeConfig.worker_threads"
 python = true
 typescript = true
 cpp = true
@@ -461,22 +465,26 @@ cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTim
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
 #
-# Two `MddsConfig` test-only setters (`mdds_host` / `mdds_port`) are
+# Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`) are
 # exposed on Python alone for structural-test usage (point the
 # historical channel at a refused endpoint to prove the streaming
-# surface never opens it). The dotted rows below capture the
-# partial-binding state via the `setter = "..."` override on Python.
+# surface never opens it). MDDS is a vendor protocol name, kept
+# verbatim; these knobs are Python-only by design — they are NOT
+# forced onto the other bindings, and the setter-set parity check
+# exempts them with a written reason. The dotted rows below capture
+# the partial-binding state via the `setter = "..."` override on
+# Python.
 
 [[class]]
 name = "MddsConfig.host"
-python = true       # `Config.mdds_host` test-only setter
+python = true       # `Config.mdds_host` advanced override (Python-only)
 typescript = false
 cpp = false
 setter = "mdds_host"
 
 [[class]]
 name = "MddsConfig.port"
-python = true       # `Config.mdds_port` test-only setter
+python = true       # `Config.mdds_port` advanced override (Python-only)
 typescript = false
 cpp = false
 setter = "mdds_port"
@@ -636,14 +644,14 @@ python = true
 typescript = true
 cpp = true
 
-# `FpssConfig.derive_ohlcvc` is exposed on the C ABI
-# (`tdx_config_set_derive_ohlcvc`) + Python (`Config.derive_ohlcvc`)
-# + C++ (`set_derive_ohlcvc`) but not on TypeScript. The row
-# captures the partial-binding state.
+# `FpssConfig.derive_ohlcvc` is exposed on every binding: the C ABI
+# (`tdx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
+# C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
+# / `deriveOhlcvc`).
 [[class]]
 name = "FpssConfig.derive_ohlcvc"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 # ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────

@@ -155,10 +155,10 @@ describe('Config.setReconnectWaitMs / setReconnectWaitRateLimitedMs', () => {
   });
 });
 
-describe('Config.setTokioWorkerThreadsExplicit', () => {
-  it('default tokio_worker_threads is the None (auto) sentinel', () => {
+describe('Config.setWorkerThreadsExplicit', () => {
+  it('default workerThreads is the None (auto) sentinel', () => {
     const cfg = Config.production();
-    const got = cfg.tokioWorkerThreads;
+    const got = cfg.workerThreads;
     assert.equal(got.hasValue, false, 'default must be None');
     assert.equal(got.n, 0);
   });
@@ -166,14 +166,14 @@ describe('Config.setTokioWorkerThreadsExplicit', () => {
   it('round-trip preserves Some(0) and explicit pinned counts', () => {
     const cfg = Config.production();
     for (const n of [0, 1, 2, 4, 8, 16, 64]) {
-      cfg.setTokioWorkerThreadsExplicit(true, n);
-      const got = cfg.tokioWorkerThreads;
+      cfg.setWorkerThreadsExplicit(true, n);
+      const got = cfg.workerThreads;
       assert.equal(got.hasValue, true);
       assert.equal(got.n, n);
     }
     // Reset to None.
-    cfg.setTokioWorkerThreadsExplicit(false, 999);
-    const got = cfg.tokioWorkerThreads;
+    cfg.setWorkerThreadsExplicit(false, 999);
+    const got = cfg.workerThreads;
     assert.equal(got.hasValue, false);
     assert.equal(got.n, 0);
   });
