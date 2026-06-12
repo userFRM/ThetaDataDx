@@ -234,7 +234,7 @@ toml = "1.1.2"
 # PyO3 with `auto-initialize` so the `streaming_throughput` bench can
 # acquire the GIL without an explicit `Py_Initialize`. dev-only — never
 # enters the published crate graph.
-pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
+pyo3 = { version = "=0.29.0", features = ["auto-initialize"] }
 
 # Signal-driven sampling profiler used by the concurrent-burst bench
 # to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
