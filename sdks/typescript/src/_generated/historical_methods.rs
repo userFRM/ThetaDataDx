@@ -2,8 +2,8 @@
 
 /// Optional parameters for [`ThetaDataDxClient::stockListSymbols`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListSymbolsOptions {
@@ -12,8 +12,8 @@ pub struct StockListSymbolsOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockListDates`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListDatesOptions {
@@ -22,8 +22,8 @@ pub struct StockListDatesOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockSnapshotOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotOHLCOptions {
@@ -34,8 +34,8 @@ pub struct StockSnapshotOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockSnapshotTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotTradeOptions {
@@ -46,8 +46,8 @@ pub struct StockSnapshotTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockSnapshotQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotQuoteOptions {
@@ -58,8 +58,8 @@ pub struct StockSnapshotQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockSnapshotMarketValue`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotMarketValueOptions {
@@ -70,8 +70,8 @@ pub struct StockSnapshotMarketValueOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryEOD`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryEODOptions {
@@ -80,8 +80,8 @@ pub struct StockHistoryEODOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryOHLCOptions {
@@ -96,8 +96,8 @@ pub struct StockHistoryOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeOptions {
@@ -111,8 +111,8 @@ pub struct StockHistoryTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryQuoteOptions {
@@ -127,8 +127,8 @@ pub struct StockHistoryQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryTradeQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeQuoteOptions {
@@ -143,8 +143,8 @@ pub struct StockHistoryTradeQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockAtTimeTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockAtTimeTradeOptions {
@@ -154,8 +154,8 @@ pub struct StockAtTimeTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockAtTimeQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockAtTimeQuoteOptions {
@@ -165,8 +165,8 @@ pub struct StockAtTimeQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionListSymbols`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListSymbolsOptions {
@@ -175,8 +175,8 @@ pub struct OptionListSymbolsOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionListDates`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListDatesOptions {
@@ -185,8 +185,8 @@ pub struct OptionListDatesOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionListExpirations`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListExpirationsOptions {
@@ -195,8 +195,8 @@ pub struct OptionListExpirationsOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionListStrikes`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListStrikesOptions {
@@ -205,8 +205,8 @@ pub struct OptionListStrikesOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionListContracts`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListContractsOptions {
@@ -216,8 +216,8 @@ pub struct OptionListContractsOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotOHLCOptions {
@@ -231,8 +231,8 @@ pub struct OptionSnapshotOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotTradeOptions {
@@ -245,8 +245,8 @@ pub struct OptionSnapshotTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotQuoteOptions {
@@ -260,8 +260,8 @@ pub struct OptionSnapshotQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotOpenInterest`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotOpenInterestOptions {
@@ -275,8 +275,8 @@ pub struct OptionSnapshotOpenInterestOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotMarketValue`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotMarketValueOptions {
@@ -290,8 +290,8 @@ pub struct OptionSnapshotMarketValueOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksImpliedVolatility`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
@@ -311,8 +311,8 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksAll`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksAllOptions {
@@ -332,8 +332,8 @@ pub struct OptionSnapshotGreeksAllOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksFirstOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksFirstOrderOptions {
@@ -353,8 +353,8 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksSecondOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksSecondOrderOptions {
@@ -374,8 +374,8 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksThirdOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksThirdOrderOptions {
@@ -395,8 +395,8 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryEOD`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryEODOptions {
@@ -409,8 +409,8 @@ pub struct OptionHistoryEODOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryOHLCOptions {
@@ -427,8 +427,8 @@ pub struct OptionHistoryOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeOptions {
@@ -445,8 +445,8 @@ pub struct OptionHistoryTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryQuoteOptions {
@@ -464,8 +464,8 @@ pub struct OptionHistoryQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeQuoteOptions {
@@ -483,8 +483,8 @@ pub struct OptionHistoryTradeQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryOpenInterest`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryOpenInterestOptions {
@@ -499,8 +499,8 @@ pub struct OptionHistoryOpenInterestOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksEOD`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksEODOptions {
@@ -518,8 +518,8 @@ pub struct OptionHistoryGreeksEODOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksAll`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksAllOptions {
@@ -540,8 +540,8 @@ pub struct OptionHistoryGreeksAllOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksAll`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksAllOptions {
@@ -562,8 +562,8 @@ pub struct OptionHistoryTradeGreeksAllOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksFirstOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksFirstOrderOptions {
@@ -584,8 +584,8 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksFirstOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksFirstOrderOptions {
@@ -606,8 +606,8 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksSecondOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksSecondOrderOptions {
@@ -628,8 +628,8 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksSecondOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksSecondOrderOptions {
@@ -650,8 +650,8 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksThirdOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksThirdOrderOptions {
@@ -672,8 +672,8 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksThirdOrder`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksThirdOrderOptions {
@@ -694,8 +694,8 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksImpliedVolatility`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksImpliedVolatilityOptions {
@@ -716,8 +716,8 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksImpliedVolatility`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
@@ -738,8 +738,8 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionAtTimeTrade`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionAtTimeTradeOptions {
@@ -752,8 +752,8 @@ pub struct OptionAtTimeTradeOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::optionAtTimeQuote`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionAtTimeQuoteOptions {
@@ -766,8 +766,8 @@ pub struct OptionAtTimeQuoteOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexListSymbols`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListSymbolsOptions {
@@ -776,8 +776,8 @@ pub struct IndexListSymbolsOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexListDates`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListDatesOptions {
@@ -786,8 +786,8 @@ pub struct IndexListDatesOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexSnapshotOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotOHLCOptions {
@@ -797,8 +797,8 @@ pub struct IndexSnapshotOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexSnapshotPrice`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotPriceOptions {
@@ -808,8 +808,8 @@ pub struct IndexSnapshotPriceOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexSnapshotMarketValue`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotMarketValueOptions {
@@ -819,8 +819,8 @@ pub struct IndexSnapshotMarketValueOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexHistoryEOD`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryEODOptions {
@@ -829,8 +829,8 @@ pub struct IndexHistoryEODOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexHistoryOHLC`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryOHLCOptions {
@@ -842,8 +842,8 @@ pub struct IndexHistoryOHLCOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexHistoryPrice`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryPriceOptions {
@@ -857,8 +857,8 @@ pub struct IndexHistoryPriceOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::indexAtTimePrice`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexAtTimePriceOptions {
@@ -867,8 +867,8 @@ pub struct IndexAtTimePriceOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::calendarOpenToday`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOpenTodayOptions {
@@ -877,8 +877,8 @@ pub struct CalendarOpenTodayOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::calendarOnDate`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOnDateOptions {
@@ -887,8 +887,8 @@ pub struct CalendarOnDateOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::calendarYear`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarYearOptions {
@@ -897,8 +897,8 @@ pub struct CalendarYearOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::interestRateHistoryEOD`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct InterestRateHistoryEODOptions {
@@ -907,8 +907,8 @@ pub struct InterestRateHistoryEODOptions {
 
 /// Optional parameters for [`ThetaDataDxClient::stockHistoryOHLCRange`]. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a
-/// JS error is thrown and the underlying stream is cancelled.
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryOHLCRangeOptions {
@@ -925,13 +925,14 @@ impl ThetaDataDxClient {
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
     #[napi(js_name = "stockListSymbols")]
-    pub fn stock_list_symbols(
+    pub async fn stock_list_symbols(
         &self,
         options: Option<StockListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.stock_list_symbols();
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.stock_list_symbols();
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -940,22 +941,24 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
     ///
     /// Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
     #[napi(js_name = "stockListDates")]
-    pub fn stock_list_dates(
+    pub async fn stock_list_dates(
         &self,
         request_type: String,
         symbol: String,
         options: Option<StockListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.stock_list_dates(&request_type, &symbol);
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.stock_list_dates(&request_type, &symbol);
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -964,7 +967,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
@@ -977,27 +981,31 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotOHLC")]
-    pub fn stock_snapshot_ohlc(
+    pub async fn stock_snapshot_ohlc(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<StockSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.stock_snapshot_ohlc(&refs);
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.stock_snapshot_ohlc(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -1010,27 +1018,31 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotTrade")]
-    pub fn stock_snapshot_trade(
+    pub async fn stock_snapshot_trade(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<StockSnapshotTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.stock_snapshot_trade(&refs);
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.stock_snapshot_trade(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -1043,27 +1055,31 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotQuote")]
-    pub fn stock_snapshot_quote(
+    pub async fn stock_snapshot_quote(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<StockSnapshotQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.stock_snapshot_quote(&refs);
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.stock_snapshot_quote(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -1076,27 +1092,31 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotMarketValue")]
-    pub fn stock_snapshot_market_value(
+    pub async fn stock_snapshot_market_value(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<StockSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.stock_snapshot_market_value(&refs);
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.stock_snapshot_market_value(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
@@ -1104,7 +1124,7 @@ impl ThetaDataDxClient {
     ///
     /// Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
     #[napi(js_name = "stockHistoryEOD")]
-    pub fn stock_history_eod(
+    pub async fn stock_history_eod(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -1112,13 +1132,17 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
-        let mut request = self.tdx.stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
@@ -1134,13 +1158,14 @@ impl ThetaDataDxClient {
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryOHLC")]
-    pub fn stock_history_ohlc(
+    pub async fn stock_history_ohlc(
         &self,
         symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1148,29 +1173,32 @@ impl ThetaDataDxClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.stock_history_ohlc(&symbol, date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_ohlc(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -1184,39 +1212,43 @@ impl ThetaDataDxClient {
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTrade")]
-    pub fn stock_history_trade(
+    pub async fn stock_history_trade(
         &self,
         symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.stock_history_trade(&symbol, date.as_str());
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_trade(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -1233,13 +1265,14 @@ impl ThetaDataDxClient {
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryQuote")]
-    pub fn stock_history_quote(
+    pub async fn stock_history_quote(
         &self,
         symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1247,29 +1280,32 @@ impl ThetaDataDxClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.stock_history_quote(&symbol, date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_quote(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -1284,13 +1320,14 @@ impl ThetaDataDxClient {
     /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
-    pub fn stock_history_trade_quote(
+    pub async fn stock_history_trade_quote(
         &self,
         symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -1298,29 +1335,32 @@ impl ThetaDataDxClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.stock_history_trade_quote(&symbol, date.as_str());
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = exclusive {
-            request = request.exclusive(value);
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_trade_quote(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
@@ -1337,7 +1377,7 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockAtTimeTrade")]
-    pub fn stock_at_time_trade(
+    pub async fn stock_at_time_trade(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -1346,18 +1386,22 @@ impl ThetaDataDxClient {
         options: Option<StockAtTimeTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
-        let mut request = self.tdx.stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -1374,7 +1418,7 @@ impl ThetaDataDxClient {
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockAtTimeQuote")]
-    pub fn stock_at_time_quote(
+    pub async fn stock_at_time_quote(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -1383,18 +1427,22 @@ impl ThetaDataDxClient {
         options: Option<StockAtTimeQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
-        let mut request = self.tdx.stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -1402,13 +1450,14 @@ impl ThetaDataDxClient {
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
     #[napi(js_name = "optionListSymbols")]
-    pub fn option_list_symbols(
+    pub async fn option_list_symbols(
         &self,
         options: Option<OptionListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.option_list_symbols();
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.option_list_symbols();
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -1417,7 +1466,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List available dates for an option contract by request type.
@@ -1429,7 +1479,7 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionListDates")]
-    pub fn option_list_dates(
+    pub async fn option_list_dates(
         &self,
         request_type: String,
         symbol: String,
@@ -1437,9 +1487,10 @@ impl ThetaDataDxClient {
         options: Option<OptionListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
-        runtime().block_on(async {
-            let call = self.tdx.option_list_dates(&request_type, &symbol, expiration.as_str());
+        spawn_endpoint_task(async move {
+            let call = tdx.option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -1448,7 +1499,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List available expiration dates for an option underlying.
@@ -1456,14 +1508,15 @@ impl ThetaDataDxClient {
     /// Lists all dates of expirations that are available for an option with a given symbol.
     /// This endpoint is updated overnight.
     #[napi(js_name = "optionListExpirations")]
-    pub fn option_list_expirations(
+    pub async fn option_list_expirations(
         &self,
         symbol: String,
         options: Option<OptionListExpirationsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.option_list_expirations(&symbol);
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.option_list_expirations(&symbol);
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -1472,7 +1525,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List available strike prices for an option at a given expiration.
@@ -1480,16 +1534,17 @@ impl ThetaDataDxClient {
     /// Lists all strikes that are available for an option with a given symbol and expiration date.
     /// This endpoint is updated overnight.
     #[napi(js_name = "optionListStrikes")]
-    pub fn option_list_strikes(
+    pub async fn option_list_strikes(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionListStrikesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
-        runtime().block_on(async {
-            let call = self.tdx.option_list_strikes(&symbol, expiration.as_str());
+        spawn_endpoint_task(async move {
+            let call = tdx.option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -1498,7 +1553,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List all option contracts for a symbol on a given date.
@@ -1509,7 +1565,7 @@ impl ThetaDataDxClient {
     /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
     /// This endpoint is updated real-time.
     #[napi(js_name = "optionListContracts")]
-    pub fn option_list_contracts(
+    pub async fn option_list_contracts(
         &self,
         request_type: String,
         symbol: String,
@@ -1517,16 +1573,20 @@ impl ThetaDataDxClient {
         options: Option<OptionListContractsOptions>,
     ) -> napi::Result<Vec<OptionContract>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
-        let mut request = self.tdx.option_list_contracts(&request_type, &symbol, date.as_str());
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_list_contracts(&request_type, &symbol, date.as_str());
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(option_contracts_to_class_vec(&ticks))
     }
 
@@ -1539,39 +1599,43 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotOHLC")]
-    pub fn option_snapshot_ohlc(
+    pub async fn option_snapshot_ohlc(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.option_snapshot_ohlc(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_ohlc(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -1585,35 +1649,39 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotTrade")]
-    pub fn option_snapshot_trade(
+    pub async fn option_snapshot_trade(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.option_snapshot_trade(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_trade(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -1627,39 +1695,43 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotQuote")]
-    pub fn option_snapshot_quote(
+    pub async fn option_snapshot_quote(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.option_snapshot_quote(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_quote(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -1674,39 +1746,43 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotOpenInterest")]
-    pub fn option_snapshot_open_interest(
+    pub async fn option_snapshot_open_interest(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.option_snapshot_open_interest(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_open_interest(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
@@ -1718,39 +1794,43 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotMarketValue")]
-    pub fn option_snapshot_market_value(
+    pub async fn option_snapshot_market_value(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.option_snapshot_market_value(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_market_value(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
@@ -1768,13 +1848,14 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatility")]
-    pub fn option_snapshot_greeks_implied_volatility(
+    pub async fn option_snapshot_greeks_implied_volatility(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -1787,44 +1868,47 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
-        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = stock_price {
-            request = request.stock_price(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(value) = use_market_value {
-            request = request.use_market_value(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
@@ -1842,13 +1926,14 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksAll")]
-    pub fn option_snapshot_greeks_all(
+    pub async fn option_snapshot_greeks_all(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -1861,44 +1946,47 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
-        let mut request = self.tdx.option_snapshot_greeks_all(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = stock_price {
-            request = request.stock_price(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(value) = use_market_value {
-            request = request.use_market_value(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
@@ -1916,13 +2004,14 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksFirstOrder")]
-    pub fn option_snapshot_greeks_first_order(
+    pub async fn option_snapshot_greeks_first_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -1935,44 +2024,47 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
-        let mut request = self.tdx.option_snapshot_greeks_first_order(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = stock_price {
-            request = request.stock_price(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(value) = use_market_value {
-            request = request.use_market_value(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
@@ -1990,13 +2082,14 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksSecondOrder")]
-    pub fn option_snapshot_greeks_second_order(
+    pub async fn option_snapshot_greeks_second_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2009,44 +2102,47 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
-        let mut request = self.tdx.option_snapshot_greeks_second_order(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = stock_price {
-            request = request.stock_price(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(value) = use_market_value {
-            request = request.use_market_value(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
@@ -2064,13 +2160,14 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksThirdOrder")]
-    pub fn option_snapshot_greeks_third_order(
+    pub async fn option_snapshot_greeks_third_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionSnapshotGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2083,44 +2180,47 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
-        let mut request = self.tdx.option_snapshot_greeks_third_order(&symbol, expiration.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = stock_price {
-            request = request.stock_price(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(value) = use_market_value {
-            request = request.use_market_value(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
@@ -2135,7 +2235,7 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionHistoryEOD")]
-    pub fn option_history_eod(
+    pub async fn option_history_eod(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2144,6 +2244,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -2151,23 +2252,26 @@ impl ThetaDataDxClient {
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
-        let mut request = self.tdx.option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
@@ -2184,7 +2288,7 @@ impl ThetaDataDxClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryOHLC")]
-    pub fn option_history_ohlc(
+    pub async fn option_history_ohlc(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2192,6 +2296,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2202,35 +2307,38 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -2247,7 +2355,7 @@ impl ThetaDataDxClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryTrade")]
-    pub fn option_history_trade(
+    pub async fn option_history_trade(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2255,6 +2363,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2265,35 +2374,38 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -2310,7 +2422,7 @@ impl ThetaDataDxClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryQuote")]
-    pub fn option_history_quote(
+    pub async fn option_history_quote(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2318,6 +2430,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2329,38 +2442,41 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_quote(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -2378,7 +2494,7 @@ impl ThetaDataDxClient {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
-    pub fn option_history_trade_quote(
+    pub async fn option_history_trade_quote(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2386,6 +2502,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2397,38 +2514,41 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = exclusive {
-            request = request.exclusive(value);
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
@@ -2442,7 +2562,7 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionHistoryOpenInterest")]
-    pub fn option_history_open_interest(
+    pub async fn option_history_open_interest(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2450,6 +2570,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2458,29 +2579,32 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
@@ -2497,7 +2621,7 @@ impl ThetaDataDxClient {
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
     #[napi(js_name = "optionHistoryGreeksEOD")]
-    pub fn option_history_greeks_eod(
+    pub async fn option_history_greeks_eod(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2506,6 +2630,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksEODOptions>,
     ) -> napi::Result<Vec<GreeksEodTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -2518,38 +2643,41 @@ impl ThetaDataDxClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
-        let mut request = self.tdx.option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = underlyer_use_nbbo {
-            request = request.underlyer_use_nbbo(value);
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
@@ -2569,7 +2697,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksAll")]
-    pub fn option_history_greeks_all(
+    pub async fn option_history_greeks_all(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2577,6 +2705,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2591,47 +2720,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
@@ -2650,7 +2782,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksAll")]
-    pub fn option_history_trade_greeks_all(
+    pub async fn option_history_trade_greeks_all(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2658,6 +2790,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<Vec<TradeGreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2672,47 +2805,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
@@ -2732,7 +2868,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksFirstOrder")]
-    pub fn option_history_greeks_first_order(
+    pub async fn option_history_greeks_first_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2740,6 +2876,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2754,47 +2891,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
@@ -2813,7 +2953,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrder")]
-    pub fn option_history_trade_greeks_first_order(
+    pub async fn option_history_trade_greeks_first_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2821,6 +2961,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2835,47 +2976,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
@@ -2895,7 +3039,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksSecondOrder")]
-    pub fn option_history_greeks_second_order(
+    pub async fn option_history_greeks_second_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2903,6 +3047,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2917,47 +3062,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
@@ -2976,7 +3124,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrder")]
-    pub fn option_history_trade_greeks_second_order(
+    pub async fn option_history_trade_greeks_second_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -2984,6 +3132,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -2998,47 +3147,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
@@ -3058,7 +3210,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksThirdOrder")]
-    pub fn option_history_greeks_third_order(
+    pub async fn option_history_greeks_third_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3066,6 +3218,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3080,47 +3233,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
@@ -3139,7 +3295,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrder")]
-    pub fn option_history_trade_greeks_third_order(
+    pub async fn option_history_trade_greeks_third_order(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3147,6 +3303,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3161,47 +3318,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
@@ -3220,7 +3380,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksImpliedVolatility")]
-    pub fn option_history_greeks_implied_volatility(
+    pub async fn option_history_greeks_implied_volatility(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3228,6 +3388,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3242,47 +3403,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
@@ -3300,7 +3464,7 @@ impl ThetaDataDxClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatility")]
-    pub fn option_history_trade_greeks_implied_volatility(
+    pub async fn option_history_trade_greeks_implied_volatility(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3308,6 +3472,7 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<TradeGreeksImpliedVolatilityTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3322,47 +3487,50 @@ impl ThetaDataDxClient {
         let strike_range = options.strike_range;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = annual_dividend {
-            request = request.annual_dividend(value);
-        }
-        if let Some(value) = rate_type {
-            request = request.rate_type(value.as_str());
-        }
-        if let Some(value) = rate_value {
-            request = request.rate_value(value);
-        }
-        if let Some(value) = version {
-            request = request.version(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_greeks_implied_volatility_ticks_to_class_vec(&ticks))
     }
 
@@ -3377,7 +3545,7 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionAtTimeTrade")]
-    pub fn option_at_time_trade(
+    pub async fn option_at_time_trade(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3387,6 +3555,7 @@ impl ThetaDataDxClient {
         options: Option<OptionAtTimeTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3395,23 +3564,26 @@ impl ThetaDataDxClient {
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
-        let mut request = self.tdx.option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
@@ -3424,7 +3596,7 @@ impl ThetaDataDxClient {
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
     #[napi(js_name = "optionAtTimeQuote")]
-    pub fn option_at_time_quote(
+    pub async fn option_at_time_quote(
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3434,6 +3606,7 @@ impl ThetaDataDxClient {
         options: Option<OptionAtTimeQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3442,23 +3615,26 @@ impl ThetaDataDxClient {
         let right = options.right;
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
-        let mut request = self.tdx.option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-        if let Some(value) = strike {
-            request = request.strike(value.as_str());
-        }
-        if let Some(value) = right {
-            request = request.right(value.as_str());
-        }
-        if let Some(value) = max_dte {
-            request = request.max_dte(value);
-        }
-        if let Some(value) = strike_range {
-            request = request.strike_range(value);
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
@@ -3466,13 +3642,14 @@ impl ThetaDataDxClient {
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
     #[napi(js_name = "indexListSymbols")]
-    pub fn index_list_symbols(
+    pub async fn index_list_symbols(
         &self,
         options: Option<IndexListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.index_list_symbols();
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.index_list_symbols();
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -3481,21 +3658,23 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// List available dates for an index symbol.
     ///
     /// Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
     #[napi(js_name = "indexListDates")]
-    pub fn index_list_dates(
+    pub async fn index_list_dates(
         &self,
         symbol: String,
         options: Option<IndexListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
-        runtime().block_on(async {
-            let call = self.tdx.index_list_dates(&symbol);
+        let tdx = self.tdx.clone();
+        spawn_endpoint_task(async move {
+            let call = tdx.index_list_dates(&symbol);
             if let Some(ms) = options.timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -3504,7 +3683,8 @@ impl ThetaDataDxClient {
             } else {
                 call.await
             }
-        }).map_err(to_napi_err)
+        })
+        .await
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
@@ -3512,23 +3692,27 @@ impl ThetaDataDxClient {
     /// - Retrieves the real-time current day OHLC.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotOHLC")]
-    pub fn index_snapshot_ohlc(
+    pub async fn index_snapshot_ohlc(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<IndexSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.index_snapshot_ohlc(&refs);
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.index_snapshot_ohlc(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -3537,23 +3721,27 @@ impl ThetaDataDxClient {
     /// - Retrieves a real-time last index price.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotPrice")]
-    pub fn index_snapshot_price(
+    pub async fn index_snapshot_price(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<IndexSnapshotPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.index_snapshot_price(&refs);
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.index_snapshot_price(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
@@ -3562,23 +3750,27 @@ impl ThetaDataDxClient {
     /// - Retrieves a real-time last index market value.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotMarketValue")]
-    pub fn index_snapshot_market_value(
+    pub async fn index_snapshot_market_value(
         &self,
         symbols: Either<String, Vec<String>>,
         options: Option<IndexSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
-        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let min_time = normalize_optional_time(options.min_time);
-        let mut request = self.tdx.index_snapshot_market_value(&refs);
-        if let Some(value) = min_time {
-            request = request.min_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = tdx.index_snapshot_market_value(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
@@ -3586,7 +3778,7 @@ impl ThetaDataDxClient {
     ///
     /// - Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
     #[napi(js_name = "indexHistoryEOD")]
-    pub fn index_history_eod(
+    pub async fn index_history_eod(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3594,13 +3786,17 @@ impl ThetaDataDxClient {
         options: Option<IndexHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
-        let mut request = self.tdx.index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
@@ -3615,7 +3811,7 @@ impl ThetaDataDxClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "indexHistoryOHLC")]
-    pub fn index_history_ohlc(
+    pub async fn index_history_ohlc(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3623,25 +3819,29 @@ impl ThetaDataDxClient {
         options: Option<IndexHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let mut request = self.tdx.index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
@@ -3657,39 +3857,43 @@ impl ThetaDataDxClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "indexHistoryPrice")]
-    pub fn index_history_price(
+    pub async fn index_history_price(
         &self,
         symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
-        let mut request = self.tdx.index_history_price(&symbol, date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = start_date {
-            request = request.start_date(value.as_str());
-        }
-        if let Some(value) = end_date {
-            request = request.end_date(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_price(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
@@ -3698,7 +3902,7 @@ impl ThetaDataDxClient {
     /// - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     /// - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
     #[napi(js_name = "indexAtTimePrice")]
-    pub fn index_at_time_price(
+    pub async fn index_at_time_price(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3707,14 +3911,18 @@ impl ThetaDataDxClient {
         options: Option<IndexAtTimePriceOptions>,
     ) -> napi::Result<Vec<IndexPriceAtTimeTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
-        let mut request = self.tdx.index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(index_price_at_time_ticks_to_class_vec(&ticks))
     }
 
@@ -3724,16 +3932,20 @@ impl ThetaDataDxClient {
     /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
     /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarOpenToday")]
-    pub fn calendar_open_today(
+    pub async fn calendar_open_today(
         &self,
         options: Option<CalendarOpenTodayOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
-        let mut request = self.tdx.calendar_open_today();
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let tdx = self.tdx.clone();
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.calendar_open_today();
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
@@ -3744,18 +3956,22 @@ impl ThetaDataDxClient {
     /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
     /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarOnDate")]
-    pub fn calendar_on_date(
+    pub async fn calendar_on_date(
         &self,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<CalendarOnDateOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let date = normalize_date(date);
-        let mut request = self.tdx.calendar_on_date(date.as_str());
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.calendar_on_date(date.as_str());
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
@@ -3766,17 +3982,21 @@ impl ThetaDataDxClient {
     /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
     /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarYear")]
-    pub fn calendar_year(
+    pub async fn calendar_year(
         &self,
         year: String,
         options: Option<CalendarYearOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
-        let mut request = self.tdx.calendar_year(&year);
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let tdx = self.tdx.clone();
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.calendar_year(&year);
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
@@ -3788,7 +4008,7 @@ impl ThetaDataDxClient {
     ///   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
     ///   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
     #[napi(js_name = "interestRateHistoryEOD")]
-    pub fn interest_rate_history_eod(
+    pub async fn interest_rate_history_eod(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3796,13 +4016,17 @@ impl ThetaDataDxClient {
         options: Option<InterestRateHistoryEODOptions>,
     ) -> napi::Result<Vec<InterestRateTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
-        let mut request = self.tdx.interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
@@ -3814,7 +4038,7 @@ impl ThetaDataDxClient {
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryOHLCRange")]
-    pub fn stock_history_ohlc_range(
+    pub async fn stock_history_ohlc_range(
         &self,
         symbol: String,
         start_date: Either<String, chrono::DateTime<chrono::Utc>>,
@@ -3822,29 +4046,33 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryOHLCRangeOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
-        let mut request = self.tdx.stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(ms) = options.timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
-        }
-        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = options.timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            }
+            request.await
+        })
+        .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 

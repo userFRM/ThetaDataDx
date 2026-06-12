@@ -60,7 +60,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-indexSnapshotOHLC(symbols: Array<string>, options?: { ... }): Array<OhlcTick>
+indexSnapshotOHLC(symbols: Array<string>, options?: { ... }): Promise<Array<OhlcTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `minTime?: string | Date`, `timeoutMs?: number`.
@@ -68,7 +68,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = tdx.indexSnapshotOHLC(['SPX']);
+const rows = await tdx.indexSnapshotOHLC(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

@@ -55,7 +55,7 @@ for value in rows:
 <template #typescript>
 
 ```typescript
-stockListSymbols(options?: { ... }): Array<string>
+stockListSymbols(options?: { ... }): Promise<Array<string>>
 ```
 
 Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
@@ -63,7 +63,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = tdx.stockListSymbols();
+const rows = await tdx.stockListSymbols();
 for (const value of rows) {
   console.log(value);
 }

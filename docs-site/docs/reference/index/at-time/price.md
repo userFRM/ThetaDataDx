@@ -69,7 +69,7 @@ for t in rows:
 indexAtTimePrice(
   symbol: string, startDate: string | Date, endDate: string | Date,
   timeOfDay: string | Date, options?: { ... },
-): Array<IndexPriceAtTimeTick>
+): Promise<Array<IndexPriceAtTimeTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
@@ -77,7 +77,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = tdx.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
+const rows = await tdx.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }

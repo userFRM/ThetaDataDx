@@ -40,6 +40,36 @@ pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     napi::Error::from_reason(format!("[{class}] {e}"))
 }
 
+/// Run an endpoint round-trip off the runtime's execution thread and
+/// hand the result back as a `napi::Result`.
+///
+/// Every generated historical endpoint method is an `async fn`: napi-rs
+/// returns a JS Promise to the caller and polls the method's future on
+/// its own runtime, never on the V8 execution thread. The actual
+/// network round-trip is spawned onto [`runtime()`] — the same runtime
+/// the gRPC connection was established on, so the request's sockets and
+/// timers are driven by the reactor that owns them — and the spawned
+/// task's `JoinHandle` is awaited from the method's future. The Node
+/// event loop therefore stays free for the whole duration of the call:
+/// timers fire, queued promises advance, and concurrent requests make
+/// progress instead of stalling behind one fetch.
+///
+/// Errors from the round-trip carry the same typed class-name prefix as
+/// the streaming surface via [`to_napi_err`]. A task that panics is
+/// surfaced as a generic napi error rather than aborting the process.
+pub(crate) async fn spawn_endpoint_task<F, T>(fut: F) -> napi::Result<T>
+where
+    F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send + 'static,
+    T: Send + 'static,
+{
+    match runtime().spawn(fut).await {
+        Ok(inner) => inner.map_err(to_napi_err),
+        Err(join_err) => Err(napi::Error::from_reason(format!(
+            "endpoint task failed to complete: {join_err}"
+        ))),
+    }
+}
+
 /// Pick the typed leaf class name for a `thetadatadx::Error`. The
 /// JS shim parses this prefix off the error reason. Mirrors the
 /// Python `to_py_err` dispatch table.

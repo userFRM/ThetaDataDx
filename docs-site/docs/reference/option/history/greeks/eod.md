@@ -83,7 +83,7 @@ for t in rows:
 optionHistoryGreeksEOD(
   symbol: string, expiration: string | Date, startDate: string | Date,
   endDate: string | Date, options?: { ... },
-): Array<GreeksEodTick>
+): Promise<Array<GreeksEodTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `version?: string`, `underlyerUseNBBO?: boolean`, `maxDTE?: number`, `strikeRange?: number`, `timeoutMs?: number`.
@@ -91,7 +91,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryGreeksEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
+const rows = await tdx.optionHistoryGreeksEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.close, t.delta, t.impliedVolatility);
 }

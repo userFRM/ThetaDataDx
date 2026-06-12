@@ -68,7 +68,7 @@ for t in rows:
 ```typescript
 optionSnapshotQuote(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<QuoteTick>
+): Promise<Array<QuoteTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `timeoutMs?: number`.
@@ -76,7 +76,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotQuote('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.optionSnapshotQuote('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.bid, t.ask);
 }

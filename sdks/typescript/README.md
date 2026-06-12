@@ -33,14 +33,16 @@ async function main() {
   const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
   // Or: const tdx = ThetaDataDxClient.connect('user@example.com', 'password');
 
-  // Historical endpoints return an array of typed tick objects
-  // (`OhlcTick[]`, `QuoteTick[]`, ...). Index into the array to
-  // read a per-row field.
-  const ohlc = tdx.stockHistoryOHLC('AAPL', '20240315', '60000');
+  // Historical endpoints resolve a Promise of typed tick objects
+  // (`Promise<OhlcTick[]>`, `Promise<QuoteTick[]>`, ...) off the
+  // runtime's execution thread, so a fetch never holds the event loop.
+  // Await the call, then index into the array to read a per-row field.
+  const ohlc = await tdx.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
   console.log(ohlc.length, ohlc[0].close);
 
-  // With timeout
-  const snap = tdx.stockSnapshotQuote(['AAPL', 'MSFT'], null, null, 5000);
+  // Optional parameters — including a per-call timeout — ride in the
+  // trailing options object.
+  const snap = await tdx.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
 
   // Streaming — primary fluent contract-first API.
   // `Contract.stock("AAPL").quote()` returns a typed `Subscription`

@@ -321,10 +321,12 @@ fn ts_param_type(param: &GeneratedParam) -> &'static str {
 }
 
 fn ts_return_type(endpoint: &GeneratedEndpoint) -> String {
+    // Every endpoint method resolves off the runtime's execution thread,
+    // so the surface is a Promise; the element type is unchanged.
     if endpoint.return_type == "StringList" {
-        "Array<string>".into()
+        "Promise<Array<string>>".into()
     } else {
-        format!("Array<{}>", rust_item_type(endpoint))
+        format!("Promise<Array<{}>>", rust_item_type(endpoint))
     }
 }
 
@@ -418,7 +420,9 @@ pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
         args.push(format!("{{ {entries} }}"));
     }
 
-    let mut code = format!("const rows = tdx.{method}({});\n", args.join(", "));
+    // The method returns a Promise resolved off the execution thread, so
+    // the sample awaits it — the idiomatic JavaScript shape for a fetch.
+    let mut code = format!("const rows = await tdx.{method}({});\n", args.join(", "));
     if endpoint.return_type == "StringList" {
         code.push_str("for (const value of rows) {\n  console.log(value);\n}");
     } else {

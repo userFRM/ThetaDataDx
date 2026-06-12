@@ -62,7 +62,7 @@ for value in rows:
 ```typescript
 optionListStrikes(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<string>
+): Promise<Array<string>>
 ```
 
 Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = tdx.optionListStrikes('SPY', '20250321');
+const rows = await tdx.optionListStrikes('SPY', '20250321');
 for (const value of rows) {
   console.log(value);
 }

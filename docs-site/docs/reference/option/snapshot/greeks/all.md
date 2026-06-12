@@ -70,7 +70,7 @@ for t in rows:
 ```typescript
 optionSnapshotGreeksAll(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<GreeksAllTick>
+): Promise<Array<GreeksAllTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `stockPrice?: number`, `version?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `useMarketValue?: boolean`, `timeoutMs?: number`.
@@ -78,7 +78,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotGreeksAll('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.optionSnapshotGreeksAll('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.delta, t.gamma, t.theta, t.impliedVolatility);
 }

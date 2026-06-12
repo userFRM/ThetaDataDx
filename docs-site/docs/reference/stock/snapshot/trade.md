@@ -61,7 +61,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-stockSnapshotTrade(symbols: Array<string>, options?: { ... }): Array<TradeTick>
+stockSnapshotTrade(symbols: Array<string>, options?: { ... }): Promise<Array<TradeTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `venue?: string`, `minTime?: string | Date`, `timeoutMs?: number`.
@@ -69,7 +69,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = tdx.stockSnapshotTrade(['AAPL']);
+const rows = await tdx.stockSnapshotTrade(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }

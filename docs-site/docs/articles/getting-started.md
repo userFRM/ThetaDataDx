@@ -134,7 +134,7 @@ import { ThetaDataDxClient } from 'thetadatadx';
 
 const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
 
-const rows = tdx.stockHistoryEOD('AAPL', '20250303', '20250306');
+const rows = await tdx.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }

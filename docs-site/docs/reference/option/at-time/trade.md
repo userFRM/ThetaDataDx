@@ -84,7 +84,7 @@ for t in rows:
 optionAtTimeTrade(
   symbol: string, expiration: string | Date, startDate: string | Date,
   endDate: string | Date, timeOfDay: string | Date, options?: { ... },
-): Array<TradeTick>
+): Promise<Array<TradeTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `timeoutMs?: number`.
@@ -92,7 +92,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionAtTimeTrade('SPY', '20250321', '20250303', '20250306', '10:30:00.000', { strike: '570', right: 'C' });
+const rows = await tdx.optionAtTimeTrade('SPY', '20250321', '20250303', '20250306', '10:30:00.000', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }

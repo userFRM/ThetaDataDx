@@ -67,7 +67,7 @@ for t in rows:
 ```typescript
 optionSnapshotOHLC(
   symbol: string, expiration: string | Date, options?: { ... },
-): Array<OhlcTick>
+): Promise<Array<OhlcTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `minTime?: string | Date`, `timeoutMs?: number`.
@@ -75,7 +75,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionSnapshotOHLC('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.optionSnapshotOHLC('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

@@ -83,7 +83,7 @@ for t in rows:
 optionHistoryTradeGreeksSecondOrder(
   symbol: string, expiration: string | Date, date: string | Date,
   options?: { ... },
-): Array<TradeGreeksSecondOrderTick>
+): Promise<Array<TradeGreeksSecondOrderTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `version?: string`, `maxDTE?: number`, `strikeRange?: number`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
@@ -91,7 +91,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryTradeGreeksSecondOrder('SPY', '20250321', '20250303', { strike: '570', right: 'C' });
+const rows = await tdx.optionHistoryTradeGreeksSecondOrder('SPY', '20250321', '20250303', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.msOfDay, t.price, t.gamma, t.vanna);
 }

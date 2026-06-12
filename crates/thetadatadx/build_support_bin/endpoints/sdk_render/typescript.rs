@@ -3,16 +3,24 @@
 //! Renders `sdks/typescript/src/_generated/historical_methods.rs` — the `ThetaDataDxClient`
 //! impl block that napi-rs compiles into the Node.js native addon.
 //!
-//! Every endpoint method takes its required parameters positionally,
-//! followed by ONE optional trailing options object (the JavaScript
-//! idiom for multiple optional parameters — positional `undefined`
-//! holes silently shift later arguments onto the wrong parameter).
-//! Each endpoint gets a dedicated `#[napi(object)] <Method>Options`
-//! struct whose keys are the camelCase parameter names; absent keys
-//! behave exactly like an omitted parameter. `timeoutMs` rides in the
-//! same object: when set, the call is given a deadline; on expiry a JS
-//! error is thrown and the underlying gRPC stream is cancelled. The
-//! `ThetaDataDxClient` handle remains usable.
+//! Every endpoint method is an `async fn`: napi-rs returns a JS Promise
+//! and resolves it off the runtime's execution thread, so the network
+//! round-trip never holds the Node event loop for the duration of a
+//! fetch. The returned Promise resolves with the same typed row array
+//! the synchronous shape returned before; the element types are
+//! unchanged. The blocking round-trip is handed to a worker via
+//! `spawn_endpoint_task` so timers, queued promises, and concurrent
+//! requests keep advancing while a fetch is in flight.
+//!
+//! Each method takes its required parameters positionally, followed by
+//! ONE optional trailing options object (the JavaScript idiom for
+//! multiple optional parameters — positional `undefined` holes silently
+//! shift later arguments onto the wrong parameter). Each endpoint gets a
+//! dedicated `#[napi(object)] <Method>Options` struct whose keys are the
+//! camelCase parameter names; absent keys behave exactly like an omitted
+//! parameter. `timeoutMs` rides in the same object: when set, the call is
+//! given a deadline; on expiry the Promise rejects and the underlying
+//! request is cancelled. The `ThetaDataDxClient` handle remains usable.
 
 use std::fmt::Write as _;
 
@@ -73,8 +81,8 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
     )
     .unwrap();
     out.push_str("/// the camelCase parameter names; absent keys behave exactly like an\n");
-    out.push_str("/// omitted parameter. `timeoutMs` bounds the whole call: on expiry a\n");
-    out.push_str("/// JS error is thrown and the underlying stream is cancelled.\n");
+    out.push_str("/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the\n");
+    out.push_str("/// returned Promise rejects and the underlying request is cancelled.\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Default)]\n");
     writeln!(out, "pub struct {struct_name} {{").unwrap();
@@ -100,7 +108,6 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     } else {
         builder_params(endpoint)
     };
-    let is_streaming_kind = endpoint.kind == "stream";
     let camel_name = to_camel_case(&endpoint.name);
     let struct_name = options_struct_name(endpoint);
     let mut out = String::new();
@@ -110,7 +117,11 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         &compose_endpoint_doc(endpoint),
     ));
     writeln!(out, "    #[napi(js_name = \"{camel_name}\")]").unwrap();
-    writeln!(out, "    pub fn {name}(", name = endpoint.name).unwrap();
+    // The method is `async`: napi-rs returns a JS Promise and drives the
+    // future on its own runtime, so the network round-trip never runs on
+    // the V8 execution thread and the Node event loop stays free for the
+    // call's whole duration.
+    writeln!(out, "    pub async fn {name}(", name = endpoint.name).unwrap();
     out.push_str("        &self,\n");
     for param in &method_params {
         writeln!(
@@ -136,14 +147,17 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
 
     out.push_str("        let options = options.unwrap_or_default();\n");
 
+    // Clone the `Arc` client handle so the spawned future owns a
+    // `'static` borrow source: the request builder borrows the client,
+    // and that borrow must outlive the V8 stack frame the Promise
+    // detaches from.
+    out.push_str("        let tdx = self.tdx.clone();\n");
+
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
     if has_symbols {
         out.push_str("        let symbols = normalize_symbols(symbols);\n");
-        out.push_str(
-            "        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
-        );
     }
     for param in &method_params {
         let arg_name = sdk_method_arg_name(param);
@@ -197,10 +211,18 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        out.push_str("        runtime().block_on(async {\n");
+        // The builder borrows `tdx` and the owned params, so it is
+        // constructed and awaited inside the spawned future where those
+        // values live for `'static`.
+        out.push_str("        spawn_endpoint_task(async move {\n");
+        if has_symbols {
+            out.push_str(
+                "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
+            );
+        }
         writeln!(
             out,
-            "            let call = self.tdx.{name}({positional_args});",
+            "            let call = tdx.{name}({positional_args});",
             name = endpoint.name,
         )
         .unwrap();
@@ -212,7 +234,8 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("            } else {\n");
         out.push_str("                call.await\n");
         out.push_str("            }\n");
-        out.push_str("        }).map_err(to_napi_err)\n");
+        out.push_str("        })\n");
+        out.push_str("        .await\n");
         out.push_str("    }\n");
         return out;
     }
@@ -233,52 +256,43 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
+    // The builder borrows `tdx` and the owned params, so it is
+    // constructed and awaited inside the spawned future where those
+    // values live for `'static`.
+    out.push_str("        let ticks = spawn_endpoint_task(async move {\n");
+    if has_symbols {
+        out.push_str(
+            "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
+        );
+    }
     writeln!(
         out,
-        "        let mut request = self.tdx.{}({});",
+        "            let mut request = tdx.{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
     for param in &builder_params {
-        writeln!(out, "        if let Some(value) = {} {{", param.name).unwrap();
+        writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
         let setter_arg = match param.param_type.as_str() {
             "Int" | "Float" | "Bool" => "value".to_string(),
             _ => "value.as_str()".to_string(),
         };
         writeln!(
             out,
-            "            request = request.{}({});",
+            "                request = request.{}({});",
             param.name, setter_arg
         )
         .unwrap();
-        out.push_str("        }\n");
+        out.push_str("            }\n");
     }
-    out.push_str("        if let Some(ms) = options.timeout_ms {\n");
+    out.push_str("            if let Some(ms) = options.timeout_ms {\n");
     out.push_str(
-        "            request = request.with_deadline(std::time::Duration::from_millis(ms as u64));\n",
+        "                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));\n",
     );
-    out.push_str("        }\n");
-
-    if is_streaming_kind {
-        out.push_str("        let mut collected = Vec::new();\n");
-        out.push_str("        runtime()\n");
-        out.push_str(
-            "            .block_on(request.stream(|chunk| collected.extend_from_slice(chunk)))\n",
-        );
-        out.push_str("            .map_err(to_napi_err)?;\n");
-        writeln!(
-            out,
-            "        Ok({}(&collected))",
-            ts_class_vec_converter(&endpoint.return_type)
-        )
-        .unwrap();
-        out.push_str("    }\n");
-        return out;
-    }
-
-    out.push_str(
-        "        let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;\n",
-    );
+    out.push_str("            }\n");
+    out.push_str("            request.await\n");
+    out.push_str("        })\n");
+    out.push_str("        .await?;\n");
     writeln!(
         out,
         "        Ok({}(&ticks))",

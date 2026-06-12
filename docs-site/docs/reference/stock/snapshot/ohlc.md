@@ -62,7 +62,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-stockSnapshotOHLC(symbols: Array<string>, options?: { ... }): Array<OhlcTick>
+stockSnapshotOHLC(symbols: Array<string>, options?: { ... }): Promise<Array<OhlcTick>>
 ```
 
 Optional parameters ride in a single trailing options object: `venue?: string`, `minTime?: string | Date`, `timeoutMs?: number`.
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = tdx.stockSnapshotOHLC(['AAPL']);
+const rows = await tdx.stockSnapshotOHLC(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }
