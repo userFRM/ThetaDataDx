@@ -18,6 +18,7 @@ use super::idents::rust_field_ident;
 use super::python_classes::strip_field_count_from_doc;
 use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::sorted_type_names;
+use super::tdbe_structs::timestamp_accessor_fields;
 
 pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     let mut out = String::new();
@@ -27,12 +28,16 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
         "// serde_json columnar returns with concrete TypeScript types in index.d.ts.\n\n",
     );
     // napi-rs requires the `BigInt` wrapper for any i64 field that crosses
-    // to JS — pull it in whenever a tick column uses one.
-    let needs_bigint = schema
-        .types
-        .values()
-        .flat_map(|def| def.columns.iter())
-        .any(|col| ts_column_needs_bigint(col.r#type.as_str()));
+    // to JS — pull it in whenever a tick column uses one, or whenever a
+    // type carries a `*_timestamp_ms` epoch accessor (epoch milliseconds
+    // are i64 and ride the same `Option<BigInt>` field, so a Greeks row
+    // with no native i64 column still needs the import).
+    let needs_bigint = schema.types.values().any(|def| {
+        def.columns
+            .iter()
+            .any(|col| ts_column_needs_bigint(col.r#type.as_str()))
+            || !timestamp_accessor_fields(def).is_empty()
+    });
     if needs_bigint {
         out.push_str("use napi::bindgen_prelude::BigInt;\n\n");
     }
@@ -287,6 +292,33 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
         writeln!(out, "    /// {}", flag.doc).unwrap();
         writeln!(out, "    pub {}: bool,", flag.name).unwrap();
     }
+    // Epoch-instant convenience fields: one per milliseconds-of-day
+    // column on types that also carry `date`. Python / C++ expose these
+    // as `*_timestamp_ms()` read-side accessors; the method-less napi
+    // object surfaces the same values as precomputed `Option<BigInt>`
+    // fields (camelCased to `createdTimestampMs` ...), computed once at
+    // conversion time through the same DST-aware core. The raw integer
+    // milliseconds-of-day columns stay primary; this is a convenience at
+    // the epoch boundary, `undefined` when `date` is absent (`0`).
+    for (accessor, field) in timestamp_accessor_fields(def) {
+        writeln!(
+            out,
+            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    /// `{field}` (Eastern-Time milliseconds-of-day). `undefined` when"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    /// `date` is absent (`0`). Parity of the Python `{accessor}`"
+        )
+        .unwrap();
+        writeln!(out, "    /// property and C++ `tdx::timestamp_ms`.").unwrap();
+        writeln!(out, "    pub {accessor}: Option<BigInt>,").unwrap();
+    }
     out.push_str("}\n");
     out
 }
@@ -349,6 +381,18 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
             "                {}: {},",
             rust_field_ident(&flag.name),
             flag.rust_predicate("t")
+        )
+        .unwrap();
+    }
+    // Resolve each `*_timestamp_ms` epoch value once at conversion time
+    // through the shared DST-aware core (`tdbe::time::date_ms_to_epoch_ms`,
+    // the same function the Python accessor and the `tdx_timestamp_ms`
+    // FFI call) and ride it as a precomputed `Option<BigInt>` field — no
+    // date math is reimplemented in the binding.
+    for (accessor, field) in timestamp_accessor_fields(def) {
+        writeln!(
+            out,
+            "                {accessor}: tdbe::time::date_ms_to_epoch_ms(t.date, t.{field}).map(BigInt::from),"
         )
         .unwrap();
     }

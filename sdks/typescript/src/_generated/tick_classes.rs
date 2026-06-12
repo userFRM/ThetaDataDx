@@ -41,6 +41,16 @@ pub struct EodTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `created_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `created_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub created_timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `last_trade_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `last_trade_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub last_trade_timestamp_ms: Option<BigInt>,
 }
 
 /// Full union Greeks tick -- every Greek the v3 server publishes on the
@@ -79,6 +89,16 @@ pub struct GreeksAllTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// End-of-day union Greeks tick -- every Greek the v3 server publishes on
@@ -129,6 +149,16 @@ pub struct GreeksEodTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// First-order Greeks tick -- the strict column subset emitted by the
@@ -153,6 +183,16 @@ pub struct GreeksFirstOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Second-order Greeks tick -- the strict column subset emitted by the
@@ -176,6 +216,16 @@ pub struct GreeksSecondOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Third-order Greeks tick -- the strict column subset emitted by the
@@ -198,6 +248,16 @@ pub struct GreeksThirdOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Index price-at-time tick -- the trade-shaped row the v3 server
@@ -216,6 +276,11 @@ pub struct IndexPriceAtTimeTick {
     pub exchange: i32,
     pub price: f64,
     pub date: i32,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// Interest rate tick. End-of-day interest rate (percent).
@@ -246,6 +311,16 @@ pub struct IvTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
@@ -261,6 +336,11 @@ pub struct MarketValueTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// OHLC tick. Aggregated bar data including SIP-rule VWAP.
@@ -280,6 +360,11 @@ pub struct OhlcTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// Open interest tick.
@@ -293,6 +378,11 @@ pub struct OpenInterestTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// Option contract. Contract specification.
@@ -314,6 +404,11 @@ pub struct PriceTick {
     pub ms_of_day: i32,
     pub price: f64,
     pub date: i32,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// Quote tick. NBBO quote data.
@@ -335,6 +430,11 @@ pub struct QuoteTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 /// Per-trade union Greeks tick -- every Greek the v3 server publishes on
@@ -380,6 +480,16 @@ pub struct TradeGreeksAllTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
@@ -411,6 +521,16 @@ pub struct TradeGreeksFirstOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Per-trade implied-volatility tick (single `implied_volatility` +
@@ -436,6 +556,16 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
@@ -466,6 +596,16 @@ pub struct TradeGreeksSecondOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
@@ -495,6 +635,16 @@ pub struct TradeGreeksThirdOrderTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub underlying_timestamp_ms: Option<BigInt>,
 }
 
 /// Combined trade + quote tick.
@@ -529,6 +679,16 @@ pub struct TradeQuoteTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `quote_timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub quote_timestamp_ms: Option<BigInt>,
 }
 
 /// Trade tick. Core unit of trade data.
@@ -566,6 +726,11 @@ pub struct TradeTick {
     pub regular_trading_hours: bool,
     /// True when the trade is seller-initiated (ext_condition1 == 12).
     pub is_seller: bool,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
+    /// property and C++ `tdx::timestamp_ms`.
+    pub timestamp_ms: Option<BigInt>,
 }
 
 fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
@@ -608,6 +773,8 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                created_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.created_ms_of_day).map(BigInt::from),
+                last_trade_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.last_trade_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -649,6 +816,8 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -702,6 +871,8 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -729,6 +900,8 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -755,6 +928,8 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -780,6 +955,8 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -801,6 +978,7 @@ fn index_price_at_time_ticks_to_class_vec(ticks: &[tick::IndexPriceAtTimeTick]) 
                 exchange: t.exchange,
                 price: t.price,
                 date: t.date,
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -837,6 +1015,8 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -855,6 +1035,7 @@ fn market_value_ticks_to_class_vec(ticks: &[tick::MarketValueTick]) -> Vec<Marke
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -877,6 +1058,7 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -893,6 +1075,7 @@ fn open_interest_ticks_to_class_vec(ticks: &[tick::OpenInterestTick]) -> Vec<Ope
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -920,6 +1103,7 @@ fn price_ticks_to_class_vec(ticks: &[tick::PriceTick]) -> Vec<PriceTick> {
                 ms_of_day: t.ms_of_day,
                 price: t.price,
                 date: t.date,
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -944,6 +1128,7 @@ fn quote_ticks_to_class_vec(ticks: &[tick::QuoteTick]) -> Vec<QuoteTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -992,6 +1177,8 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1026,6 +1213,8 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1054,6 +1243,8 @@ fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeks
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1087,6 +1278,8 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1119,6 +1312,8 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1156,6 +1351,8 @@ fn trade_quote_ticks_to_class_vec(ticks: &[tick::TradeQuoteTick]) -> Vec<TradeQu
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                quote_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.quote_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1190,6 +1387,7 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 is_incremental_volume: t.volume_type == 0,
                 regular_trading_hours: (34200000..=57600000).contains(&t.ms_of_day),
                 is_seller: t.ext_condition1 == 12,
+                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()

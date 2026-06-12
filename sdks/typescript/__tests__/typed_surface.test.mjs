@@ -165,6 +165,102 @@ describe('EOD and calendar row shapes', () => {
   });
 });
 
+describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
+  // Every tick row carrying a `date` column plus one or more
+  // milliseconds-of-day columns surfaces a `*TimestampMs` epoch field —
+  // the camelCase parity of the Python `*_timestamp_ms` property and the
+  // C++ `tdx::timestamp_ms` free function. The value is Unix epoch
+  // milliseconds (UTC, DST-aware), computed once at conversion time
+  // through the one shared core (`tdbe::time::date_ms_to_epoch_ms`); the
+  // raw milliseconds-of-day columns stay primary and the field is
+  // optional (`undefined` when `date` is absent). These assertions pin
+  // the JS-visible shape — name, `bigint` type, optionality — so a
+  // generator change that drops the accessor family, mistypes it, or
+  // breaks camelCase parity with Python fails here.
+
+  it('EodTick exposes createdTimestampMs and lastTradeTimestampMs as optional bigint', () => {
+    const block = dts.match(/export interface EodTick\s*\{[\s\S]*?\n\}/);
+    assert.ok(block, 'EodTick interface missing from index.d.ts');
+    assert.match(block[0], /createdTimestampMs\?\s*:\s*bigint/);
+    assert.match(block[0], /lastTradeTimestampMs\?\s*:\s*bigint/);
+  });
+
+  it('QuoteTick / TradeTick / OhlcTick expose timestampMs as optional bigint', () => {
+    for (const name of ['QuoteTick', 'TradeTick', 'OhlcTick']) {
+      const block = dts.match(new RegExp(`export interface ${name}\\s*\\{[\\s\\S]*?\\n\\}`));
+      assert.ok(block, `${name} interface missing from index.d.ts`);
+      assert.match(block[0], /timestampMs\?\s*:\s*bigint/, `${name}.timestampMs must be optional bigint`);
+    }
+  });
+
+  it('Greeks rows expose both timestampMs and underlyingTimestampMs as optional bigint', () => {
+    for (const name of ['GreeksAllTick', 'GreeksEodTick', 'IvTick']) {
+      const block = dts.match(new RegExp(`export interface ${name}\\s*\\{[\\s\\S]*?\\n\\}`));
+      assert.ok(block, `${name} interface missing from index.d.ts`);
+      assert.match(block[0], /timestampMs\?\s*:\s*bigint/, `${name}.timestampMs must be optional bigint`);
+      assert.match(
+        block[0],
+        /underlyingTimestampMs\?\s*:\s*bigint/,
+        `${name}.underlyingTimestampMs must be optional bigint`
+      );
+    }
+  });
+
+  it('TradeQuoteTick exposes the prefixed quoteTimestampMs alongside timestampMs', () => {
+    const block = dts.match(/export interface TradeQuoteTick\s*\{[\s\S]*?\n\}/);
+    assert.ok(block, 'TradeQuoteTick interface missing from index.d.ts');
+    assert.match(block[0], /timestampMs\?\s*:\s*bigint/);
+    assert.match(block[0], /quoteTimestampMs\?\s*:\s*bigint/);
+  });
+
+  it('the accessor names are the camelCase parity of the Python property names', () => {
+    // Python exposes snake_case `created_timestamp_ms`; the napi object
+    // key camelCases it to `createdTimestampMs`. Pin the mapping so a
+    // future rename on either side cannot silently break parity.
+    const pairs = [
+      ['created_timestamp_ms', 'createdTimestampMs'],
+      ['last_trade_timestamp_ms', 'lastTradeTimestampMs'],
+      ['timestamp_ms', 'timestampMs'],
+      ['underlying_timestamp_ms', 'underlyingTimestampMs'],
+      ['quote_timestamp_ms', 'quoteTimestampMs'],
+    ];
+    for (const [snake, camel] of pairs) {
+      const expected = snake.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      assert.equal(camel, expected, `${snake} must camelCase to ${camel}`);
+      assert.ok(dts.includes(`${camel}?: bigint`), `${camel} must appear as an optional bigint field`);
+    }
+  });
+
+  it('the accessor is never a primary column — the raw msOfDay fields stay separate', () => {
+    // The epoch field rides alongside, never replaces, the raw
+    // milliseconds-of-day integer columns (raw-ms doctrine).
+    const block = dts.match(/export interface EodTick\s*\{[\s\S]*?\n\}/);
+    assert.ok(block, 'EodTick interface missing from index.d.ts');
+    assert.match(block[0], /createdMsOfDay\s*:\s*number/);
+    assert.match(block[0], /lastTradeMsOfDay\s*:\s*number/);
+  });
+
+  it('every epoch field is computed through the one shared DST-aware core, not reimplemented', () => {
+    // The generated factory resolves each accessor by calling the same
+    // `tdbe::time::date_ms_to_epoch_ms(date, ms_of_day)` the Python
+    // property and the `tdx_timestamp_ms` FFI route through — the single
+    // DST-aware implementation. No binding reimplements the Eastern-Time
+    // offset rules, so the epoch value is identical across a DST boundary
+    // (verified at the core: `date_ms_to_epoch_ms_round_trips_edt_and_est`
+    // pins 2026-01-15 09:30 EST -> 1768487400000 and the FFI/Python
+    // bindings return the same value for the same inputs).
+    const factorySrc = readFileSync(
+      resolve(__dirname, '..', 'src', '_generated', 'tick_classes.rs'),
+      'utf8'
+    );
+    const assignments = factorySrc.match(/\w*timestamp_ms:\s*tdbe::time::date_ms_to_epoch_ms\([^)]*\)\.map\(BigInt::from\)/g);
+    assert.ok(assignments, 'expected generated timestamp_ms factory assignments');
+    // 1 created + 1 last_trade + 19 timestamp_ms + 11 underlying + 1 quote
+    // = 33 epoch-millisecond fields, one per (date, *_ms_of_day) pair.
+    assert.equal(assignments.length, 33, `expected 33 epoch-ms factory assignments, found ${assignments.length}`);
+  });
+});
+
 describe('subscription getters', () => {
   it('per-contract subscriptions expose the bound contract; full streams expose secType', () => {
     const option = addon.ContractRef.option('SPY', { expiration: '20260618', strike: 550, right: 'C' });
