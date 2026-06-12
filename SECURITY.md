@@ -17,19 +17,13 @@ for critical issues.
 
 ## Supported Versions
 
+Security fixes land on the current major line only. Older majors are not patched; upgrade to the latest `12.x` release.
+
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 5.2.x   | :white_check_mark: | Current release (f64 prices, `#[repr(C)]` FPSS events, contract ID fields) |
-| 5.0-5.1 | :x:                | Upgrade to 5.2.x (Go price formula bug fixed in 5.2) |
-| 4.5.x   | :x:                | Pre-builder-pattern API, missing f64 convenience methods |
-| 4.0-4.4 | :x:                | Timezone bug (ms_of_day shifted +1 hour Nov-Mar) |
-| 3.x     | :x:                | Pre-`tdbe` extraction, stale API |
-| < 3.0   | :x:                | Contract wire format bug, missing endpoints |
-
-> **Important:** Versions prior to 4.5.0 contain a timezone bug that shifts ms_of_day by +1 hour
-> for all historical data from November through March (EST period). Versions prior to 5.2.0
-> contain a Go SDK price formula bug where `PriceToF64` used the wrong formula. All users
-> should upgrade to 5.2.x.
+| 12.x    | :white_check_mark: | Current release |
+| 9.x-11.x | :x:               | Upgrade to 12.x |
+| < 9.0   | :x:                | Upgrade to 12.x |
 
 ## Security Design
 
@@ -76,10 +70,9 @@ expired since January 2024 -- this matches the Java terminal's behavior.
 
 ### Credential Handling (FPSS)
 
-As of v1.2.0, FPSS credential length fields are read as unsigned integers (matching Java's
-`readUnsignedShort()`). Previous versions used signed reads, which could cause a sign-extension
-bug for passwords longer than 127 bytes. This did not leak credentials but could cause
-authentication failures.
+FPSS credential length fields are read as unsigned integers (matching Java's
+`readUnsignedShort()`), so passwords longer than 127 bytes authenticate correctly
+(a signed read would sign-extend the length and break the handshake).
 
 ### Concurrent Request Limiting
 
@@ -91,7 +84,7 @@ limiting.
 
 ### Unknown Compression Rejection
 
-As of v1.2.0, `decompress_response` returns an error for unrecognized compression algorithms
+`decompress_response` returns an error for unrecognized compression algorithms
 instead of silently treating the data as uncompressed. This prevents corrupt data from being
 silently passed to callers.
 

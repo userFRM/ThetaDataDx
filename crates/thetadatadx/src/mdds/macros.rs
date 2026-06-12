@@ -443,7 +443,7 @@ pub(crate) fn warn_buffered_response_size(
             row_count,
             bytes_est,
             threshold_bytes,
-            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/streaming/connection.md)"
+            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/streaming/index.md)"
         );
     }
 }

@@ -129,6 +129,7 @@ tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 | `--creds <path>` | `creds.txt` | Credentials file |
 | `--config <preset>` | `production` | `production` or `dev` |
 | `--format <fmt>` | `table` | `table`, `json`, or `csv` |
+| `--timeout-ms <ms>` | | Per-call deadline in milliseconds; on expiry the in-flight request is cancelled |
 
 ## Endpoint coverage
 

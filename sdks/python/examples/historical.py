@@ -14,7 +14,7 @@ print(f"  ... {len(eod)} total days\n")
 
 # Intraday 1-minute bars
 print("=== AAPL 1-min OHLC (Mar 15, 2024) ===")
-bars = client.stock_history_ohlc("AAPL", "20240315", "60000")
+bars = client.stock_history_ohlc("AAPL", "20240315", interval="60000")
 for bar in bars[:5]:
     print(f"  {bar.ms_of_day}ms: O={bar.open:.2f} H={bar.high:.2f} "
           f"L={bar.low:.2f} C={bar.close:.2f}")

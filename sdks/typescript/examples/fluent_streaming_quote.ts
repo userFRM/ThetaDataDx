@@ -9,18 +9,10 @@
 //
 //     npx tsx fluent_streaming_quote.ts
 
-import {
-  Credentials,
-  Config,
-  Contract,
-  SecType,
-  ThetaDataDxClient,
-} from "thetadatadx";
+import { Contract, SecType, ThetaDataDxClient } from "thetadatadx";
 
 async function main(): Promise<void> {
-  const creds = Credentials.fromFile("creds.txt");
-  const config = Config.production();
-  const client = new ThetaDataDxClient(creds, config);
+  const client = ThetaDataDxClient.connectFromFile("creds.txt");
 
   // Fluent contract-first construction.
   const stock = Contract.stock("AAPL");
@@ -31,16 +23,20 @@ async function main(): Promise<void> {
   // `ThreadsafeFunction`, so the libuv loop stays responsive.
   client.startStreaming((event) => {
     switch (event.kind) {
-      case "trade":
+      case "trade": {
+        const trade = event.trade!;
         console.log(
-          `[${event.contract.symbol}] TRADE ${event.price.toFixed(2)} x ${event.size}`,
+          `[${trade.contract.symbol}] TRADE ${trade.price.toFixed(2)} x ${trade.size}`,
         );
         break;
-      case "quote":
+      }
+      case "quote": {
+        const quote = event.quote!;
         console.log(
-          `[${event.contract.symbol}] QUOTE bid=${event.bid.toFixed(2)} ask=${event.ask.toFixed(2)}`,
+          `[${quote.contract.symbol}] QUOTE bid=${quote.bid.toFixed(2)} ask=${quote.ask.toFixed(2)}`,
         );
         break;
+      }
       default:
         break;
     }
@@ -65,7 +61,7 @@ async function main(): Promise<void> {
     await new Promise((r) => setTimeout(r, 60_000));
   } finally {
     client.stopStreaming();
-    client.awaitDrain(5000);
+    await client.awaitDrain(5000);
   }
 }
 

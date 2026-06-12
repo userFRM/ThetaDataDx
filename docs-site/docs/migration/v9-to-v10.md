@@ -17,27 +17,27 @@ through each change.
 | Python pin | `thetadatadx>=9.1.0,<10` → `>=10.0.0,<11` | Bump `pyproject.toml` / `requirements.txt` |
 | npm pin | `"thetadatadx": "^9.1.0"` → `"^10.0.0"` | Bump `package.json`; the prebuilt napi binding follows |
 | C++ pin | `v9.1.0` tag → `v10.0.0` tag | Re-fetch the `libthetadatadx_ffi` artifact |
-| `Error::Transport` (Rust core) | `Transport(tonic::transport::Error)` → `Transport { kind, message }` | See [In-house gRPC transport](#in-house-grpc-transport) below |
+| `Error::Transport` (Rust core) | `Transport(<opaque payload>)` → `Transport { kind, message }` | See [In-house gRPC transport](#in-house-grpc-transport) below |
 | Event payload field name | `event.contract: Contract` → `event.contract: ContractRef` | See [ContractRef rename](#contractref-rename) below |
-| Python wheels | abi3 only | abi3 + free-threaded (`cp313t` / `cp314t`) — see [Free-threaded wheels](#free-threaded-wheels) below |
+| Python wheels | standard CPython only | standard CPython + free-threaded (`cp313t` / `cp314t`) — see [Free-threaded wheels](#free-threaded-wheels) below |
 | Python streaming | sync callback / sync iter | sync callback + sync iter + **asyncio** (`streaming_async()`) — see [streaming_async](#streaming_async-asyncio-native) below |
 
 ## In-house gRPC transport
 
-The historical channel server-streaming path no longer uses `tonic`. The v10 Rust
-core drives `h2` directly through the new `thetadatadx::grpc::*`
-module: prost encode → length-prefix frame → HTTP/2 DATA → response
-stream → trailers parse, with no tower stack, no boxed bodies, no
-`async-trait` dyn dispatch.
+The historical-channel server-streaming path is served by an in-house
+gRPC transport instead of a third-party stack. The behaviour is
+unchanged; the only visible effect is a richer, typed transport-error
+shape for direct consumers of the Rust core.
 
 The SDK bindings (Python / TypeScript / C++) consume the Rust core
-through the C ABI / PyO3 boundary and see no API change. Rust core
-consumers see one source-level break:
+through the published binding boundary and see no API change. Rust
+core consumers see one source-level break — the `Error::Transport`
+variant changes from a single opaque payload to a typed struct:
 
 ```rust
 // v9
 match err {
-    Error::Transport(tonic_err) => { /* ... */ }
+    Error::Transport(transport_err) => { /* ... */ }
 }
 
 // v10
@@ -64,7 +64,8 @@ consumers — those will keep working.
 The decoder pool also lands in v10:
 `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
 control a dedicated pool that runs zstd decompress + protobuf
-decode off the tokio reactor. `decoder_threads = 0` auto-sizes to
+decode on worker threads, off the async I/O path, so a slow decode
+never stalls the connection. `decoder_threads = 0` auto-sizes to
 `(available_parallelism / 2).max(1)`[^auto-size]; `decoder_ring_size`
 must be a power of two `>= 64`.
 
@@ -109,7 +110,7 @@ existing `TdxContract` C ABI struct; the surface stays unchanged.
 ## Free-threaded wheels
 
 v10 publishes free-threaded (PEP 703) Python wheels alongside the
-abi3 wheel. `pip` picks the matching wheel automatically:
+standard CPython wheel. `pip` picks the matching wheel automatically:
 
 | Interpreter | Wheel | GIL state |
 |---|---|---|
@@ -117,12 +118,11 @@ abi3 wheel. `pip` picks the matching wheel automatically:
 | `python3.13t` (free-threaded) | `cp313-cp313t-*` | GIL disabled |
 | `python3.14t` (free-threaded) | `cp314-cp314t-*` | GIL disabled |
 
-The extension carries `gil_used = false` on `#[pymodule]` so the GIL
-stays disabled after `import thetadatadx`. Every `block_on(...)`
-call site on the unified, streaming, and historical-channel Python pyclasses releases
-the GIL via `py.detach` before driving the tokio runtime; CPU-bound
-Python threads run truly in parallel with the gRPC dispatcher under
-contention.
+The extension keeps the GIL disabled after `import thetadatadx` on a
+free-threaded interpreter. Every blocking call on the unified,
+streaming, and historical-channel clients releases the GIL before it
+waits on the network, so CPU-bound Python threads run truly in
+parallel with an in-flight request under contention.
 
 A parallel-throughput CI gate asserts `< 1.8x` overhead under
 contention on the free-threaded matrix entries (matching the
@@ -152,9 +152,9 @@ async def main():
 asyncio.run(main())
 ```
 
-The session bridges the ring-buffer consumer thread to the asyncio
-event loop via a self-pipe wake FD: zero polling cost during quiet
-periods, one OS wake per coalesced batch. The matching surface on
+The session wakes the asyncio event loop only when events arrive:
+zero polling cost during quiet periods, one wake per coalesced
+batch. The matching surface on
 the standalone `FpssClient` (`fpss_client.streaming_async()`) opens
 no historical-channel / Nexus surface — useful for asyncio apps coexisting with a
 parallel Java historical-channel process.

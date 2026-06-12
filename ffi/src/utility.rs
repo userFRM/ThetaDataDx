@@ -40,7 +40,7 @@ pub struct TdxGreeksResult {
     pub dual_gamma: f64,
 }
 
-/// Compute all 22 Black-Scholes Greeks + IV.
+/// Compute all 23 Black-Scholes Greeks + IV.
 ///
 /// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
 /// the `tdbe::right::parse_right` canonical parser). Returns a heap-allocated
