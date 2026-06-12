@@ -40,6 +40,7 @@
     "criterion_path": "FpssEvent__match/Ohlcvc"
   },
   "_deferred": {
-    "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner \u2014 within the timer resolution noise floor. Defer until the noise-aware throughput gate (future noise-aware throughput gate) lands."
+    "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner \u2014 within the timer resolution noise floor. Defer until the noise-aware throughput gate (future noise-aware throughput gate) lands.",
+    "streaming_channels/disruptor_production_ctor/100k_events": "New variant routing the pipeline through the production ring constructor so the sequence-recording producer adapter is measured rather than the bare ring. The baseline p50 is blessed only after a first sample lands on green main \u2014 the loader gates on hosted-runner numbers, so we do not author a value against a developer machine. Promote this key to a gated row (criterion_path streaming_channels_disruptor_production_ctor/100k_events) in a follow-up once that sample is observed."
   }
 }

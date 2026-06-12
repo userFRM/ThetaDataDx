@@ -218,6 +218,15 @@ jobs:
               "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick # VOCAB-OK: bench function name from bench crate
           cargo bench -p thetadatadx --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_cross_thread/100k_events" --quick # VOCAB-OK: bench function name from bench crate
+          # Production-constructor variant: routes the pipeline through
+          # `build_poller_producer` so the sequence-recording producer
+          # adapter is measured. Needs `__test-helpers` for the
+          # crate-internal constructor re-export; its baseline is deferred
+          # (see `_deferred` in `benches/baseline/criterion.json`) until a
+          # first sample lands on `main`, mirroring the bench-gate rule
+          # that a value is blessed only against the hosted-runner profile.
+          cargo bench -p thetadatadx --features __test-helpers --bench streaming_channels --locked -- \
+              "streaming_channels/disruptor_production_ctor/100k_events" --quick # VOCAB-OK: bench function name from bench crate
           # Gate 10 (#553) expansion: FPSS event clone + match dispatch
           # benches. The bench files already exist
           # (`bench_fpss_event.rs`); this step exercises them in CI so
