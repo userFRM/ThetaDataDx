@@ -37,7 +37,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `fpss_ring_size`, `fpss_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
 | Observability | `metrics_port` | Optional local Prometheus exporter port (off by default). |
-| Runtime | `tokio_worker_threads` | Async-runtime thread count for embedded bindings (0 = auto). |
+| Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
 

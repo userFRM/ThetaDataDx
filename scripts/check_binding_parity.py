@@ -461,6 +461,13 @@ def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
 # The table below records the rust-field → binding-suffix renames.
 # Fields not listed are 1:1.
 RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
+    # The async worker-thread count is stored internally on
+    # `RuntimeConfig.tokio_worker_threads`, but the public client setter
+    # is named `worker_threads` on every binding (the implementation
+    # runtime name never reaches the user surface). The parity row is
+    # keyed by the public concept; this mapping bridges the internal
+    # storage field to that row for the reverse-direction orphan check.
+    ("RuntimeConfig", "tokio_worker_threads"): "worker_threads",
     ("ReconnectConfig", "stable_window"): "stable_window_secs",
     ("ReconnectAttemptLimits", "stable_window"): "stable_window_secs",
     ("ReconnectAttemptLimits", "max_elapsed"): "max_elapsed_secs",

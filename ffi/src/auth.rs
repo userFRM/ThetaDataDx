@@ -1358,20 +1358,19 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
     })
 }
 
-/// Set the `RuntimeConfig.tokio_worker_threads` knob using the
-/// `(has_value, n)` widened ABI shape that preserves the `Some(0)`
-/// sentinel across the C boundary.
+/// Set the async worker-thread count using the `(has_value, n)`
+/// widened ABI shape that preserves the `Some(0)` sentinel across the C
+/// boundary.
 ///
-/// * `has_value = false` → `None` (tokio default sizing, one worker per
+/// * `has_value = false` → `None` (default sizing, one worker per
 ///   logical CPU). `n` is ignored.
 /// * `has_value = true` → `Some(n)`. Embedders consuming
 ///   [`thetadatadx::RuntimeConfig::build_runtime`] honour the value
-///   verbatim, clamping `0` to `1` to keep tokio from panicking on
-///   `worker_threads(0)`.
+///   verbatim, clamping `0` to `1` so at least one worker is started.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_tokio_worker_threads_explicit(
+pub unsafe extern "C" fn tdx_config_set_worker_threads_explicit(
     config: *mut TdxConfig,
     has_value: bool,
     n: usize,
@@ -1390,7 +1389,7 @@ pub unsafe extern "C" fn tdx_config_set_tokio_worker_threads_explicit(
     })
 }
 
-/// Read the current `RuntimeConfig.tokio_worker_threads` setting.
+/// Read the current async worker-thread count.
 /// Widened `(has_value, n)` ABI:
 ///
 /// * `*out_has_value = false` → `None` (auto-size). `*out_n` is left as `0`.
@@ -1398,7 +1397,7 @@ pub unsafe extern "C" fn tdx_config_set_tokio_worker_threads_explicit(
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_tokio_worker_threads(
+pub unsafe extern "C" fn tdx_config_get_worker_threads(
     config: *const TdxConfig,
     out_has_value: *mut bool,
     out_n: *mut usize,
@@ -2343,14 +2342,14 @@ mod reconnect_setter_tests {
 
 #[cfg(test)]
 mod runtime_setter_tests {
-    //! Offline tests for the `RuntimeConfig.tokio_worker_threads`
-    //! setter/getter pair on the FFI surface — cross-binding parity
-    //! with Python / TypeScript / C++. The `(has_value, n)` shape
-    //! preserves `Some(0)` across the C boundary the same way the
-    //! decode-pipeline setters do.
+    //! Offline tests for the async `worker_threads` setter/getter pair
+    //! on the FFI surface — cross-binding parity with Python /
+    //! TypeScript / C++. The `(has_value, n)` shape preserves `Some(0)`
+    //! across the C boundary the same way the decode-pipeline setters
+    //! do.
 
     #[test]
-    fn tokio_worker_threads_explicit_round_trips_via_getter() {
+    fn worker_threads_explicit_round_trips_via_getter() {
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
@@ -2358,19 +2357,19 @@ mod runtime_setter_tests {
             let mut got_has = true;
             let mut got_n: usize = 99;
             assert_eq!(
-                super::tdx_config_get_tokio_worker_threads(cfg, &mut got_has, &mut got_n),
+                super::tdx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
                 0
             );
-            assert!(!got_has, "default tokio_worker_threads must be None");
+            assert!(!got_has, "default worker_threads must be None");
             assert_eq!(got_n, 0);
 
             // Explicit values round-trip including the Some(0) sentinel.
             for n in [0usize, 1, 2, 4, 8, 16, 32, 64] {
-                let rc = super::tdx_config_set_tokio_worker_threads_explicit(cfg, true, n);
+                let rc = super::tdx_config_set_worker_threads_explicit(cfg, true, n);
                 assert_eq!(rc, 0);
                 assert_eq!((*cfg).inner.runtime.tokio_worker_threads, Some(n));
                 assert_eq!(
-                    super::tdx_config_get_tokio_worker_threads(cfg, &mut got_has, &mut got_n),
+                    super::tdx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
                     0
                 );
                 assert!(got_has);
@@ -2378,7 +2377,7 @@ mod runtime_setter_tests {
             }
 
             // Reset to None.
-            let rc = super::tdx_config_set_tokio_worker_threads_explicit(cfg, false, 999);
+            let rc = super::tdx_config_set_worker_threads_explicit(cfg, false, 999);
             assert_eq!(rc, 0);
             assert_eq!((*cfg).inner.runtime.tokio_worker_threads, None);
             super::tdx_config_free(cfg);
@@ -2386,21 +2385,16 @@ mod runtime_setter_tests {
     }
 
     #[test]
-    fn tokio_worker_threads_null_handle_returns_minus_one() {
+    fn worker_threads_null_handle_returns_minus_one() {
         // SAFETY: passing null to tdx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
-            let rc =
-                super::tdx_config_set_tokio_worker_threads_explicit(std::ptr::null_mut(), true, 4);
+            let rc = super::tdx_config_set_worker_threads_explicit(std::ptr::null_mut(), true, 4);
             assert_eq!(rc, -1);
             let mut got_has = false;
             let mut got_n: usize = 0;
             assert_eq!(
-                super::tdx_config_get_tokio_worker_threads(
-                    std::ptr::null(),
-                    &mut got_has,
-                    &mut got_n,
-                ),
+                super::tdx_config_get_worker_threads(std::ptr::null(), &mut got_has, &mut got_n,),
                 -1
             );
         }

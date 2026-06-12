@@ -449,10 +449,10 @@ include!("_generated/streaming_methods.rs");
 
 // SDK configuration class. Adds `Config` napi class with
 // `production()` / `dev()` / `stage()` factories plus the full setter
-// surface for MDDS pool sizing, retry policy, reconnect policy, and
-// flat-file backoff.
+// surface for historical pool sizing, retry policy, reconnect policy,
+// and flat-file backoff.
 mod config_class;
-pub use config_class::{Config, TokioWorkerThreadsSetting};
+pub use config_class::{Config, WorkerThreadsSetting};
 
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;

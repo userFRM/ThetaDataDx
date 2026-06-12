@@ -1766,7 +1766,7 @@ pub struct DirectConfig {
                                          // 0 = auto from tier (2^tier)
                                          // n = manual override
     // Threading
-    pub tokio_worker_threads: Option<usize>,
+    pub worker_threads: Option<usize>,
 }
 ```
 

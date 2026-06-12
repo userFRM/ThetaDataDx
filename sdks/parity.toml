@@ -345,15 +345,19 @@ cpp = true
 
 # ─── RuntimeConfig cross-binding setters ───────────────────────────────
 #
-# Async-runtime sub-config knobs honoured by embedded bindings that own
-# their tokio runtime (FFI / Python / napi). The
-# `tokio_worker_threads` field uses the widened `(has_value, n)` ABI
-# shape on the C surface so the `Some(0)` sentinel survives the C
-# boundary. `RuntimeConfig::build_runtime` interprets the field for
-# callers building their own runtime.
+# Async worker-thread sub-config knob honoured by embedded bindings
+# that own their runtime (FFI / Python / napi). The public setter is
+# `worker_threads` on every binding (Python `Config.worker_threads`,
+# TypeScript `Config.setWorkerThreadsExplicit` / `workerThreads`, C++
+# `set_worker_threads_explicit`, FFI
+# `tdx_config_set_worker_threads_explicit`). The row name carries the
+# public concept; the internal storage field maps to it through the
+# rename table in `check_binding_parity.py`. The widened
+# `(has_value, n)` ABI shape on the C surface lets the `Some(0)`
+# sentinel survive the C boundary.
 
 [[class]]
-name = "RuntimeConfig.tokio_worker_threads"
+name = "RuntimeConfig.worker_threads"
 python = true
 typescript = true
 cpp = true

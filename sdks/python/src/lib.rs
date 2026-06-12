@@ -760,27 +760,25 @@ impl Config {
         guard.flatfiles.jitter
     }
 
-    /// Set the tokio worker thread count for embedded bindings that own
+    /// Set the async worker-thread count for embedded bindings that own
     /// their runtime (Python / FFI / napi). ``None`` (the default)
-    /// defers to tokio's default sizing (one worker per logical CPU);
+    /// defers to the default sizing (one worker per logical CPU);
     /// ``Some(n)`` pins the worker pool to ``n``. ``Some(0)`` is
-    /// preserved across the binding boundary and clamps to ``1`` inside
-    /// :func:`RuntimeConfig.build_runtime` so the runtime always has at
-    /// least one worker.
+    /// preserved across the binding boundary and clamps to ``1`` so the
+    /// runtime always has at least one worker.
     ///
     /// Note that the runtime backing ``ThetaDataDxClient`` is built
     /// process-once at module init; mutating this value after import
-    /// affects only freshly-constructed runtimes such as those built
-    /// via the FFI ``tdx_config_get_tokio_worker_threads`` helper.
+    /// affects only freshly-constructed runtimes.
     #[setter]
-    fn set_tokio_worker_threads(&self, n: Option<usize>) {
+    fn set_worker_threads(&self, n: Option<usize>) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.runtime.tokio_worker_threads = n;
     }
 
-    /// Current ``tokio_worker_threads`` setting (``None`` = auto).
+    /// Current ``worker_threads`` setting (``None`` = auto).
     #[getter]
-    fn get_tokio_worker_threads(&self) -> Option<usize> {
+    fn get_worker_threads(&self) -> Option<usize> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.runtime.tokio_worker_threads
     }
