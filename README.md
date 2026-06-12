@@ -1,9 +1,6 @@
 # ThetaDataDx
 
-Market data SDKs for [ThetaData](https://thetadata.us) — Rust, Python,
-TypeScript, and C++, all powered by one Rust core. Historical queries,
-real-time streaming, and bulk flat-file downloads through a single
-authenticated client. No JVM, no local terminal.
+High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust** — one Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData — no Java terminal, no JVM.
 
 [![Rust CI](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Python SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml)
@@ -23,30 +20,146 @@ authenticated client. No JVM, no local terminal.
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
 > [!IMPORTANT]
-> A valid [ThetaData](https://thetadata.us) subscription is required.
-> The SDK authenticates against ThetaData's Nexus API using your account
-> credentials.
+> A valid [ThetaData](https://thetadata.us) subscription is required. The SDK
+> authenticates against ThetaData's Nexus API using your account credentials.
 
-## Requirements
+## Features
 
-- Rust 1.88 or newer (declared on every workspace `[package]`; CI lint
-  pinned to this floor).
-- A valid [ThetaData](https://thetadata.us) subscription for the live
-  endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
+- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **The same surface in every language** — identical methods and identical typed errors, Python through Rust.
+- **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
+
+## Install
+
+```bash
+pip install thetadatadx        # Python
+npm install thetadatadx        # TypeScript / Node.js
+cargo add thetadatadx          # Rust
+```
+
+C++ ships as a single header plus a prebuilt library — see the [C++ guide](sdks/cpp/).
 
 ## Quick start
 
 > [!TIP]
-> Credentials can be supplied as a `creds.txt` file (email on line 1,
-> password on line 2), inline via `Credentials::new("email", "password")`,
-> or through the `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment
-> variables.
+> Credentials can come from a `creds.txt` file (email on line 1, password on
+> line 2), an inline `Credentials`, or the `THETADATA_EMAIL` /
+> `THETADATA_PASSWORD` environment variables.
 
-### Rust — option Greeks for backtesting
+### Python
 
-EOD Greeks for an option contract across a date range. Decode to a
-typed `Vec<GreeksEodTick>` ready for risk attribution or scenario
-analysis.
+```python
+from thetadatadx import ThetaDataDxClient, Credentials, Config
+
+tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+
+# First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
+greeks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
+
+df = greeks.to_polars()
+print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+```
+
+Stream live quotes and trades through the same client. The callback matches on
+typed event classes:
+
+```python
+import time
+from thetadatadx import Contract, Quote, Trade
+
+def format_contract(contract):
+    parts = [contract.symbol]
+    if contract.expiration is not None:
+        parts.append(str(contract.expiration))
+    if contract.strike is not None:
+        parts.append(f"{contract.strike:g}")
+    if contract.right is not None:
+        parts.append(contract.right)
+    return " ".join(parts)
+
+def on_event(event):
+    match event:
+        case Trade(price=px, size=sz, exchange=ex, ms_of_day=ms, sequence=seq, condition=cond, contract=c):
+            print(
+                f"{format_contract(c)} trade price={px:.2f} size={sz} "
+                f"exchange={ex} ms_of_day={ms} sequence={seq} condition={cond}"
+            )
+        case Quote(bid=b, ask=a, bid_size=bs, ask_size=asz, bid_exchange=bx, ask_exchange=ax, ms_of_day=ms, contract=c):
+            print(
+                f"{format_contract(c)} quote bid={b:.2f} ask={a:.2f} "
+                f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
+                f"ask_exchange={ax} ms_of_day={ms}"
+            )
+
+spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
+
+with tdx.streaming(on_event) as session:
+    session.subscribe_many([spy_call.quote(), spy_call.trade()])
+    time.sleep(60)   # park the main thread while events flow into on_event
+```
+
+### TypeScript
+
+```typescript
+import { Contract, ThetaDataDxClient } from 'thetadatadx';
+
+const client = ThetaDataDxClient.connectFromFile('creds.txt');
+const formatContract = (contract: {
+  symbol: string;
+  expiration?: number;
+  strike?: number;
+  right?: string;
+}) => [contract.symbol, contract.expiration, contract.strike, contract.right]
+  .filter((value) => value != null)
+  .join(' ');
+
+client.startStreaming((event) => {
+  if (event.kind === 'trade' && event.trade) {
+    const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
+    console.log(
+      `${formatContract(contract)} trade price=${price} size=${size} ` +
+      `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
+    );
+  } else if (event.kind === 'quote' && event.quote) {
+    const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
+    console.log(
+      `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
+      `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
+      `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
+    );
+  }
+});
+
+const leg = { expiration: '20260619', strike: '550', right: 'C' };
+client.subscribeMany([
+  Contract.option('SPY', leg).quote(),
+  Contract.option('SPY', leg).trade(),
+]);
+```
+
+### C++
+
+```cpp
+#include <thetadx.hpp>
+#include <cstdio>
+
+int main() {
+    auto client = tdx::Client::connect(
+        tdx::Credentials::from_file("creds.txt"),
+        tdx::Config::production());
+
+    auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
+    for (const auto& t : greeks) {
+        std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
+                    t.strike, t.right, t.delta, t.gamma);
+    }
+}
+```
+
+### Rust
 
 ```toml
 [dependencies]
@@ -62,218 +175,74 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-    // SPY 2026-06-19 expiration, EOD Greeks over Q1.
-    let chain = tdx
+    let greeks = tdx
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
 
-    for t in chain.iter().take(5) {
-        println!(
-            "{} K={:>6.2} {} delta={:+.4} gamma={:+.4} theta={:+.4} vega={:+.4} IV={:.4}",
-            t.date, t.strike, t.right, t.delta, t.gamma, t.theta, t.vega, t.implied_vol,
-        );
+    for t in greeks.iter().take(5) {
+        println!("{} K={:.2} {} delta={:+.4}", t.date, t.strike, t.right, t.delta);
     }
     Ok(())
 }
 ```
 
-Opt into chainable DataFrame ergonomics with the `polars` and/or
-`arrow` features (both stay out of the default dep graph):
+## DataFrames
 
-```toml
-thetadatadx = { version = "12", features = ["polars"] }
-```
-
-```rust
-use thetadatadx::frames::TicksPolarsExt;
-
-let df = chain.as_slice().to_polars()?;
-df.lazy().filter(col("delta").gt(lit(0.4))).collect()?;
-```
-
-### Python — chain Greeks to a DataFrame
-
-The Python binding emits typed tick wrappers with `.to_polars()` /
-`.to_pandas()` / `.to_arrow()` chained from any historical query — no
-intermediate row-by-row iteration.
-
-```sh
-pip install thetadatadx
-```
+Every historical result is a typed list that converts directly to a dataframe —
+no row-by-row iteration:
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDxClient
-
-tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
-
-# First-order Greeks for one expiration on one date — typically 200-500 rows
-# spanning every strike + right pair the chain offers.
-ticks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
-
-df = ticks.to_polars()
-print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+greeks.to_polars()   # polars.DataFrame
+greeks.to_pandas()   # pandas.DataFrame   (pip install thetadatadx[pandas])
+greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 ```
 
-### TypeScript / Node.js — live options streaming
-
-The TS binding registers a push callback through `startStreaming(callback)`.
-napi-rs `ThreadsafeFunction` routes every event onto the Node main
-thread; the TLS reader never touches V8. Compose the typed `Contract`
-+ `Subscription` values directly.
-
-```sh
-npm install thetadatadx
-```
-
-```typescript
-import { Contract, ThetaDataDxClient } from 'thetadatadx';
-
-const client = ThetaDataDxClient.connectFromFile('creds.txt');
-
-client.startStreaming((event) => {
-  if (event.kind === 'trade') {
-    const { contract, price, size } = event.trade;
-    console.log(`${contract.symbol} ${contract.strike}${contract.right} @ ${price} x ${size}`);
-  }
-});
-
-const leg = { expiration: '20260619', strike: '550', right: 'C' };
-client.subscribeMany([
-  Contract.option('SPY', leg).quote(),
-  Contract.option('SPY', leg).trade(),
-]);
-```
-
-### C++ — low-latency historical decode
-
-The C++ surface is a RAII header-only wrapper over the C ABI. Decoded
-tick spans are owned by the response object; no copy on iteration.
-
-```cpp
-#include <thetadx.hpp>
-#include <cstdio>
-
-int main() {
-    auto client = tdx::Client::connect(
-        tdx::Credentials::from_file("creds.txt"),
-        tdx::Config::production());
-
-    // SPY 550 call on 2026-06-19, intraday Greeks for 2024-03-15.
-    auto chain = client.option_history_greeks_first_order(
-        "SPY", "20260619", "20240315");
-
-    for (const auto& t : chain) {
-        std::printf("%d K=%.2f %c delta=%+.4f gamma=%+.4f theta=%+.4f\n",
-                    t.ms_of_day, t.strike, t.right,
-                    t.delta, t.gamma, t.theta);
-    }
-}
-```
+The same `.to_polars()` / `.to_pandas()` / `.to_arrow()` terminals are available
+on flat-file results. For multi-day backfills, stream the response in chunks
+instead of buffering it — see [Bulk backfill](https://userfrm.github.io/ThetaDataDx/examples/bulk-backfill).
 
 ## Streaming
 
-One connection, one auth. Historical queries are available immediately;
-the streaming transport connects lazily on first subscription. The
-client auto-reconnects and re-subscribes all active contracts on
-involuntary disconnect.
+One connection, one authentication. Historical queries work immediately; the
+streaming transport connects on the first subscription. Subscribe specific
+contracts with the fluent `Contract` API, or take a whole-market feed — every
+option trade across the universe, no per-contract setup:
 
-The primary streaming surface is the fluent contract-first API.
-`Contract::stock("AAPL").quote()` returns a typed `Subscription` value
-that the polymorphic `client.subscribe(...)` accepts directly:
-
-```rust
-use thetadatadx::fpss::{FpssData, FpssEvent};
-use thetadatadx::prelude::*;
-
-tdx.start_streaming(|event: &FpssEvent| {
-    match event {
-        FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-            println!("Quote: {} bid={bid} ask={ask}", contract.symbol);
-        }
-        FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-            println!("Trade: {} @ {price} x {size}", contract.symbol);
-        }
-        _ => {}
-    }
-})?;
-
-let stock  = Contract::stock("AAPL");
-let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
-tdx.subscribe(stock.quote())?;
-tdx.subscribe(option.trade())?;
+```python
+with tdx.streaming(on_event) as session:
+    session.subscribe(SecType.OPTION.full_trades())
+    time.sleep(60)   # the callback runs on the streaming thread — keep it fast
 ```
 
-For streaming-only workloads, build an `FpssClient` directly and
-iterate events on the caller's own thread:
-
-```rust
-use thetadatadx::auth::Credentials;
-use thetadatadx::config::DirectConfig;
-use thetadatadx::fpss::{FpssClient, FpssEvent};
-use thetadatadx::fpss::protocol::Contract;
-
-let creds = Credentials::from_file("creds.txt")?;
-let hosts = DirectConfig::production().fpss.hosts;
-let client = FpssClient::builder(&creds, &hosts)
-    .ring_size(8192)
-    .build()?;
-
-client.subscribe(Contract::stock("AAPL").quote())?;
-
-for event in &client {
-    match event? {
-        FpssEvent::Data(data)       => { /* … */ }
-        FpssEvent::Control(control) => { /* … */ }
-    }
-}
-```
-
-`next_event` blocks until the next event arrives or the stream ends.
-`try_next_event` is the non-blocking cousin. `poll_batch(FnMut)`
-and `for_each(FnMut)` are available for the closure-driven shapes.
-
-### Buffered vs streaming for historical pulls
-
-Every historical builder (`option_history_*`, `stock_history_*`,
-`index_history_*`, `interest_rate_history_*`) supports two terminals:
-
-| Workload | Terminal |
-|---|---|
-| Single day / one-shot ad-hoc query | `.await` |
-| Bulk / multi-day backfill | `.stream(handler)` |
-| Tick-interval responses | `.stream(handler)` |
-| Greeks responses across a long horizon | `.stream(handler)` |
-
-Buffered `.await` collects the full response into `Vec<Tick>` before
-returning. On a 2.4 M-tick day this consumes ~5 GiB of RSS before any
-caller code runs. `.stream(handler)` yields chunks via
-`handler(&[Tick])` and drops each chunk before the next is fetched —
-peak RSS stays at ~150 MiB regardless of response size. The buffered
-path emits a single `tracing::warn!` when the estimated response size
-crosses the configured threshold (default 100 MiB; set to `0` to
-disable).
+> [!TIP]
+> On an involuntary disconnect the client recovers on its own — exponential
+> backoff with jitter, automatic host failover, then a paced re-subscribe of
+> every active contract. Read liveness directly off the stream with
+> `connection_status()` and the last-event timestamp; no separate health poll
+> needed.
 
 ## Endpoint coverage
 
-61 typed endpoints across stock, option, index, calendar, and interest
-rate surfaces, plus real-time streaming and a local Black-Scholes
-Greeks calculator.
+61 typed endpoints across stocks, options, indices, the market calendar, and
+interest rates, plus real-time streaming and a local Greeks calculator.
 
 | Category | Endpoints | Examples |
 |---|---|---|
 | Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 34 | Stock surfaces plus five Greeks tiers, open interest, contracts |
+| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-The full method list across all four languages lives in the
+The full per-language method list lives in the
 [API Reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
-Beyond historical queries: real-time streaming
-(subscribe and unsubscribe per contract and per full-stream type)
-plus a local Greeks calculator (22 Black-Scholes Greeks plus an IV
-solver, callable individually or batched).
+## Errors
+
+Every binding raises the same typed hierarchy, so the same cases are catchable
+in any language — `AuthenticationError`, `RateLimitError`, `NotFoundError`,
+`DeadlineExceededError`, `InvalidParameterError`, and the rest, all under a
+common `ThetaDataError` base.
 
 ## Repository layout
 
@@ -286,22 +255,21 @@ solver, callable individually or batched).
 | [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`ffi/`](ffi/) | release artifacts | C ABI for embedders |
 | [`tools/cli`](tools/cli/) | `tdx` | Command-line client |
-| [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server (drop-in terminal replacement) |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
+| [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
 
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, server, MCP
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, server, and MCP
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup,
-pre-commit checks, and pull-request process. Community discussion
-happens on the [ThetaData Discord](https://discord.thetadata.us/).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the
+pull-request process. Community discussion happens on the
+[ThetaData Discord](https://discord.thetadata.us/).
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See
-[LICENSE](./LICENSE).
+Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE).
