@@ -1608,8 +1608,10 @@ export declare function calendarDayToArrowIpc(rows: Array<CalendarDay>): Buffer
  */
 export interface CalendarOnDateOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -1622,8 +1624,10 @@ export interface CalendarOnDateOptions {
  */
 export interface CalendarOpenTodayOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -1636,8 +1640,10 @@ export interface CalendarOpenTodayOptions {
  */
 export interface CalendarYearOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -1946,8 +1952,10 @@ export declare function greeksThirdOrderTickToArrowIpc(rows: Array<GreeksThirdOr
  */
 export interface IndexAtTimePriceOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -1960,8 +1968,10 @@ export interface IndexAtTimePriceOptions {
  */
 export interface IndexHistoryEodOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -1980,8 +1990,10 @@ export interface IndexHistoryOhlcOptions {
   /** End time filter */
   endTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2004,8 +2016,10 @@ export interface IndexHistoryPriceOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2018,8 +2032,10 @@ export interface IndexHistoryPriceOptions {
  */
 export interface IndexListDatesOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2032,8 +2048,10 @@ export interface IndexListDatesOptions {
  */
 export interface IndexListSymbolsOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2072,8 +2090,10 @@ export interface IndexSnapshotMarketValueOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2088,8 +2108,10 @@ export interface IndexSnapshotOhlcOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2104,8 +2126,10 @@ export interface IndexSnapshotPriceOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2118,8 +2142,10 @@ export interface IndexSnapshotPriceOptions {
  */
 export interface InterestRateHistoryEodOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2303,8 +2329,10 @@ export interface OptionAtTimeQuoteOptions {
   /** Strike range filter */
   strikeRange?: number
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2325,8 +2353,10 @@ export interface OptionAtTimeTradeOptions {
   /** Strike range filter */
   strikeRange?: number
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2355,8 +2385,10 @@ export interface OptionHistoryEodOptions {
   /** Strike range filter */
   strikeRange?: number
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2393,8 +2425,10 @@ export interface OptionHistoryGreeksAllOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2425,8 +2459,10 @@ export interface OptionHistoryGreeksEodOptions {
   /** Strike range filter */
   strikeRange?: number
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2463,8 +2499,10 @@ export interface OptionHistoryGreeksFirstOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2501,8 +2539,10 @@ export interface OptionHistoryGreeksImpliedVolatilityOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2539,8 +2579,10 @@ export interface OptionHistoryGreeksSecondOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2577,8 +2619,10 @@ export interface OptionHistoryGreeksThirdOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2607,8 +2651,10 @@ export interface OptionHistoryOhlcOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2633,8 +2679,10 @@ export interface OptionHistoryOpenInterestOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2665,8 +2713,10 @@ export interface OptionHistoryQuoteOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2703,8 +2753,10 @@ export interface OptionHistoryTradeGreeksAllOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2741,8 +2793,10 @@ export interface OptionHistoryTradeGreeksFirstOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2779,8 +2833,10 @@ export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2817,8 +2873,10 @@ export interface OptionHistoryTradeGreeksSecondOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2855,8 +2913,10 @@ export interface OptionHistoryTradeGreeksThirdOrderOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2885,8 +2945,10 @@ export interface OptionHistoryTradeOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2917,8 +2979,10 @@ export interface OptionHistoryTradeQuoteOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2957,8 +3021,10 @@ export interface OptionListContractsOptions {
   /** Maximum days to expiration */
   maxDte?: number
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2971,8 +3037,10 @@ export interface OptionListContractsOptions {
  */
 export interface OptionListDatesOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2985,8 +3053,10 @@ export interface OptionListDatesOptions {
  */
 export interface OptionListExpirationsOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -2999,8 +3069,10 @@ export interface OptionListExpirationsOptions {
  */
 export interface OptionListStrikesOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3013,8 +3085,10 @@ export interface OptionListStrikesOptions {
  */
 export interface OptionListSymbolsOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3049,8 +3123,10 @@ export interface OptionSnapshotGreeksAllOptions {
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3085,8 +3161,10 @@ export interface OptionSnapshotGreeksFirstOrderOptions {
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3121,8 +3199,10 @@ export interface OptionSnapshotGreeksImpliedVolatilityOptions {
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3157,8 +3237,10 @@ export interface OptionSnapshotGreeksSecondOrderOptions {
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3193,8 +3275,10 @@ export interface OptionSnapshotGreeksThirdOrderOptions {
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3217,8 +3301,10 @@ export interface OptionSnapshotMarketValueOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3241,8 +3327,10 @@ export interface OptionSnapshotOhlcOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3265,8 +3353,10 @@ export interface OptionSnapshotOpenInterestOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3289,8 +3379,10 @@ export interface OptionSnapshotQuoteOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3311,8 +3403,10 @@ export interface OptionSnapshotTradeOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3486,8 +3580,10 @@ export interface StockAtTimeQuoteOptions {
   /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3502,8 +3598,10 @@ export interface StockAtTimeTradeOptions {
   /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3516,8 +3614,10 @@ export interface StockAtTimeTradeOptions {
  */
 export interface StockHistoryEodOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3542,8 +3642,10 @@ export interface StockHistoryOhlcOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3564,8 +3666,10 @@ export interface StockHistoryOhlcRangeOptions {
   /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3590,8 +3694,10 @@ export interface StockHistoryQuoteOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3614,8 +3720,10 @@ export interface StockHistoryTradeOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3640,8 +3748,10 @@ export interface StockHistoryTradeQuoteOptions {
   /** End date YYYYMMDD */
   endDate?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3654,8 +3764,10 @@ export interface StockHistoryTradeQuoteOptions {
  */
 export interface StockListDatesOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3668,8 +3780,10 @@ export interface StockListDatesOptions {
  */
 export interface StockListSymbolsOptions {
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3686,8 +3800,10 @@ export interface StockSnapshotMarketValueOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3704,8 +3820,10 @@ export interface StockSnapshotOhlcOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3722,8 +3840,10 @@ export interface StockSnapshotQuoteOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }
@@ -3740,8 +3860,10 @@ export interface StockSnapshotTradeOptions {
   /** Minimum time filter */
   minTime?: string | Date
   /**
-   * Per-call deadline in milliseconds; on expiry the returned Promise
-   * rejects and the underlying request is cancelled.
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
 }

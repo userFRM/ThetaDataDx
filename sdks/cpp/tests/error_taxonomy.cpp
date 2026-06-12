@@ -8,12 +8,14 @@
 // can `catch` on directly. The hierarchy mirrors the Python /
 // TypeScript leaf set so the cross-binding contract stays uniform.
 
+#include <chrono>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "thetadx.h"
 #include "thetadx.hpp"
 
 TEST_CASE("ThetaDataError is the root of the SDK exception hierarchy",
@@ -64,6 +66,40 @@ TEST_CASE("throw_for_code routes the invalid-parameter discriminant to InvalidPa
     } catch (const tdx::ThetaDataError&) {
         // expected — generic config fault
     }
+}
+
+TEST_CASE("with_deadline rejects a negative deadline as InvalidParameterError",
+          "[errors][offline]") {
+    // A negative duration cannot be represented by the unsigned
+    // `timeout_ms` field. `with_deadline` rejects it with
+    // `InvalidParameterError` rather than coercing it: a
+    // `static_cast<uint64_t>` of a negative count would wrap to a
+    // multi-century deadline, the opposite of the caller's intent. This
+    // matches the reject-don't-coerce contract the TypeScript binding
+    // holds for the same out-of-domain `timeoutMs`, so a deadline a caller
+    // could not have meant fails loudly across both surfaces.
+    tdx::EndpointRequestOptions options;
+    try {
+        options.with_deadline(std::chrono::milliseconds(-5));
+        FAIL("with_deadline must reject a negative deadline");
+    } catch (const tdx::InvalidParameterError&) {
+        // expected — distinguishable by catch type from a generic fault
+    } catch (const tdx::ThetaDataError& e) {
+        FAIL("expected InvalidParameterError, got generic ThetaDataError: " << e.what());
+    }
+
+    // A non-negative deadline is accepted and recorded as whole
+    // milliseconds; the setter returns the bag by reference for chaining.
+    tdx::EndpointRequestOptions ok;
+    REQUIRE_NOTHROW(ok.with_deadline(std::chrono::milliseconds(5000)));
+    REQUIRE(ok.timeout_ms.has_value());
+    REQUIRE(ok.timeout_ms.value() == 5000u);
+
+    // The boundary value zero is a valid (immediate) deadline, not a
+    // rejected one.
+    tdx::EndpointRequestOptions zero;
+    REQUIRE_NOTHROW(zero.with_deadline(std::chrono::milliseconds(0)));
+    REQUIRE(zero.timeout_ms.value() == 0u);
 }
 
 TEST_CASE("RateLimitError carries the server retry_after as a typed value",
@@ -149,4 +185,53 @@ TEST_CASE("forced Unauthenticated from a real RPC surfaces as AuthenticationErro
     } catch (const tdx::ThetaDataError& e) {
         FAIL("expected AuthenticationError, got generic ThetaDataError: " << e.what());
     }
+}
+
+TEST_CASE("config enum setters reject an out-of-domain value with InvalidParameterError",
+          "[errors][config][offline]") {
+    // A bad enum int on a config setter is a rejected client parameter,
+    // not an environmental config fault — every setter must surface
+    // `InvalidParameterError` (narrowing `ThetaDataError`) so the C++
+    // catch type matches the Python `ValueError` / TypeScript
+    // `InvalidParameterError` for the same input. A valid value must not
+    // throw.
+    auto cfg = tdx::Config::production();
+
+    REQUIRE_NOTHROW(cfg.set_flush_mode(1));
+    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), tdx::ThetaDataError);
+
+    REQUIRE_NOTHROW(cfg.set_reconnect_jitter(2));
+    REQUIRE_THROWS_AS(cfg.set_reconnect_jitter(9), tdx::InvalidParameterError);
+
+    REQUIRE_NOTHROW(cfg.set_fpss_host_selection(1));
+    REQUIRE_THROWS_AS(cfg.set_fpss_host_selection(5), tdx::InvalidParameterError);
+}
+
+TEST_CASE("sequence converters reject out-of-wire-range inputs with InvalidParameterError",
+          "[errors][util][offline]") {
+    // The wire domain is the i32 cycle. A representable integer outside
+    // that domain is a rejected value, not a silent reinterpret — it
+    // must throw `InvalidParameterError`, matching the Python
+    // `ValueError` / TypeScript `InvalidParameterError`. In-range inputs
+    // round-trip without throwing.
+    REQUIRE_NOTHROW(tdx::util::sequence_signed_to_unsigned(0));
+    REQUIRE(tdx::util::sequence_signed_to_unsigned(-1) ==
+            tdx::util::sequence_signed_to_unsigned(-1));
+
+    // i32::MAX + 1 and i32::MIN - 1 are outside the signed wire range.
+    REQUIRE_THROWS_AS(tdx::util::sequence_signed_to_unsigned(2147483648LL),
+                      tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(tdx::util::sequence_signed_to_unsigned(-2147483649LL),
+                      tdx::InvalidParameterError);
+
+    // 2^32 is the first value past the unsigned wire range; the audit
+    // repro that returned 0 before now rejects.
+    REQUIRE_THROWS_AS(tdx::util::sequence_unsigned_to_signed(4294967296ULL),
+                      tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(tdx::util::sequence_unsigned_to_signed(4294967296ULL),
+                      tdx::ThetaDataError);
+
+    // The largest valid unsigned wire value still converts.
+    REQUIRE_NOTHROW(tdx::util::sequence_unsigned_to_signed(4294967295ULL));
 }

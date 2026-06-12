@@ -47,10 +47,12 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
         out.push_str("    }\n");
     }
     out.push_str(include_str!("templates/cpp/with_timeout_ms.cpp.tmpl"));
-    // A negative duration means "deadline already in the past" and clamps
-    // to 1 ms (immediate expiration). Without the clamp, the cast to
-    // uint64_t would silently wrap to a multi-century value, the opposite
-    // of the caller's intent.
+    // A negative duration is rejected with `InvalidParameterError` rather
+    // than coerced: the unsigned `timeout_ms` field cannot represent it,
+    // and an `static_cast<uint64_t>` of a negative count would wrap to a
+    // multi-century deadline — the opposite of the caller's intent. This
+    // matches the reject-don't-coerce contract the other bindings hold for
+    // the same out-of-domain deadline.
     out.push_str(include_str!("templates/cpp/with_deadline.cpp.tmpl"));
     out.push_str("};\n");
     out.push_str("\nnamespace detail {\n\n");
