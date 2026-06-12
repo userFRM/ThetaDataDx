@@ -554,6 +554,18 @@ pub struct TradeTick {
     pub expiration: Option<i32>,
     pub strike: Option<f64>,
     pub right: Option<String>,
+    /// True when the trade carries a cancelled-trade condition (codes 40-44).
+    pub is_cancelled: bool,
+    /// True when the trade condition flags set the 'no last' bit (this trade must not update the last price).
+    pub trade_condition_no_last: bool,
+    /// True when the price flags set the 'set last' bit (this trade sets the last price).
+    pub price_condition_set_last: bool,
+    /// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
+    pub is_incremental_volume: bool,
+    /// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
+    pub regular_trading_hours: bool,
+    /// True when the trade is seller-initiated (ext_condition1 == 12).
+    pub is_seller: bool,
 }
 
 fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
@@ -1172,8 +1184,1127 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                is_cancelled: (40..=44).contains(&t.condition),
+                trade_condition_no_last: t.condition_flags & 1 == 1,
+                price_condition_set_last: t.price_flags & 1 == 1,
+                is_incremental_volume: t.volume_type == 0,
+                regular_trading_hours: (34200000..=57600000).contains(&t.ms_of_day),
+                is_seller: t.ext_condition1 == 12,
             }
         })
         .collect()
+}
+
+/// Serialise a `CalendarDay` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "calendarDayToArrowIpc")]
+pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::CalendarDay> = rows
+        .into_iter()
+        .map(|r| {
+            tick::CalendarDay {
+                date: r.date,
+                is_open: r.is_open,
+                open_time: r.open_time,
+                close_time: r.close_time,
+                status: tdbe::types::enums::CalendarStatus::from_wire_text(&r.status).unwrap_or(tdbe::types::enums::CalendarStatus::Weekend),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `EodTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "eodTickToArrowIpc")]
+pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::EodTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::EodTick {
+                created_ms_of_day: r.created_ms_of_day,
+                last_trade_ms_of_day: r.last_trade_ms_of_day,
+                open: r.open,
+                high: r.high,
+                low: r.low,
+                close: r.close,
+                volume: { let (v, _) = r.volume.get_i64(); v },
+                count: { let (v, _) = r.count.get_i64(); v },
+                bid_size: r.bid_size,
+                bid_exchange: r.bid_exchange,
+                bid: r.bid,
+                bid_condition: r.bid_condition,
+                ask_size: r.ask_size,
+                ask_exchange: r.ask_exchange,
+                ask: r.ask,
+                ask_condition: r.ask_condition,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `GreeksAllTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "greeksAllTickToArrowIpc")]
+pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::GreeksAllTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::GreeksAllTick {
+                ms_of_day: r.ms_of_day,
+                bid: r.bid,
+                ask: r.ask,
+                implied_volatility: r.implied_volatility,
+                delta: r.delta,
+                gamma: r.gamma,
+                theta: r.theta,
+                vega: r.vega,
+                rho: r.rho,
+                iv_error: r.iv_error,
+                vanna: r.vanna,
+                charm: r.charm,
+                vomma: r.vomma,
+                veta: r.veta,
+                speed: r.speed,
+                zomma: r.zomma,
+                color: r.color,
+                ultima: r.ultima,
+                d1: r.d1,
+                d2: r.d2,
+                dual_delta: r.dual_delta,
+                dual_gamma: r.dual_gamma,
+                epsilon: r.epsilon,
+                lambda: r.lambda,
+                vera: r.vera,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `GreeksEodTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "greeksEodTickToArrowIpc")]
+pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::GreeksEodTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::GreeksEodTick {
+                ms_of_day: r.ms_of_day,
+                open: r.open,
+                high: r.high,
+                low: r.low,
+                close: r.close,
+                volume: { let (v, _) = r.volume.get_i64(); v },
+                count: { let (v, _) = r.count.get_i64(); v },
+                bid_size: r.bid_size,
+                bid_exchange: r.bid_exchange,
+                bid: r.bid,
+                bid_condition: r.bid_condition,
+                ask_size: r.ask_size,
+                ask_exchange: r.ask_exchange,
+                ask: r.ask,
+                ask_condition: r.ask_condition,
+                delta: r.delta,
+                theta: r.theta,
+                vega: r.vega,
+                rho: r.rho,
+                epsilon: r.epsilon,
+                lambda: r.lambda,
+                gamma: r.gamma,
+                vanna: r.vanna,
+                charm: r.charm,
+                vomma: r.vomma,
+                veta: r.veta,
+                vera: r.vera,
+                speed: r.speed,
+                zomma: r.zomma,
+                color: r.color,
+                ultima: r.ultima,
+                d1: r.d1,
+                d2: r.d2,
+                dual_delta: r.dual_delta,
+                dual_gamma: r.dual_gamma,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `GreeksFirstOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "greeksFirstOrderTickToArrowIpc")]
+pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::GreeksFirstOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::GreeksFirstOrderTick {
+                ms_of_day: r.ms_of_day,
+                bid: r.bid,
+                ask: r.ask,
+                delta: r.delta,
+                theta: r.theta,
+                vega: r.vega,
+                rho: r.rho,
+                epsilon: r.epsilon,
+                lambda: r.lambda,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `GreeksSecondOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "greeksSecondOrderTickToArrowIpc")]
+pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::GreeksSecondOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::GreeksSecondOrderTick {
+                ms_of_day: r.ms_of_day,
+                bid: r.bid,
+                ask: r.ask,
+                gamma: r.gamma,
+                vanna: r.vanna,
+                charm: r.charm,
+                vomma: r.vomma,
+                veta: r.veta,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `GreeksThirdOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "greeksThirdOrderTickToArrowIpc")]
+pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::GreeksThirdOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::GreeksThirdOrderTick {
+                ms_of_day: r.ms_of_day,
+                bid: r.bid,
+                ask: r.ask,
+                speed: r.speed,
+                zomma: r.zomma,
+                color: r.color,
+                ultima: r.ultima,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `IndexPriceAtTimeTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "indexPriceAtTimeTickToArrowIpc")]
+pub fn index_price_at_time_tick_to_arrow_ipc(rows: Vec<IndexPriceAtTimeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::IndexPriceAtTimeTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::IndexPriceAtTimeTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                date: r.date,
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `InterestRateTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "interestRateTickToArrowIpc")]
+pub fn interest_rate_tick_to_arrow_ipc(rows: Vec<InterestRateTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::InterestRateTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::InterestRateTick {
+                date: r.date,
+                rate: r.rate,
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `IvTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "ivTickToArrowIpc")]
+pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::IvTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::IvTick {
+                ms_of_day: r.ms_of_day,
+                bid: r.bid,
+                bid_implied_volatility: r.bid_implied_volatility,
+                midpoint: r.midpoint,
+                implied_volatility: r.implied_volatility,
+                ask: r.ask,
+                ask_implied_volatility: r.ask_implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `MarketValueTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "marketValueTickToArrowIpc")]
+pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::MarketValueTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::MarketValueTick {
+                ms_of_day: r.ms_of_day,
+                market_bid: r.market_bid,
+                market_ask: r.market_ask,
+                market_price: r.market_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `OhlcTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "ohlcTickToArrowIpc")]
+pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::OhlcTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::OhlcTick {
+                ms_of_day: r.ms_of_day,
+                open: r.open,
+                high: r.high,
+                low: r.low,
+                close: r.close,
+                volume: { let (v, _) = r.volume.get_i64(); v },
+                count: { let (v, _) = r.count.get_i64(); v },
+                vwap: r.vwap,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `OpenInterestTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "openInterestTickToArrowIpc")]
+pub fn open_interest_tick_to_arrow_ipc(rows: Vec<OpenInterestTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::OpenInterestTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::OpenInterestTick {
+                ms_of_day: r.ms_of_day,
+                open_interest: r.open_interest,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `PriceTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "priceTickToArrowIpc")]
+pub fn price_tick_to_arrow_ipc(rows: Vec<PriceTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::PriceTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::PriceTick {
+                ms_of_day: r.ms_of_day,
+                price: r.price,
+                date: r.date,
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `QuoteTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "quoteTickToArrowIpc")]
+pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::QuoteTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::QuoteTick {
+                ms_of_day: r.ms_of_day,
+                bid_size: r.bid_size,
+                bid_exchange: r.bid_exchange,
+                bid: r.bid,
+                bid_condition: r.bid_condition,
+                ask_size: r.ask_size,
+                ask_exchange: r.ask_exchange,
+                ask: r.ask,
+                ask_condition: r.ask_condition,
+                date: r.date,
+                midpoint: r.midpoint,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeGreeksAllTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeGreeksAllTickToArrowIpc")]
+pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeGreeksAllTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeGreeksAllTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                delta: r.delta,
+                theta: r.theta,
+                vega: r.vega,
+                rho: r.rho,
+                epsilon: r.epsilon,
+                lambda: r.lambda,
+                gamma: r.gamma,
+                vanna: r.vanna,
+                charm: r.charm,
+                vomma: r.vomma,
+                veta: r.veta,
+                vera: r.vera,
+                speed: r.speed,
+                zomma: r.zomma,
+                color: r.color,
+                ultima: r.ultima,
+                d1: r.d1,
+                d2: r.d2,
+                dual_delta: r.dual_delta,
+                dual_gamma: r.dual_gamma,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeGreeksFirstOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeGreeksFirstOrderTickToArrowIpc")]
+pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeGreeksFirstOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeGreeksFirstOrderTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                delta: r.delta,
+                theta: r.theta,
+                vega: r.vega,
+                rho: r.rho,
+                epsilon: r.epsilon,
+                lambda: r.lambda,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeGreeksImpliedVolatilityTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeGreeksImpliedVolatilityTickToArrowIpc")]
+pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksImpliedVolatilityTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeGreeksImpliedVolatilityTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeGreeksImpliedVolatilityTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeGreeksSecondOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeGreeksSecondOrderTickToArrowIpc")]
+pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeGreeksSecondOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeGreeksSecondOrderTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                gamma: r.gamma,
+                vanna: r.vanna,
+                charm: r.charm,
+                vomma: r.vomma,
+                veta: r.veta,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeGreeksThirdOrderTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeGreeksThirdOrderTickToArrowIpc")]
+pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeGreeksThirdOrderTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeGreeksThirdOrderTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                speed: r.speed,
+                zomma: r.zomma,
+                color: r.color,
+                ultima: r.ultima,
+                implied_volatility: r.implied_volatility,
+                iv_error: r.iv_error,
+                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_price: r.underlying_price,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeQuoteTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeQuoteTickToArrowIpc")]
+pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeQuoteTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeQuoteTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                condition_flags: r.condition_flags,
+                price_flags: r.price_flags,
+                volume_type: r.volume_type,
+                records_back: r.records_back,
+                quote_ms_of_day: r.quote_ms_of_day,
+                bid_size: r.bid_size,
+                bid_exchange: r.bid_exchange,
+                bid: r.bid,
+                bid_condition: r.bid_condition,
+                ask_size: r.ask_size,
+                ask_exchange: r.ask_exchange,
+                ask: r.ask,
+                ask_condition: r.ask_condition,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Serialise a `TradeTick` history result to an Arrow IPC stream
+/// (the `apache-arrow` wire form). Mirrors the FlatFiles
+/// `FlatFileRowList.toArrowIpc()` exit and the Python
+/// `<TickName>List.to_arrow()` terminal so every binding can reach a
+/// dataframe from an in-band history result.
+#[napi(js_name = "tradeTickToArrowIpc")]
+pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned: Vec<tick::TradeTick> = rows
+        .into_iter()
+        .map(|r| {
+            tick::TradeTick {
+                ms_of_day: r.ms_of_day,
+                sequence: r.sequence,
+                ext_condition1: r.ext_condition1,
+                ext_condition2: r.ext_condition2,
+                ext_condition3: r.ext_condition3,
+                ext_condition4: r.ext_condition4,
+                condition: r.condition,
+                size: r.size,
+                exchange: r.exchange,
+                price: r.price,
+                condition_flags: r.condition_flags,
+                price_flags: r.price_flags,
+                volume_type: r.volume_type,
+                records_back: r.records_back,
+                date: r.date,
+                expiration: r.expiration.unwrap_or(0),
+                strike: r.strike.unwrap_or(0.0),
+                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\0'),
+            }
+        })
+        .collect();
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
 }
 

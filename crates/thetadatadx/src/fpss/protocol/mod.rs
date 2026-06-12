@@ -52,7 +52,7 @@ pub mod subscription;
 // builders / parsers no longer appear on the public SemVer commitment.
 pub(crate) mod wire;
 
-pub use self::contract::{Contract, ContractParseError};
+pub use self::contract::{Contract, ContractParseError, OptionLeg};
 pub use self::subscription::{FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind};
 
 // Crate-internal re-exports — keep the historical `protocol::build_*`

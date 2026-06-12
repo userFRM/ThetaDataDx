@@ -19,6 +19,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -56,6 +58,13 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 
 // Generated layout guards for the C mirror tick structs.
 #include "tick_layout_asserts.hpp.inc"
+
+// Generated boolean flag-word accessors (`tdx::is_cancelled(...)`, ...)
+// decoded from the integer condition / flag columns. Free functions
+// because the tick types above are C struct aliases with no member
+// methods; mirrors the Python computed properties and TypeScript
+// precomputed fields from the same schema rows.
+#include "tick_flag_accessors.hpp.inc"
 
 // ── FPSS event struct layout guards ──
 //
@@ -1898,6 +1907,24 @@ private:
     bool is_option_{false};
 };
 
+/// The expiration / strike / right of an option leg, passed to
+/// `FluentContract::option(symbol, leg)` by name.
+///
+/// All three are strings, so a positional `(expiration, strike, right)`
+/// argument list lets a transposed pair compile silently. Passing them as
+/// named members — ideally via designated initialisers,
+/// `tdx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
+/// "C"}` — makes the contract identity non-transposable.
+struct OptionLeg {
+    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    std::string expiration;
+    /// Strike price in dollars (e.g. `"550"` or `"550.50"`).
+    std::string strike;
+    /// Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    std::string right;
+};
+
 /// Fluent contract identifier — stock or option.
 class FluentContract {
 public:
@@ -1911,12 +1938,16 @@ public:
     static FluentContract index(std::string symbol) {
         return FluentContract{std::move(symbol), false, "", "", ""};
     }
-    /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
-    /// / `"P"` / `"PUT"` (case-insensitive).
-    static FluentContract option(std::string symbol, std::string expiration,
-                                  std::string strike, std::string right) {
-        return FluentContract{std::move(symbol), true, std::move(expiration),
-                              std::move(strike), std::move(right)};
+    /// Construct an option contract. The expiration / strike / right
+    /// travel in a single `OptionLeg` with named members —
+    /// `Contract::option("SPY", {.expiration = "20260620", .strike =
+    /// "550", .right = "C"})` — rather than as adjacent positional
+    /// strings, so a swapped expiration/strike/right pair cannot pass
+    /// silently. `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    static FluentContract option(std::string symbol, OptionLeg leg) {
+        return FluentContract{std::move(symbol), true, std::move(leg.expiration),
+                              std::move(leg.strike), std::move(leg.right)};
     }
 
     FluentSubscription quote() const {
@@ -1989,6 +2020,65 @@ private:
     explicit FluentSecType(std::string s) : sec_type_(std::move(s)) {}
     std::string sec_type_;
 };
+
+// ── String rendering for the fluent value types ─────────────────────────
+//
+// Python renders every fluent type via `__repr__` / `__str__` and
+// TypeScript gains `toString()`; these give C++ the same so a value is
+// not opaque when streamed or logged. `operator<<` is the idiomatic C++
+// hook (`std::cout << contract`); `str()` returns the same text for
+// callers that need a `std::string` (logging frameworks, test asserts).
+// The rendered shapes match the Python surface: a contract prints as
+// `"<symbol> <SEC_TYPE> <expiration> <right> <strike>"` for options and
+// `"<symbol> <SEC_TYPE>"` otherwise.
+
+inline std::ostream& operator<<(std::ostream& os, const FluentSecType& sec_type) {
+    return os << sec_type.name();
+}
+
+inline std::string str(const FluentSecType& sec_type) { return sec_type.name(); }
+
+inline std::ostream& operator<<(std::ostream& os, const FluentContract& contract) {
+    os << contract.symbol();
+    if (contract.is_option()) {
+        os << " OPTION " << contract.expiration() << ' ' << contract.right() << ' '
+           << contract.strike();
+    } else {
+        os << " STOCK";
+    }
+    return os;
+}
+
+inline std::string str(const FluentContract& contract) {
+    std::ostringstream os;
+    os << contract;
+    return os.str();
+}
+
+inline std::ostream& operator<<(std::ostream& os, const FluentSubscription& sub) {
+    const char* kind_name = "Quote";
+    switch (sub.kind()) {
+        case FluentSubscription::Kind::Quote:        kind_name = "Quote"; break;
+        case FluentSubscription::Kind::Trade:        kind_name = "Trade"; break;
+        case FluentSubscription::Kind::OpenInterest: kind_name = "OpenInterest"; break;
+    }
+    if (sub.scope() == FluentSubscription::Scope::Full) {
+        return os << "Subscription(full " << kind_name << ", " << sub.sec_type() << ')';
+    }
+    os << "Subscription(" << kind_name << ", " << sub.symbol();
+    if (sub.is_option()) {
+        os << " OPTION " << sub.expiration() << ' ' << sub.right() << ' ' << sub.strike();
+    } else {
+        os << " STOCK";
+    }
+    return os << ')';
+}
+
+inline std::string str(const FluentSubscription& sub) {
+    std::ostringstream os;
+    os << sub;
+    return os.str();
+}
 
 // User-facing aliases — the documented surface (`Contract`, `SecType`)
 // per `report/...md`. The class names above are prefixed `Fluent*` to
@@ -2094,6 +2184,13 @@ inline void FpssClient::unsubscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) unsubscribe(s);
 }
+
+// Generated Arrow-IPC terminals on the history result vectors
+// (`tdx::eod_ticks_to_arrow_ipc(...)`, ...). Placed after the `detail`
+// namespace and the tick-type aliases so the wrappers can throw through
+// `detail::throw_last_ffi_error` on a serialisation failure. Mirrors
+// `FlatFileRowList::to_arrow_ipc()` and the Python columnar exit.
+#include "tick_arrow_ipc.hpp.inc"
 
 // ── Cross-language utility helpers ──────────────────────────────────────
 //

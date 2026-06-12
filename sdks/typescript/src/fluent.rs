@@ -84,6 +84,34 @@ impl SecType {
     pub fn name(&self) -> String {
         format!("{:?}", self.inner).to_uppercase()
     }
+
+    /// String rendering for `console.log` / template literals. Returns
+    /// the symbolic name (`"OPTION"`), matching the Python `SecType`
+    /// `__str__`. Without it a `SecType` instance prints as an opaque
+    /// `SecType {}` because its getters do not surface on inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        format!("{:?}", self.inner).to_uppercase()
+    }
+}
+
+/// The expiration / strike / right of an option leg, passed to
+/// `Contract.option(symbol, leg)` as a single object with named keys.
+///
+/// Naming the three values — all of which are strings — keeps the
+/// contract identity non-transposable: `{ expiration, strike, right }`
+/// cannot silently accept a swapped pair the way three adjacent
+/// positional string arguments could.
+#[napi(object)]
+pub struct OptionLeg {
+    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    pub expiration: String,
+    /// Strike price in dollars, as a number or string (`550`, `550.5`,
+    /// `"550"` are equivalent).
+    pub strike: Either<f64, String>,
+    /// Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+    /// (case-insensitive).
+    pub right: String,
 }
 
 /// Fluent contract identifier — stock or option.
@@ -118,24 +146,30 @@ impl ContractRef {
         Self::from_inner(protocol::Contract::index(&symbol))
     }
 
-    /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
-    /// / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
-    /// dollars and accepts a number or a string (`550`, `550.5`, and
-    /// `"550"` are equivalent).
+    /// Construct an option contract. The expiration / strike / right
+    /// travel in a single `OptionLeg` object with named keys —
+    /// `Contract.option("SPY", { expiration: "20260620", strike: "550",
+    /// right: "C" })` — rather than as adjacent positional strings, so a
+    /// swapped expiration/strike/right pair cannot pass silently. `right`
+    /// accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
+    /// `strike` is the price in dollars as a number or string (`550`,
+    /// `550.5`, and `"550"` are equivalent).
     #[napi(factory)]
-    pub fn option(
-        symbol: String,
-        expiration: String,
-        strike: Either<f64, String>,
-        right: String,
-    ) -> napi::Result<Self> {
-        let strike = match strike {
+    pub fn option(symbol: String, leg: OptionLeg) -> napi::Result<Self> {
+        let strike = match leg.strike {
             Either::A(dollars) => dollars.to_string(),
             Either::B(text) => text,
         };
-        protocol::Contract::option(&symbol, &expiration, &strike, &right)
-            .map(Self::from_inner)
-            .map_err(|e| napi::Error::from_reason(e.to_string()))
+        protocol::Contract::option(
+            &symbol,
+            protocol::OptionLeg {
+                expiration: &leg.expiration,
+                strike: &strike,
+                right: &leg.right,
+            },
+        )
+        .map(Self::from_inner)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
     }
 
     /// Per-contract Quote subscription.
@@ -192,6 +226,17 @@ impl ContractRef {
         self.inner
             .is_call
             .map(|c| if c { "C".to_string() } else { "P".to_string() })
+    }
+
+    /// String rendering for `console.log` / template literals, e.g.
+    /// `"SPY OPTION 20260620 C 550000"` or `"AAPL STOCK"`. Delegates to
+    /// the same core rendering the Python `Contract` `__str__` uses, so
+    /// the two bindings print a contract identically. Without it a
+    /// `ContractRef` prints as an opaque `ContractRef {}` because its
+    /// getters do not surface on inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        format!("{}", self.inner)
     }
 }
 
@@ -262,6 +307,26 @@ impl Subscription {
         match &*guard {
             protocol::Subscription::Full { sec_type, .. } => Some(SecType::from_inner(*sec_type)),
             _ => None,
+        }
+    }
+
+    /// String rendering for `console.log` / template literals, e.g.
+    /// `"Subscription(Trade, SPY OPTION 20260620 C 550000)"` or
+    /// `"Subscription(full Trades, OPTION)"`. Mirrors the Python
+    /// `Subscription` `__repr__`. Without it a `Subscription` prints as
+    /// an opaque `Subscription {}` because its getters do not surface on
+    /// inspection.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &*guard {
+            protocol::Subscription::Contract { contract, kind } => {
+                format!("Subscription({kind:?}, {contract})")
+            }
+            protocol::Subscription::Full { sec_type, kind } => {
+                format!("Subscription(full {kind:?}, {sec_type:?})")
+            }
+            _ => "Subscription(<unknown>)".to_string(),
         }
     }
 }

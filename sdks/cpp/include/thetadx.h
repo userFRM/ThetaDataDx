@@ -796,6 +796,48 @@ void tdx_string_array_free(TdxStringArray arr);
 void tdx_greeks_result_free(TdxGreeksResult* result);
 void tdx_subscription_array_free(TdxSubscriptionArray* arr);
 
+/* ── Arrow IPC terminal for history tick rows ── */
+
+/* Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
+ * tdx_*_to_arrow_ipc terminals. Caller MUST free with tdx_arrow_bytes_free.
+ * Layout-identical to TdxFlatFileBytes. */
+typedef struct TdxArrowBytes {
+    const uint8_t* data;
+    size_t len;
+} TdxArrowBytes;
+
+/* Serialise a span of history tick rows as an Arrow IPC stream — the same
+ * columnar exit Python exposes via <TickName>List.to_arrow(). `rows` may be
+ * NULL only when `len` is 0 (a valid zero-row stream). Returns (data=NULL,
+ * len=0) on error with tdx_last_error() set; on success the caller MUST free
+ * the bytes with tdx_arrow_bytes_free. The element type is the layout-pinned
+ * tick struct the matching history endpoint returns. */
+TdxArrowBytes tdx_eod_ticks_to_arrow_ipc(const TdxEodTick* rows, size_t len);
+TdxArrowBytes tdx_ohlc_ticks_to_arrow_ipc(const TdxOhlcTick* rows, size_t len);
+TdxArrowBytes tdx_trade_ticks_to_arrow_ipc(const TdxTradeTick* rows, size_t len);
+TdxArrowBytes tdx_quote_ticks_to_arrow_ipc(const TdxQuoteTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_all_ticks_to_arrow_ipc(const TdxGreeksAllTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_eod_ticks_to_arrow_ipc(const TdxGreeksEodTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_first_order_ticks_to_arrow_ipc(const TdxGreeksFirstOrderTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_second_order_ticks_to_arrow_ipc(const TdxGreeksSecondOrderTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_third_order_ticks_to_arrow_ipc(const TdxGreeksThirdOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_all_ticks_to_arrow_ipc(const TdxTradeGreeksAllTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_first_order_ticks_to_arrow_ipc(const TdxTradeGreeksFirstOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_second_order_ticks_to_arrow_ipc(const TdxTradeGreeksSecondOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_third_order_ticks_to_arrow_ipc(const TdxTradeGreeksThirdOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(const TdxTradeGreeksImpliedVolatilityTick* rows, size_t len);
+TdxArrowBytes tdx_iv_ticks_to_arrow_ipc(const TdxIvTick* rows, size_t len);
+TdxArrowBytes tdx_price_ticks_to_arrow_ipc(const TdxPriceTick* rows, size_t len);
+TdxArrowBytes tdx_index_price_at_time_ticks_to_arrow_ipc(const TdxIndexPriceAtTimeTick* rows, size_t len);
+TdxArrowBytes tdx_open_interest_ticks_to_arrow_ipc(const TdxOpenInterestTick* rows, size_t len);
+TdxArrowBytes tdx_market_value_ticks_to_arrow_ipc(const TdxMarketValueTick* rows, size_t len);
+TdxArrowBytes tdx_calendar_days_to_arrow_ipc(const TdxCalendarDay* rows, size_t len);
+TdxArrowBytes tdx_interest_rate_ticks_to_arrow_ipc(const TdxInterestRateTick* rows, size_t len);
+TdxArrowBytes tdx_trade_quote_ticks_to_arrow_ipc(const TdxTradeQuoteTick* rows, size_t len);
+
+/** Free a byte buffer returned by any tdx_*_to_arrow_ipc terminal. */
+void tdx_arrow_bytes_free(TdxArrowBytes bytes);
+
 /* ── Error ── */
 
 /** Retrieve the last error message (or NULL if no error).
@@ -1512,8 +1554,8 @@ int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 /* Streaming event structs are schema-driven. The include below pulls in
- * the same typedefs the Go SDK uses, generated at build time — so the
- * C++ header can never drift from the Rust `#[repr(C)]` layout again.
+ * the typedefs generated at build time from the same schema as the Rust
+ * `#[repr(C)]` layout — so the C++ header can never drift from it again.
  * See `thetadx.hpp` for `static_assert(offsetof)` guards that fail the
  * build at compile time if the schema and the C++ consumer ever
  * disagree.
@@ -1532,6 +1574,15 @@ int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
  * `UnknownFrame.payload`) are valid only for the duration of the
  * user callback — copy out before returning. Do NOT free. */
 #include "fpss_event_structs.h.inc"
+
+/** Read the option strike of a streaming TdxContract in dollars, folding
+ *  the has_strike presence flag into the return value. TdxContract.strike
+ *  already carries dollars; this surfaces the presence flag a plain field
+ *  read would drop. Writes the dollar value to *out_dollars and returns
+ *  true when the contract is an option; returns false (leaving *out_dollars
+ *  untouched) for a non-option, null contract, or null output pointer.
+ *  Mirrors the C++ tdx::strike(const TdxContract&) accessor. */
+bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollars);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Real-time streaming client                                            */

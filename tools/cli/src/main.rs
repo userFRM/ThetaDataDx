@@ -1979,7 +1979,7 @@ mod tests {
             date: 20_260_601,
             expiration: 0,
             strike: 0.0,
-            right: 0,
+            right: '\0',
         };
         let raw = vec![
             raw_ms(tick.ms_of_day),

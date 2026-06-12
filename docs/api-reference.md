@@ -974,7 +974,7 @@ tdx.start_streaming(|event: &FpssEvent| {
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `Contract::stock(symbol)` | `(impl Into<String>) -> Contract` | Build a stock contract |
-| `Contract::option(symbol, exp, strike, right)` | `(...) -> Result<Contract, Error>` | Build an option contract |
+| `Contract::option(symbol, OptionLeg { expiration, strike, right })` | `(...) -> Result<Contract, Error>` | Build an option contract (the leg is named so the identity can't be transposed) |
 | `contract.quote()` / `.trade()` / `.open_interest()` | `(&self) -> Subscription` | Per-contract `Subscription` |
 | `SecType::Option.full_trades()` / `.full_open_interest()` | `(self) -> Subscription` | Full-stream `Subscription` |
 | `subscribe` | `(&self, Subscription) -> Result<(), Error>` | Polymorphic subscribe |
@@ -1066,7 +1066,7 @@ Constructors:
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", "20261218", "60", "C")? // Result<Contract, Error>
+Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "60", right: "C" })? // Result<Contract, Error>
 ```
 
 Serialization:

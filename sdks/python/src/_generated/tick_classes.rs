@@ -1693,6 +1693,42 @@ impl TradeTick {
     fn timestamp_ms(&self) -> Option<i64> {
         tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
+
+    /// True when the trade carries a cancelled-trade condition (codes 40-44).
+    #[getter]
+    fn is_cancelled(&self) -> bool {
+        (40..=44).contains(&self.condition)
+    }
+
+    /// True when the trade condition flags set the 'no last' bit (this trade must not update the last price).
+    #[getter]
+    fn trade_condition_no_last(&self) -> bool {
+        self.condition_flags & 1 == 1
+    }
+
+    /// True when the price flags set the 'set last' bit (this trade sets the last price).
+    #[getter]
+    fn price_condition_set_last(&self) -> bool {
+        self.price_flags & 1 == 1
+    }
+
+    /// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
+    #[getter]
+    fn is_incremental_volume(&self) -> bool {
+        self.volume_type == 0
+    }
+
+    /// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
+    #[getter]
+    fn regular_trading_hours(&self) -> bool {
+        (34200000..=57600000).contains(&self.ms_of_day)
+    }
+
+    /// True when the trade is seller-initiated (ext_condition1 == 12).
+    #[getter]
+    fn is_seller(&self) -> bool {
+        self.ext_condition1 == 12
+    }
 }
 
 /// Typed list of `CalendarDay` returned by every historical endpoint

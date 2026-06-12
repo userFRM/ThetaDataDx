@@ -46,6 +46,13 @@ set(THETADX_CPP_TEST_SOURCES
     # Gate 3 - C++ doctest harness. Compiles + runs
     # `// @example` blocks extracted from the public headers.
     doctest_examples.cpp
+    # String rendering on the fluent value types (operator<< / str) plus
+    # the streaming-contract strike accessor — cross-binding parity with
+    # the Python __repr__ / TypeScript toString surfaces.
+    fluent_rendering.cpp
+    # Arrow-IPC terminal on the history result vectors — cross-binding
+    # parity with the Python `<TickName>List.to_arrow()` columnar exit.
+    arrow_ipc.cpp
 )
 
 add_executable(thetadatadx_cpp_tests ${THETADX_CPP_TEST_SOURCES})

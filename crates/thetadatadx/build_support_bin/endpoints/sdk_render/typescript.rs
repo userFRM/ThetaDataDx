@@ -87,6 +87,11 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
     out.push_str("#[derive(Default)]\n");
     writeln!(out, "pub struct {struct_name} {{").unwrap();
     for param in &builder_params {
+        // Per-field doc so the parameter's units and meaning reach the
+        // generated `.d.ts` interface member (napi-rs propagates `///`
+        // comments onto interface fields). Without this the options
+        // object would list bare `annualDividend?: number` with no unit.
+        super::doc::rust_doc_lines(&mut out, "    ", &param.description);
         writeln!(
             out,
             "    pub {}: {},",
@@ -95,6 +100,8 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
         )
         .unwrap();
     }
+    out.push_str("    /// Per-call deadline in milliseconds; on expiry the returned Promise\n");
+    out.push_str("    /// rejects and the underlying request is cancelled.\n");
     out.push_str("    pub timeout_ms: Option<f64>,\n");
     out.push_str("}\n");
     out

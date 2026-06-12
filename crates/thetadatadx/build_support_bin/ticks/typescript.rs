@@ -46,7 +46,142 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
         out.push_str(&render_ts_tick_class_factory(schema, type_name, def));
         out.push('\n');
     }
+    // Arrow-IPC terminals: one `#[napi] <tick>ToArrowIpc(rows) -> Buffer`
+    // per columnar tick type, so a TypeScript history result reaches a
+    // dataframe the same way Python does via `<TickName>List.to_arrow()`.
+    for type_name in sorted_type_names(schema) {
+        let def = &schema.types[type_name];
+        if let Some(rendered) = render_ts_tick_arrow_ipc(type_name, def) {
+            out.push_str(&rendered);
+            out.push('\n');
+        }
+    }
     out
+}
+
+/// Emit a `#[napi] <tick>ToArrowIpc(rows: Tick[]) -> Buffer` free
+/// function: reconstruct the columnar `tick::T` rows from the JS objects
+/// and serialise them to an Arrow IPC stream through the same
+/// `TicksArrowExt::to_arrow` + `StreamWriter` path the FlatFiles terminal
+/// uses. Returns `None` for non-columnar types (`OptionContract` carries a
+/// heap string and ships no Arrow terminal, matching the C++ / FFI
+/// surface).
+fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String> {
+    if type_name == "OptionContract" {
+        return None;
+    }
+    let fn_name = format!("{}_to_arrow_ipc", to_snake_case(type_name));
+    let js_name = format!("{}ToArrowIpc", to_lower_camel(type_name));
+    let mut out = String::new();
+    writeln!(
+        out,
+        "/// Serialise a `{type_name}` history result to an Arrow IPC stream"
+    )
+    .unwrap();
+    out.push_str("/// (the `apache-arrow` wire form). Mirrors the FlatFiles\n");
+    out.push_str("/// `FlatFileRowList.toArrowIpc()` exit and the Python\n");
+    out.push_str("/// `<TickName>List.to_arrow()` terminal so every binding can reach a\n");
+    out.push_str("/// dataframe from an in-band history result.\n");
+    writeln!(out, "#[napi(js_name = \"{js_name}\")]").unwrap();
+    writeln!(
+        out,
+        "pub fn {fn_name}(rows: Vec<{type_name}>) -> napi::Result<napi::bindgen_prelude::Buffer> {{"
+    )
+    .unwrap();
+    writeln!(out, "    let owned: Vec<tick::{type_name}> = rows").unwrap();
+    out.push_str("        .into_iter()\n");
+    out.push_str("        .map(|r| {\n");
+    writeln!(out, "            tick::{type_name} {{").unwrap();
+    for column in &def.columns {
+        let field = rust_field_ident(&column.field);
+        let expr = ts_arrow_reconstruct_expr(&column.r#type, &field);
+        writeln!(out, "                {field}: {expr},").unwrap();
+    }
+    if type_name == "QuoteTick" {
+        out.push_str("                midpoint: r.midpoint,\n");
+    }
+    if def.contract_id {
+        // Inverse of the factory's `has_contract_id().then_some(..)`: the
+        // absent JS `undefined`/`null` round-trips back to the struct's
+        // documented zero / NUL fill.
+        out.push_str("                expiration: r.expiration.unwrap_or(0),\n");
+        out.push_str("                strike: r.strike.unwrap_or(0.0),\n");
+        out.push_str(
+            "                right: r.right.as_deref().and_then(|s| s.chars().next()).unwrap_or('\\0'),\n",
+        );
+    }
+    out.push_str("            }\n");
+    out.push_str("        })\n");
+    out.push_str("        .collect();\n");
+    out.push_str(
+        "    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())\n",
+    );
+    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow conversion failed: {e}\")))?;\n");
+    out.push_str("    let mut buf: Vec<u8> = Vec::new();\n");
+    out.push_str("    {\n");
+    out.push_str("        let mut writer = arrow_ipc::writer::StreamWriter::try_new(\n");
+    out.push_str("            std::io::Cursor::new(&mut buf),\n");
+    out.push_str("            &batch.schema(),\n");
+    out.push_str("        )\n");
+    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc writer init failed: {e}\")))?;\n");
+    out.push_str("        writer\n");
+    out.push_str("            .write(&batch)\n");
+    out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc write failed: {e}\")))?;\n");
+    out.push_str("        writer\n");
+    out.push_str("            .finish()\n");
+    out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc finish failed: {e}\")))?;\n");
+    out.push_str("    }\n");
+    out.push_str("    Ok(napi::bindgen_prelude::Buffer::from(buf))\n");
+    out.push_str("}\n");
+    Some(out)
+}
+
+/// Reconstruct one columnar field of `tick::T` from the JS object binding
+/// `r`. Inverse of the forward factory's per-type projection.
+fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
+    match column_type {
+        // i64 columns cross from JS as `BigInt`; `get_i64` yields the value.
+        "i64" | "eod_num64" => format!("{{ let (v, _) = r.{field}.get_i64(); v }}"),
+        // The logical right char arrives as a one-character string.
+        "right" => format!(
+            "r.{field}.chars().next().unwrap_or('\\0')"
+        ),
+        // The calendar day type arrives as the vendor vocabulary string;
+        // round-trip it back through the enum (unknown text → Weekend, the
+        // closed-day default, never a phantom open session).
+        "calendar_status" => format!(
+            "tdbe::types::enums::CalendarStatus::from_wire_text(&r.{field}).unwrap_or(tdbe::types::enums::CalendarStatus::Weekend)"
+        ),
+        // Plain Copy primitives (i32 / f64 / bool) deref straight through.
+        _ => format!("r.{field}"),
+    }
+}
+
+/// PascalCase tick type name → snake_case fn-name stem (`EodTick` →
+/// `eod_tick`).
+fn to_snake_case(name: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_ascii_uppercase() {
+            if i != 0 {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// PascalCase tick type name → lowerCamelCase JS stem (`EodTick` →
+/// `eodTick`).
+fn to_lower_camel(name: &str) -> String {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) => first.to_ascii_lowercase().to_string() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
@@ -86,6 +221,16 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
         out.push_str("    pub expiration: Option<i32>,\n");
         out.push_str("    pub strike: Option<f64>,\n");
         out.push_str("    pub right: Option<String>,\n");
+    }
+    // Boolean flag-word accessors decoded from the integer condition /
+    // flag columns. TypeScript tick rows are `#[napi(object)]` plain
+    // data (no methods), so the decoded booleans ride as precomputed
+    // fields — the caller reads `tick.isCancelled` instead of
+    // hand-decoding `conditionFlags`. The napi object key camelCases the
+    // snake_case schema name.
+    for flag in &def.flag_accessors {
+        writeln!(out, "    /// {}", flag.doc).unwrap();
+        writeln!(out, "    pub {}: bool,", flag.name).unwrap();
     }
     out.push_str("}\n");
     out
@@ -140,6 +285,17 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
         out.push_str(
             "                right: if t.right == '\\0' { None } else { Some(t.right.to_string()) },\n",
         );
+    }
+    // Decode each flag-word accessor once at conversion time; the result
+    // rides as a precomputed boolean field on the JS object.
+    for flag in &def.flag_accessors {
+        writeln!(
+            out,
+            "                {}: {},",
+            rust_field_ident(&flag.name),
+            flag.rust_predicate("t")
+        )
+        .unwrap();
     }
     out.push_str("            }\n");
     out.push_str("        })\n");

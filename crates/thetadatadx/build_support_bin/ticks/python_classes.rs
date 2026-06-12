@@ -518,6 +518,18 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         .unwrap();
         out.push_str("    }\n");
     }
+    // Boolean flag-word accessors decoded from the integer condition /
+    // flag columns (e.g. `is_cancelled`). Exposed as read-only computed
+    // properties so a caller reads `tick.is_cancelled` instead of
+    // hand-decoding `condition_flags`. The predicate matches the
+    // hand-written Rust `impl` in `crates/tdbe/src/types/tick.rs`.
+    for flag in &def.flag_accessors {
+        writeln!(out, "\n    /// {}", flag.doc).unwrap();
+        writeln!(out, "    #[getter]").unwrap();
+        writeln!(out, "    fn {}(&self) -> bool {{", flag.name).unwrap();
+        writeln!(out, "        {}", flag.rust_predicate("self")).unwrap();
+        out.push_str("    }\n");
+    }
     out.push_str("}\n");
     out
 }

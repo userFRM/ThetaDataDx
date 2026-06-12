@@ -13936,7 +13936,7 @@ impl InterestRateHistoryEodBuilder {
     }
 }
 
-/// Fetch intraday OHLC bars across a date range.
+/// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
 ///
 /// Defaults (upstream):
 /// - `interval`: `"1s"`
@@ -21826,7 +21826,7 @@ impl ThetaDataDxClient {
         }
     }
 
-    /// Fetch intraday OHLC bars across a date range.
+    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     ///
     /// Defaults (upstream):
     /// - `interval`: `"1s"`
@@ -21866,7 +21866,7 @@ impl ThetaDataDxClient {
         ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Fetch intraday OHLC bars across a date range.
+    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     ///
     /// Defaults (upstream):
     /// - `interval`: `"1s"`

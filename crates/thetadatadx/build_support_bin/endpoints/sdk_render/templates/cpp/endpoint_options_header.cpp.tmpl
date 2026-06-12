@@ -3,4 +3,15 @@
 /// `timeout_ms` is the cross-cutting per-call deadline; see `with_timeout_ms`
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
 /// `tdx::Error` carrying "Request deadline exceeded" is thrown.
+///
+/// This is one shared options bag passed to every endpoint, so the compiler
+/// cannot reject a setter that does not apply to the endpoint you call: a
+/// `with_annual_dividend(...)` on a `stock_history_ohlc` call, or a
+/// `with_strike(...)` on `calendar_on_date`, compiles and is silently
+/// dropped — only the parameters the endpoint actually accepts reach the
+/// wire. Each endpoint method documents the parameters it honours; consult
+/// that list rather than relying on a setter compiling. The Python keyword
+/// signatures and the TypeScript per-method options objects enforce this at
+/// the call site by construction; in C++ the shared bag trades that
+/// per-endpoint checking for one stable struct across all endpoints.
 struct EndpointRequestOptions {

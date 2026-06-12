@@ -231,3 +231,42 @@ def test_parse_error_event_class_is_exported():
     # `ThetaDataError`.
     assert "Error" not in dir(thetadatadx)
     assert issubclass(thetadatadx.ThetaDataError, Exception)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# TradeTick flag-word accessors
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_trade_tick_flag_accessors_decode_condition_words():
+    """Boolean accessors decode the integer condition / flag columns so a
+    caller never hand-decodes `condition_flags` / `price_flags`."""
+    fired = thetadatadx.TradeTick(
+        ms_of_day=40_000_000,  # within 9:30-16:00 ET
+        condition=42,  # cancelled-trade range 40-44
+        condition_flags=1,  # NO_LAST bit
+        price_flags=1,  # SET_LAST bit
+        volume_type=0,  # incremental
+        ext_condition1=12,  # seller
+    )
+    assert fired.is_cancelled is True
+    assert fired.regular_trading_hours is True
+    assert fired.trade_condition_no_last is True
+    assert fired.price_condition_set_last is True
+    assert fired.is_incremental_volume is True
+    assert fired.is_seller is True
+
+    quiet = thetadatadx.TradeTick(
+        ms_of_day=1_000,  # before the open
+        condition=5,
+        condition_flags=0,
+        price_flags=0,
+        volume_type=1,  # cumulative
+        ext_condition1=0,
+    )
+    assert quiet.is_cancelled is False
+    assert quiet.regular_trading_hours is False
+    assert quiet.trade_condition_no_last is False
+    assert quiet.price_condition_set_last is False
+    assert quiet.is_incremental_volume is False
+    assert quiet.is_seller is False

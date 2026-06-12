@@ -267,6 +267,177 @@ tick_array_free!(tdx_interest_rate_tick_array_free, TdxInterestRateTickArray);
 tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Arrow IPC terminal for in-band history tick rows
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Mirrors the FlatFiles `tdx_flatfile_rows_to_arrow_ipc` terminal for the
+// typed history rows: a C++ caller holding a `std::vector<EodTick>` (or any
+// other tick vector) serialises it to an Arrow IPC stream and hands the
+// bytes to arrow-cpp, the same columnar exit Python exposes via
+// `<TickName>List.to_arrow()`. The tick structs are the layout-pinned
+// `tdbe::*Tick` types the history endpoints already return, so the bytes go
+// straight through `TicksArrowExt::to_arrow` with no re-marshaling.
+
+/// Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
+/// `tdx_*_to_arrow_ipc` terminals. Caller MUST free with
+/// `tdx_arrow_bytes_free`. Distinct from `TdxFlatFileBytes` only in name —
+/// the layout is identical so a future merge stays ABI-compatible.
+#[repr(C)]
+pub struct TdxArrowBytes {
+    pub data: *const u8,
+    pub len: usize,
+}
+
+impl TdxArrowBytes {
+    const EMPTY: Self = Self {
+        data: ptr::null(),
+        len: 0,
+    };
+
+    fn from_vec(buf: Vec<u8>) -> Self {
+        if buf.is_empty() {
+            return Self::EMPTY;
+        }
+        let boxed = buf.into_boxed_slice();
+        let len = boxed.len();
+        let data = Box::into_raw(boxed) as *const u8;
+        Self { data, len }
+    }
+}
+
+/// Serialise a `&[$tick]` to Arrow IPC bytes through the shared
+/// `TicksArrowExt::to_arrow` + IPC `StreamWriter` path. An empty input is a
+/// valid zero-row stream (matching the FlatFiles terminal and Python).
+/// Returns `(data=null, len=0)` on error with `tdx_last_error()` set.
+macro_rules! tick_array_to_arrow_ipc {
+    ($fn_name:ident, $tick:ty) => {
+        /// Serialise a tick row span as an Arrow IPC stream. `rows` may be
+        /// null only when `len` is 0. Caller MUST free the result with
+        /// `tdx_arrow_bytes_free`.
+        ///
+        /// # Safety
+        /// `rows` must point to `len` initialised `$tick` values (e.g. the
+        /// `data` / `len` pair of the array a history endpoint returned, or
+        /// a C++ `std::vector`'s `data()` / `size()`), valid for the call.
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(rows: *const $tick, len: usize) -> TdxArrowBytes {
+            ffi_boundary!(TdxArrowBytes::EMPTY, {
+                if rows.is_null() && len != 0 {
+                    crate::error::set_error("rows pointer is null with non-zero len");
+                    return TdxArrowBytes::EMPTY;
+                }
+                let slice: &[$tick] = if len == 0 {
+                    &[]
+                } else {
+                    // SAFETY: caller's contract guarantees `rows` points to
+                    // `len` initialised values for the call duration; the
+                    // `len == 0` arm above never reaches here, so `rows` is the
+                    // non-empty span the endpoint / vector handed us.
+                    unsafe { std::slice::from_raw_parts(rows, len) }
+                };
+                let batch = match thetadatadx::frames::TicksArrowExt::to_arrow(slice) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        crate::error::set_error(&format!("arrow conversion failed: {e}"));
+                        return TdxArrowBytes::EMPTY;
+                    }
+                };
+                let mut buf: Vec<u8> = Vec::new();
+                {
+                    let mut writer = match arrow_ipc::writer::StreamWriter::try_new(
+                        std::io::Cursor::new(&mut buf),
+                        &batch.schema(),
+                    ) {
+                        Ok(w) => w,
+                        Err(e) => {
+                            crate::error::set_error(&format!("arrow ipc writer init failed: {e}"));
+                            return TdxArrowBytes::EMPTY;
+                        }
+                    };
+                    if let Err(e) = writer.write(&batch) {
+                        crate::error::set_error(&format!("arrow ipc write failed: {e}"));
+                        return TdxArrowBytes::EMPTY;
+                    }
+                    if let Err(e) = writer.finish() {
+                        crate::error::set_error(&format!("arrow ipc finish failed: {e}"));
+                        return TdxArrowBytes::EMPTY;
+                    }
+                }
+                TdxArrowBytes::from_vec(buf)
+            })
+        }
+    };
+}
+
+tick_array_to_arrow_ipc!(tdx_eod_ticks_to_arrow_ipc, tdbe::EodTick);
+tick_array_to_arrow_ipc!(tdx_ohlc_ticks_to_arrow_ipc, tdbe::OhlcTick);
+tick_array_to_arrow_ipc!(tdx_trade_ticks_to_arrow_ipc, tdbe::TradeTick);
+tick_array_to_arrow_ipc!(tdx_quote_ticks_to_arrow_ipc, tdbe::QuoteTick);
+tick_array_to_arrow_ipc!(tdx_greeks_all_ticks_to_arrow_ipc, tdbe::GreeksAllTick);
+tick_array_to_arrow_ipc!(tdx_greeks_eod_ticks_to_arrow_ipc, tdbe::GreeksEodTick);
+tick_array_to_arrow_ipc!(
+    tdx_greeks_first_order_ticks_to_arrow_ipc,
+    tdbe::GreeksFirstOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_greeks_second_order_ticks_to_arrow_ipc,
+    tdbe::GreeksSecondOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_greeks_third_order_ticks_to_arrow_ipc,
+    tdbe::GreeksThirdOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_greeks_all_ticks_to_arrow_ipc,
+    tdbe::TradeGreeksAllTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_greeks_first_order_ticks_to_arrow_ipc,
+    tdbe::TradeGreeksFirstOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_greeks_second_order_ticks_to_arrow_ipc,
+    tdbe::TradeGreeksSecondOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_greeks_third_order_ticks_to_arrow_ipc,
+    tdbe::TradeGreeksThirdOrderTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc,
+    tdbe::TradeGreeksImpliedVolatilityTick
+);
+tick_array_to_arrow_ipc!(tdx_iv_ticks_to_arrow_ipc, tdbe::IvTick);
+tick_array_to_arrow_ipc!(tdx_price_ticks_to_arrow_ipc, tdbe::PriceTick);
+tick_array_to_arrow_ipc!(
+    tdx_index_price_at_time_ticks_to_arrow_ipc,
+    tdbe::IndexPriceAtTimeTick
+);
+tick_array_to_arrow_ipc!(tdx_open_interest_ticks_to_arrow_ipc, tdbe::OpenInterestTick);
+tick_array_to_arrow_ipc!(tdx_market_value_ticks_to_arrow_ipc, tdbe::MarketValueTick);
+tick_array_to_arrow_ipc!(tdx_calendar_days_to_arrow_ipc, tdbe::CalendarDay);
+tick_array_to_arrow_ipc!(tdx_interest_rate_ticks_to_arrow_ipc, tdbe::InterestRateTick);
+tick_array_to_arrow_ipc!(tdx_trade_quote_ticks_to_arrow_ipc, tdbe::TradeQuoteTick);
+
+/// Free a byte buffer returned by any `tdx_*_to_arrow_ipc` terminal.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_arrow_bytes_free(bytes: TdxArrowBytes) {
+    ffi_boundary!((), {
+        if !bytes.data.is_null() && bytes.len > 0 {
+            // SAFETY: `bytes.data` was produced by `Box::into_raw` on a
+            // `Box<[u8]>` of length `bytes.len` in `TdxArrowBytes::from_vec`;
+            // ownership returns to Rust here for drop. Null + zero-len gated.
+            let _ = unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    bytes.data as *mut u8,
+                    bytes.len,
+                ))
+            };
+        }
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  OptionContract FFI type (String field requires special handling)
 // ═══════════════════════════════════════════════════════════════════════
 

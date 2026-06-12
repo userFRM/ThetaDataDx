@@ -427,12 +427,16 @@ export declare class ContractRef {
   /** Construct an index contract. */
   static index(symbol: string): ContractRef
   /**
-   * Construct an option contract. `right` accepts `"C"` / `"CALL"`
-   * / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
-   * dollars and accepts a number or a string (`550`, `550.5`, and
-   * `"550"` are equivalent).
+   * Construct an option contract. The expiration / strike / right
+   * travel in a single `OptionLeg` object with named keys —
+   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
+   * right: "C" })` — rather than as adjacent positional strings, so a
+   * swapped expiration/strike/right pair cannot pass silently. `right`
+   * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
+   * `strike` is the price in dollars as a number or string (`550`,
+   * `550.5`, and `"550"` are equivalent).
    */
-  static option(symbol: string, expiration: string, strike: number | string, right: string): ContractRef
+  static option(symbol: string, leg: OptionLeg): ContractRef
   /** Per-contract Quote subscription. */
   quote(): Subscription
   /** Per-contract Trade subscription. */
@@ -451,6 +455,15 @@ export declare class ContractRef {
   get strike(): number | null
   /** Option right (`"C"` / `"P"`); `null` for non-options. */
   get right(): string | null
+  /**
+   * String rendering for `console.log` / template literals, e.g.
+   * `"SPY OPTION 20260620 C 550000"` or `"AAPL STOCK"`. Delegates to
+   * the same core rendering the Python `Contract` `__str__` uses, so
+   * the two bindings print a contract identically. Without it a
+   * `ContractRef` prints as an opaque `ContractRef {}` because its
+   * getters do not surface on inspection.
+   */
+  toString(): string
 }
 
 /**
@@ -526,6 +539,13 @@ export declare class SecType {
   fullOpenInterest(): Subscription
   /** Symbolic name (`"STOCK"`, `"OPTION"`, `"INDEX"`, `"RATE"`). */
   get name(): string
+  /**
+   * String rendering for `console.log` / template literals. Returns
+   * the symbolic name (`"OPTION"`), matching the Python `SecType`
+   * `__str__`. Without it a `SecType` instance prints as an opaque
+   * `SecType {}` because its getters do not surface on inspection.
+   */
+  toString(): string
 }
 
 /**
@@ -554,6 +574,15 @@ export declare class Subscription {
    * per-contract subscriptions.
    */
   get secType(): SecType | null
+  /**
+   * String rendering for `console.log` / template literals, e.g.
+   * `"Subscription(Trade, SPY OPTION 20260620 C 550000)"` or
+   * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
+   * `Subscription` `__repr__`. Without it a `Subscription` prints as
+   * an opaque `Subscription {}` because its getters do not surface on
+   * inspection.
+   */
+  toString(): string
 }
 
 export declare class ThetaDataDxClient {
@@ -1405,7 +1434,7 @@ export declare class ThetaDataDxClient {
    */
   interestRateHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: InterestRateHistoryEodOptions | undefined | null): Promise<Array<InterestRateTick>>
   /**
-   * Fetch intraday OHLC bars across a date range.
+   * Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
    *
    * Defaults (upstream):
    * - `interval`: `"1s"`
@@ -1556,12 +1585,25 @@ export interface CalendarDay {
 }
 
 /**
+ * Serialise a `CalendarDay` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function calendarDayToArrowIpc(rows: Array<CalendarDay>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::calendarOnDate`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface CalendarOnDateOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1572,6 +1614,10 @@ export interface CalendarOnDateOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface CalendarOpenTodayOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1582,6 +1628,10 @@ export interface CalendarOpenTodayOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface CalendarYearOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1647,6 +1697,15 @@ export interface EodTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `EodTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function eodTickToArrowIpc(rows: Array<EodTick>): Buffer
 
 /**
  * A single FPSS event surfaced to JS/TS.
@@ -1720,6 +1779,15 @@ export interface GreeksAllTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksAllTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksAllTickToArrowIpc(rows: Array<GreeksAllTick>): Buffer
+
 /** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
 export interface GreeksEodTick {
   msOfDay: number
@@ -1767,6 +1835,15 @@ export interface GreeksEodTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksEodTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksEodTickToArrowIpc(rows: Array<GreeksEodTick>): Buffer
+
 /** First-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksFirstOrderTick {
   msOfDay: number
@@ -1788,6 +1865,15 @@ export interface GreeksFirstOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksFirstOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksFirstOrderTickToArrowIpc(rows: Array<GreeksFirstOrderTick>): Buffer
+
 /** Second-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksSecondOrderTick {
   msOfDay: number
@@ -1807,6 +1893,15 @@ export interface GreeksSecondOrderTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `GreeksSecondOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksSecondOrderTickToArrowIpc(rows: Array<GreeksSecondOrderTick>): Buffer
 
 /** Third-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksThirdOrderTick {
@@ -1828,12 +1923,25 @@ export interface GreeksThirdOrderTick {
 }
 
 /**
+ * Serialise a `GreeksThirdOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksThirdOrderTickToArrowIpc(rows: Array<GreeksThirdOrderTick>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::indexAtTimePrice`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexAtTimePriceOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1844,6 +1952,10 @@ export interface IndexAtTimePriceOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexHistoryEodOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1854,9 +1966,16 @@ export interface IndexHistoryEodOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexHistoryOhlcOptions {
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1867,11 +1986,20 @@ export interface IndexHistoryOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexHistoryPriceOptions {
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1882,6 +2010,10 @@ export interface IndexHistoryPriceOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexListDatesOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1892,6 +2024,10 @@ export interface IndexListDatesOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexListSymbolsOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1911,13 +2047,27 @@ export interface IndexPriceAtTimeTick {
 }
 
 /**
+ * Serialise a `IndexPriceAtTimeTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function indexPriceAtTimeTickToArrowIpc(rows: Array<IndexPriceAtTimeTick>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::indexSnapshotMarketValue`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexSnapshotMarketValueOptions {
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1928,7 +2078,12 @@ export interface IndexSnapshotMarketValueOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexSnapshotOhlcOptions {
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1939,7 +2094,12 @@ export interface IndexSnapshotOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexSnapshotPriceOptions {
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1950,6 +2110,10 @@ export interface IndexSnapshotPriceOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface InterestRateHistoryEodOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -1958,6 +2122,15 @@ export interface InterestRateTick {
   date: number
   rate: number
 }
+
+/**
+ * Serialise a `InterestRateTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function interestRateTickToArrowIpc(rows: Array<InterestRateTick>): Buffer
 
 export declare const enum Interval {
   Tick = 'tick',
@@ -1995,6 +2168,15 @@ export interface IvTick {
   right?: string
 }
 
+/**
+ * Serialise a `IvTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function ivTickToArrowIpc(rows: Array<IvTick>): Buffer
+
 /** FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate). */
 export interface LoginSuccess {
   permissions: string
@@ -2022,6 +2204,15 @@ export interface MarketValueTick {
   right?: string
 }
 
+/**
+ * Serialise a `MarketValueTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function marketValueTickToArrowIpc(rows: Array<MarketValueTick>): Buffer
+
 /** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
 export interface OhlcTick {
   msOfDay: number
@@ -2037,6 +2228,15 @@ export interface OhlcTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `OhlcTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function ohlcTickToArrowIpc(rows: Array<OhlcTick>): Buffer
 
 /** FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
 export interface Ohlcvc {
@@ -2072,16 +2272,33 @@ export interface OpenInterestTick {
 }
 
 /**
+ * Serialise a `OpenInterestTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function openInterestTickToArrowIpc(rows: Array<OpenInterestTick>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::optionAtTimeQuote`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionAtTimeQuoteOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2092,10 +2309,18 @@ export interface OptionAtTimeQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionAtTimeTradeOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2114,10 +2339,18 @@ export interface OptionContract {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryEodOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2128,18 +2361,34 @@ export interface OptionHistoryEodOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2150,15 +2399,28 @@ export interface OptionHistoryGreeksAllOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksEodOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade. */
   underlyerUseNbbo?: boolean
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2169,18 +2431,34 @@ export interface OptionHistoryGreeksEodOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2191,18 +2469,34 @@ export interface OptionHistoryGreeksFirstOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksImpliedVolatilityOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2213,18 +2507,34 @@ export interface OptionHistoryGreeksImpliedVolatilityOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2235,18 +2545,34 @@ export interface OptionHistoryGreeksSecondOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2257,14 +2583,26 @@ export interface OptionHistoryGreeksThirdOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryOhlcOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2275,12 +2613,22 @@ export interface OptionHistoryOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryOpenInterestOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2291,15 +2639,28 @@ export interface OptionHistoryOpenInterestOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryQuoteOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2310,18 +2671,34 @@ export interface OptionHistoryQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2332,18 +2709,34 @@ export interface OptionHistoryTradeGreeksAllOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2354,18 +2747,34 @@ export interface OptionHistoryTradeGreeksFirstOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2376,18 +2785,34 @@ export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2398,18 +2823,34 @@ export interface OptionHistoryTradeGreeksSecondOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2420,14 +2861,26 @@ export interface OptionHistoryTradeGreeksThirdOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2438,16 +2891,53 @@ export interface OptionHistoryTradeOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionHistoryTradeQuoteOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. */
   exclusive?: boolean
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
+}
+
+/**
+ * The expiration / strike / right of an option leg, passed to
+ * `Contract.option(symbol, leg)` as a single object with named keys.
+ *
+ * Naming the three values — all of which are strings — keeps the
+ * contract identity non-transposable: `{ expiration, strike, right }`
+ * cannot silently accept a swapped pair the way three adjacent
+ * positional string arguments could.
+ */
+export interface OptionLeg {
+  /** Expiration date as `YYYYMMDD` (e.g. `"20260620"`). */
+  expiration: string
+  /**
+   * Strike price in dollars, as a number or string (`550`, `550.5`,
+   * `"550"` are equivalent).
+   */
+  strike: number | string
+  /**
+   * Option right: `"C"` / `"CALL"` / `"P"` / `"PUT"`
+   * (case-insensitive).
+   */
+  right: string
 }
 
 /**
@@ -2457,7 +2947,12 @@ export interface OptionHistoryTradeQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListContractsOptions {
+  /** Maximum days to expiration */
   maxDte?: number
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2468,6 +2963,10 @@ export interface OptionListContractsOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListDatesOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2478,6 +2977,10 @@ export interface OptionListDatesOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListExpirationsOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2488,6 +2991,10 @@ export interface OptionListExpirationsOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListStrikesOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2498,6 +3005,10 @@ export interface OptionListStrikesOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListSymbolsOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2508,17 +3019,32 @@ export interface OptionListSymbolsOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
   stockPrice?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2529,17 +3055,32 @@ export interface OptionSnapshotGreeksAllOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
   stockPrice?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2550,17 +3091,32 @@ export interface OptionSnapshotGreeksFirstOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotGreeksImpliedVolatilityOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
   stockPrice?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2571,17 +3127,32 @@ export interface OptionSnapshotGreeksImpliedVolatilityOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
   stockPrice?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2592,17 +3163,32 @@ export interface OptionSnapshotGreeksSecondOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
   rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
   rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
   stockPrice?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
   version?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2613,11 +3199,20 @@ export interface OptionSnapshotGreeksThirdOrderOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotMarketValueOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2628,11 +3223,20 @@ export interface OptionSnapshotMarketValueOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotOhlcOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2643,11 +3247,20 @@ export interface OptionSnapshotOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotOpenInterestOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2658,11 +3271,20 @@ export interface OptionSnapshotOpenInterestOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotQuoteOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Maximum days to expiration */
   maxDte?: number
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2673,10 +3295,18 @@ export interface OptionSnapshotQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionSnapshotTradeOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
+  /** Option side. Accepted values: `call`, `put`, `both`. */
   right?: string
+  /** Strike range filter */
   strikeRange?: number
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2696,6 +3326,15 @@ export interface PriceTick {
   price: number
   date: number
 }
+
+/**
+ * Serialise a `PriceTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function priceTickToArrowIpc(rows: Array<PriceTick>): Buffer
 
 /** FPSS Quote tick. Mirrors `FpssData::Quote`. */
 export interface Quote {
@@ -2730,6 +3369,15 @@ export interface QuoteTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `QuoteTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function quoteTickToArrowIpc(rows: Array<QuoteTick>): Buffer
 
 export declare const enum RateType {
   Sofr = 'sofr',
@@ -2828,7 +3476,12 @@ export interface ServerError {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockAtTimeQuoteOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2839,7 +3492,12 @@ export interface StockAtTimeQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockAtTimeTradeOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2850,6 +3508,10 @@ export interface StockAtTimeTradeOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryEodOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2860,12 +3522,22 @@ export interface StockHistoryEodOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryOhlcOptions {
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2876,10 +3548,18 @@ export interface StockHistoryOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryOhlcRangeOptions {
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2890,12 +3570,22 @@ export interface StockHistoryOhlcRangeOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryQuoteOptions {
+  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2906,11 +3596,20 @@ export interface StockHistoryQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryTradeOptions {
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2921,12 +3620,22 @@ export interface StockHistoryTradeOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockHistoryTradeQuoteOptions {
+  /** Start time filter */
   startTime?: string | Date
+  /** End time filter */
   endTime?: string | Date
+  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. */
   exclusive?: boolean
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Start date YYYYMMDD */
   startDate?: string | Date
+  /** End date YYYYMMDD */
   endDate?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2937,6 +3646,10 @@ export interface StockHistoryTradeQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockListDatesOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2947,6 +3660,10 @@ export interface StockListDatesOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockListSymbolsOptions {
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2957,8 +3674,14 @@ export interface StockListSymbolsOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockSnapshotMarketValueOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2969,8 +3692,14 @@ export interface StockSnapshotMarketValueOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockSnapshotOhlcOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2981,8 +3710,14 @@ export interface StockSnapshotOhlcOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockSnapshotQuoteOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -2993,8 +3728,14 @@ export interface StockSnapshotQuoteOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface StockSnapshotTradeOptions {
+  /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /** Minimum time filter */
   minTime?: string | Date
+  /**
+   * Per-call deadline in milliseconds; on expiry the returned Promise
+   * rejects and the underlying request is cancelled.
+   */
   timeoutMs?: number
 }
 
@@ -3074,6 +3815,15 @@ export interface TradeGreeksAllTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksAllTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksAllTickToArrowIpc(rows: Array<TradeGreeksAllTick>): Buffer
+
 /** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
 export interface TradeGreeksFirstOrderTick {
   msOfDay: number
@@ -3102,6 +3852,15 @@ export interface TradeGreeksFirstOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksFirstOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksFirstOrderTickToArrowIpc(rows: Array<TradeGreeksFirstOrderTick>): Buffer
+
 /** Per-trade implied-volatility tick (single `implied_volatility` + */
 export interface TradeGreeksImpliedVolatilityTick {
   msOfDay: number
@@ -3123,6 +3882,15 @@ export interface TradeGreeksImpliedVolatilityTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `TradeGreeksImpliedVolatilityTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksImpliedVolatilityTickToArrowIpc(rows: Array<TradeGreeksImpliedVolatilityTick>): Buffer
 
 /** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
 export interface TradeGreeksSecondOrderTick {
@@ -3151,6 +3919,15 @@ export interface TradeGreeksSecondOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksSecondOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksSecondOrderTickToArrowIpc(rows: Array<TradeGreeksSecondOrderTick>): Buffer
+
 /** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
 export interface TradeGreeksThirdOrderTick {
   msOfDay: number
@@ -3176,6 +3953,15 @@ export interface TradeGreeksThirdOrderTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `TradeGreeksThirdOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksThirdOrderTickToArrowIpc(rows: Array<TradeGreeksThirdOrderTick>): Buffer
 
 /** Combined trade + quote tick. */
 export interface TradeQuoteTick {
@@ -3208,6 +3994,15 @@ export interface TradeQuoteTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeQuoteTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeQuoteTickToArrowIpc(rows: Array<TradeQuoteTick>): Buffer
+
 /** Trade tick. Core unit of trade data. */
 export interface TradeTick {
   msOfDay: number
@@ -3228,7 +4023,28 @@ export interface TradeTick {
   expiration?: number
   strike?: number
   right?: string
+  /** True when the trade carries a cancelled-trade condition (codes 40-44). */
+  isCancelled: boolean
+  /** True when the trade condition flags set the 'no last' bit (this trade must not update the last price). */
+  tradeConditionNoLast: boolean
+  /** True when the price flags set the 'set last' bit (this trade sets the last price). */
+  priceConditionSetLast: boolean
+  /** True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively. */
+  isIncrementalVolume: boolean
+  /** True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET). */
+  regularTradingHours: boolean
+  /** True when the trade is seller-initiated (ext_condition1 == 12). */
+  isSeller: boolean
 }
+
+/**
+ * Serialise a `TradeTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeTickToArrowIpc(rows: Array<TradeTick>): Buffer
 
 /** FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
 export interface UnknownControl {

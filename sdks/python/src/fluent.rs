@@ -138,9 +138,16 @@ impl PyContract {
     #[staticmethod]
     #[pyo3(signature = (symbol, *, expiration, strike, right))]
     fn option(symbol: &str, expiration: &str, strike: StrikeArg, right: &str) -> PyResult<Self> {
-        protocol::Contract::option(symbol, expiration, &strike.into_string(), right)
-            .map(Self::from_inner)
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+        protocol::Contract::option(
+            symbol,
+            protocol::OptionLeg {
+                expiration,
+                strike: &strike.into_string(),
+                right,
+            },
+        )
+        .map(Self::from_inner)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Per-contract Quote subscription.
@@ -169,9 +176,15 @@ impl PyContract {
         &self.inner.symbol
     }
 
+    /// Security type as a symbolic uppercase name (`"STOCK"` /
+    /// `"OPTION"` / `"INDEX"` / `"RATE"`). A string — matching the
+    /// streaming `ContractRef.sec_type` event surface and the
+    /// TypeScript binding — so one concept reads as one type across the
+    /// whole surface. Build full-stream subscriptions through the
+    /// `SecType` class (`SecType.OPTION.full_trades()`), not this getter.
     #[getter]
-    fn sec_type(&self) -> PySecType {
-        PySecType::from_inner(self.inner.sec_type)
+    fn sec_type(&self) -> &'static str {
+        self.inner.sec_type.as_str()
     }
 
     /// Expiration date as a `YYYYMMDD` integer; `None` for non-options.

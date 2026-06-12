@@ -591,7 +591,7 @@ unsafe fn coerce_subscription(
     req: *const TdxSubscriptionRequest,
 ) -> Option<thetadatadx::fpss::protocol::Subscription> {
     use thetadatadx::fpss::protocol::{
-        Contract, FullSubscriptionKind, Subscription, SubscriptionKind,
+        Contract, FullSubscriptionKind, OptionLeg, Subscription, SubscriptionKind,
     };
     if req.is_null() {
         set_error("subscription request is null");
@@ -623,7 +623,14 @@ unsafe fn coerce_subscription(
                     let exp = require_cstr!(expiration_ptr, None);
                     let stk = require_cstr!(strike_ptr, None);
                     let rt = require_cstr!(right_ptr, None);
-                    match Contract::option(symbol, exp, stk, rt) {
+                    match Contract::option(
+                        symbol,
+                        OptionLeg {
+                            expiration: exp,
+                            strike: stk,
+                            right: rt,
+                        },
+                    ) {
                         Ok(c) => c,
                         Err(e) => {
                             set_error_from(&e);

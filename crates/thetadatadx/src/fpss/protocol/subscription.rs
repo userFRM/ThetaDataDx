@@ -90,10 +90,10 @@ pub enum FullSubscriptionKind {
 /// streaming session.
 ///
 /// ```rust,no_run
-/// # use thetadatadx::fpss::protocol::{Contract, SecTypeExt};
+/// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
 /// # use tdbe::types::enums::SecType;
 /// let stock_quote   = Contract::stock("AAPL").quote();
-/// let opt_trade     = Contract::option("SPY", "20260620", "550", "C").unwrap().trade();
+/// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" }).unwrap().trade();
 /// let full_opt_oi   = SecType::Option.full_open_interest();
 /// let _all = vec![stock_quote, opt_trade, full_opt_oi];
 /// ```
@@ -241,6 +241,7 @@ impl SecTypeExt for SecType {
 
 #[cfg(test)]
 mod tests {
+    use super::super::contract::OptionLeg;
     use super::*;
 
     #[test]
@@ -288,7 +289,15 @@ mod tests {
 
     #[test]
     fn contract_trade_returns_per_contract_subscription() {
-        let c = Contract::option("SPY", "20260620", "550", "C").unwrap();
+        let c = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "550",
+                right: "C",
+            },
+        )
+        .unwrap();
         let sub = c.trade();
         match sub {
             Subscription::Contract { contract, kind } => {
@@ -301,7 +310,15 @@ mod tests {
 
     #[test]
     fn contract_open_interest_returns_per_contract_subscription() {
-        let c = Contract::option("SPY", "20260620", "550", "P").unwrap();
+        let c = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "550",
+                right: "P",
+            },
+        )
+        .unwrap();
         let sub = c.open_interest();
         assert!(matches!(
             sub,
@@ -366,7 +383,15 @@ mod tests {
         // Assertion the report calls out: stock quotes, option trades,
         // and full-stream OI must all sit in one `Vec<Subscription>`
         // for `subscribe_many`.
-        let opt = Contract::option("SPY", "20260620", "550", "C").unwrap();
+        let opt = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "550",
+                right: "C",
+            },
+        )
+        .unwrap();
         let subs: Vec<Subscription> = vec![
             Contract::stock("AAPL").quote(),
             opt.trade(),
