@@ -174,7 +174,7 @@ impl Config {
             "manual" => config::ReconnectPolicy::Manual,
             "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
-                return Err(napi::Error::from_reason(format!(
+                return Err(crate::invalid_parameter_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
                 )));
             }
@@ -387,7 +387,7 @@ impl Config {
     #[napi(js_name = "setReconnectJitter")]
     pub fn set_reconnect_jitter(&self, mode: String) -> napi::Result<()> {
         let parsed = config::JitterMode::parse(&mode).ok_or_else(|| {
-            napi::Error::from_reason(format!(
+            crate::invalid_parameter_err(format!(
                 "setReconnectJitter: unknown mode {mode:?}; expected \"full\", \"equal\", \"decorrelated\", or \"none\""
             ))
         })?;
@@ -846,12 +846,12 @@ impl Config {
     #[napi(js_name = "setFpssRingSize")]
     pub fn set_fpss_ring_size(&self, n: u32) -> napi::Result<()> {
         if n == 0 || !n.is_power_of_two() {
-            return Err(napi::Error::from_reason(format!(
+            return Err(crate::invalid_parameter_err(format!(
                 "fpss_ring_size must be a power of two >= 64; got {n}"
             )));
         }
         if n < 64 {
-            return Err(napi::Error::from_reason(format!(
+            return Err(crate::invalid_parameter_err(format!(
                 "fpss_ring_size must be >= 64; got {n}"
             )));
         }
@@ -879,7 +879,7 @@ impl Config {
     #[napi(js_name = "setFpssHostSelection")]
     pub fn set_fpss_host_selection(&self, policy: String) -> napi::Result<()> {
         let parsed = config::HostSelectionPolicy::parse(&policy).ok_or_else(|| {
-            napi::Error::from_reason(format!(
+            crate::invalid_parameter_err(format!(
                 "setFpssHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
             ))
         })?;
@@ -1301,7 +1301,7 @@ impl Config {
     pub fn set_metrics_port(&self, port: Option<u32>) -> napi::Result<()> {
         let resolved = match port {
             Some(v) => Some(u16::try_from(v).map_err(|_| {
-                napi::Error::from_reason(format!(
+                crate::invalid_parameter_err(format!(
                     "setMetricsPort: port must be in 0..=65535; got {v}"
                 ))
             })?),
@@ -1338,7 +1338,7 @@ impl Config {
             "batched" => config::FpssFlushMode::Batched,
             "immediate" => config::FpssFlushMode::Immediate,
             other => {
-                return Err(napi::Error::from_reason(format!(
+                return Err(crate::invalid_parameter_err(format!(
                     "setFlushMode: mode must be \"batched\" or \"immediate\"; got {other:?}"
                 )));
             }

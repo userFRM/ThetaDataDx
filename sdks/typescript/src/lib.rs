@@ -52,6 +52,15 @@ pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     napi::Error::from_reason(format!("{prefix} {e}"))
 }
 
+/// Build an `InvalidParameterError`-typed napi error for user-input
+/// validation that fails before reaching the core client. The JS shim
+/// keys on the `[ClassName]` prefix to re-throw the typed subclass, so
+/// TypeScript callers branch on `instanceof InvalidParameterError`
+/// exactly as Python callers catch the parity `ValueError`.
+pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Error {
+    napi::Error::from_reason(format!("[InvalidParameterError] {message}"))
+}
+
 /// Run an endpoint round-trip off the runtime's execution thread and
 /// hand the result back as a `napi::Result`.
 ///
