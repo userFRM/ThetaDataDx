@@ -65,6 +65,12 @@ rand = "0.9"
 # after `Credentials` internally moved it into its own `Zeroizing`.
 zeroize = "1.8.2"
 
+# Hidden (non-echoing) password read for the first-run credentials prompt.
+# The returned `String` is moved straight into `Zeroizing` so the typed
+# password is scrubbed from the heap on drop, matching the existing
+# `--password` flag path.
+rpassword = "7.5.4"
+
 # Match the main workspace's strict bar. This crate declares its own
 # `[workspace]` table (line 15) so it's an independent workspace — it
 # can't inherit via `[lints] workspace = true` from the parent repo.
