@@ -147,7 +147,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 # Cryptographically random bytes for scratch-file disambiguation and ephemeral
 # tokens, plus the seeded shuffle / jitter sampling in `crate::backoff`
 # and the FPSS host-ordering layer.
-rand = "0.9"
+rand = "0.10"
 # Per-socket TCP keepalive schedule on the FPSS connection (idle /
 # interval / probe-count). `std::net::TcpStream` exposes no keepalive
 # setter; `SockRef::from(&tcp)` borrows the fd without taking ownership.
@@ -223,7 +223,7 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 # Used by integration tests for scratch-path disambiguation (same dep as
 # the library's `[dependencies]` entry; listed explicitly so test binaries
 # resolve it without relying on the lib's transitive graph).
-rand = "0.9"
+rand = "0.10"
 criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench.
 futures = "0.3"
