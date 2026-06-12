@@ -34,7 +34,7 @@ cpp = true          # exposed as `tdx::Client` + `tdx::UnifiedClient`
 [[class]]
 name = "AsyncThetaDataDxClient"
 python = true
-typescript = false  # not yet ported — issue #545 follow-up
+typescript = false  # JS has no separate async client: the single ThetaDataDxClient's data-fetch methods each return a Promise resolved off the execution thread (the idiomatic JS shape), so an explicit async-twin class is redundant
 cpp = false         # not yet ported — issue #545 follow-up
 
 [[class]]

@@ -50,6 +50,69 @@ describe('endpoint options objects', () => {
   });
 });
 
+describe('historical methods resolve off the execution thread', () => {
+  // The 61 data-fetch methods declared on ThetaDataDxClient. Each runs
+  // the network round-trip on a worker and resolves a Promise, so a
+  // fetch never holds the Node event loop. Element types are unchanged
+  // — only the surrounding shape becomes a Promise.
+  //
+  // Pulled from the single client interface block so streaming lifecycle
+  // declarations elsewhere in the file (awaitDrain etc.) cannot dilute
+  // the assertion.
+  const clientBlock = dts.match(
+    /export declare class ThetaDataDxClient \{[\s\S]*?\n\}/
+  );
+  assert.ok(clientBlock, 'ThetaDataDxClient class missing from index.d.ts');
+  const body = clientBlock[0];
+
+  // Every endpoint method names a return type; collect each declared
+  // `methodName(...): <ret>` whose name matches the data-fetch families.
+  const familyRe =
+    /^\s+((?:stock|option|index)History\w*|\w*Snapshot\w*|\w*AtTime\w*|\w*List\w*|calendar\w*|interestRate\w*)\(/;
+  const methodLines = body
+    .split('\n')
+    .filter((line) => familyRe.test(line));
+
+  it('every data-fetch method is present (61 of them)', () => {
+    // Pin the count so a generator change that drops a method, or leaks
+    // a streaming lifecycle method into the data-fetch families, is
+    // caught here rather than silently shrinking the async surface.
+    assert.equal(
+      methodLines.length,
+      61,
+      `expected 61 data-fetch methods, found ${methodLines.length}`
+    );
+  });
+
+  it('every data-fetch method returns a Promise', () => {
+    for (const line of methodLines) {
+      assert.match(
+        line,
+        /\):\s*Promise<Array<[^>]+>>/,
+        `data-fetch method must return Promise<Array<...>>: ${line.trim()}`
+      );
+    }
+  });
+
+  it('no data-fetch method returns a bare Array (would block the event loop)', () => {
+    for (const line of methodLines) {
+      assert.doesNotMatch(
+        line,
+        /\):\s*Array</,
+        `data-fetch method must not return a bare Array: ${line.trim()}`
+      );
+    }
+  });
+
+  it('the streaming awaitDrain lifecycle method is left async and untouched', () => {
+    assert.match(
+      body,
+      /awaitDrain\(timeoutMs: number\): Promise<boolean>/,
+      'awaitDrain must stay Promise<boolean> (streaming lifecycle, not a data fetch)'
+    );
+  });
+});
+
 describe('strike is dollars everywhere', () => {
   it('fluent builder accepts number | string and reads dollars back', () => {
     for (const strike of [550, '550']) {

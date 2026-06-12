@@ -46,13 +46,15 @@ describe('InterestRateTick (index.d.ts)', () => {
     );
   });
 
-  it('interestRateHistoryEOD returns Array<InterestRateTick>', () => {
+  it('interestRateHistoryEOD returns Promise<Array<InterestRateTick>>', () => {
     // Pin that the historical endpoint signature still returns the new
-    // tick type (no accidental rename / collection mismatch).
+    // tick type (no accidental rename / collection mismatch). The method
+    // resolves the fetch off the runtime's execution thread, so the
+    // surface is a Promise; the element type is unchanged.
     assert.match(
       dts,
-      /interestRateHistoryEOD\([^)]*\):\s*Array<InterestRateTick>/,
-      'interestRateHistoryEOD must return Array<InterestRateTick>',
+      /interestRateHistoryEOD\([^)]*\):\s*Promise<Array<InterestRateTick>>/,
+      'interestRateHistoryEOD must return Promise<Array<InterestRateTick>>',
     );
   });
 });
