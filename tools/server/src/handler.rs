@@ -316,10 +316,8 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
             );
             // Prefer the server-advertised cooldown when the upstream
             // attached one; fall back to the static default otherwise.
-            let retry_secs = retry_after
-                .map_or(UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS, |d| {
-                    d.as_secs().max(1)
-                });
+            let retry_secs =
+                retry_after.map_or(UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS, |d| d.as_secs().max(1));
             if let Ok(value) = axum::http::HeaderValue::from_str(&retry_secs.to_string()) {
                 resp.headers_mut()
                     .insert(axum::http::header::RETRY_AFTER, value);
