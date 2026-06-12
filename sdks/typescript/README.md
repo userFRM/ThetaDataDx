@@ -67,14 +67,29 @@ Real-time quotes and trades flow through the same client. Register a callback wi
 import { Contract, ThetaDataDxClient } from 'thetadatadx';
 
 const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const formatContract = (contract: {
+  symbol: string;
+  expiration?: number;
+  strike?: number;
+  right?: string;
+}) => [contract.symbol, contract.expiration, contract.strike, contract.right]
+  .filter((value) => value != null)
+  .join(' ');
 
 tdx.startStreaming((event) => {
-  if (event.kind === 'trade') {
-    const { contract, price, size } = event.trade!;
-    console.log(`${contract.symbol} trade ${price} x ${size}`);
-  } else if (event.kind === 'quote') {
-    const { contract, bid, ask } = event.quote!;
-    console.log(`${contract.symbol} quote ${bid} / ${ask}`);
+  if (event.kind === 'trade' && event.trade) {
+    const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
+    console.log(
+      `${formatContract(contract)} trade price=${price} size=${size} ` +
+      `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
+    );
+  } else if (event.kind === 'quote' && event.quote) {
+    const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
+    console.log(
+      `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
+      `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
+      `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
+    );
   }
 });
 

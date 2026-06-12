@@ -93,18 +93,37 @@ int main() {
     auto config = tdx::Config::production();
 
     tdx::FpssClient fpss(creds, config);
+    auto format_contract = [](const auto& contract) {
+        std::ostringstream out;
+        out << (contract.symbol ? contract.symbol : "<pending>");
+        if (contract.has_expiration) out << ' ' << contract.expiration;
+        if (auto strike = tdx::strike(contract)) out << ' ' << *strike;
+        if (auto right = tdx::right(contract)) out << ' ' << *right;
+        return out.str();
+    };
 
-    fpss.set_callback([](const tdx::FpssEvent& event) {
+    fpss.set_callback([format_contract](const tdx::FpssEvent& event) {
         switch (event.kind) {
             case TDX_FPSS_TRADE:
-                std::printf("%s trade %.2f x %d\n",
-                            event.trade.contract.symbol,
-                            event.trade.price, event.trade.size);
+                std::cout << format_contract(event.trade.contract)
+                          << " trade price=" << event.trade.price
+                          << " size=" << event.trade.size
+                          << " exchange=" << event.trade.exchange
+                          << " ms_of_day=" << event.trade.ms_of_day
+                          << " sequence=" << event.trade.sequence
+                          << " condition=" << event.trade.condition
+                          << '\n';
                 break;
             case TDX_FPSS_QUOTE:
-                std::printf("%s quote %.2f / %.2f\n",
-                            event.quote.contract.symbol,
-                            event.quote.bid, event.quote.ask);
+                std::cout << format_contract(event.quote.contract)
+                          << " quote bid=" << event.quote.bid
+                          << " ask=" << event.quote.ask
+                          << " bid_size=" << event.quote.bid_size
+                          << " ask_size=" << event.quote.ask_size
+                          << " bid_exchange=" << event.quote.bid_exchange
+                          << " ask_exchange=" << event.quote.ask_exchange
+                          << " ms_of_day=" << event.quote.ms_of_day
+                          << '\n';
                 break;
             default:
                 break;
