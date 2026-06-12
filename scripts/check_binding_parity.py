@@ -75,12 +75,11 @@ CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
 # in implementation code and are out of scope here. This guard fires
 # only on the identifiers the parity collectors already harvest, i.e.
 # the names a user types. It catches the leak class structurally (a
-# banned token embedded in a snake_case / camelCase identifier) where
-# the text scrubber's `\bword\b` rule cannot, without false-positives
+# banned token embedded in a snake_case / camelCase identifier) where a
+# word-boundary (`\bword\b`) text rule cannot, without false-positives
 # on internal code.
 #
-# ALLOW-LIST — kept deliberately aligned with `check_banned_vocab.py`:
-# `mdds` and `fpss` are ThetaData's PROPRIETARY PROTOCOL names (the
+# ALLOW-LIST: `mdds` and `fpss` are ThetaData's PROPRIETARY PROTOCOL names (the
 # vendor this SDK wraps). They are NOT impl-detail leaks; the public
 # surface stays aligned with the vendor's vocabulary. They are NOT
 # listed below and MUST NOT be flagged. Only OUR own implementation
@@ -110,8 +109,8 @@ def _surface_token_hit(identifier: str) -> str | None:
 
     The match is case-insensitive and substring-based so a token buried
     inside a snake_case or camelCase name (`set_tokio_worker_threads`,
-    `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in
-    the text scrubber's word-boundary rule. Vendor protocol names
+    `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in a
+    word-boundary text rule. Vendor protocol names
     (`mdds`, `fpss`) are intentionally absent from the token list, so a
     `MddsClient` / `setFpssRingSize` identifier is never flagged.
     """
