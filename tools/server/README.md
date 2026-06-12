@@ -44,6 +44,7 @@ The server starts:
 | `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
 | `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-fpss` | | Skip FPSS streaming connection at startup |
+| `--no-ohlcvc` | | Disable OHLCVC bar derivation from trades on the FPSS stream |
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
@@ -135,11 +136,11 @@ Send JSON commands to manage subscriptions:
 
 - **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
 - **Global per-IP rate limit on non-loopback binds** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40, rejected as `429` with the canonical error envelope and a `Retry-After` header. Loopback binds (`127.0.0.1`, `::1` — the default) disable the general limiter: every local client shares one peer-IP bucket, so parallel local workloads would throttle each other, which the legacy terminal never did. The shutdown-route limiter stays active on every bind. The server runs without a trusted reverse proxy, so forwarded-header extractors would let an attacker cycle fake IPs.
-- **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/tools/server.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
+- **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/server/http.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
-- **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/connection.md`.
-- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`tdx.dropped_events()` Python, `droppedEvents(): bigint` TS, `DroppedEvents() uint64` Go, `tdx_fpss_dropped_events` / `tdx_unified_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
+- **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
+- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`tdx.dropped_events()` Python, `droppedEvents(): bigint` TS, `tdx_fpss_dropped_events` / `tdx_unified_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
 
 Example — initiating a graceful shutdown from the same machine:
 

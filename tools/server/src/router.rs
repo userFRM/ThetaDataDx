@@ -81,7 +81,7 @@ use crate::state::AppState;
 /// channel pool. A burst larger than the upstream tier cap queues FIFO and
 /// drains as slots free; the caller's only deadline is its own client-side
 /// timeout (the future drops, releasing both permits). The full model is
-/// documented in `docs-site/docs/tools/server.md` under "Concurrency
+/// documented in `docs-site/docs/server/http.md` under "Concurrency
 /// model".
 const GLOBAL_CONCURRENCY_LIMIT: usize = 256;
 

@@ -114,7 +114,7 @@ Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, 
 These tools do not require a ThetaData account or a network round-trip; they are available even when the server is started in offline mode.
 
 - `ping` - server status
-- `all_greeks` - compute all 22 Black-Scholes Greeks
+- `all_greeks` - compute all 23 Black-Scholes Greeks
 - `implied_volatility` - IV solver via bisection
 
 ### Stock Data (14 tools)
@@ -171,7 +171,7 @@ This matches the current Java terminal behavior. The v3 REST surface uses `*` fo
 
 Response:
 ```json
-{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"ticks\":[{\"date\":20240102,\"ms_of_day\":57600000,\"open\":187.15,\"high\":188.44,\"low\":183.89,\"close\":185.64,\"volume\":82488700,\"count\":1036575,\"bid\":185.63,\"ask\":185.65,\"bid_size\":1,\"ask_size\":3},...],\"count\":41}"}]}}
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"ticks\":[{\"date\":20240102,\"created\":72000000,\"last_trade\":57600000,\"open\":187.15,\"high\":188.44,\"low\":183.89,\"close\":185.64,\"volume\":82488700,\"count\":1036575,\"bid_exchange\":65,\"bid\":185.63,\"bid_condition\":0,\"ask_exchange\":65,\"ask\":185.65,\"ask_condition\":0,\"bid_size\":1,\"ask_size\":3},...],\"count\":41}"}]}}
 ```
 
 ### Fetch bulk option Greeks around ATM
