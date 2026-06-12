@@ -7,13 +7,33 @@ description: Run the local HTTP REST and WebSocket server speaking the v3 route 
 
 `thetadatadx-server` runs the full data surface as a **local HTTP REST + WebSocket server** on the v3 route scheme. Scripts and tools that already speak the v3 routes point at it unchanged — same ports, same paths, same response envelope.
 
-## Install and run
+## Download and run
+
+Prebuilt binaries are attached to each [GitHub Release](https://github.com/userFRM/ThetaDataDx/releases). No Rust toolchain and no Java terminal are required — download the archive for your platform, unpack it, and run the binary.
+
+The binaries are not code-signed yet, so each operating system asks for a one-time confirmation the first time you launch one.
+
+### Windows
+
+1. Download `thetadatadx-server-windows-x86_64.zip` and unzip it.
+2. Double-click `thetadatadx-server.exe`. If a "Windows protected your PC" SmartScreen dialog appears, click **More info**, then **Run anyway**.
+
+### macOS
+
+1. Download `thetadatadx-server-macos-arm64.tar.gz` (Apple silicon) or `thetadatadx-server-macos-x86_64.tar.gz` (Intel) and unpack it.
+2. Right-click (or Control-click) `thetadatadx-server` and choose **Open**, then confirm **Open** in the dialog. If macOS still blocks it, open **System Settings > Privacy & Security** and click **Open Anyway** next to the `thetadatadx-server` entry.
+
+### Linux
+
+1. Download `thetadatadx-server-linux-x86_64.tar.gz` and unpack it. The Linux binary is statically linked, so it runs on any distribution with no extra system libraries.
+2. Make it executable and run it:
 
 ```bash
-cargo install thetadatadx-server --git https://github.com/userFRM/ThetaDataDx
-
-thetadatadx-server --creds creds.txt
+chmod +x thetadatadx-server
+./thetadatadx-server
 ```
+
+On the first launch the server prompts for the email and password of your ThetaData login, then saves them to a local `creds.txt` file so the prompt does not repeat. Pass `--creds <path>` to use a different file, or supply `--email` / `--password` directly.
 
 This starts:
 
@@ -27,6 +47,16 @@ curl 'http://127.0.0.1:25503/v3/stock/history/eod?symbol=AAPL&start_date=2025-03
 ```
 
 Every [reference page](/reference/)'s HTTP tab is a ready-made request against this server.
+
+## Build from source (advanced)
+
+If you have a Rust toolchain and prefer to build the binary yourself, install it from the repository and run it the same way:
+
+```bash
+cargo install thetadatadx-server --git https://github.com/userFRM/ThetaDataDx
+
+thetadatadx-server --creds creds.txt
+```
 
 ## Flags
 
