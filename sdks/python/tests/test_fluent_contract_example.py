@@ -86,3 +86,24 @@ def test_contract_ref_is_event_payload(thetadatadx_mod) -> None:
         "thetadatadx.ContractRef should not carry fluent factory methods; "
         "those live on `Contract`."
     )
+
+
+def test_contract_sec_type_is_symbolic_string(thetadatadx_mod) -> None:
+    """`Contract.sec_type` reads as a symbolic uppercase string, the same
+    type the streaming `ContractRef.sec_type` event surface uses — one
+    concept, one type across the whole surface."""
+    stock = thetadatadx_mod.Contract.stock("AAPL")
+    assert stock.sec_type == "STOCK"
+    assert isinstance(stock.sec_type, str)
+
+    option = thetadatadx_mod.Contract.option(
+        "SPY",
+        expiration="20260620",
+        strike="550",
+        right="C",
+    )
+    assert option.sec_type == "OPTION"
+    assert isinstance(option.sec_type, str)
+
+    index = thetadatadx_mod.Contract.index("SPX")
+    assert index.sec_type == "INDEX"
