@@ -10,7 +10,17 @@ This script:
 * Walks each tracked bench and reads the p50 (`median.point_estimate`)
   from Criterion's `new/estimates.json` for that bench.
 * Fails (non-zero exit) when any tracked bench's p50 has regressed
-  by more than `--threshold` (default 20%).
+  by more than `--threshold` (default 20%) *and* by more than an
+  absolute floor of `--abs-floor-ns` (default 1.0 ns).
+
+The absolute floor exists because a purely relative gate is not
+meaningful for sub-nanosecond benches. A match-dispatch bench that
+measures ~1 ns on a dedicated box drifts by 0.3-0.4 ns of pure jitter
+on a shared CI runner — already +30-40%, enough to trip a 25% relative
+gate on noise alone. Requiring the absolute delta to clear a 1 ns floor
+keeps the gate sensitive to real regressions on the large benches (a
+807 us streaming bench would need ~200 us to fail, far above the floor)
+while refusing to gate the timer-resolution band of the fastest ones.
 
 Tracked benches come from the baseline file itself — adding a new
 entry there opts a bench into the gate; removing it opts out. The
@@ -81,6 +91,15 @@ def main() -> int:
         type=float,
         help="fail on p50 regression exceeding this percentage",
     )
+    parser.add_argument(
+        "--abs-floor-ns",
+        default=1.0,
+        type=float,
+        help=(
+            "minimum absolute p50 increase (ns) required alongside the "
+            "percentage threshold; filters sub-nanosecond runner jitter"
+        ),
+    )
     args = parser.parse_args()
 
     baseline = load_baseline(args.baseline)
@@ -110,15 +129,20 @@ def main() -> int:
             missing.append(bench_id)
             continue
 
-        delta_pct = (current_p50 - float(baseline_p50)) / float(baseline_p50) * 100.0
-        status = "OK" if delta_pct <= args.threshold else "REGRESSION"
+        abs_delta = current_p50 - float(baseline_p50)
+        delta_pct = abs_delta / float(baseline_p50) * 100.0
+        over_pct = delta_pct > args.threshold
+        regressed = over_pct and abs_delta > args.abs_floor_ns
+        # `NOISE` marks a bench that cleared the percentage gate but not the
+        # absolute floor — a sub-nanosecond move we refuse to treat as real.
+        status = "REGRESSION" if regressed else ("NOISE" if over_pct else "OK")
         print(
             f"{status:<11} {bench_id:<60} "
             f"baseline {baseline_p50:>12.1f} ns  "
             f"current {current_p50:>12.1f} ns  "
             f"delta {delta_pct:+.2f}%"
         )
-        if delta_pct > args.threshold:
+        if regressed:
             failures.append((bench_id, float(baseline_p50), current_p50, delta_pct))
 
     if missing:

@@ -14,6 +14,7 @@
 
 use std::fmt::Write as _;
 
+use super::idents::rust_field_ident;
 use super::python_classes::strip_field_count_from_doc;
 use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::sorted_type_names;
@@ -64,25 +65,27 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub struct {type_name} {{").unwrap();
     for column in &def.columns {
-        // Special case: `OptionContract.right` is `i32` (ASCII 67/80) on
-        // the wire, but every other tick surfaces `right` as a JS string
-        // ("C" | "P" | "") via the `contract_id` injection below. Emit
-        // String here too so the two paths match — otherwise consumers
-        // get a number on `optionListContracts` and a string elsewhere.
-        let rust_type = if type_name == "OptionContract" && column.field == "right" {
-            "String"
-        } else {
-            ts_class_rust_type(&column.r#type, type_name, &column.field)
-        };
-        writeln!(out, "    pub {}: {},", column.field, rust_type).unwrap();
+        let rust_type = ts_class_rust_type(&column.r#type, type_name, &column.field);
+        // Rust-side ident escape (`r#type`-style); the JS key napi-rs
+        // derives from it is exempt — object keys admit reserved words.
+        writeln!(
+            out,
+            "    pub {}: {},",
+            rust_field_ident(&column.field),
+            rust_type
+        )
+        .unwrap();
     }
     if is_quote_tick {
         out.push_str("    pub midpoint: f64,\n");
     }
     if def.contract_id {
-        out.push_str("    pub expiration: i32,\n");
-        out.push_str("    pub strike: f64,\n");
-        out.push_str("    pub right: String,\n");
+        // Contract identity is populated on wildcard queries only —
+        // absent identity is undefined/null on the JS surface,
+        // matching the streaming `Contract` payload convention.
+        out.push_str("    pub expiration: Option<i32>,\n");
+        out.push_str("    pub strike: Option<f64>,\n");
+        out.push_str("    pub right: Option<String>,\n");
     }
     out.push_str("}\n");
     out
@@ -101,38 +104,41 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
     out.push_str("        .map(|t| {\n");
     writeln!(out, "            {type_name} {{").unwrap();
     for column in &def.columns {
-        // See `render_ts_tick_class_struct`: OptionContract.right is
-        // projected to "C" / "P" / "" so the standalone endpoint matches
-        // the contract_id-injected right field on every other tick.
-        if type_name == "OptionContract" && column.field == "right" {
-            out.push_str(
-                "                right: if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() },\n",
-            );
-            continue;
-        }
         // String fields must be cloned; primitives are Copy. i64/eod_num64
         // cross to JS as `bigint` via `BigInt::from(...)` (see
-        // `ts_class_rust_type`).
+        // `ts_class_rust_type`). Logical columns project to the same
+        // shapes the Python pyclass surface exposes.
         let expr = match column.r#type.as_str() {
             "String" => format!("t.{field}.clone()", field = column.field),
+            "right" => format!(
+                "if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}",
+                field = column.field
+            ),
+            "calendar_status" => {
+                format!("t.{field}.as_str().to_string()", field = column.field)
+            }
             col_type if ts_column_needs_bigint(col_type) => {
                 format!("BigInt::from(t.{field})", field = column.field)
             }
             _ => format!("t.{field}", field = column.field),
         };
-        writeln!(out, "                {}: {expr},", column.field).unwrap();
+        writeln!(
+            out,
+            "                {}: {expr},",
+            rust_field_ident(&column.field)
+        )
+        .unwrap();
     }
     if type_name == "QuoteTick" {
         out.push_str("                midpoint: t.midpoint,\n");
     }
     if def.contract_id {
-        out.push_str("                expiration: t.expiration,\n");
-        out.push_str("                strike: t.strike,\n");
-        // right is stored as the raw ASCII code (67='C', 80='P') on the
-        // Rust tick; project it to a JS-friendly string using the same
-        // is_call/is_put helpers the columnar emitter already relies on.
+        // Absent contract identity (single-contract queries) crosses
+        // to JS as undefined/null — the documented absence convention.
+        out.push_str("                expiration: t.has_contract_id().then_some(t.expiration),\n");
+        out.push_str("                strike: t.has_contract_id().then_some(t.strike),\n");
         out.push_str(
-            "                right: if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() },\n",
+            "                right: if t.right == '\\0' { None } else { Some(t.right.to_string()) },\n",
         );
     }
     out.push_str("            }\n");
@@ -151,7 +157,11 @@ fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'stat
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "BigInt",
         "f64" | "price" | "eod_price" => "f64",
-        "String" => "String",
+        // Logical char surfaces as a JS one-character string
+        // (`"C"` / `"P"`); the calendar day type surfaces as the
+        // vendor vocabulary string.
+        "String" | "right" | "calendar_status" => "String",
+        "bool" => "bool",
         other => panic!("unsupported TS column type '{other}' in {type_name}.{field}"),
     }
 }

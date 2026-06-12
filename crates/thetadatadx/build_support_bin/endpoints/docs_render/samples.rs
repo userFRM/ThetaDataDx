@@ -101,7 +101,7 @@ pub(super) fn decode_capture(
             count: i, vwap: f, date: i,
         ]),
         "EodTicks" => rows!(d::parse_eod_ticks(&table)?, [
-            ms_of_day: i, ms_of_day2: i, open: f, high: f, low: f, close: f,
+            created_ms_of_day: i, last_trade_ms_of_day: i, open: f, high: f, low: f, close: f,
             volume: i, count: i, bid_size: i, bid_exchange: i, bid: f,
             bid_condition: i, ask_size: i, ask_exchange: i, ask: f,
             ask_condition: i, date: i,

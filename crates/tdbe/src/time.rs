@@ -230,6 +230,50 @@ pub fn timestamp_to_date(epoch_ms: u64) -> i32 {
     (y as i32) * 10_000 + (m as i32) * 100 + (d as i32)
 }
 
+/// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
+/// Unix epoch milliseconds (UTC, DST-aware).
+///
+/// Inverse of the [`timestamp_to_date`] / [`timestamp_to_ms_of_day`]
+/// pair: for any market-data instant outside the overnight DST windows,
+/// `date_ms_to_epoch_ms(timestamp_to_date(e), timestamp_to_ms_of_day(e)) == Some(e)`.
+/// The Eastern offset is resolved with a two-pass fixed point (guess
+/// EST, re-resolve at the implied instant). Two overnight windows are
+/// inherently irregular and resolved deterministically: the fall-back
+/// 01:00-02:00 local hour occurs twice and resolves to the
+/// post-transition (EST) instant; the spring-forward 02:00-03:00 local
+/// hour does not exist and resolves as if EST. No US market session
+/// timestamps data in either window.
+///
+/// Returns `None` when `date` is not a valid Gregorian `YYYYMMDD` per
+/// [`is_valid_yyyymmdd`] (including the `0` absent-date fill on rows
+/// the server returned without a date column) or when `ms_of_day` is
+/// outside `0..86_400_000`. Storage stays integer everywhere — this is
+/// a read-side convenience for the epoch boundary only.
+// Reason: date components decompose from a validated YYYYMMDD; casts cannot truncate.
+#[allow(clippy::cast_sign_loss)]
+#[must_use]
+pub fn date_ms_to_epoch_ms(date: i32, ms_of_day: i32) -> Option<i64> {
+    if !is_valid_yyyymmdd(date) || !(0..86_400_000).contains(&ms_of_day) {
+        return None;
+    }
+    let year = date / 10_000;
+    let month = ((date / 100) % 100) as u32;
+    let day = (date % 100) as u32;
+    let local_ms = civil_to_epoch_days(year, month, day) * 86_400_000 + i64::from(ms_of_day);
+
+    // Two-pass offset resolution: assume EST, then re-resolve the
+    // offset at the implied UTC instant. Converges for every instant
+    // outside the 2 AM local transition window.
+    let est_guess = local_ms + 5 * 3_600 * 1_000;
+    // `eastern_offset_ms` takes epoch ms as u64; market-data dates are
+    // bounded to 1900..=2100 by the validator, but pre-1970 dates would
+    // go negative — clamp through max(0) for the offset probe only.
+    let offset = eastern_offset_ms(est_guess.max(0) as u64);
+    let epoch = local_ms - offset;
+    let offset = eastern_offset_ms(epoch.max(0) as u64);
+    Some(local_ms - offset)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,6 +349,46 @@ mod tests {
         let epoch_ms: u64 = 1_768_487_400_000; // Jan 15 2026, 14:30 UTC
         let date = timestamp_to_date(epoch_ms);
         assert_eq!(date, 20260115);
+    }
+
+    #[test]
+    fn date_ms_to_epoch_ms_round_trips_edt_and_est() {
+        // 2026-04-01 09:30:00 ET (EDT) and 2026-01-15 09:30:00 ET (EST).
+        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64] {
+            let date = timestamp_to_date(epoch_ms);
+            let ms = timestamp_to_ms_of_day(epoch_ms);
+            // Reason: market-data epochs fit i64.
+            #[allow(clippy::cast_possible_wrap)]
+            let expected = epoch_ms as i64;
+            assert_eq!(date_ms_to_epoch_ms(date, ms), Some(expected));
+        }
+    }
+
+    #[test]
+    fn date_ms_to_epoch_ms_rejects_absent_and_invalid_inputs() {
+        assert_eq!(date_ms_to_epoch_ms(0, 34_200_000), None);
+        assert_eq!(date_ms_to_epoch_ms(20260230, 0), None);
+        assert_eq!(date_ms_to_epoch_ms(20260401, -1), None);
+        assert_eq!(date_ms_to_epoch_ms(20260401, 86_400_000), None);
+    }
+
+    proptest! {
+        /// Round-trip invariant outside the overnight DST windows:
+        /// `date_ms_to_epoch_ms(timestamp_to_date(e), timestamp_to_ms_of_day(e)) == e`.
+        #[test]
+        fn date_ms_round_trip(epoch_ms in arbitrary_epoch_ms_2000_2099()) {
+            let ms = timestamp_to_ms_of_day(epoch_ms);
+            // Skip the overnight DST windows (fall-back 1-2 AM occurs
+            // twice, spring-forward 2-3 AM does not exist); resolution
+            // there is documented as deterministic-but-lossy and market
+            // data never carries those instants.
+            prop_assume!(ms >= 3 * 3_600_000);
+            let date = timestamp_to_date(epoch_ms);
+            // Reason: bounded strategy fits i64.
+            #[allow(clippy::cast_possible_wrap)]
+            let expected = epoch_ms as i64;
+            prop_assert_eq!(date_ms_to_epoch_ms(date, ms), Some(expected));
+        }
     }
 
     #[test]

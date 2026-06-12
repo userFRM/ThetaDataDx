@@ -60,12 +60,10 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-indexSnapshotPrice(
-  symbols: Array<string>, minTime?: string | Date, timeoutMs?: number,
-): Array<PriceTick>
+indexSnapshotPrice(symbols: Array<string>, options?: { ... }): Array<PriceTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `minTime?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 

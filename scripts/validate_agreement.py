@@ -78,10 +78,11 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    a producer that happens to see `date == 0` (no-data cell, pre-market
    snapshot) would false-diff against one that serializes the same
    cell as `null`.
-5. ms-shaped fields (`ms_of_day`, `ms_of_day2`, `quote_ms_of_day`,
-   `open_time`, `close_time`, `time`, `quote_time`, or ending in
-   `_time`): negative value -> `None`. Same reasoning -- every SDK
-   emits negative-ms sentinels as raw ints.
+5. ms-shaped fields (`ms_of_day`, `created_ms_of_day`,
+   `last_trade_ms_of_day`, `quote_ms_of_day`, `open_time`,
+   `close_time`, `time`, `quote_time`, or ending in `_time`):
+   negative value -> `None`. Same reasoning -- every SDK emits
+   negative-ms sentinels as raw ints.
 
 Empty-container rule
 --------------------
@@ -191,7 +192,8 @@ _DATE_FIELD_NAMES: frozenset[str] = frozenset({"date", "expiration"})
 _MS_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "ms_of_day",
-        "ms_of_day2",
+        "created_ms_of_day",
+        "last_trade_ms_of_day",
         "quote_ms_of_day",
         "open_time",
         "close_time",

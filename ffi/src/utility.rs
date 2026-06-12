@@ -289,6 +289,39 @@ pub extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64) -> i64 {
     tdbe::sequences::unsigned_to_signed(unsigned)
 }
 
+/// Look up the vendor vocabulary text for a `TdxCalendarDay.status`
+/// code (`0` -> `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`,
+/// `3` -> `"weekend"`).
+///
+/// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
+/// owned by the library and MUST NOT be freed. Returns the literal
+/// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
+/// boundary catches a panic — surfaced through `tdx_last_error()`.
+#[no_mangle]
+pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(
+            tdbe::CalendarStatus::from_code(code).map_or("UNKNOWN", tdbe::CalendarStatus::as_str),
+        )
+    })
+}
+
+/// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
+/// Unix epoch milliseconds (UTC, DST-aware). Mirrors the
+/// `*_timestamp_ms()` accessors the Rust / Python row surfaces expose,
+/// usable with any `(date, *_ms_of_day)` pair on the tick structs.
+///
+/// Returns `-1` when `date` is not a valid Gregorian `YYYYMMDD`
+/// (including the `0` absent fill) or `ms_of_day` is outside
+/// `0..86_400_000` — `-1` is unreachable for real market data (it
+/// denotes 1969-12-31T23:59:59.999Z).
+#[no_mangle]
+pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
+    ffi_boundary!(-1, {
+        tdbe::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
+    })
+}
+
 /// Convert a `&'static str` from the lookup tables into a stable
 /// `*const c_char` for FFI. The `tdbe` tables are compile-time arrays
 /// of NUL-free `&'static str`; we register one `CString` per distinct

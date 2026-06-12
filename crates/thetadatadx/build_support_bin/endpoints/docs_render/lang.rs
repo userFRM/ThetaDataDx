@@ -345,10 +345,7 @@ pub(super) fn typescript_signature(endpoint: &GeneratedEndpoint) -> String {
             }
         })
         .collect();
-    for p in &opts {
-        args.push(format!("{}?: {}", to_camel_case(&p.name), ts_param_type(p)));
-    }
-    args.push("timeoutMs?: number".into());
+    args.push("options?: { ... }".into());
 
     let mut sig = String::from("```typescript\n");
     let one_line = format!("{method}({}): {ret}", args.join(", "));
@@ -374,7 +371,17 @@ pub(super) fn typescript_signature(endpoint: &GeneratedEndpoint) -> String {
     }
     sig.push_str("\n```\n");
 
-    "".to_string() + &sig + "\nOptional parameters are positional; pass `undefined` to skip one.\n"
+    // Options-object key list: the camelCase optional parameter names
+    // plus the universal timeoutMs deadline key.
+    let mut keys: Vec<String> = opts
+        .iter()
+        .map(|p| format!("`{}?: {}`", to_camel_case(&p.name), ts_param_type(p)))
+        .collect();
+    keys.push("`timeoutMs?: number`".into());
+    format!(
+        "{sig}\nOptional parameters ride in a single trailing options object: {}.\n",
+        keys.join(", ")
+    )
 }
 
 pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
@@ -394,21 +401,21 @@ pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
         })
         .collect();
 
-    // Positional optionals: emit `undefined` placeholders up to the last
-    // showcased parameter so the call stays valid.
+    // Showcased optionals ride in the trailing options object under
+    // their camelCase keys.
     if !showcased.is_empty() {
-        let opts = builder_params(endpoint);
-        let last_idx = opts
+        let entries = showcased
             .iter()
-            .rposition(|p| showcased.iter().any(|s| s.name == p.name))
-            .unwrap();
-        for p in opts.iter().take(last_idx + 1) {
-            if showcased.iter().any(|s| s.name == p.name) {
-                args.push(format!("'{}'", sample_value(p, &endpoint.category)));
-            } else {
-                args.push("undefined".into());
-            }
-        }
+            .map(|p| {
+                format!(
+                    "{}: '{}'",
+                    to_camel_case(&p.name),
+                    sample_value(p, &endpoint.category)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        args.push(format!("{{ {entries} }}"));
     }
 
     let mut code = format!("const rows = tdx.{method}({});\n", args.join(", "));

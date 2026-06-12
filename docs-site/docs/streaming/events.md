@@ -138,7 +138,7 @@ Data events carry a resolved, typed contract — read identity straight off the 
 | `sec_type` | string | `STOCK` / `OPTION` / `INDEX` / `RATE`. |
 | `expiration` | int? | `YYYYMMDD`; options only. |
 | `right` | string? | `C` / `P`; options only. |
-| `strike_dollars` | float? | Strike in dollars; options only (Rust exposes `strike_dollars()`; the C ABI carries the wire integer — divide by 1000). |
+| `strike` | float? | Strike in dollars; options only — the same unit historical rows carry under the same name (Rust exposes `strike_dollars()` over the codec integer; the C ABI field is dollars). |
 
 ## Control events
 

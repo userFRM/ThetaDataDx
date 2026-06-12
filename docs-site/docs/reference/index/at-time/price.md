@@ -68,11 +68,11 @@ for t in rows:
 ```typescript
 indexAtTimePrice(
   symbol: string, startDate: string | Date, endDate: string | Date,
-  timeOfDay: string | Date, timeoutMs?: number,
+  timeOfDay: string | Date, options?: { ... },
 ): Array<IndexPriceAtTimeTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 

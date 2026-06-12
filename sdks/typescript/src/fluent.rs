@@ -17,6 +17,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use napi::Either;
 use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind};
 
 /// JS-visible `SecType` (frozen security-type enum). Construction
@@ -118,14 +119,20 @@ impl ContractRef {
     }
 
     /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
-    /// / `"P"` / `"PUT"` (case-insensitive).
+    /// / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
+    /// dollars and accepts a number or a string (`550`, `550.5`, and
+    /// `"550"` are equivalent).
     #[napi(factory)]
     pub fn option(
         symbol: String,
         expiration: String,
-        strike: String,
+        strike: Either<f64, String>,
         right: String,
     ) -> napi::Result<Self> {
+        let strike = match strike {
+            Either::A(dollars) => dollars.to_string(),
+            Either::B(text) => text,
+        };
         protocol::Contract::option(&symbol, &expiration, &strike, &right)
             .map(Self::from_inner)
             .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -165,16 +172,21 @@ impl ContractRef {
         format!("{:?}", self.inner.sec_type).to_uppercase()
     }
 
+    /// Expiration date as a `YYYYMMDD` integer; `null` for non-options.
     #[napi(getter)]
     pub fn expiration(&self) -> Option<i32> {
         self.inner.expiration
     }
 
+    /// Strike price in dollars; `null` for non-options. Reads back the
+    /// same notation `Contract.option(.., strike, ..)` takes, and joins
+    /// directly against historical-row `strike` columns.
     #[napi(getter)]
-    pub fn strike(&self) -> Option<i32> {
-        self.inner.strike
+    pub fn strike(&self) -> Option<f64> {
+        self.inner.strike_dollars()
     }
 
+    /// Option right (`"C"` / `"P"`); `null` for non-options.
     #[napi(getter)]
     pub fn right(&self) -> Option<String> {
         self.inner
@@ -227,6 +239,30 @@ impl Subscription {
     pub fn is_full(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         matches!(&*guard, protocol::Subscription::Full { .. })
+    }
+
+    /// The bound contract for per-contract subscriptions, `null` for
+    /// full-stream subscriptions.
+    #[napi(getter)]
+    pub fn contract(&self) -> Option<ContractRef> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &*guard {
+            protocol::Subscription::Contract { contract, .. } => {
+                Some(ContractRef::from_inner(contract.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    /// The security type for full-stream subscriptions, `null` for
+    /// per-contract subscriptions.
+    #[napi(getter, js_name = "secType")]
+    pub fn sec_type(&self) -> Option<SecType> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match &*guard {
+            protocol::Subscription::Full { sec_type, .. } => Some(SecType::from_inner(*sec_type)),
+            _ => None,
+        }
     }
 }
 

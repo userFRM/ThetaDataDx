@@ -18,7 +18,7 @@
 //!
 //! - The first three columns are the contract key the vendor prepends
 //!   to every row: `symbol` (Utf8), `expiration` (Int32, nullable for
-//!   stocks), `strike` (Int32, nullable for stocks), `right` (Utf8,
+//!   stocks), `strike` (Float64 dollars, nullable for stocks), `right` (Utf8,
 //!   nullable for stocks). Storing the right as a single-character
 //!   string instead of [`arrow_schema::DataType::Dictionary`] keeps the
 //!   schema portable across Python / TS / C++ Arrow IPC consumers.
@@ -93,7 +93,7 @@ pub fn rows_to_arrow(rows: &[FlatFileRow]) -> Result<RecordBatch, Error> {
 
     let mut symbol_builder = StringBuilder::with_capacity(rows.len(), rows.len() * 8);
     let mut expiration_builder = Int32Builder::with_capacity(rows.len());
-    let mut strike_builder = Int32Builder::with_capacity(rows.len());
+    let mut strike_builder = Float64Builder::with_capacity(rows.len());
     let mut right_builder = StringBuilder::with_capacity(rows.len(), rows.len());
 
     enum DataBuilder {
@@ -177,7 +177,7 @@ pub fn rows_to_arrow(rows: &[FlatFileRow]) -> Result<RecordBatch, Error> {
     let mut fields: Vec<Field> = Vec::with_capacity(column_count);
     fields.push(Field::new("symbol", DataType::Utf8, false));
     fields.push(Field::new("expiration", DataType::Int32, true));
-    fields.push(Field::new("strike", DataType::Int32, true));
+    fields.push(Field::new("strike", DataType::Float64, true));
     fields.push(Field::new("right", DataType::Utf8, true));
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(column_count);
@@ -208,7 +208,7 @@ mod tests {
     fn row(
         symbol: &str,
         expiration: Option<i32>,
-        strike: Option<i32>,
+        strike: Option<f64>,
         right: Option<char>,
         fields: Vec<(&str, FlatFileValue)>,
     ) -> FlatFileRow {
@@ -263,7 +263,7 @@ mod tests {
             row(
                 "SPY",
                 Some(20_260_516),
-                Some(450_000),
+                Some(450.0),
                 Some('C'),
                 vec![
                     ("ms_of_day", FlatFileValue::Int(34_200_000)),
@@ -274,7 +274,7 @@ mod tests {
             row(
                 "SPY",
                 Some(20_260_516),
-                Some(450_000),
+                Some(450.0),
                 Some('C'),
                 vec![
                     ("ms_of_day", FlatFileValue::Int(34_200_500)),

@@ -246,31 +246,15 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
+        // `strike` is the price in dollars — the same unit every other
+        // public surface speaks. The wire's fixed-point conversion is
+        // the SDK's job (`parse_strike_dollars` scales to thousandths
+        // internally before `Contract::option_raw`).
         let strike_val = contract_obj.get("strike").unwrap_or(&null_val);
-        let strike_i64 = match strike_val.as_i64() {
-            Some(v) => v,
-            None => {
-                tracing::warn!("WS subscribe: option strike missing or not an integer");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": "ERROR",
-                        "req_id": req_id,
-                        "error": "strike must be an integer",
-                    }
-                });
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        };
-        let strike = match i32::try_from(strike_i64) {
+        let strike = match parse_strike_dollars(strike_val.as_f64()) {
             Ok(v) => v,
-            Err(_) => {
-                tracing::warn!(
-                    strike = strike_i64,
-                    "WS subscribe: option strike out of i32 range"
-                );
-                let err_msg = format!("strike {strike_i64} exceeds i32 range");
+            Err(err_msg) => {
+                tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'strike'");
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
@@ -283,26 +267,6 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 return;
             }
         };
-        // Strike is an OPRA-encoded price (thousandths of a dollar). A
-        // non-positive value is never legal — zero is impossible and
-        // negatives would wrap to a garbage key in `Contract::option_raw`.
-        if strike <= 0 {
-            tracing::warn!(
-                strike = strike,
-                "WS subscribe: option strike must be positive"
-            );
-            let err_msg = format!("'strike' must be positive (got {strike})");
-            let resp = sonic_rs::json!({
-                "header": {
-                    "type": "REQ_RESPONSE",
-                    "response": "ERROR",
-                    "req_id": req_id,
-                    "error": err_msg.as_str(),
-                }
-            });
-            send_response(socket, &resp, "bad_request_reply").await;
-            return;
-        }
         let right_val = contract_obj.get("right").unwrap_or(&null_val);
         let sides = match parse_right_sides(right_val.as_str().map(str::trim)) {
             Ok(sides) => sides,
@@ -398,6 +362,34 @@ const ACCEPTED_REQ_TYPES: &[&str] = &[
     "FULL_TRADES",
     "FULL_OPEN_INTEREST",
 ];
+
+/// Parse the option `strike` field (dollars, JSON number) into the
+/// FPSS wire's fixed-point thousandths integer.
+///
+/// Accepts any positive finite number; rejects missing / non-numeric
+/// values, non-positive strikes, and values whose thousandths scaling
+/// leaves `i32`. Dollars are the only accepted unit — clients holding
+/// the wire integer divide by 1000 before subscribing.
+fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
+    let dollars = raw.ok_or_else(|| {
+        "'strike' must be a number in dollars (e.g. 550 or 550.5), got: <missing or non-numeric>"
+            .to_string()
+    })?;
+    if !dollars.is_finite() || dollars <= 0.0 {
+        return Err(format!(
+            "'strike' must be a positive number in dollars (got {dollars})"
+        ));
+    }
+    let scaled = (dollars * 1000.0).round();
+    if scaled > f64::from(i32::MAX) {
+        return Err(format!(
+            "'strike' {dollars} exceeds the representable range after fixed-point scaling"
+        ));
+    }
+    // Reason: bounds checked above; positivity checked above.
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(scaled as i32)
+}
 
 /// Parse the option `right` field into the contract sides to subscribe.
 ///

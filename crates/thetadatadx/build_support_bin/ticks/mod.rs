@@ -9,6 +9,7 @@ pub(super) mod schema;
 
 mod cli_headers;
 mod cpp;
+pub(super) mod idents;
 mod layout;
 mod python_arrow;
 pub(super) mod python_classes;

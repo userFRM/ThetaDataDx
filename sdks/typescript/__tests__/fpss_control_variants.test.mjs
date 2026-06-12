@@ -29,10 +29,9 @@ const CONTROL_VARIANTS = [
   { name: 'Disconnected',       kind: 'disconnected',         payload: 'disconnected',       fields: ['reason'] },
   { name: 'Reconnecting',       kind: 'reconnecting',         payload: 'reconnecting',       fields: ['reason', 'attempt', 'delayMs'] },
   { name: 'Reconnected',        kind: 'reconnected',          payload: 'reconnected',        fields: [] },
-  // `Error` collides with the global `Error` class -- napi-rs still
-  // emits `interface Error { message: string }` in the SDK module
-  // namespace because TS resolves named exports before global lookup.
-  { name: 'Error',              kind: 'error',                payload: 'error',              fields: ['message'] },
+  // Named `ParseError` so the SDK ships no interface that shadows the
+  // JS global `Error` class.
+  { name: 'ParseError',         kind: 'parse_error',          payload: 'parseError',         fields: ['message'] },
   { name: 'UnknownFrame',       kind: 'unknown_frame',        payload: 'unknownFrame',       fields: ['code', 'payload'] },
   { name: 'Connected',          kind: 'connected',            payload: 'connected',          fields: [] },
   { name: 'Ping',               kind: 'ping',                 payload: 'ping',               fields: ['payload'] },

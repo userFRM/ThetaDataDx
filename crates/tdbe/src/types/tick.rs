@@ -25,15 +25,15 @@ pub use crate::right::ParsedRight;
 macro_rules! impl_contract_id {
     ($ty:ident) => {
         impl $ty {
-            /// `true` when `right` decodes to `Call` (ASCII `'C'`).
+            /// `true` when `right` is `'C'` (call).
             #[inline]
             pub fn is_call(&self) -> bool {
-                ParsedRight::from_wire_byte(self.right) == Some(ParsedRight::Call)
+                self.right == 'C'
             }
-            /// `true` when `right` decodes to `Put` (ASCII `'P'`).
+            /// `true` when `right` is `'P'` (put).
             #[inline]
             pub fn is_put(&self) -> bool {
-                ParsedRight::from_wire_byte(self.right) == Some(ParsedRight::Put)
+                self.right == 'P'
             }
             /// `true` when the server populated contract identification fields.
             #[inline]
@@ -103,15 +103,15 @@ impl TradeTick {
 }
 
 impl OptionContract {
-    /// `true` when `right` decodes to `Call` (ASCII `'C'`).
+    /// `true` when `right` is `'C'` (call).
     #[inline]
     pub fn is_call(&self) -> bool {
-        ParsedRight::from_wire_byte(self.right) == Some(ParsedRight::Call)
+        self.right == 'C'
     }
-    /// `true` when `right` decodes to `Put` (ASCII `'P'`).
+    /// `true` when `right` is `'P'` (put).
     #[inline]
     pub fn is_put(&self) -> bool {
-        ParsedRight::from_wire_byte(self.right) == Some(ParsedRight::Put)
+        self.right == 'P'
     }
 }
 

@@ -71,16 +71,16 @@ for value in rows:
 ```typescript
 optionListDates(
   requestType: string, symbol: string, expiration: string | Date,
-  strike?: string, right?: string, timeoutMs?: number,
+  options?: { ... },
 ): Array<string>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionListDates('trade', 'SPY', '20250321', '570', 'C');
+const rows = tdx.optionListDates('trade', 'SPY', '20250321', { strike: '570', right: 'C' });
 for (const value of rows) {
   console.log(value);
 }

@@ -544,10 +544,14 @@ macro_rules! list_endpoint {
             ).await?;
             metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                 .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-            Ok(decode::extract_text_column(&table, $col)
-                .into_iter()
-                .flatten()
-                .collect())
+            // List returns are sorted ascending (numeric-aware for
+            // strike / date lists) — the wire order is unspecified.
+            Ok(decode::sorted_list_values(
+                decode::extract_text_column(&table, $col)
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            ))
         }
     };
 }

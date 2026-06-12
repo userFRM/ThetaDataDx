@@ -82,18 +82,16 @@ for t in rows:
 ```typescript
 optionHistoryQuote(
   symbol: string, expiration: string | Date, date: string | Date,
-  strike?: string, right?: string, interval?: string, startTime?: string | Date,
-  endTime?: string | Date, maxDTE?: number, strikeRange?: number,
-  startDate?: string | Date, endDate?: string | Date, timeoutMs?: number,
+  options?: { ... },
 ): Array<QuoteTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `interval?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `maxDTE?: number`, `strikeRange?: number`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryQuote('SPY', '20250321', '20250303', '570', 'C', '1m');
+const rows = tdx.optionHistoryQuote('SPY', '20250321', '20250303', { strike: '570', right: 'C', interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.bid, t.ask);
 }
@@ -184,5 +182,5 @@ Rows of `QuoteTick`:
 | `ask_condition` | i32 | Quote condition code on the ask side. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration`, `strike`, and `right` on every row to identify the contract; on single-contract requests these are 0.
+Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

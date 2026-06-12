@@ -111,7 +111,7 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
         sec_type: tdbe::types::enums::SecType::Unknown,
         expiration: None,
         is_call: None,
-        strike: None,
+        strike_thousandths: None,
     })
 }
 

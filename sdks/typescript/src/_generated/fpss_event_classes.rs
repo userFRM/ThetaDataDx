@@ -14,8 +14,9 @@
 /// event as `event.quote.contract` / `event.trade.contract` / etc.
 /// `secType` is the symbolic uppercase name (`"STOCK"` / `"OPTION"` /
 /// `"INDEX"` / `"RATE"`); `right` is `"C"` / `"P"` / `null`;
-/// `strikeDollars` is the option strike in dollars, while `strike` is
-/// the wire-level integer (thousandths of a dollar).
+/// `strike` is the option strike in dollars — the same unit historical
+/// rows carry under the same name, so streaming contracts join against
+/// historical data directly. `expiration` is a `YYYYMMDD` integer.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -24,8 +25,7 @@ pub struct Contract {
     pub sec_type: String,
     pub expiration: Option<i32>,
     pub right: Option<String>,
-    pub strike_dollars: Option<f64>,
-    pub strike: Option<i32>,
+    pub strike: Option<f64>,
 }
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
@@ -127,14 +127,6 @@ pub struct Disconnected {
     pub reason_name: String,
 }
 
-/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
-#[must_use]
-#[napi(object)]
-#[derive(Clone)]
-pub struct Error {
-    pub message: String,
-}
-
 /// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
 #[must_use]
 #[napi(object)]
@@ -154,6 +146,14 @@ pub struct MarketClose {}
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketOpen {}
+
+/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct ParseError {
+    pub message: String,
+}
 
 /// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
 #[must_use]
@@ -252,7 +252,7 @@ pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
+    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
     pub kind: &'static str,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
@@ -261,10 +261,10 @@ pub struct FpssEvent {
     pub connected: Option<Connected>,
     pub contract_assigned: Option<ContractAssigned>,
     pub disconnected: Option<Disconnected>,
-    pub error: Option<Error>,
     pub login_success: Option<LoginSuccess>,
     pub market_close: Option<MarketClose>,
     pub market_open: Option<MarketOpen>,
+    pub parse_error: Option<ParseError>,
     pub ping: Option<Ping>,
     pub reconnected: Option<Reconnected>,
     pub reconnected_server: Option<ReconnectedServer>,
@@ -287,10 +287,10 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         connected: None,
         contract_assigned: None,
         disconnected: None,
-        error: None,
         login_success: None,
         market_close: None,
         market_open: None,
+        parse_error: None,
         ping: None,
         reconnected: None,
         reconnected_server: None,
@@ -322,8 +322,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
-                    strike_dollars: contract.strike_dollars(),
-                    strike: contract.strike,
+                    strike: contract.strike_dollars(),
                 },
                 ms_of_day,
                 open,
@@ -350,8 +349,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
-                    strike_dollars: contract.strike_dollars(),
-                    strike: contract.strike,
+                    strike: contract.strike_dollars(),
                 },
                 ms_of_day,
                 open_interest,
@@ -380,8 +378,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
-                    strike_dollars: contract.strike_dollars(),
-                    strike: contract.strike,
+                    strike: contract.strike_dollars(),
                 },
                 ms_of_day,
                 bid_size,
@@ -422,8 +419,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
-                    strike_dollars: contract.strike_dollars(),
-                    strike: contract.strike,
+                    strike: contract.strike_dollars(),
                 },
                 ms_of_day,
                 sequence,
@@ -459,8 +455,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
-                    strike_dollars: contract.strike_dollars(),
-                    strike: contract.strike,
+                    strike: contract.strike_dollars(),
                 },
             });
         }
@@ -471,14 +466,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.disconnected = Some(Disconnected {
                 reason,
                 reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
-            });
-        }
-        BufferedEvent::Error {
-            message,
-        } => {
-            out.kind = "error";
-            out.error = Some(Error {
-                message,
             });
         }
         BufferedEvent::LoginSuccess {
@@ -496,6 +483,14 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         BufferedEvent::MarketOpen => {
             out.kind = "market_open";
             out.market_open = Some(MarketOpen {});
+        }
+        BufferedEvent::ParseError {
+            message,
+        } => {
+            out.kind = "parse_error";
+            out.parse_error = Some(ParseError {
+                message,
+            });
         }
         BufferedEvent::Ping {
             payload,

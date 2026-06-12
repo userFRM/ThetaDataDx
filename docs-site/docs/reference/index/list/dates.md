@@ -55,10 +55,10 @@ for value in rows:
 <template #typescript>
 
 ```typescript
-indexListDates(symbol: string, timeoutMs?: number): Array<string>
+indexListDates(symbol: string, options?: { ... }): Array<string>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `timeoutMs?: number`.
 
 **Example**
 

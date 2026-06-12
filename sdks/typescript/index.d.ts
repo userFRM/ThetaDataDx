@@ -428,9 +428,11 @@ export declare class ContractRef {
   static index(symbol: string): ContractRef
   /**
    * Construct an option contract. `right` accepts `"C"` / `"CALL"`
-   * / `"P"` / `"PUT"` (case-insensitive).
+   * / `"P"` / `"PUT"` (case-insensitive). `strike` is the price in
+   * dollars and accepts a number or a string (`550`, `550.5`, and
+   * `"550"` are equivalent).
    */
-  static option(symbol: string, expiration: string, strike: string, right: string): ContractRef
+  static option(symbol: string, expiration: string, strike: number | string, right: string): ContractRef
   /** Per-contract Quote subscription. */
   quote(): Subscription
   /** Per-contract Trade subscription. */
@@ -439,8 +441,15 @@ export declare class ContractRef {
   openInterest(): Subscription
   get symbol(): string
   get secType(): string
+  /** Expiration date as a `YYYYMMDD` integer; `null` for non-options. */
   get expiration(): number | null
+  /**
+   * Strike price in dollars; `null` for non-options. Reads back the
+   * same notation `Contract.option(.., strike, ..)` takes, and joins
+   * directly against historical-row `strike` columns.
+   */
   get strike(): number | null
+  /** Option right (`"C"` / `"P"`); `null` for non-options. */
   get right(): string | null
 }
 
@@ -535,6 +544,16 @@ export declare class Subscription {
   get kind(): string
   /** `true` for full-stream (security-type-scoped) subscriptions. */
   get isFull(): boolean
+  /**
+   * The bound contract for per-contract subscriptions, `null` for
+   * full-stream subscriptions.
+   */
+  get contract(): ContractRef | null
+  /**
+   * The security type for full-stream subscriptions, `null` for
+   * per-contract subscriptions.
+   */
+  get secType(): SecType | null
 }
 
 export declare class ThetaDataDxClient {
@@ -657,13 +676,13 @@ export declare class ThetaDataDxClient {
    *
    * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
    */
-  stockListSymbols(timeoutMs?: number | undefined | null): Array<string>
+  stockListSymbols(options?: StockListSymbolsOptions | undefined | null): Array<string>
   /**
    * List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
    *
    * Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
    */
-  stockListDates(requestType: string, symbol: string, timeoutMs?: number | undefined | null): Array<string>
+  stockListDates(requestType: string, symbol: string, options?: StockListDatesOptions | undefined | null): Array<string>
   /**
    * Get the latest OHLC snapshot for one or more stocks.
    *
@@ -675,7 +694,7 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockSnapshotOHLC(symbols: string | Array<string>, venue?: string | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  stockSnapshotOHLC(symbols: string | Array<string>, options?: StockSnapshotOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Get the latest trade snapshot for one or more stocks.
    *
@@ -686,7 +705,7 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockSnapshotTrade(symbols: string | Array<string>, venue?: string | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  stockSnapshotTrade(symbols: string | Array<string>, options?: StockSnapshotTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Get the latest NBBO quote snapshot for one or more stocks.
    *
@@ -697,7 +716,7 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockSnapshotQuote(symbols: string | Array<string>, venue?: string | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  stockSnapshotQuote(symbols: string | Array<string>, options?: StockSnapshotQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * Get the latest market value snapshot for one or more stocks.
    *
@@ -708,13 +727,13 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockSnapshotMarketValue(symbols: string | Array<string>, venue?: string | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
+  stockSnapshotMarketValue(symbols: string | Array<string>, options?: StockSnapshotMarketValueOptions | undefined | null): Array<MarketValueTick>
   /**
    * Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
    *
    * Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
    */
-  stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, timeoutMs?: number | undefined | null): Array<EodTick>
+  stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryEodOptions | undefined | null): Array<EodTick>
   /**
    * Fetch intraday OHLC bars for a stock on a single date.
    *
@@ -728,7 +747,7 @@ export declare class ThetaDataDxClient {
    * - `end_time`: `"16:00:00"`
    * - `venue`: `"nqb"`
    */
-  stockHistoryOHLC(symbol: string, date: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, venue?: string | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  stockHistoryOHLC(symbol: string, date: string | Date, options?: StockHistoryOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Fetch all trades for a stock on a given date.
    *
@@ -740,7 +759,7 @@ export declare class ThetaDataDxClient {
    * - `end_time`: `"16:00:00"`
    * - `venue`: `"nqb"`
    */
-  stockHistoryTrade(symbol: string, date: string | Date, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, venue?: string | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  stockHistoryTrade(symbol: string, date: string | Date, options?: StockHistoryTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Fetch NBBO quotes for a stock on a given date at a given interval.
    *
@@ -755,7 +774,7 @@ export declare class ThetaDataDxClient {
    * - `end_time`: `"16:00:00"`
    * - `venue`: `"nqb"`
    */
-  stockHistoryQuote(symbol: string, date: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, venue?: string | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  stockHistoryQuote(symbol: string, date: string | Date, options?: StockHistoryQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
    *
@@ -768,7 +787,7 @@ export declare class ThetaDataDxClient {
    * - `exclusive`: `true`
    * - `venue`: `"nqb"`
    */
-  stockHistoryTradeQuote(symbol: string, date: string | Date, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, exclusive?: boolean | undefined | null, venue?: string | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeQuoteTick>
+  stockHistoryTradeQuote(symbol: string, date: string | Date, options?: StockHistoryTradeQuoteOptions | undefined | null): Array<TradeQuoteTick>
   /**
    * Fetch the trade at a specific time of day across a date range.
    *
@@ -783,7 +802,7 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockAtTimeTrade(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  stockAtTimeTrade(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Fetch the quote at a specific time of day across a date range.
    *
@@ -798,13 +817,13 @@ export declare class ThetaDataDxClient {
    * Defaults (upstream):
    * - `venue`: `"nqb"`
    */
-  stockAtTimeQuote(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  stockAtTimeQuote(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * List all available option underlying symbols.
    *
    * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
    */
-  optionListSymbols(timeoutMs?: number | undefined | null): Array<string>
+  optionListSymbols(options?: OptionListSymbolsOptions | undefined | null): Array<string>
   /**
    * List available dates for an option contract by request type.
    *
@@ -815,21 +834,21 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionListDates(requestType: string, symbol: string, expiration: string | Date, timeoutMs?: number | undefined | null): Array<string>
+  optionListDates(requestType: string, symbol: string, expiration: string | Date, options?: OptionListDatesOptions | undefined | null): Array<string>
   /**
    * List available expiration dates for an option underlying.
    *
    * Lists all dates of expirations that are available for an option with a given symbol.
    * This endpoint is updated overnight.
    */
-  optionListExpirations(symbol: string, timeoutMs?: number | undefined | null): Array<string>
+  optionListExpirations(symbol: string, options?: OptionListExpirationsOptions | undefined | null): Array<string>
   /**
    * List available strike prices for an option at a given expiration.
    *
    * Lists all strikes that are available for an option with a given symbol and expiration date.
    * This endpoint is updated overnight.
    */
-  optionListStrikes(symbol: string, expiration: string | Date, timeoutMs?: number | undefined | null): Array<string>
+  optionListStrikes(symbol: string, expiration: string | Date, options?: OptionListStrikesOptions | undefined | null): Array<string>
   /**
    * List all option contracts for a symbol on a given date.
    *
@@ -839,7 +858,7 @@ export declare class ThetaDataDxClient {
    * Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
    * This endpoint is updated real-time.
    */
-  optionListContracts(requestType: string, symbol: string, date: string | Date, maxDte?: number | undefined | null, timeoutMs?: number | undefined | null): Array<OptionContract>
+  optionListContracts(requestType: string, symbol: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Array<OptionContract>
   /**
    * Get the latest OHLC snapshot for an option contract.
    *
@@ -850,7 +869,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionSnapshotOHLC(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  optionSnapshotOHLC(symbol: string, expiration: string | Date, options?: OptionSnapshotOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Get the latest trade snapshot for an option contract.
    *
@@ -862,7 +881,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionSnapshotTrade(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  optionSnapshotTrade(symbol: string, expiration: string | Date, options?: OptionSnapshotTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Get the latest NBBO quote snapshot for an option contract.
    *
@@ -874,7 +893,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionSnapshotQuote(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  optionSnapshotQuote(symbol: string, expiration: string | Date, options?: OptionSnapshotQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * Get the latest open interest snapshot for an option contract.
    *
@@ -887,7 +906,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionSnapshotOpenInterest(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OpenInterestTick>
+  optionSnapshotOpenInterest(symbol: string, expiration: string | Date, options?: OptionSnapshotOpenInterestOptions | undefined | null): Array<OpenInterestTick>
   /**
    * Get the latest market value snapshot for an option contract.
    *
@@ -897,7 +916,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionSnapshotMarketValue(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
+  optionSnapshotMarketValue(symbol: string, expiration: string | Date, options?: OptionSnapshotMarketValueOptions | undefined | null): Array<MarketValueTick>
   /**
    * Get implied volatility snapshot for an option contract (from ThetaData server).
    *
@@ -913,7 +932,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<IvTick>
+  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksImpliedVolatilityOptions | undefined | null): Array<IvTick>
   /**
    * Get all Greeks snapshot for an option contract (from ThetaData server).
    *
@@ -929,7 +948,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
+  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksAllOptions | undefined | null): Array<GreeksAllTick>
   /**
    * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
    *
@@ -945,7 +964,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksFirstOrderTick>
+  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Array<GreeksFirstOrderTick>
   /**
    * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
@@ -961,7 +980,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksSecondOrderTick>
+  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Array<GreeksSecondOrderTick>
   /**
    * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
    *
@@ -977,7 +996,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksThirdOrderTick>
+  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Array<GreeksThirdOrderTick>
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
@@ -990,7 +1009,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionHistoryEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<EodTick>
+  optionHistoryEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryEodOptions | undefined | null): Array<EodTick>
   /**
    * Fetch intraday OHLC bars for an option contract.
    *
@@ -1005,7 +1024,7 @@ export declare class ThetaDataDxClient {
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
    */
-  optionHistoryOHLC(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  optionHistoryOHLC(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Fetch all trades for an option contract on a given date.
    *
@@ -1020,7 +1039,7 @@ export declare class ThetaDataDxClient {
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
    */
-  optionHistoryTrade(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  optionHistoryTrade(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Fetch NBBO quotes for an option contract on a given date.
    *
@@ -1035,7 +1054,7 @@ export declare class ThetaDataDxClient {
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
    */
-  optionHistoryQuote(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  optionHistoryQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * Fetch combined trade + quote ticks for an option contract.
    *
@@ -1051,7 +1070,7 @@ export declare class ThetaDataDxClient {
    * - `end_time`: `"16:00:00"`
    * - `exclusive`: `true`
    */
-  optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, exclusive?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeQuoteTick>
+  optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeQuoteOptions | undefined | null): Array<TradeQuoteTick>
   /**
    * Fetch open interest history for an option contract.
    *
@@ -1063,7 +1082,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionHistoryOpenInterest(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OpenInterestTick>
+  optionHistoryOpenInterest(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOpenInterestOptions | undefined | null): Array<OpenInterestTick>
   /**
    * Fetch end-of-day Greeks history for an option contract.
    *
@@ -1078,7 +1097,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
    */
-  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksEodTick>
+  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryGreeksEodOptions | undefined | null): Array<GreeksEodTick>
   /**
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
@@ -1096,7 +1115,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
+  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksAllOptions | undefined | null): Array<GreeksAllTick>
   /**
    * Fetch all Greeks on each trade for an option contract.
    *
@@ -1113,7 +1132,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeGreeksAllTick>
+  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Array<TradeGreeksAllTick>
   /**
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
@@ -1131,7 +1150,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksFirstOrderTick>
+  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksFirstOrderOptions | undefined | null): Array<GreeksFirstOrderTick>
   /**
    * Fetch first-order Greeks on each trade for an option contract.
    *
@@ -1148,7 +1167,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeGreeksFirstOrderTick>
+  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Array<TradeGreeksFirstOrderTick>
   /**
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
@@ -1166,7 +1185,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksSecondOrderTick>
+  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksSecondOrderOptions | undefined | null): Array<GreeksSecondOrderTick>
   /**
    * Fetch second-order Greeks on each trade for an option contract.
    *
@@ -1183,7 +1202,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeGreeksSecondOrderTick>
+  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Array<TradeGreeksSecondOrderTick>
   /**
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
@@ -1201,7 +1220,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksThirdOrderTick>
+  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksThirdOrderOptions | undefined | null): Array<GreeksThirdOrderTick>
   /**
    * Fetch third-order Greeks on each trade for an option contract.
    *
@@ -1218,7 +1237,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeGreeksThirdOrderTick>
+  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Array<TradeGreeksThirdOrderTick>
   /**
    * Fetch implied volatility history (intraday, sampled by interval).
    *
@@ -1235,7 +1254,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<IvTick>
+  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksImpliedVolatilityOptions | undefined | null): Array<IvTick>
   /**
    * Fetch implied volatility on each trade for an option contract.
    *
@@ -1251,7 +1270,7 @@ export declare class ThetaDataDxClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<TradeGreeksImpliedVolatilityTick>
+  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null): Array<TradeGreeksImpliedVolatilityTick>
   /**
    * Fetch the trade at a specific time of day across a date range for an option.
    *
@@ -1264,7 +1283,7 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionAtTimeTrade(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
+  optionAtTimeTrade(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeTradeOptions | undefined | null): Array<TradeTick>
   /**
    * Fetch the quote at a specific time of day across a date range for an option.
    *
@@ -1275,46 +1294,46 @@ export declare class ThetaDataDxClient {
    * - `strike`: `"*"`
    * - `right`: `"both"`
    */
-  optionAtTimeQuote(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, strike?: string | undefined | null, right?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
+  optionAtTimeQuote(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeQuoteOptions | undefined | null): Array<QuoteTick>
   /**
    * List all available index symbols.
    *
    * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
    */
-  indexListSymbols(timeoutMs?: number | undefined | null): Array<string>
+  indexListSymbols(options?: IndexListSymbolsOptions | undefined | null): Array<string>
   /**
    * List available dates for an index symbol.
    *
    * Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
    */
-  indexListDates(symbol: string, timeoutMs?: number | undefined | null): Array<string>
+  indexListDates(symbol: string, options?: IndexListDatesOptions | undefined | null): Array<string>
   /**
    * Get the latest OHLC snapshot for one or more indices.
    *
    * - Retrieves the real-time current day OHLC.
    * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
    */
-  indexSnapshotOHLC(symbols: string | Array<string>, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Get the latest price snapshot for one or more indices.
    *
    * - Retrieves a real-time last index price.
    * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
    */
-  indexSnapshotPrice(symbols: string | Array<string>, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<PriceTick>
+  indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Array<PriceTick>
   /**
    * Get the latest market value snapshot for one or more indices.
    *
    * - Retrieves a real-time last index market value.
    * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
    */
-  indexSnapshotMarketValue(symbols: string | Array<string>, minTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
+  indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Array<MarketValueTick>
   /**
    * Fetch end-of-day index data for a date range.
    *
    * - Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
    */
-  indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, timeoutMs?: number | undefined | null): Array<EodTick>
+  indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryEodOptions | undefined | null): Array<EodTick>
   /**
    * Fetch intraday OHLC bars for an index.
    *
@@ -1327,7 +1346,7 @@ export declare class ThetaDataDxClient {
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
    */
-  indexHistoryOHLC(symbol: string, startDate: string | Date, endDate: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  indexHistoryOHLC(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryOhlcOptions | undefined | null): Array<OhlcTick>
   /**
    * Fetch intraday price history for an index.
    *
@@ -1341,14 +1360,14 @@ export declare class ThetaDataDxClient {
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
    */
-  indexHistoryPrice(symbol: string, date: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<PriceTick>
+  indexHistoryPrice(symbol: string, date: string | Date, options?: IndexHistoryPriceOptions | undefined | null): Array<PriceTick>
   /**
    * Fetch the index price at a specific time of day across a date range.
    *
    * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
    * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
    */
-  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, timeoutMs?: number | undefined | null): Array<IndexPriceAtTimeTick>
+  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: IndexAtTimePriceOptions | undefined | null): Array<IndexPriceAtTimeTick>
   /**
    * Check whether the market is open today.
    *
@@ -1356,7 +1375,7 @@ export declare class ThetaDataDxClient {
    * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
    * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
    */
-  calendarOpenToday(timeoutMs?: number | undefined | null): Array<CalendarDay>
+  calendarOpenToday(options?: CalendarOpenTodayOptions | undefined | null): Array<CalendarDay>
   /**
    * Get calendar information for a specific date.
    *
@@ -1365,7 +1384,7 @@ export declare class ThetaDataDxClient {
    * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
    * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
    */
-  calendarOnDate(date: string | Date, timeoutMs?: number | undefined | null): Array<CalendarDay>
+  calendarOnDate(date: string | Date, options?: CalendarOnDateOptions | undefined | null): Array<CalendarDay>
   /**
    * Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
    *
@@ -1374,7 +1393,7 @@ export declare class ThetaDataDxClient {
    * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
    * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
    */
-  calendarYear(year: string, timeoutMs?: number | undefined | null): Array<CalendarDay>
+  calendarYear(year: string, options?: CalendarYearOptions | undefined | null): Array<CalendarDay>
   /**
    * Fetch end-of-day interest rate history.
    *
@@ -1384,7 +1403,7 @@ export declare class ThetaDataDxClient {
    *   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
    *   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
    */
-  interestRateHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, timeoutMs?: number | undefined | null): Array<InterestRateTick>
+  interestRateHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: InterestRateHistoryEodOptions | undefined | null): Array<InterestRateTick>
   /**
    * Fetch intraday OHLC bars across a date range.
    *
@@ -1394,7 +1413,7 @@ export declare class ThetaDataDxClient {
    * - `end_time`: `"16:00:00"`
    * - `venue`: `"nqb"`
    */
-  stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
+  stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryOhlcRangeOptions | undefined | null): Array<OhlcTick>
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
@@ -1530,10 +1549,40 @@ export declare class Util {
 /** Calendar day. Market open/close schedule. */
 export interface CalendarDay {
   date: number
-  isOpen: number
+  isOpen: boolean
   openTime: number
   closeTime: number
-  status: number
+  status: string
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::calendarOnDate`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface CalendarOnDateOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::calendarOpenToday`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface CalendarOpenTodayOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::calendarYear`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface CalendarYearOptions {
+  timeoutMs?: number
 }
 
 /** FPSS server connection ack (wire code 4, `StreamMsgType::Connected`). Mirrors `FpssControl::Connected`. Carries no payload. */
@@ -1546,15 +1595,15 @@ export interface Connected {
  * event as `event.quote.contract` / `event.trade.contract` / etc.
  * `secType` is the symbolic uppercase name (`"STOCK"` / `"OPTION"` /
  * `"INDEX"` / `"RATE"`); `right` is `"C"` / `"P"` / `null`;
- * `strikeDollars` is the option strike in dollars, while `strike` is
- * the wire-level integer (thousandths of a dollar).
+ * `strike` is the option strike in dollars — the same unit historical
+ * rows carry under the same name, so streaming contracts join against
+ * historical data directly. `expiration` is a `YYYYMMDD` integer.
  */
 export interface Contract {
   symbol: string
   secType: string
   expiration?: number
   right?: string
-  strikeDollars?: number
   strike?: number
 }
 
@@ -1577,8 +1626,8 @@ export interface Disconnected {
 
 /** End-of-day tick. Full EOD snapshot with OHLC + quote. */
 export interface EodTick {
-  msOfDay: number
-  msOfDay2: number
+  createdMsOfDay: number
+  lastTradeMsOfDay: number
   open: number
   high: number
   low: number
@@ -1594,14 +1643,9 @@ export interface EodTick {
   ask: number
   askCondition: number
   date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
-/** FPSS protocol-level parse error. Mirrors `FpssControl::Error`. */
-export interface Error {
-  message: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /**
@@ -1617,7 +1661,7 @@ export interface FpssEvent {
    * Narrowed to a literal union in TS so `switch (event.kind)`
    * correctly narrows the optional payload fields.
    */
-  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
+  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest
   quote?: Quote
@@ -1625,10 +1669,10 @@ export interface FpssEvent {
   connected?: Connected
   contractAssigned?: ContractAssigned
   disconnected?: Disconnected
-  error?: Error
   loginSuccess?: LoginSuccess
   marketClose?: MarketClose
   marketOpen?: MarketOpen
+  parseError?: ParseError
   ping?: Ping
   reconnected?: Reconnected
   reconnectedServer?: ReconnectedServer
@@ -1671,9 +1715,9 @@ export interface GreeksAllTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
@@ -1718,9 +1762,9 @@ export interface GreeksEodTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** First-order Greeks tick -- the strict column subset emitted by the */
@@ -1739,9 +1783,9 @@ export interface GreeksFirstOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Second-order Greeks tick -- the strict column subset emitted by the */
@@ -1759,9 +1803,9 @@ export interface GreeksSecondOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Third-order Greeks tick -- the strict column subset emitted by the */
@@ -1778,9 +1822,77 @@ export interface GreeksThirdOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexAtTimePrice`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexAtTimePriceOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexHistoryEOD`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexHistoryEodOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexHistoryOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexHistoryOhlcOptions {
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexHistoryPrice`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexHistoryPriceOptions {
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexListDates`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexListDatesOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexListSymbols`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexListSymbolsOptions {
+  timeoutMs?: number
 }
 
 /** Index price-at-time tick -- the trade-shaped row the v3 server */
@@ -1796,6 +1908,49 @@ export interface IndexPriceAtTimeTick {
   exchange: number
   price: number
   date: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexSnapshotMarketValue`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexSnapshotMarketValueOptions {
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexSnapshotOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexSnapshotOhlcOptions {
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::indexSnapshotPrice`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface IndexSnapshotPriceOptions {
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::interestRateHistoryEOD`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface InterestRateHistoryEodOptions {
+  timeoutMs?: number
 }
 
 /** Interest rate tick. End-of-day interest rate (percent). */
@@ -1835,9 +1990,9 @@ export interface IvTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate). */
@@ -1862,9 +2017,9 @@ export interface MarketValueTick {
   marketAsk: number
   marketPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
@@ -1878,9 +2033,9 @@ export interface OhlcTick {
   count: bigint
   vwap: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
@@ -1911,9 +2066,37 @@ export interface OpenInterestTick {
   msOfDay: number
   openInterest: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionAtTimeQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionAtTimeQuoteOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionAtTimeTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionAtTimeTradeOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  timeoutMs?: number
 }
 
 /** Option contract. Contract specification. */
@@ -1922,6 +2105,584 @@ export interface OptionContract {
   expiration: number
   strike: number
   right: string
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryEOD`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryEodOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksAll`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksAllOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksEOD`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksEodOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  underlyerUseNbbo?: boolean
+  maxDte?: number
+  strikeRange?: number
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksFirstOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksFirstOrderOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksImpliedVolatility`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksImpliedVolatilityOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksSecondOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksSecondOrderOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryGreeksThirdOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryGreeksThirdOrderOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryOhlcOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryOpenInterest`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryOpenInterestOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryQuoteOptions {
+  strike?: string
+  right?: string
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksAll`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeGreeksAllOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksFirstOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeGreeksFirstOrderOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksImpliedVolatility`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksSecondOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeGreeksSecondOrderOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeGreeksThirdOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeGreeksThirdOrderOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionHistoryTradeQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionHistoryTradeQuoteOptions {
+  strike?: string
+  right?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  exclusive?: boolean
+  maxDte?: number
+  strikeRange?: number
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionListContracts`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionListContractsOptions {
+  maxDte?: number
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionListDates`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionListDatesOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionListExpirations`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionListExpirationsOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionListStrikes`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionListStrikesOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionListSymbols`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionListSymbolsOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksAll`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotGreeksAllOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  stockPrice?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  useMarketValue?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksFirstOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotGreeksFirstOrderOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  stockPrice?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  useMarketValue?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksImpliedVolatility`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotGreeksImpliedVolatilityOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  stockPrice?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  useMarketValue?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksSecondOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotGreeksSecondOrderOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  stockPrice?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  useMarketValue?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotGreeksThirdOrder`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotGreeksThirdOrderOptions {
+  strike?: string
+  right?: string
+  annualDividend?: number
+  rateType?: string
+  rateValue?: number
+  stockPrice?: number
+  version?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  useMarketValue?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotMarketValue`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotMarketValueOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotOhlcOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotOpenInterest`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotOpenInterestOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotQuoteOptions {
+  strike?: string
+  right?: string
+  maxDte?: number
+  strikeRange?: number
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::optionSnapshotTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface OptionSnapshotTradeOptions {
+  strike?: string
+  right?: string
+  strikeRange?: number
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/** FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`). */
+export interface ParseError {
+  message: string
 }
 
 /** FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
@@ -1965,9 +2726,9 @@ export interface QuoteTick {
   askCondition: number
   date: number
   midpoint: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 export declare const enum RateType {
@@ -2061,6 +2822,183 @@ export interface ServerError {
 }
 
 /**
+ * Optional parameters for [`ThetaDataDxClient::stockAtTimeQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockAtTimeQuoteOptions {
+  venue?: string
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockAtTimeTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockAtTimeTradeOptions {
+  venue?: string
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryEOD`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryEodOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryOhlcOptions {
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  venue?: string
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryOHLCRange`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryOhlcRangeOptions {
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  venue?: string
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryQuoteOptions {
+  interval?: string
+  startTime?: string | Date
+  endTime?: string | Date
+  venue?: string
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryTradeOptions {
+  startTime?: string | Date
+  endTime?: string | Date
+  venue?: string
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockHistoryTradeQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockHistoryTradeQuoteOptions {
+  startTime?: string | Date
+  endTime?: string | Date
+  exclusive?: boolean
+  venue?: string
+  startDate?: string | Date
+  endDate?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockListDates`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockListDatesOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockListSymbols`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockListSymbolsOptions {
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockSnapshotMarketValue`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockSnapshotMarketValueOptions {
+  venue?: string
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockSnapshotOHLC`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockSnapshotOhlcOptions {
+  venue?: string
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockSnapshotQuote`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockSnapshotQuoteOptions {
+  venue?: string
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for [`ThetaDataDxClient::stockSnapshotTrade`]. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry a
+ * JS error is thrown and the underlying stream is cancelled.
+ */
+export interface StockSnapshotTradeOptions {
+  venue?: string
+  minTime?: string | Date
+  timeoutMs?: number
+}
+
+/**
  * `(has_value, n)` shape mirroring the FFI
  * `tdx_config_get_tokio_worker_threads` out-params and the Python
  * `Option<usize>` return — `has_value=false` encodes the `None`
@@ -2131,9 +3069,9 @@ export interface TradeGreeksAllTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
@@ -2159,9 +3097,9 @@ export interface TradeGreeksFirstOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Per-trade implied-volatility tick (single `implied_volatility` + */
@@ -2181,9 +3119,9 @@ export interface TradeGreeksImpliedVolatilityTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
@@ -2208,9 +3146,9 @@ export interface TradeGreeksSecondOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
@@ -2234,9 +3172,9 @@ export interface TradeGreeksThirdOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Combined trade + quote tick. */
@@ -2265,9 +3203,9 @@ export interface TradeQuoteTick {
   ask: number
   askCondition: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** Trade tick. Core unit of trade data. */
@@ -2287,9 +3225,9 @@ export interface TradeTick {
   volumeType: number
   recordsBack: number
   date: number
-  expiration: number
-  strike: number
-  right: string
+  expiration?: number
+  strike?: number
+  right?: string
 }
 
 /** FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */

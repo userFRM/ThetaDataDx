@@ -250,7 +250,7 @@ std::vector<OptionContract> Client::option_list_contracts(const std::string& req
         c.symbol = arr.data[i].symbol ? std::string(arr.data[i].symbol) : "";
         c.expiration = arr.data[i].expiration;
         c.strike = arr.data[i].strike;
-        c.right = arr.data[i].right;
+        c.right = static_cast<char>(arr.data[i].right);
         result.push_back(std::move(c));
     }
     tdx_option_contract_array_free(arr);

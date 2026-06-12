@@ -98,7 +98,7 @@ struct OptionContract {
     std::string symbol;
     int32_t expiration;
     double strike;
-    int32_t right;
+    char right;
 };
 
 /// Active FPSS subscription descriptor.
@@ -1054,7 +1054,7 @@ using FpssOhlcvc = TdxFpssOhlcvc;
 using FpssConnected = TdxFpssConnected;
 using FpssContractAssigned = TdxFpssContractAssigned;
 using FpssDisconnected = TdxFpssDisconnected;
-using FpssError = TdxFpssError;
+using FpssParseError = TdxFpssParseError;
 using FpssLoginSuccess = TdxFpssLoginSuccess;
 using FpssMarketClose = TdxFpssMarketClose;
 using FpssMarketOpen = TdxFpssMarketOpen;
@@ -2129,23 +2129,22 @@ inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
 // ── Fluent accessors over the C-ABI event structs ────────────────────
 //
 // C++ users get the same fluent surface Python and TypeScript see —
-// `strike_dollars`, the option side as a `char`, `sec_type` as a
+// the strike in dollars, the option side as a `char`, `sec_type` as a
 // symbolic uppercase name, and `reason_name` for `RemoveReason`
-// values — without us widening the wire `#[repr(C)]` structs (which
-// would break ABI parity with the Rust mirror). These inline helpers
-// take the C struct by reference and return the same shape Python /
-// TypeScript bindings expose as fields.
+// values. These inline helpers take the C struct by reference and
+// return the same shape Python / TypeScript bindings expose as fields.
 
 /// Strike price in dollars. Returns `std::nullopt` for non-option
-/// contracts. The wire field is an `int32_t` in thousandths of a
-/// dollar (`5_400_000` for a `$5,400.00` strike); this divides by
-/// `1000.0` so user code reads the dollar notation it writes when
-/// calling `tdx::Contract::option(symbol, expiration, strike, right)`.
-inline std::optional<double> strike_dollars(const TdxContract& c) noexcept {
+/// contracts. `TdxContract.strike` already carries dollars — this
+/// helper only folds the `has_strike` presence flag into
+/// `std::optional`, so user code reads the dollar notation it writes
+/// when calling `tdx::Contract::option(symbol, expiration, strike,
+/// right)`.
+inline std::optional<double> strike(const TdxContract& c) noexcept {
     if (!c.has_strike) {
         return std::nullopt;
     }
-    return static_cast<double>(c.strike) / 1000.0;
+    return c.strike;
 }
 
 /// Option side as a single-character ASCII byte (`'C'` / `'P'`).
@@ -2156,6 +2155,26 @@ inline std::optional<char> right(const TdxContract& c) noexcept {
         return std::nullopt;
     }
     return c.right;
+}
+
+/// Vendor vocabulary text for a `TdxCalendarDay.status` code
+/// (`"open"` / `"early_close"` / `"full_close"` / `"weekend"`;
+/// `"UNKNOWN"` otherwise). 'static lifetime — never freed.
+inline std::string_view calendar_status_name(int32_t status) noexcept {
+    return tdx_calendar_status_name(status);
+}
+
+/// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
+/// into Unix epoch milliseconds (UTC, DST-aware). Usable with any
+/// `(date, *_ms_of_day)` pair on the tick structs. Returns
+/// `std::nullopt` when `date` is absent (`0`) or either input is out
+/// of domain — mirrors the Rust / Python `*_timestamp_ms()` accessors.
+inline std::optional<int64_t> timestamp_ms(int32_t date, int32_t ms_of_day) noexcept {
+    const int64_t epoch = tdx_timestamp_ms(date, ms_of_day);
+    if (epoch < 0) {
+        return std::nullopt;
+    }
+    return epoch;
 }
 
 /// Security type as a symbolic uppercase name (`"STOCK"` /

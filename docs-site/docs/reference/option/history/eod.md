@@ -81,17 +81,16 @@ for t in rows:
 ```typescript
 optionHistoryEOD(
   symbol: string, expiration: string | Date, startDate: string | Date,
-  endDate: string | Date, strike?: string, right?: string, maxDTE?: number,
-  strikeRange?: number, timeoutMs?: number,
+  endDate: string | Date, options?: { ... },
 ): Array<EodTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `maxDTE?: number`, `strikeRange?: number`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', '570', 'C');
+const rows = tdx.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }
@@ -168,12 +167,12 @@ Rows of `EodTick`:
 
 | Field | Type | Description |
 |---|---|---|
-| `ms_of_day` | i32 | EOD report creation time, milliseconds since midnight ET. |
-| `ms_of_day2` | i32 | Time of the last trade, milliseconds since midnight ET. |
-| `open` | f64 | Opening trade price. |
-| `high` | f64 | Highest traded price. |
-| `low` | f64 | Lowest traded price. |
-| `close` | f64 | Closing traded price. |
+| `created_ms_of_day` | i32 | EOD report creation time (NOT a trade time), milliseconds since midnight ET. |
+| `last_trade_ms_of_day` | i32 | Time of the day's last trade, milliseconds since midnight ET. 0 when no trades printed that day. |
+| `open` | f64 | Opening trade price. 0.0 when no trades printed that day. |
+| `high` | f64 | Highest traded price. 0.0 when no trades printed that day. |
+| `low` | f64 | Lowest traded price. 0.0 when no trades printed that day. |
+| `close` | f64 | Closing traded price. 0.0 when no trades printed that day. |
 | `volume` | i64 | Number of contracts or shares traded. |
 | `count` | i64 | Number of trades. |
 | `bid_size` | i32 | Last NBBO bid size. |
@@ -186,5 +185,5 @@ Rows of `EodTick`:
 | `ask_condition` | i32 | Quote condition code on the ask side. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration`, `strike`, and `right` on every row to identify the contract; on single-contract requests these are 0.
+Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

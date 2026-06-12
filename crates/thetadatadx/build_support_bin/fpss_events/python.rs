@@ -21,11 +21,12 @@ use super::schema::{sorted_event_names, ColumnDef, EventDef, Schema};
 fn render_contract_pyclass() -> &'static str {
     "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
 /// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic\n\
-/// string, e.g. `\"STOCK\"` / `\"OPTION\"`), `expiration`,\n\
-/// `right` (`\"C\"` / `\"P\"` / `None`), `strike_dollars` (option strike\n\
-/// in dollars), and `strike` (wire integer, thousandths of a dollar)\n\
-/// directly. User code reads the same notation it writes when\n\
-/// calling `Contract.option(symbol, expiration=..., strike=\"5400\", right=\"C\")`.\n\
+/// string, e.g. `\"STOCK\"` / `\"OPTION\"`), `expiration` (`YYYYMMDD`),\n\
+/// `right` (`\"C\"` / `\"P\"` / `None`), and `strike` (option strike in\n\
+/// dollars) directly. `strike` carries dollars on every surface —\n\
+/// user code reads the same notation it writes when calling\n\
+/// `Contract.option(symbol, expiration=..., strike=\"5400\", right=\"C\")`,\n\
+/// and values join directly against historical-row `strike` columns.\n\
 ///\n\
 /// Distinct from the fluent `Contract` builder (in `fluent.rs`): this\n\
 /// type is the read-only event payload; the fluent builder is what\n\
@@ -38,15 +39,14 @@ pub(crate) struct ContractRef {\n\
     #[pyo3(get)] pub sec_type: String,\n\
     #[pyo3(get)] pub expiration: Option<i32>,\n\
     #[pyo3(get)] pub right: Option<String>,\n\
-    #[pyo3(get)] pub strike_dollars: Option<f64>,\n\
-    #[pyo3(get)] pub strike: Option<i32>,\n\
+    #[pyo3(get)] pub strike: Option<f64>,\n\
 }\n\
 #[pymethods]\n\
 impl ContractRef {\n\
     fn __repr__(&self) -> String {\n\
         format!(\n\
-            \"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})\",\n\
-            self.symbol, self.sec_type, self.expiration, self.right, self.strike_dollars\n\
+            \"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike={:?})\",\n\
+            self.symbol, self.sec_type, self.expiration, self.right, self.strike\n\
         )\n\
     }\n\
 }\n\
@@ -54,15 +54,15 @@ impl ContractRef {\n\
     /// Build from the core `thetadatadx::fpss::protocol::Contract` value\n\
     /// carried by each `BufferedEvent::*` Data arm. `sec_type` is the\n\
     /// symbolic uppercase name (`\"STOCK\"` / `\"OPTION\"` / `\"INDEX\"` /\n\
-    /// `\"RATE\"` / `\"UNKNOWN\"`).\n\
+    /// `\"RATE\"` / `\"UNKNOWN\"`). `strike` is dollars (the wire's\n\
+    /// fixed-point integer never crosses the binding boundary).\n\
     pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {\n\
         Self {\n\
             symbol: c.symbol.to_string(),\n\
             sec_type: c.sec_type.as_str().to_string(),\n\
             expiration: c.expiration,\n\
             right: c.right().map(|r| r.as_char().to_string()),\n\
-            strike_dollars: c.strike_dollars(),\n\
-            strike: c.strike,\n\
+            strike: c.strike_dollars(),\n\
         }\n\
     }\n\
 }\n\n"

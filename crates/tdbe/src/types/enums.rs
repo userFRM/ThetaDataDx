@@ -529,4 +529,85 @@ impl RemoveReason {
     }
 }
 
+/// Market-calendar day classification.
+///
+/// Carries the vendor's own day-type vocabulary: the calendar wire
+/// sends a text `type` column with exactly these four values, and the
+/// decoder maps them one-for-one onto this enum (unknown text fails
+/// decode loudly, so the enum is total over the wire vocabulary).
+/// `#[repr(i32)]` keeps the C ABI field a plain `int32_t`; the
+/// discriminants are the stable cross-binding codes.
+///
+/// String forms (via [`CalendarStatus::as_str`]) are the values the
+/// Python / TypeScript bindings, Arrow columns, and the HTTP server
+/// surface: `"open"`, `"early_close"`, `"full_close"`, `"weekend"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum CalendarStatus {
+    /// Normal trading day.
+    Open = 0,
+    /// Trading day with an early close (e.g. day after Thanksgiving).
+    EarlyClose = 1,
+    /// Market closed for a holiday.
+    FullClose = 2,
+    /// Weekend.
+    Weekend = 3,
+}
+
+impl CalendarStatus {
+    /// Vendor vocabulary for this day type — the exact text the
+    /// calendar wire sends (`"open"` / `"early_close"` / `"full_close"`
+    /// / `"weekend"`). This is the string form every dynamic binding
+    /// and the HTTP server emit.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::EarlyClose => "early_close",
+            Self::FullClose => "full_close",
+            Self::Weekend => "weekend",
+        }
+    }
+
+    /// Parse the vendor's day-type text. Returns `None` for any value
+    /// outside the documented vocabulary so decoders can fail loudly
+    /// instead of mis-classifying schema drift.
+    #[must_use]
+    pub fn from_wire_text(text: &str) -> Option<Self> {
+        match text {
+            "open" => Some(Self::Open),
+            "early_close" => Some(Self::EarlyClose),
+            "full_close" => Some(Self::FullClose),
+            "weekend" => Some(Self::Weekend),
+            _ => None,
+        }
+    }
+
+    /// Resolve a wire-level integer code to the typed variant. Returns
+    /// `None` for codes outside `0..=3`.
+    #[must_use]
+    pub const fn from_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Open),
+            1 => Some(Self::EarlyClose),
+            2 => Some(Self::FullClose),
+            3 => Some(Self::Weekend),
+            _ => None,
+        }
+    }
+
+    /// `true` when the market trades at all on this day type (`Open`
+    /// or `EarlyClose`).
+    #[must_use]
+    pub const fn is_open(self) -> bool {
+        matches!(self, Self::Open | Self::EarlyClose)
+    }
+}
+
+impl std::fmt::Display for CalendarStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 include!("generated/enums_endpoint.rs");

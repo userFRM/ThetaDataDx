@@ -33,10 +33,10 @@ fn dtype_of(batch: &RecordBatch, name: &str) -> DataType {
 fn calendar_day_to_arrow() {
     let ticks = vec![tick::CalendarDay {
         date: 20240102,
-        is_open: 1,
+        is_open: true,
         open_time: 34200000,
         close_time: 57600000,
-        status: 0,
+        status: tdbe::CalendarStatus::Open,
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
@@ -61,7 +61,7 @@ fn ohlc_tick_to_arrow_schema_matches_python() {
         date: 20240102,
         expiration: 20240119,
         strike: 500.0,
-        right: 67,
+        right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
@@ -88,7 +88,7 @@ fn quote_tick_to_arrow_emits_midpoint() {
         midpoint: 100.0,
         expiration: 0,
         strike: 0.0,
-        right: 0,
+        right: '\0',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
@@ -104,13 +104,13 @@ fn option_contract_right_stringifies() {
             symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
-            right: 67,
+            right: 'C',
         },
         tick::OptionContract {
             symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
-            right: 80,
+            right: 'P',
         },
     ];
     let batch = ticks.as_slice().to_arrow().unwrap();
@@ -151,7 +151,7 @@ fn greeks_first_order_tick_to_arrow() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 67, // 'C'
+        right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
@@ -255,7 +255,7 @@ fn greeks_second_order_tick_to_arrow() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 80, // 'P'
+        right: 'P',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
@@ -341,7 +341,7 @@ fn greeks_third_order_tick_to_arrow() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 67,
+        right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);

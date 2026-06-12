@@ -56,8 +56,8 @@ pyarrow = pytest.importorskip("pyarrow", reason="pyarrow is required for Arrow D
 def _make_eod_ticks(n: int) -> "list[thetadatadx.EodTick]":
     return [
         thetadatadx.EodTick(
-            ms_of_day=1000 + i,
-            ms_of_day2=2000 + i,
+            created_ms_of_day=1000 + i,
+            last_trade_ms_of_day=2000 + i,
             open=100.0 + i,
             high=101.0 + i,
             low=99.0 + i,
@@ -100,7 +100,7 @@ def test_getitem_positive_indexing():
     lst = thetadatadx.EodTickList(ticks)
     for i, original in enumerate(ticks):
         fetched = lst[i]
-        assert fetched.ms_of_day == original.ms_of_day
+        assert fetched.created_ms_of_day == original.created_ms_of_day
         assert fetched.open == original.open
         assert fetched.volume == original.volume
 
@@ -109,9 +109,9 @@ def test_getitem_negative_indexing():
     ticks = _make_eod_ticks(3)
     lst = thetadatadx.EodTickList(ticks)
     # lst[-1] -> last, lst[-2] -> middle, lst[-3] -> first
-    assert lst[-1].ms_of_day == ticks[2].ms_of_day
-    assert lst[-2].ms_of_day == ticks[1].ms_of_day
-    assert lst[-3].ms_of_day == ticks[0].ms_of_day
+    assert lst[-1].created_ms_of_day == ticks[2].created_ms_of_day
+    assert lst[-2].created_ms_of_day == ticks[1].created_ms_of_day
+    assert lst[-3].created_ms_of_day == ticks[0].created_ms_of_day
 
 
 def test_getitem_out_of_range_raises_index_error():
@@ -131,7 +131,7 @@ def test_iter_yields_in_order():
     collected = [t for t in lst]
     assert len(collected) == 4
     for i, fetched in enumerate(collected):
-        assert fetched.ms_of_day == ticks[i].ms_of_day
+        assert fetched.created_ms_of_day == ticks[i].created_ms_of_day
         assert fetched.open == ticks[i].open
 
 
@@ -141,8 +141,8 @@ def test_iter_twice_yields_independent_sequences():
     row, not resume from the previous cursor position."""
     ticks = _make_eod_ticks(3)
     lst = thetadatadx.EodTickList(ticks)
-    first = [t.ms_of_day for t in lst]
-    second = [t.ms_of_day for t in lst]
+    first = [t.created_ms_of_day for t in lst]
+    second = [t.created_ms_of_day for t in lst]
     assert first == second
     assert len(first) == 3
 
@@ -154,7 +154,7 @@ def test_to_list_round_trips_to_plain_list():
     assert isinstance(plain, list)
     assert len(plain) == 3
     for i, original in enumerate(ticks):
-        assert plain[i].ms_of_day == original.ms_of_day
+        assert plain[i].created_ms_of_day == original.created_ms_of_day
         assert plain[i].open == original.open
         assert plain[i].right == original.right
 
@@ -165,8 +165,8 @@ def test_to_list_round_trips_to_plain_list():
 
 
 EOD_SCHEMA = {
-    "ms_of_day": "int32",
-    "ms_of_day2": "int32",
+    "created_ms_of_day": "int32",
+    "last_trade_ms_of_day": "int32",
     "open": "double",
     "high": "double",
     "low": "double",
@@ -214,7 +214,7 @@ def test_to_arrow_preserves_values_round_trip():
     lst = thetadatadx.EodTickList(ticks)
     table = lst.to_arrow()
     for i, original in enumerate(ticks):
-        assert table.column("ms_of_day")[i].as_py() == original.ms_of_day
+        assert table.column("created_ms_of_day")[i].as_py() == original.created_ms_of_day
         assert table.column("open")[i].as_py() == pytest.approx(original.open)
         assert table.column("volume")[i].as_py() == original.volume
         assert table.column("right")[i].as_py() == original.right
@@ -293,8 +293,8 @@ def test_eod_tick_round_trip_byte_for_byte_pandas():
     assert len(df) == 3
     for i, t in enumerate(ticks):
         row = df.iloc[i]
-        assert row["ms_of_day"] == t.ms_of_day
-        assert row["ms_of_day2"] == t.ms_of_day2
+        assert row["created_ms_of_day"] == t.created_ms_of_day
+        assert row["last_trade_ms_of_day"] == t.last_trade_ms_of_day
         assert row["open"] == pytest.approx(t.open)
         assert row["volume"] == t.volume
         assert row["count"] == t.count
@@ -330,7 +330,7 @@ def test_i64_ohlc_tick_volume_count_preserves_2_to_the_40():
 def test_polars_round_trip_preserves_int64():
     polars = pytest.importorskip("polars")
     big = 2**40
-    tick = thetadatadx.EodTick(ms_of_day=1, volume=big, count=big)
+    tick = thetadatadx.EodTick(created_ms_of_day=1, volume=big, count=big)
     df = thetadatadx.EodTickList([tick]).to_polars()
     assert df.height == 1
     assert df["volume"].dtype == polars.Int64
@@ -358,7 +358,7 @@ def test_to_arrow_does_not_need_pandas(monkeypatch):
     # also block future imports. Restore on teardown (monkeypatch).
     monkeypatch.setitem(sys.modules, "pandas", _Denied())
 
-    tick = thetadatadx.EodTick(ms_of_day=1, volume=1_000)
+    tick = thetadatadx.EodTick(created_ms_of_day=1, volume=1_000)
     table = thetadatadx.EodTickList([tick]).to_arrow()
     assert table.num_rows == 1
     assert table.column("volume")[0].as_py() == 1_000
@@ -371,7 +371,7 @@ def test_to_arrow_does_not_need_polars(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "polars", _Denied())
 
-    tick = thetadatadx.EodTick(ms_of_day=1, volume=1_000)
+    tick = thetadatadx.EodTick(created_ms_of_day=1, volume=1_000)
     table = thetadatadx.EodTickList([tick]).to_arrow()
     assert table.num_rows == 1
 

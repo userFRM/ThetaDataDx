@@ -82,19 +82,16 @@ for t in rows:
 ```typescript
 optionHistoryGreeksEOD(
   symbol: string, expiration: string | Date, startDate: string | Date,
-  endDate: string | Date, strike?: string, right?: string,
-  annualDividend?: number, rateType?: string, rateValue?: number,
-  version?: string, underlyerUseNBBO?: boolean, maxDTE?: number,
-  strikeRange?: number, timeoutMs?: number,
+  endDate: string | Date, options?: { ... },
 ): Array<GreeksEodTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `strike?: string`, `right?: string`, `annualDividend?: number`, `rateType?: string`, `rateValue?: number`, `version?: string`, `underlyerUseNBBO?: boolean`, `maxDTE?: number`, `strikeRange?: number`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.optionHistoryGreeksEOD('SPY', '20250321', '20250303', '20250306', '570', 'C');
+const rows = tdx.optionHistoryGreeksEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.close, t.delta, t.impliedVolatility);
 }
@@ -217,7 +214,7 @@ Rows of `GreeksEodTick`:
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration`, `strike`, and `right` on every row to identify the contract; on single-contract requests these are 0.
+Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 
 ### Example response
 

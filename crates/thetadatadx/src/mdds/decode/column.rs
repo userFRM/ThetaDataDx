@@ -85,8 +85,9 @@ fn attach_column_context(err: DecodeError, header: &'static str, row: usize) -> 
 /// `cell` is the canonical single-cell decoder for the column's schema
 /// type (one of the `row_*` functions in [`super::cell`]); `set`
 /// writes the decoded value into its tick field. A `NullValue` cell —
-/// `Ok(None)` from the cell decoder — falls back to `V::default()`,
-/// matching the zero-fill the row-shaped decode applied per cell.
+/// `Ok(None)` from the cell decoder — falls back to `null_fill`, the
+/// same generator-emitted seed literal the absent-column path uses, so
+/// per-cell nulls and whole-column absence fill identically.
 /// `row_base` is the index of `rows[0]` within the full table, so
 /// diagnostics name the absolute row.
 ///
@@ -96,19 +97,20 @@ fn attach_column_context(err: DecodeError, header: &'static str, row: usize) -> 
 /// [`DecodeError::TypeMismatch`], which is re-shaped to
 /// [`DecodeError::ColumnTypeMismatch`] with the schema column name and
 /// absolute row index attached.
-pub(crate) fn extract_column<T, V: Default>(
+pub(crate) fn extract_column<T, V: Clone>(
     rows: &[proto::DataValueList],
     ticks: &mut [T],
     row_base: usize,
     column: usize,
     header: &'static str,
+    null_fill: V,
     cell: impl Fn(&proto::DataValueList, usize) -> Result<Option<V>, DecodeError>,
     set: impl Fn(&mut T, V),
 ) -> Result<(), DecodeError> {
     for (offset, (row, tick)) in rows.iter().zip(ticks.iter_mut()).enumerate() {
         let value = cell(row, column)
             .map_err(|err| attach_column_context(err, header, row_base + offset))?
-            .unwrap_or_default();
+            .unwrap_or_else(|| null_fill.clone());
         set(tick, value);
     }
     Ok(())

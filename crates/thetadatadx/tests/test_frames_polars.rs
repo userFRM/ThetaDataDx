@@ -26,10 +26,10 @@ fn dtype_of(df: &DataFrame, name: &str) -> DataType {
 fn calendar_day_to_polars() {
     let ticks = vec![tick::CalendarDay {
         date: 20240102,
-        is_open: 1,
+        is_open: true,
         open_time: 34200000,
         close_time: 57600000,
-        status: 0,
+        status: tdbe::CalendarStatus::Open,
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
@@ -55,7 +55,7 @@ fn ohlc_tick_to_polars_emits_contract_tail() {
         date: 20240102,
         expiration: 20240119,
         strike: 500.0,
-        right: 67, // 'C'
+        right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
@@ -90,7 +90,7 @@ fn quote_tick_to_polars_emits_midpoint() {
         midpoint: 100.0,
         expiration: 0,
         strike: 0.0,
-        right: 0,
+        right: '\0',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
@@ -105,13 +105,13 @@ fn option_contract_right_stringifies() {
             symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
-            right: 67, // 'C'
+            right: 'C',
         },
         tick::OptionContract {
             symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
-            right: 80, // 'P'
+            right: 'P',
         },
     ];
     let df = ticks.as_slice().to_polars().unwrap();
@@ -153,7 +153,7 @@ fn greeks_first_order_tick_to_polars() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 67, // 'C'
+        right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
@@ -271,7 +271,7 @@ fn greeks_second_order_tick_to_polars() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 80, // 'P'
+        right: 'P',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
@@ -343,7 +343,7 @@ fn greeks_third_order_tick_to_polars() {
         date: 20_240_614,
         expiration: 20_240_621,
         strike: 500.0,
-        right: 67,
+        right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);

@@ -221,11 +221,11 @@ fn decode_captures_stock_history_eod() {
 
     let first = ticks.first().unwrap();
     assert_eq!(
-        first.ms_of_day as i64,
+        first.created_ms_of_day as i64,
         meta_int(&meta, "first_row_ms_of_day")
     );
     assert_eq!(
-        first.ms_of_day2 as i64,
+        first.last_trade_ms_of_day as i64,
         meta_int(&meta, "first_row_ms_of_day2")
     );
     assert_f64_eq("open", first.open, meta_float(&meta, "first_row_open"));

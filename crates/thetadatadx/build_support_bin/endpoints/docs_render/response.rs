@@ -42,8 +42,8 @@ pub(super) fn display_fields(collection: &str) -> &'static [&'static str] {
         "PriceTicks" => &["date", "ms_of_day", "price"],
         "IndexPriceAtTimeTicks" => &["date", "ms_of_day", "price"],
         "CalendarDays" => &["date", "is_open", "status"],
-        "InterestRateTicks" => &["created", "rate"],
-        "OptionContracts" => &["root", "expiration", "strike", "right"],
+        "InterestRateTicks" => &["date", "rate"],
+        "OptionContracts" => &["symbol", "expiration", "strike", "right"],
         other => panic!("no display fields declared for collection {other}"),
     }
 }
@@ -55,7 +55,11 @@ fn docs_field_type(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
-        "String" => "string",
+        // Logical columns document their cross-language shape: the
+        // option right is a one-character string ("C" / "P"), the
+        // calendar day type is the vendor vocabulary string.
+        "String" | "right" | "calendar_status" => "string",
+        "bool" => "bool",
         other => panic!("unmapped tick column type {other}"),
     }
 }
@@ -108,8 +112,10 @@ pub(super) fn render_response_section(
     }
     if def.contract_id && endpoint.category == "option" {
         out.push_str(
-            "\nWildcard requests additionally populate `expiration`, `strike`, and `right` \
-             on every row to identify the contract; on single-contract requests these are 0.\n",
+            "\nWildcard requests additionally populate `expiration` (YYYYMMDD), `strike` \
+             (dollars), and `right` (\"C\" / \"P\") on every row to identify the contract; \
+             on single-contract requests these are absent (None / null / undefined; the Rust \
+             and C rows carry the documented `0` / `0.0` / `'\\0'` fills).\n",
         );
     }
     out.push('\n');

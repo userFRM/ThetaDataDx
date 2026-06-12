@@ -5,11 +5,12 @@
 
 /// FPSS contract identifier. Surfaced on every decoded FPSS data
 /// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic
-/// string, e.g. `"STOCK"` / `"OPTION"`), `expiration`,
-/// `right` (`"C"` / `"P"` / `None`), `strike_dollars` (option strike
-/// in dollars), and `strike` (wire integer, thousandths of a dollar)
-/// directly. User code reads the same notation it writes when
-/// calling `Contract.option(symbol, expiration=..., strike="5400", right="C")`.
+/// string, e.g. `"STOCK"` / `"OPTION"`), `expiration` (`YYYYMMDD`),
+/// `right` (`"C"` / `"P"` / `None`), and `strike` (option strike in
+/// dollars) directly. `strike` carries dollars on every surface —
+/// user code reads the same notation it writes when calling
+/// `Contract.option(symbol, expiration=..., strike="5400", right="C")`,
+/// and values join directly against historical-row `strike` columns.
 ///
 /// Distinct from the fluent `Contract` builder (in `fluent.rs`): this
 /// type is the read-only event payload; the fluent builder is what
@@ -22,15 +23,14 @@ pub(crate) struct ContractRef {
 #[pyo3(get)] pub sec_type: String,
 #[pyo3(get)] pub expiration: Option<i32>,
 #[pyo3(get)] pub right: Option<String>,
-#[pyo3(get)] pub strike_dollars: Option<f64>,
-#[pyo3(get)] pub strike: Option<i32>,
+#[pyo3(get)] pub strike: Option<f64>,
 }
 #[pymethods]
 impl ContractRef {
 fn __repr__(&self) -> String {
 format!(
-"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})",
-self.symbol, self.sec_type, self.expiration, self.right, self.strike_dollars
+"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike={:?})",
+self.symbol, self.sec_type, self.expiration, self.right, self.strike
 )
 }
 }
@@ -38,15 +38,15 @@ impl ContractRef {
 /// Build from the core `thetadatadx::fpss::protocol::Contract` value
 /// carried by each `BufferedEvent::*` Data arm. `sec_type` is the
 /// symbolic uppercase name (`"STOCK"` / `"OPTION"` / `"INDEX"` /
-/// `"RATE"` / `"UNKNOWN"`).
+/// `"RATE"` / `"UNKNOWN"`). `strike` is dollars (the wire's
+/// fixed-point integer never crosses the binding boundary).
 pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {
 Self {
 symbol: c.symbol.to_string(),
 sec_type: c.sec_type.as_str().to_string(),
 expiration: c.expiration,
 right: c.right().map(|r| r.as_char().to_string()),
-strike_dollars: c.strike_dollars(),
-strike: c.strike,
+strike: c.strike_dollars(),
 }
 }
 }
@@ -102,22 +102,6 @@ impl Disconnected {
     fn reason_name(&self) -> &'static str {
         tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
     }
-}
-
-/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
-#[must_use]
-#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-pub(crate) struct Error {
-    #[pyo3(get)] pub message: String,
-}
-#[pymethods]
-impl Error {
-    fn __repr__(&self) -> String {
-        format!("Error(message={:?})", self.message)
-    }
-
-    #[getter]
-    fn kind(&self) -> &'static str { "error" }
 }
 
 /// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
@@ -203,6 +187,22 @@ impl OpenInterest {
 
     #[getter]
     fn kind(&self) -> &'static str { "open_interest" }
+}
+
+/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct ParseError {
+    #[pyo3(get)] pub message: String,
+}
+#[pymethods]
+impl ParseError {
+    fn __repr__(&self) -> String {
+        format!("ParseError(message={:?})", self.message)
+    }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "parse_error" }
 }
 
 /// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
@@ -457,15 +457,6 @@ pub(crate) fn buffered_event_to_typed(
             },
         )
         .map(|p| p.into_any()),
-        BufferedEvent::Error {
-            message,
-        } => Py::new(
-            py,
-            Error {
-                message: message.clone(),
-            },
-        )
-        .map(|p| p.into_any()),
         BufferedEvent::LoginSuccess {
             permissions,
         } => Py::new(
@@ -529,6 +520,15 @@ pub(crate) fn buffered_event_to_typed(
             )
             .map(|p| p.into_any())
         }
+        BufferedEvent::ParseError {
+            message,
+        } => Py::new(
+            py,
+            ParseError {
+                message: message.clone(),
+            },
+        )
+        .map(|p| p.into_any()),
         BufferedEvent::Ping {
             payload,
         } => Py::new(
@@ -687,12 +687,12 @@ pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<Connected>()?;
     m.add_class::<ContractAssigned>()?;
     m.add_class::<Disconnected>()?;
-    m.add_class::<Error>()?;
     m.add_class::<LoginSuccess>()?;
     m.add_class::<MarketClose>()?;
     m.add_class::<MarketOpen>()?;
     m.add_class::<Ohlcvc>()?;
     m.add_class::<OpenInterest>()?;
+    m.add_class::<ParseError>()?;
     m.add_class::<Ping>()?;
     m.add_class::<Quote>()?;
     m.add_class::<Reconnected>()?;

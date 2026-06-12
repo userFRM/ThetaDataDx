@@ -21,6 +21,7 @@
 
 use std::fmt::Write as _;
 
+use super::idents::rust_field_ident;
 use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::{Schema, TickTypeDef};
 use super::sorted_type_names;
@@ -43,8 +44,63 @@ pub(super) fn render_tdbe_tick_structs(schema: &Schema) -> String {
         let def = &schema.types[type_name];
         out.push_str(&render_one_struct(type_name, def));
         out.push('\n');
+        out.push_str(&render_timestamp_accessors(type_name, def));
     }
 
+    out
+}
+
+/// Emit `*_timestamp_ms()` convenience accessors for every tick type
+/// that carries both a `date` column and one or more milliseconds-of-day
+/// columns. The bare `ms_of_day` field yields `timestamp_ms()`; a
+/// prefixed `<x>_ms_of_day` field yields `<x>_timestamp_ms()` (so
+/// `EodTick` gets `created_timestamp_ms()` / `last_trade_timestamp_ms()`
+/// and the Greeks rows get `underlying_timestamp_ms()`).
+///
+/// The raw integer fields stay primary — per the workspace raw-ms
+/// doctrine the accessors are read-side conveniences at the epoch
+/// boundary, computed on demand and never stored.
+fn render_timestamp_accessors(type_name: &str, def: &TickTypeDef) -> String {
+    let ms_fields = timestamp_accessor_fields(def);
+    if ms_fields.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    writeln!(out, "impl {type_name} {{").unwrap();
+    for (accessor, field) in &ms_fields {
+        writeln!(
+            out,
+            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`\n\
+             \x20   /// with `{field}` (Eastern-Time milliseconds-of-day). Returns\n\
+             \x20   /// `None` when `date` is absent (`0`) or `{field}` is outside\n\
+             \x20   /// the milliseconds-of-day domain. The raw integer fields stay\n\
+             \x20   /// primary; this accessor is a convenience at the epoch boundary.\n\
+             \x20   #[must_use]\n\
+             \x20   pub fn {accessor}(&self) -> Option<i64> {{\n\
+             \x20       crate::time::date_ms_to_epoch_ms(self.date, self.{field})\n\
+             \x20   }}"
+        )
+        .unwrap();
+    }
+    out.push_str("}\n\n");
+    out
+}
+
+/// `(accessor_name, ms_field)` pairs for [`render_timestamp_accessors`].
+/// Shared with the Python pyclass emitter so both bindings surface the
+/// same accessor set. Empty when the type has no `date` column.
+pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, String)> {
+    if !def.columns.iter().any(|c| c.field == "date") {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for column in &def.columns {
+        if column.field == "ms_of_day" {
+            out.push(("timestamp_ms".to_string(), column.field.clone()));
+        } else if let Some(prefix) = column.field.strip_suffix("_ms_of_day") {
+            out.push((format!("{prefix}_timestamp_ms"), column.field.clone()));
+        }
+    }
     out
 }
 
@@ -104,6 +160,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
         )
         .unwrap();
         for (field, offset) in tick_ffi_offsets(type_name, def) {
+            let field = rust_field_ident(&field);
             writeln!(
                 out,
                 "        assert_eq!(offset_of!({type_name}, {field}), {offset});"
@@ -168,13 +225,19 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
 
     for column in &def.columns {
         let rust_ty = struct_field_rust_type(column.r#type.as_str(), type_name, &column.field);
-        let doc = column_doc(type_name, &column.field);
-        for line in doc.lines() {
-            if !line.is_empty() {
-                writeln!(out, "    /// {line}").unwrap();
+        if let Some(doc) = &column.doc {
+            for line in doc.lines() {
+                if !line.is_empty() {
+                    writeln!(out, "    /// {line}").unwrap();
+                }
             }
         }
-        writeln!(out, "    pub {}: {rust_ty},", column.field).unwrap();
+        writeln!(
+            out,
+            "    pub {}: {rust_ty},",
+            rust_field_ident(&column.field)
+        )
+        .unwrap();
     }
 
     // Field order MUST match the legacy `tick.rs` layout for FFI ABI
@@ -184,10 +247,10 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
     if def.contract_id {
         out.push_str("    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.\n");
         out.push_str("    pub expiration: i32,\n");
-        out.push_str("    /// Contract strike price (decoded to `f64`).\n");
+        out.push_str("    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.\n");
         out.push_str("    pub strike: f64,\n");
-        out.push_str("    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.\n");
-        out.push_str("    pub right: i32,\n");
+        out.push_str("    /// Contract right: `'C'` for a call, `'P'` for a put. `'\\0'` on single-contract queries.\n");
+        out.push_str("    pub right: char,\n");
     }
 
     if type_name == "QuoteTick" {
@@ -203,21 +266,20 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
 /// `tdbe::types::tick` struct. Mirrors the parser emitter in
 /// `build_support/ticks/parser.rs` -- every `eod_*` and `price` column
 /// is decoded to its widened Rust type at parse time, so the struct
-/// field type matches the parser's terminal `f64` / `i32` / `i64`.
+/// field type matches the parser's terminal type. Logical columns map
+/// to their typed Rust forms: `right` -> `char` (4-byte Unicode scalar,
+/// same layout slot as the wire's i32), `bool` -> `bool`,
+/// `calendar_status` -> the exported `CalendarStatus` enum
+/// (`repr(i32)`).
 fn struct_field_rust_type(column_type: &str, type_name: &str, field: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
         "String" => "String",
+        "right" => "char",
+        "bool" => "bool",
+        "calendar_status" => "crate::types::enums::CalendarStatus",
         other => panic!("unsupported tdbe struct field type '{other}' for {type_name}.{field}"),
     }
-}
-
-/// Doc-comment lookup for the rare per-field comment the hand-written
-/// `tick.rs` carried (e.g. `EodTick.expiration`'s wildcard-population
-/// note). Empty string means "no field-level doc; the type-level doc is
-/// enough".
-fn column_doc(_type_name: &str, _field: &str) -> &'static str {
-    ""
 }

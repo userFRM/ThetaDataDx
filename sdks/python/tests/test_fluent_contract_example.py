@@ -79,7 +79,7 @@ def test_contract_ref_is_event_payload(thetadatadx_mod) -> None:
     fields."""
     ref = thetadatadx_mod.ContractRef
     # Read-only event-payload fields surfaced on every FPSS data event.
-    for attr in ("symbol", "sec_type", "expiration", "right", "strike_dollars", "strike"):
+    for attr in ("symbol", "sec_type", "expiration", "right", "strike"):
         assert hasattr(ref, attr), f"thetadatadx.ContractRef missing field {attr!r}"
     # The event payload has no factory methods.
     assert not hasattr(ref, "stock"), (

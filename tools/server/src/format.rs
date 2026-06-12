@@ -109,25 +109,31 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
 //  Contract identification helpers
 // ---------------------------------------------------------------------------
 
-fn right_label(right: i32) -> sonic_rs::Value {
+fn right_label(right: char) -> sonic_rs::Value {
     match right {
-        67 => sonic_rs::Value::from("C"),
-        80 => sonic_rs::Value::from("P"),
-        _ => sonic_rs::Value::from(right),
+        'C' => sonic_rs::Value::from("C"),
+        'P' => sonic_rs::Value::from("P"),
+        other => sonic_rs::Value::from(other.to_string().as_str()),
     }
 }
 
-fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: i32) {
+/// Format a `YYYYMMDD` integer as the vendor's documented ISO
+/// `YYYY-MM-DD` expiration shape (`20260618` -> `"2026-06-18"`).
+fn expiration_label(expiration: i32) -> sonic_rs::Value {
+    let year = expiration / 10_000;
+    let month = (expiration / 100) % 100;
+    let day = expiration % 100;
+    sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
+}
+
+fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: char) {
     if expiration == 0 {
         return;
     }
     let object = row
         .as_object_mut()
         .expect("serialized tick rows must always be JSON objects");
-    object.insert(
-        "expiration",
-        sonic_rs::to_value(&expiration).expect("i32 should serialize"),
-    );
+    object.insert("expiration", expiration_label(expiration));
     object.insert(
         "strike",
         sonic_rs::to_value(&strike).expect("f64 should serialize"),
@@ -145,8 +151,8 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
         .iter()
         .map(|t| {
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
-                "ms_of_day2": t.ms_of_day2,
+                "created": t.created_ms_of_day,
+                "last_trade": t.last_trade_ms_of_day,
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
@@ -752,7 +758,7 @@ pub fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<sonic_rs::Value> {
                 "is_open": d.is_open,
                 "open_time": d.open_time,
                 "close_time": d.close_time,
-                "status": d.status
+                "status": d.status.as_str()
             })
         })
         .collect()
@@ -778,9 +784,9 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
         .map(|c| {
             sonic_rs::json!({
                 "symbol": c.symbol,
-                "expiration": c.expiration,
+                "expiration": expiration_label(c.expiration),
                 "strike": c.strike,
-                "right": c.right,
+                "right": right_label(c.right),
             })
         })
         .collect()
@@ -1083,7 +1089,7 @@ mod tests {
             date: 20260410,
             expiration: 20260417,
             strike: 150.0,
-            right: 67,
+            right: 'C',
             midpoint: 5.0,
         };
         let r = quote_ticks_to_json(&[t]);
@@ -1091,8 +1097,8 @@ mod tests {
         assert!(r.get("midpoint").is_some());
         assert_eq!(
             r.get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_i64()),
-            Some(20260417)
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("2026-04-17".to_string())
         );
     }
     #[test]
@@ -1124,7 +1130,7 @@ mod tests {
             date: 20260410,
             expiration: 0,
             strike: 0.0,
-            right: 0,
+            right: '\0',
         };
         let r = trade_quote_ticks_to_json(&[t]);
         let r = r.first().unwrap();
@@ -1174,7 +1180,7 @@ mod tests {
             date: 20260410,
             expiration: 20260417,
             strike: 150.0,
-            right: 67,
+            right: 'C',
         };
         let r = greeks_all_ticks_to_json(&[t]);
         let r = r.first().unwrap();
@@ -1210,8 +1216,8 @@ mod tests {
         }
         assert_eq!(
             r.get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_i64()),
-            Some(20260417)
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("2026-04-17".to_string())
         );
     }
     #[test]
@@ -1247,7 +1253,7 @@ mod tests {
             date: 20260410,
             expiration: 0,
             strike: 0.0,
-            right: 0,
+            right: '\0',
         };
         let r = greeks_all_ticks_to_json(&[t]);
         let r = r.first().unwrap();

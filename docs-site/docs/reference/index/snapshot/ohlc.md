@@ -60,12 +60,10 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-indexSnapshotOHLC(
-  symbols: Array<string>, minTime?: string | Date, timeoutMs?: number,
-): Array<OhlcTick>
+indexSnapshotOHLC(symbols: Array<string>, options?: { ... }): Array<OhlcTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `minTime?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 

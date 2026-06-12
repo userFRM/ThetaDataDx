@@ -67,17 +67,16 @@ for t in rows:
 ```typescript
 stockHistoryOHLCRange(
   symbol: string, startDate: string | Date, endDate: string | Date,
-  interval?: string, startTime?: string | Date, endTime?: string | Date,
-  venue?: string, timeoutMs?: number,
+  options?: { ... },
 ): Array<OhlcTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `interval?: string`, `startTime?: string | Date`, `endTime?: string | Date`, `venue?: string`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
-const rows = tdx.stockHistoryOHLCRange('AAPL', '20250303', '20250306', '1m');
+const rows = tdx.stockHistoryOHLCRange('AAPL', '20250303', '20250306', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

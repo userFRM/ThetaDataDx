@@ -30,7 +30,7 @@ fn bench_trade_tick_price_access(c: &mut Criterion) {
         date: 20240315,
         expiration: 0,
         strike: 0.0,
-        right: 0,
+        right: '\0',
     };
     c.bench_function("trade_tick_price_access", |b| {
         b.iter(|| {
@@ -54,7 +54,7 @@ fn bench_quote_tick_midpoint(c: &mut Criterion) {
         date: 20240315,
         expiration: 0,
         strike: 0.0,
-        right: 0,
+        right: '\0',
     };
     c.bench_function("quote_tick_midpoint", |b| {
         b.iter(|| {
@@ -76,7 +76,7 @@ fn bench_ohlc_tick_all_prices(c: &mut Criterion) {
         date: 20240315,
         expiration: 0,
         strike: 0.0,
-        right: 0,
+        right: '\0',
     };
     c.bench_function("ohlc_tick_all_prices", |b| {
         b.iter(|| {

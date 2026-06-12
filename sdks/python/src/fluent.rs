@@ -132,11 +132,13 @@ impl PyContract {
         Self::from_inner(protocol::Contract::index(symbol))
     }
 
-    /// Construct an option contract.
+    /// Construct an option contract. `strike` is the price in dollars
+    /// and accepts a number or a string (`550`, `550.0`, and `"550"`
+    /// are equivalent).
     #[staticmethod]
     #[pyo3(signature = (symbol, *, expiration, strike, right))]
-    fn option(symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Self> {
-        protocol::Contract::option(symbol, expiration, strike, right)
+    fn option(symbol: &str, expiration: &str, strike: StrikeArg, right: &str) -> PyResult<Self> {
+        protocol::Contract::option(symbol, expiration, &strike.into_string(), right)
             .map(Self::from_inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))
     }
@@ -172,16 +174,21 @@ impl PyContract {
         PySecType::from_inner(self.inner.sec_type)
     }
 
+    /// Expiration date as a `YYYYMMDD` integer; `None` for non-options.
     #[getter]
     fn expiration(&self) -> Option<i32> {
         self.inner.expiration
     }
 
+    /// Strike price in dollars; `None` for non-options. Reads back the
+    /// same notation `Contract.option(strike=...)` takes, and joins
+    /// directly against historical-row `strike` columns.
     #[getter]
-    fn strike(&self) -> Option<i32> {
-        self.inner.strike
+    fn strike(&self) -> Option<f64> {
+        self.inner.strike_dollars()
     }
 
+    /// Option right (`"C"` / `"P"`); `None` for non-options.
     #[getter]
     fn right(&self) -> Option<&'static str> {
         self.inner.is_call.map(|c| if c { "C" } else { "P" })
@@ -276,6 +283,31 @@ impl PySubscription {
                 format!("Subscription(full {kind:?}, {sec_type:?})")
             }
             _ => "Subscription(<unknown>)".to_string(),
+        }
+    }
+}
+
+/// Strike argument accepted by `Contract.option`: a number (int or
+/// float, dollars) or a string (dollars; the historical-endpoint
+/// wildcard `"*"` is NOT valid here — streaming contracts address one
+/// strike). Converted to the canonical string form the core builder
+/// parses.
+#[derive(FromPyObject)]
+pub(crate) enum StrikeArg {
+    /// Integer dollars (`550`).
+    Int(i64),
+    /// Float dollars (`550.5`).
+    Float(f64),
+    /// String dollars (`"550"` / `"550.50"`).
+    Text(String),
+}
+
+impl StrikeArg {
+    fn into_string(self) -> String {
+        match self {
+            Self::Int(v) => v.to_string(),
+            Self::Float(v) => v.to_string(),
+            Self::Text(s) => s,
         }
     }
 }

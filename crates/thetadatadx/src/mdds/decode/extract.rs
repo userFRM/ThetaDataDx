@@ -175,9 +175,56 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
         .collect()
 }
 
+/// Sort list-endpoint values ascending for the public `list_*` returns.
+///
+/// Numeric-aware: when every value parses as a finite `f64` (strikes,
+/// dates, expirations) the sort is numeric — a lexicographic sort would
+/// order `"1000"` before `"320"`. Otherwise (symbols, roots) the sort
+/// is lexicographic. The wire returns these lists unsorted; one
+/// deterministic ascending order on every binding is part of the
+/// public contract.
+#[must_use]
+pub fn sorted_list_values(mut values: Vec<String>) -> Vec<String> {
+    let all_numeric = !values.is_empty()
+        && values
+            .iter()
+            .all(|v| v.parse::<f64>().is_ok_and(f64::is_finite));
+    if all_numeric {
+        values.sort_by(|a, b| {
+            let a: f64 = a.parse().unwrap_or(f64::MAX);
+            let b: f64 = b.parse().unwrap_or(f64::MAX);
+            a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
+        });
+    } else {
+        values.sort();
+    }
+    values
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sorted_list_values_orders_numeric_strings_numerically() {
+        let values = vec!["661", "725", "320", "789", "1000", "640"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert_eq!(
+            sorted_list_values(values),
+            vec!["320", "640", "661", "725", "789", "1000"]
+        );
+    }
+
+    #[test]
+    fn sorted_list_values_orders_symbols_lexicographically() {
+        let values = vec!["MSFT", "AAPL", "SPY"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert_eq!(sorted_list_values(values), vec!["AAPL", "MSFT", "SPY"]);
+    }
 
     /// `extract_text_column` must resolve the schema-side `root`
     /// against an upstream-renamed `symbol` column via

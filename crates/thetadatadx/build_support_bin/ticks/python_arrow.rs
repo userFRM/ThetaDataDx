@@ -99,7 +99,7 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     out.push_str("    use super::*;\n");
     out.push_str("    use super::tick;\n");
     out.push_str(
-        "    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
+        "    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("    use arrow::record_batch::RecordBatch;\n\n");
     // The fluent-builder Arrow terminals in `historical_methods.rs`
@@ -133,30 +133,46 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     out
 }
 
-/// Map a `tick::T` field type to its Rust representation (scalar, not
-/// Arrow). `right` is special-cased to `String` on pyclass but stays
-/// `i32` on the decoder struct — we handle the conversion inside the
-/// generated loop rather than expanding the type map.
+/// Map a `tick::T` field type to the Rust scalar buffered per column
+/// before the Arrow array is built. Logical columns buffer their
+/// columnar projections: `right` and `calendar_status` buffer `String`
+/// (built into `StringArray`), `bool` buffers `bool` (built into
+/// `BooleanArray`).
 fn tick_struct_field_type(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
-        "String" => "String",
+        "String" | "right" | "calendar_status" => "String",
+        "bool" => "bool",
         other => panic!("unsupported tick-struct field type '{other}'"),
     }
 }
 
+/// Per-column push expression reading one tick field into its column
+/// buffer. Logical columns project here: `right` chars become one-char
+/// strings (`'\0'` -> `""`), the calendar status enum becomes its
+/// vendor-vocabulary string.
+fn column_push_expr(column_type: &str, field: &str) -> String {
+    match column_type {
+        "right" => {
+            format!("if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}")
+        }
+        "calendar_status" => format!("t.{field}.as_str().to_string()"),
+        "String" => format!("t.{field}.clone()"),
+        _ => format!("t.{field}"),
+    }
+}
+
 /// Emit `read_arrow_batch_from_<tick>_slice` — iterates a `&[tick::T]`
-/// and builds an Arrow `RecordBatch`. Handles the `right: i32` -> Python
-/// `"C" | "P" | ""` projection so the slice path matches the pyclass
-/// path byte-for-byte.
+/// and builds an Arrow `RecordBatch`. Logical columns are projected to
+/// the same shapes the pyclass path exposes so the slice path matches
+/// it byte-for-byte; absent contract identity buffers as Arrow nulls.
 fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let fn_name = python_slice_reader_fn_name(type_name);
     let is_quote_tick = type_name == "QuoteTick";
     let is_contract = def.contract_id;
-    let is_option_contract = type_name == "OptionContract";
 
     writeln!(
         out,
@@ -174,60 +190,46 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     // Column vectors: match the Arrow schema's concrete types. One
     // pass per column so the inner loop stays branch-free on the hot
     // path.
-    let mut column_decls: Vec<(String, String, bool)> = Vec::new();
+    let mut column_decls: Vec<(String, String)> = Vec::new();
     for column in &def.columns {
-        let (rust_ty, effective_type) = if is_option_contract && column.field == "right" {
-            // `OptionContract.right` surfaces as Python string — convert
-            // the decoder's i32 (ASCII 67/80/0) to "C"/"P"/"".
-            ("String", "String")
-        } else {
-            let ty = tick_struct_field_type(column.r#type.as_str());
-            (ty, column.r#type.as_str())
-        };
+        let rust_ty = tick_struct_field_type(column.r#type.as_str());
         writeln!(
             out,
             "    let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
             field = column.field
         )
         .unwrap();
-        column_decls.push((
-            column.field.clone(),
-            effective_type.to_string(),
-            rust_ty == "String",
-        ));
+        column_decls.push((column.field.clone(), column.r#type.clone()));
     }
     if is_quote_tick {
         out.push_str("    let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
     }
     if is_contract {
-        out.push_str("    let mut col_expiration: Vec<i32> = Vec::with_capacity(n);\n");
-        out.push_str("    let mut col_strike: Vec<f64> = Vec::with_capacity(n);\n");
-        out.push_str("    let mut col_right: Vec<String> = Vec::with_capacity(n);\n");
+        // Absent contract identity (single-contract queries) buffers
+        // as Arrow nulls — the columnar mirror of the pyclass `None`
+        // convention.
+        out.push_str("    let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);\n");
+        out.push_str("    let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);\n");
+        out.push_str("    let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);\n");
     }
 
     out.push_str("    for t in ticks {\n");
-    for (field, _effective, is_string) in &column_decls {
-        if is_option_contract && field == "right" {
-            // i32 on the struct, string on the column.
-            out.push_str(
-                "        col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
-            );
-            continue;
-        }
-        if *is_string {
-            writeln!(out, "        col_{field}.push(t.{field}.clone());").unwrap();
-        } else {
-            writeln!(out, "        col_{field}.push(t.{field});").unwrap();
-        }
+    for (field, column_type) in &column_decls {
+        writeln!(
+            out,
+            "        col_{field}.push({});",
+            column_push_expr(column_type, field)
+        )
+        .unwrap();
     }
     if is_quote_tick {
         out.push_str("        col_midpoint.push(t.midpoint);\n");
     }
     if is_contract {
-        out.push_str("        col_expiration.push(t.expiration);\n");
-        out.push_str("        col_strike.push(t.strike);\n");
+        out.push_str("        col_expiration.push(t.has_contract_id().then_some(t.expiration));\n");
+        out.push_str("        col_strike.push(t.has_contract_id().then_some(t.strike));\n");
         out.push_str(
-            "        col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
+            "        col_right.push(if t.right == '\\0' { None } else { Some(t.right.to_string()) });\n",
         );
     }
     out.push_str("    }\n");
@@ -235,7 +237,7 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     // Build columns — same constructor set as the pyclass path so the
     // RecordBatch schemas line up byte-for-byte.
     out.push_str("    let columns: Vec<ArrayRef> = vec![\n");
-    for (field, column_type, _is_string) in &column_decls {
+    for (field, column_type) in &column_decls {
         let ctor = arrow_array_ctor(column_type);
         writeln!(
             out,
@@ -339,7 +341,8 @@ fn arrow_data_type_expr(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "DataType::Int32",
         "i64" | "eod_num64" => "DataType::Int64",
         "f64" | "price" | "eod_price" => "DataType::Float64",
-        "String" => "DataType::Utf8",
+        "String" | "right" | "calendar_status" => "DataType::Utf8",
+        "bool" => "DataType::Boolean",
         other => panic!("unsupported Arrow data type for column type '{other}'"),
     }
 }
@@ -353,7 +356,8 @@ fn arrow_array_ctor(column_type: &str) -> &'static str {
         "i32" | "eod_num" | "eod_date" => "Int32Array",
         "i64" | "eod_num64" => "Int64Array",
         "f64" | "price" | "eod_price" => "Float64Array",
-        "String" => "StringArray",
+        "String" | "right" | "calendar_status" => "StringArray",
+        "bool" => "BooleanArray",
         other => panic!("unsupported Arrow array ctor for column type '{other}'"),
     }
 }
@@ -382,19 +386,17 @@ fn render_python_arrow_schema_map(schema: &Schema) -> String {
         )
         .unwrap();
         for column in &def.columns {
-            // Mirror the pyclass projection: `OptionContract.right` surfaces
-            // as a Python string (`"C"`/`"P"`/`""`) on the pyclass even
-            // though the schema records it as `i32`. See
-            // `render_python_tick_class_struct` for the matching rule.
-            let dt = if type_name == "OptionContract" && column.field == "right" {
-                "DataType::Utf8"
-            } else {
-                arrow_data_type_expr(column.r#type.as_str())
-            };
+            let dt = arrow_data_type_expr(column.r#type.as_str());
+            // Column names carry the public field name (`column.field`)
+            // so DataFrame columns line up with row-object attributes;
+            // wire spellings (`column.name`) stay in the decode layer.
+            // Keyword-escaped attributes (`lambda_`) keep the logical
+            // field name here — column names are strings, not
+            // identifiers.
             writeln!(
                 out,
                 "            Field::new(\"{name}\", {dt}, false),",
-                name = column.name,
+                name = column.field,
             )
             .unwrap();
         }
@@ -402,9 +404,11 @@ fn render_python_arrow_schema_map(schema: &Schema) -> String {
             out.push_str("            Field::new(\"midpoint\", DataType::Float64, false),\n");
         }
         if def.contract_id {
-            out.push_str("            Field::new(\"expiration\", DataType::Int32, false),\n");
-            out.push_str("            Field::new(\"strike\", DataType::Float64, false),\n");
-            out.push_str("            Field::new(\"right\", DataType::Utf8, false),\n");
+            // Nullable: contract identity is absent (Arrow null) on
+            // single-contract queries — mirrors the pyclass `None`.
+            out.push_str("            Field::new(\"expiration\", DataType::Int32, true),\n");
+            out.push_str("            Field::new(\"strike\", DataType::Float64, true),\n");
+            out.push_str("            Field::new(\"right\", DataType::Utf8, true),\n");
         }
         out.push_str("        ]))),\n");
     }

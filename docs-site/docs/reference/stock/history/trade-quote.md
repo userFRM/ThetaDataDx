@@ -62,13 +62,11 @@ for t in rows:
 
 ```typescript
 stockHistoryTradeQuote(
-  symbol: string, date: string | Date, startTime?: string | Date,
-  endTime?: string | Date, exclusive?: boolean, venue?: string,
-  startDate?: string | Date, endDate?: string | Date, timeoutMs?: number,
+  symbol: string, date: string | Date, options?: { ... },
 ): Array<TradeQuoteTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `startTime?: string | Date`, `endTime?: string | Date`, `exclusive?: boolean`, `venue?: string`, `startDate?: string | Date`, `endDate?: string | Date`, `timeoutMs?: number`.
 
 **Example**
 

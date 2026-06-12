@@ -178,21 +178,34 @@ class Config:
 
 @final
 class Contract:
-    """Per-contract identity (stock or option) for FPSS subscriptions."""
+    """Per-contract identity (stock or option) for FPSS subscriptions.
+
+    ``strike`` is the price in dollars on both sides of the builder:
+    ``option(strike=550)``, ``option(strike=550.0)``, and
+    ``option(strike="550")`` are equivalent, and the ``strike``
+    property reads the same dollar value back.
+    """
 
     @staticmethod
     def stock(symbol: str) -> Contract: ...
     @staticmethod
     def option(
         symbol: str,
+        *,
         expiration: str,
-        strike: str,
+        strike: float | int | str,
         right: str,
     ) -> Contract: ...
     @property
     def symbol(self) -> str: ...
     @property
     def sec_type(self) -> SecType: ...
+    @property
+    def expiration(self) -> Optional[int]: ...
+    @property
+    def strike(self) -> Optional[float]: ...
+    @property
+    def right(self) -> Optional[str]: ...
 
     def quote(self) -> Subscription: ...
     def trade(self) -> Subscription: ...
@@ -208,9 +221,10 @@ class ContractRef:
 
     Distinct from the fluent `Contract` builder — `ContractRef` is what
     `event.contract` returns inside a streaming callback, with the
-    resolved `symbol`, `sec_type`, `expiration`, `right`,
-    `strike_dollars`, and the wire-level integer `strike`. The fluent
-    `Contract` (above) is the one users instantiate to subscribe.
+    resolved `symbol`, `sec_type`, `expiration`, `right`, and `strike`
+    (dollars — the same unit historical rows carry under the same
+    name). The fluent `Contract` (above) is the one users instantiate
+    to subscribe.
     """
 
     @property
@@ -222,9 +236,7 @@ class ContractRef:
     @property
     def right(self) -> Optional[str]: ...
     @property
-    def strike_dollars(self) -> Optional[float]: ...
-    @property
-    def strike(self) -> Optional[int]: ...
+    def strike(self) -> Optional[float]: ...
 
     def __repr__(self) -> str: ...
 
@@ -398,23 +410,11 @@ class Disconnected:
     def __repr__(self) -> str: ...
 
 
-# NOTE: The runtime exposes this class as `Error` — same name as the
-# generic `Error` exception class declared near the bottom of this
-# stub. The two have disjoint inheritance (FPSS-event payload vs
-# exception type) and never share an instance, so the runtime
-# resolution is unambiguous. We stub the FPSS-event variant under
-# the suffix `FpssParseError` to avoid the mypy duplicate-class
-# error, and add it to the stubtest allowlist as a documented alias.
 @final
-class FpssParseError:
-    """FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
-
-    Runtime class name is ``Error`` (matches the Rust enum variant
-    surface name). The stub uses ``FpssParseError`` to avoid colliding
-    with the generic :class:`Error` exception class also named
-    ``Error`` at runtime; both names point to the runtime ``Error``
-    class via the module-level ``__getattr__`` fallback. See the
-    stubtest allowlist for the documented alias.
+class ParseError:
+    """FPSS protocol-level parse error event. Mirrors
+    `FpssControl::Error` on the Rust core. Named ``ParseError`` so it
+    never collides with the :class:`Error` exception class.
     """
 
     message: str
@@ -847,13 +847,6 @@ class NetworkError(ThetaDataError): ...
 
 @final
 class NoDataFoundError(ThetaDataError): ...
-
-
-@final
-class Error(ThetaDataError):
-    """Generic untyped error — fallback when no typed variant matches."""
-
-    ...
 
 
 # ─────────────────────────────────────────────────────────────────────

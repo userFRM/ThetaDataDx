@@ -37,7 +37,7 @@ Optional parameters chain on the builder: `.max_dte(i32)`. Execute with `.await`
 ```rust
 let rows = tdx.option_list_contracts("trade", "SPY", "20250303").await?;
 for t in &rows {
-    println!("root={} expiration={} strike={} right={}", t.root, t.expiration, t.strike, t.right);
+    println!("symbol={} expiration={} strike={} right={}", t.symbol, t.expiration, t.strike, t.right);
 }
 ```
 
@@ -60,7 +60,7 @@ ThetaDataDxClient.option_list_contracts(
 ```python
 rows = tdx.option_list_contracts("trade", "SPY", "20250303")
 for t in rows:
-    print(t.root, t.expiration, t.strike, t.right)
+    print(t.symbol, t.expiration, t.strike, t.right)
 ```
 
 </template>
@@ -69,19 +69,18 @@ for t in rows:
 
 ```typescript
 optionListContracts(
-  requestType: string, symbol: string, date: string | Date, maxDTE?: number,
-  timeoutMs?: number,
+  requestType: string, symbol: string, date: string | Date, options?: { ... },
 ): Array<OptionContract>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `maxDTE?: number`, `timeoutMs?: number`.
 
 **Example**
 
 ```typescript
 const rows = tdx.optionListContracts('trade', 'SPY', '20250303');
 for (const t of rows) {
-  console.log(t.root, t.expiration, t.strike, t.right);
+  console.log(t.symbol, t.expiration, t.strike, t.right);
 }
 ```
 
@@ -104,7 +103,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_max_dte(...)`. Thr
 ```cpp
 auto rows = client.option_list_contracts("trade", "SPY", "20250303");
 for (const auto& t : rows) {
-    std::cout << t.root << ' ' << t.expiration << ' ' << t.strike << ' ' << t.right << "\n";
+    std::cout << t.symbol << ' ' << t.expiration << ' ' << t.strike << ' ' << t.right << "\n";
 }
 ```
 
@@ -147,5 +146,5 @@ Rows of `OptionContract`:
 | `symbol` | string | Underlying symbol of the contract. |
 | `expiration` | i32 | Expiration date of the contract as a YYYYMMDD integer. |
 | `strike` | f64 | Strike price of the contract in dollars. |
-| `right` | i32 | Contract right as an ASCII code: 67 = call, 80 = put. |
+| `right` | string | Contract right: 'C' for a call, 'P' for a put. |
 

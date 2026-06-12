@@ -73,11 +73,11 @@ for t in rows:
 ```typescript
 stockAtTimeQuote(
   symbol: string, startDate: string | Date, endDate: string | Date,
-  timeOfDay: string | Date, venue?: string, timeoutMs?: number,
+  timeOfDay: string | Date, options?: { ... },
 ): Array<QuoteTick>
 ```
 
-Optional parameters are positional; pass `undefined` to skip one.
+Optional parameters ride in a single trailing options object: `venue?: string`, `timeoutMs?: number`.
 
 **Example**
 

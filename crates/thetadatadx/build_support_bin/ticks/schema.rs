@@ -48,6 +48,11 @@ pub(crate) struct TickTypeDef {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ColumnDef {
+    /// Wire / decode-layer column spelling. Every public surface emits
+    /// `field`; only the docs generator still prints `name` (in its
+    /// missing-doc diagnostics), so the field is dead code in the
+    /// `generate_sdk_surfaces` compile unit — same gate as `doc`.
+    #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
     pub(crate) name: String,
     pub(crate) field: String,
     pub(crate) r#type: String,

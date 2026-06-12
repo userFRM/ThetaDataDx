@@ -16,12 +16,12 @@ pub enum TdxFpssEventKind {
     Connected = 0,
     ContractAssigned = 1,
     Disconnected = 2,
-    Error = 3,
-    LoginSuccess = 4,
-    MarketClose = 5,
-    MarketOpen = 6,
-    Ohlcvc = 7,
-    OpenInterest = 8,
+    LoginSuccess = 3,
+    MarketClose = 4,
+    MarketOpen = 5,
+    Ohlcvc = 6,
+    OpenInterest = 7,
+    ParseError = 8,
     Ping = 9,
     Quote = 10,
     Reconnected = 11,
@@ -43,8 +43,8 @@ pub enum TdxFpssEventKind {
 /// frame. Optional option fields (`expiration`, `right`, `strike`) use a
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`
 /// directly. `right` is the ASCII byte `b'C'` / `b'P'` (`0` when
-/// `has_right` is false) so consumers see the same notation the public
-/// option builder takes.
+/// `has_right` is false) and `strike` is the option strike in dollars —
+/// the same notation the public option builder takes.
 #[repr(C)]
 pub struct TdxContract {
 /// Ticker symbol (e.g. "AAPL"). Null until ContractAssigned arrives.
@@ -60,7 +60,8 @@ pub has_right: bool,
 pub right: c_char,
 /// Whether `strike` is meaningful (options only).
 pub has_strike: bool,
-pub strike: i32,
+/// Option strike price in dollars (0.0 when `has_strike` is false).
+pub strike: f64,
 }
 
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {
@@ -71,7 +72,7 @@ expiration: 0,
 has_right: false,
 right: 0,
 has_strike: false,
-strike: 0,
+strike: 0.0,
 };
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
@@ -160,12 +161,6 @@ pub struct TdxFpssDisconnected {
     pub reason: i32,
 }
 
-/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
-#[repr(C)]
-pub struct TdxFpssError {
-    pub message: *const c_char,
-}
-
 /// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
 #[repr(C)]
 pub struct TdxFpssLoginSuccess {
@@ -188,6 +183,12 @@ pub struct TdxFpssMarketOpen {
     /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
     /// MSVC; the byte keeps the layout consistent across both.
     pub _padding: u8,
+}
+
+/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+#[repr(C)]
+pub struct TdxFpssParseError {
+    pub message: *const c_char,
 }
 
 /// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
@@ -285,10 +286,10 @@ pub struct TdxFpssEvent {
     pub connected: TdxFpssConnected,
     pub contract_assigned: TdxFpssContractAssigned,
     pub disconnected: TdxFpssDisconnected,
-    pub error: TdxFpssError,
     pub login_success: TdxFpssLoginSuccess,
     pub market_close: TdxFpssMarketClose,
     pub market_open: TdxFpssMarketOpen,
+    pub parse_error: TdxFpssParseError,
     pub ping: TdxFpssPing,
     pub reconnected: TdxFpssReconnected,
     pub reconnected_server: TdxFpssReconnectedServer,
@@ -364,9 +365,6 @@ pub(crate) const ZERO_CONTRACT_ASSIGNED: TdxFpssContractAssigned = TdxFpssContra
 pub(crate) const ZERO_DISCONNECTED: TdxFpssDisconnected = TdxFpssDisconnected {
     reason: 0,
 };
-pub(crate) const ZERO_ERROR: TdxFpssError = TdxFpssError {
-    message: ptr::null(),
-};
 pub(crate) const ZERO_LOGIN_SUCCESS: TdxFpssLoginSuccess = TdxFpssLoginSuccess {
     permissions: ptr::null(),
 };
@@ -375,6 +373,9 @@ pub(crate) const ZERO_MARKET_CLOSE: TdxFpssMarketClose = TdxFpssMarketClose {
 };
 pub(crate) const ZERO_MARKET_OPEN: TdxFpssMarketOpen = TdxFpssMarketOpen {
     _padding: 0,
+};
+pub(crate) const ZERO_PARSE_ERROR: TdxFpssParseError = TdxFpssParseError {
+    message: ptr::null(),
 };
 pub(crate) const ZERO_PING: TdxFpssPing = TdxFpssPing {
     payload: ptr::null(),

@@ -13,12 +13,12 @@ typedef enum {
     TDX_FPSS_CONNECTED = 0,
     TDX_FPSS_CONTRACT_ASSIGNED = 1,
     TDX_FPSS_DISCONNECTED = 2,
-    TDX_FPSS_ERROR = 3,
-    TDX_FPSS_LOGIN_SUCCESS = 4,
-    TDX_FPSS_MARKET_CLOSE = 5,
-    TDX_FPSS_MARKET_OPEN = 6,
-    TDX_FPSS_OHLCVC = 7,
-    TDX_FPSS_OPEN_INTEREST = 8,
+    TDX_FPSS_LOGIN_SUCCESS = 3,
+    TDX_FPSS_MARKET_CLOSE = 4,
+    TDX_FPSS_MARKET_OPEN = 5,
+    TDX_FPSS_OHLCVC = 6,
+    TDX_FPSS_OPEN_INTEREST = 7,
+    TDX_FPSS_PARSE_ERROR = 8,
     TDX_FPSS_PING = 9,
     TDX_FPSS_QUOTE = 10,
     TDX_FPSS_RECONNECTED = 11,
@@ -37,8 +37,9 @@ typedef enum {
 * NUL-terminated C string (may be null when not yet resolved);
 * optional option fields use a tagged-present bool because C has no
 * Option<T>. `right` is `'C'` / `'P'` (NUL when `has_right` is false)
-* — the same notation the public option builder takes. Layout is
-* byte-identical to Rust's #[repr(C)] TdxContract.
+* and `strike` is the option strike in dollars — the same notation
+* the public option builder takes. Layout is byte-identical to Rust's
+* #[repr(C)] TdxContract.
 */
 typedef struct {
 const char *symbol;
@@ -48,7 +49,7 @@ int32_t expiration;
 bool has_right;
 char right;
 bool has_strike;
-int32_t strike;
+double strike;
 } TdxContract;
 
 /* FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
@@ -128,11 +129,6 @@ typedef struct {
     int32_t reason;
 } TdxFpssDisconnected;
 
-/* FPSS protocol-level parse error. Mirrors `FpssControl::Error`. */
-typedef struct {
-    const char * message;
-} TdxFpssError;
-
 /* FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate). */
 typedef struct {
     const char * permissions;
@@ -149,6 +145,11 @@ typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
 } TdxFpssMarketOpen;
+
+/* FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`). */
+typedef struct {
+    const char * message;
+} TdxFpssParseError;
 
 /* FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
 typedef struct {
@@ -223,10 +224,10 @@ typedef struct {
     TdxFpssConnected connected;
     TdxFpssContractAssigned contract_assigned;
     TdxFpssDisconnected disconnected;
-    TdxFpssError error;
     TdxFpssLoginSuccess login_success;
     TdxFpssMarketClose market_close;
     TdxFpssMarketOpen market_open;
+    TdxFpssParseError parse_error;
     TdxFpssPing ping;
     TdxFpssReconnected reconnected;
     TdxFpssReconnectedServer reconnected_server;

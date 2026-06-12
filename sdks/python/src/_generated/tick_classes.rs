@@ -14,21 +14,27 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
 /// Calendar day. Market open/close schedule.
+/// 
+/// `status` carries the vendor's own day-type vocabulary (`open` /
+/// `early_close` / `full_close` / `weekend`); unknown wire text fails
+/// decode loudly rather than degrading to a sentinel. `date` is `0` on
+/// the single-row `calendar_on_date` / `calendar_open_today` responses,
+/// where the server omits the date column.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CalendarDay {
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub is_open: i32,
+    #[pyo3(get)] pub is_open: bool,
     #[pyo3(get)] pub open_time: i32,
     #[pyo3(get)] pub close_time: i32,
-    #[pyo3(get)] pub status: i32,
+    #[pyo3(get)] pub status: String,
 }
 #[pymethods]
 impl CalendarDay {
     #[new]
-    #[pyo3(signature = (*, date = 0i32, is_open = 0i32, open_time = 0i32, close_time = 0i32, status = 0i32))]
-    fn new(date: i32, is_open: i32, open_time: i32, close_time: i32, status: i32) -> Self {
+    #[pyo3(signature = (*, date = 0i32, is_open = false, open_time = 0i32, close_time = 0i32, status = "full_close".to_string()))]
+    fn new(date: i32, is_open: bool, open_time: i32, close_time: i32, status: String) -> Self {
         Self {
             date,
             is_open,
@@ -38,17 +44,25 @@ impl CalendarDay {
         }
     }
     fn __repr__(&self) -> String {
-        format!("CalendarDay(date={}, is_open={}, open_time={}, close_time={}, status={})", self.date, self.is_open, self.open_time, self.close_time, self.status)
+        format!("CalendarDay(date={}, is_open={}, open_time={}, close_time={}, status={:?})", self.date, self.is_open, self.open_time, self.close_time, self.status)
     }
 }
 
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
+/// 
+/// The two time columns carry the vendor's v3 field semantics under their
+/// v3 names: `created` is when the EOD report was generated (~17:15 ET,
+/// NOT a trade time) and `last_trade` is the time of the day's final
+/// trade. On a day with no trades the report zero-fills the trade-derived
+/// columns: `open` / `high` / `low` / `close` are `0.0` and
+/// `last_trade_ms_of_day` is `0`; the quote-side columns still carry the
+/// closing NBBO snapshot.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct EodTick {
-    #[pyo3(get)] pub ms_of_day: i32,
-    #[pyo3(get)] pub ms_of_day2: i32,
+    #[pyo3(get)] pub created_ms_of_day: i32,
+    #[pyo3(get)] pub last_trade_ms_of_day: i32,
     #[pyo3(get)] pub open: f64,
     #[pyo3(get)] pub high: f64,
     #[pyo3(get)] pub low: f64,
@@ -64,18 +78,18 @@ pub(crate) struct EodTick {
     #[pyo3(get)] pub ask: f64,
     #[pyo3(get)] pub ask_condition: i32,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl EodTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, ms_of_day2 = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, ms_of_day2: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, created_ms_of_day = 0i32, last_trade_ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(created_ms_of_day: i32, last_trade_ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
-            ms_of_day,
-            ms_of_day2,
+            created_ms_of_day,
+            last_trade_ms_of_day,
             open,
             high,
             low,
@@ -97,7 +111,25 @@ impl EodTick {
         }
     }
     fn __repr__(&self) -> String {
-        format!("EodTick(ms_of_day={}, ms_of_day2={}, open={}, high={}, low={}, close={})", self.ms_of_day, self.ms_of_day2, self.open, self.high, self.low, self.close)
+        format!("EodTick(created_ms_of_day={}, last_trade_ms_of_day={}, open={}, high={}, low={}, close={})", self.created_ms_of_day, self.last_trade_ms_of_day, self.open, self.high, self.low, self.close)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `created_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn created_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.created_ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `last_trade_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn last_trade_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.last_trade_ms_of_day)
     }
 }
 
@@ -141,20 +173,20 @@ pub(crate) struct GreeksAllTick {
     #[pyo3(get)] pub dual_delta: f64,
     #[pyo3(get)] pub dual_gamma: f64,
     #[pyo3(get)] pub epsilon: f64,
-    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub lambda_: f64,
     #[pyo3(get)] pub vera: f64,
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl GreeksAllTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, implied_volatility = 0.0f64, delta = 0.0f64, gamma = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, iv_error = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, vera = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid: f64, ask: f64, implied_volatility: f64, delta: f64, gamma: f64, theta: f64, vega: f64, rho: f64, iv_error: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, epsilon: f64, lambda: f64, vera: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, implied_volatility = 0.0f64, delta = 0.0f64, gamma = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, iv_error = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, epsilon = 0.0f64, lambda_ = 0.0f64, vera = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid: f64, ask: f64, implied_volatility: f64, delta: f64, gamma: f64, theta: f64, vega: f64, rho: f64, iv_error: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, epsilon: f64, lambda_: f64, vera: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid,
@@ -179,7 +211,7 @@ impl GreeksAllTick {
             dual_delta,
             dual_gamma,
             epsilon,
-            lambda,
+            lambda_,
             vera,
             underlying_ms_of_day,
             underlying_price,
@@ -191,6 +223,24 @@ impl GreeksAllTick {
     }
     fn __repr__(&self) -> String {
         format!("GreeksAllTick(ms_of_day={}, bid={}, ask={}, implied_volatility={}, delta={}, gamma={})", self.ms_of_day, self.bid, self.ask, self.implied_volatility, self.delta, self.gamma)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -248,7 +298,7 @@ pub(crate) struct GreeksEodTick {
     #[pyo3(get)] pub vega: f64,
     #[pyo3(get)] pub rho: f64,
     #[pyo3(get)] pub epsilon: f64,
-    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub lambda_: f64,
     #[pyo3(get)] pub gamma: f64,
     #[pyo3(get)] pub vanna: f64,
     #[pyo3(get)] pub charm: f64,
@@ -268,15 +318,15 @@ pub(crate) struct GreeksEodTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl GreeksEodTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, vera = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, vera: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda_ = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, vera = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda_: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, vera: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             open,
@@ -298,7 +348,7 @@ impl GreeksEodTick {
             vega,
             rho,
             epsilon,
-            lambda,
+            lambda_,
             gamma,
             vanna,
             charm,
@@ -326,6 +376,24 @@ impl GreeksEodTick {
     fn __repr__(&self) -> String {
         format!("GreeksEodTick(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+    }
 }
 
 /// First-order Greeks tick -- the strict column subset emitted by the
@@ -344,21 +412,21 @@ pub(crate) struct GreeksFirstOrderTick {
     #[pyo3(get)] pub vega: f64,
     #[pyo3(get)] pub rho: f64,
     #[pyo3(get)] pub epsilon: f64,
-    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub lambda_: f64,
     #[pyo3(get)] pub implied_volatility: f64,
     #[pyo3(get)] pub iv_error: f64,
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl GreeksFirstOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid: f64, ask: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda_ = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid: f64, ask: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda_: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid,
@@ -368,7 +436,7 @@ impl GreeksFirstOrderTick {
             vega,
             rho,
             epsilon,
-            lambda,
+            lambda_,
             implied_volatility,
             iv_error,
             underlying_ms_of_day,
@@ -381,6 +449,24 @@ impl GreeksFirstOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("GreeksFirstOrderTick(ms_of_day={}, bid={}, ask={}, delta={}, theta={}, vega={})", self.ms_of_day, self.bid, self.ask, self.delta, self.theta, self.vega)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -405,15 +491,15 @@ pub(crate) struct GreeksSecondOrderTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl GreeksSecondOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid: f64, ask: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid: f64, ask: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid,
@@ -435,6 +521,24 @@ impl GreeksSecondOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("GreeksSecondOrderTick(ms_of_day={}, bid={}, ask={}, gamma={}, vanna={}, charm={})", self.ms_of_day, self.bid, self.ask, self.gamma, self.vanna, self.charm)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -459,15 +563,15 @@ pub(crate) struct GreeksThirdOrderTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl GreeksThirdOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid: f64, ask: f64, speed: f64, zomma: f64, color: f64, ultima: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, ask = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid: f64, ask: f64, speed: f64, zomma: f64, color: f64, ultima: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid,
@@ -488,6 +592,24 @@ impl GreeksThirdOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("GreeksThirdOrderTick(ms_of_day={}, bid={}, ask={}, speed={}, zomma={}, color={})", self.ms_of_day, self.bid, self.ask, self.speed, self.zomma, self.color)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -541,6 +663,15 @@ impl IndexPriceAtTimeTick {
     }
     fn __repr__(&self) -> String {
         format!("IndexPriceAtTimeTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -618,15 +749,15 @@ pub(crate) struct IvTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl IvTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, bid_implied_volatility = 0.0f64, midpoint = 0.0f64, implied_volatility = 0.0f64, ask = 0.0f64, ask_implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid: f64, bid_implied_volatility: f64, midpoint: f64, implied_volatility: f64, ask: f64, ask_implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, bid_implied_volatility = 0.0f64, midpoint = 0.0f64, implied_volatility = 0.0f64, ask = 0.0f64, ask_implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid: f64, bid_implied_volatility: f64, midpoint: f64, implied_volatility: f64, ask: f64, ask_implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid,
@@ -647,6 +778,24 @@ impl IvTick {
     fn __repr__(&self) -> String {
         format!("IvTick(ms_of_day={}, bid={}, bid_implied_volatility={}, midpoint={}, implied_volatility={}, ask={})", self.ms_of_day, self.bid, self.bid_implied_volatility, self.midpoint, self.implied_volatility, self.ask)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+    }
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
@@ -659,15 +808,15 @@ pub(crate) struct MarketValueTick {
     #[pyo3(get)] pub market_ask: f64,
     #[pyo3(get)] pub market_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl MarketValueTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, market_bid = 0.0f64, market_ask = 0.0f64, market_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, market_bid: f64, market_ask: f64, market_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, market_bid = 0.0f64, market_ask = 0.0f64, market_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, market_bid: f64, market_ask: f64, market_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             market_bid,
@@ -681,6 +830,15 @@ impl MarketValueTick {
     }
     fn __repr__(&self) -> String {
         format!("MarketValueTick(ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -706,15 +864,15 @@ pub(crate) struct OhlcTick {
     #[pyo3(get)] pub count: i64,
     #[pyo3(get)] pub vwap: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl OhlcTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, vwap = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, vwap: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, vwap = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, vwap: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             open,
@@ -733,6 +891,15 @@ impl OhlcTick {
     fn __repr__(&self) -> String {
         format!("OhlcTick(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
 }
 
 /// Open interest tick.
@@ -743,15 +910,15 @@ pub(crate) struct OpenInterestTick {
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open_interest: i32,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl OpenInterestTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, open_interest = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, open_interest: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, open_interest = 0i32, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, open_interest: i32, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             open_interest,
@@ -763,6 +930,15 @@ impl OpenInterestTick {
     }
     fn __repr__(&self) -> String {
         format!("OpenInterestTick(ms_of_day={}, open_interest={}, date={})", self.ms_of_day, self.open_interest, self.date)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -818,6 +994,15 @@ impl PriceTick {
     fn __repr__(&self) -> String {
         format!("PriceTick(ms_of_day={}, price={}, date={})", self.ms_of_day, self.price, self.date)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
 }
 
 /// Quote tick. NBBO quote data.
@@ -847,15 +1032,15 @@ pub(crate) struct QuoteTick {
     #[pyo3(get)] pub ask_condition: i32,
     #[pyo3(get)] pub date: i32,
     #[pyo3(get)] pub midpoint: f64,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl QuoteTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, midpoint = 0.0f64, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, midpoint: f64, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, midpoint = 0.0f64, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, midpoint: f64, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid_size,
@@ -875,6 +1060,15 @@ impl QuoteTick {
     }
     fn __repr__(&self) -> String {
         format!("QuoteTick(ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={}, ask_size={})", self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition, self.ask_size)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -917,7 +1111,7 @@ pub(crate) struct TradeGreeksAllTick {
     #[pyo3(get)] pub vega: f64,
     #[pyo3(get)] pub rho: f64,
     #[pyo3(get)] pub epsilon: f64,
-    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub lambda_: f64,
     #[pyo3(get)] pub gamma: f64,
     #[pyo3(get)] pub vanna: f64,
     #[pyo3(get)] pub charm: f64,
@@ -937,15 +1131,15 @@ pub(crate) struct TradeGreeksAllTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeGreeksAllTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, vera = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, vera: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda_ = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, vera = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda_: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, vera: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -962,7 +1156,7 @@ impl TradeGreeksAllTick {
             vega,
             rho,
             epsilon,
-            lambda,
+            lambda_,
             gamma,
             vanna,
             charm,
@@ -990,6 +1184,24 @@ impl TradeGreeksAllTick {
     fn __repr__(&self) -> String {
         format!("TradeGreeksAllTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+    }
 }
 
 /// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
@@ -1015,21 +1227,21 @@ pub(crate) struct TradeGreeksFirstOrderTick {
     #[pyo3(get)] pub vega: f64,
     #[pyo3(get)] pub rho: f64,
     #[pyo3(get)] pub epsilon: f64,
-    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub lambda_: f64,
     #[pyo3(get)] pub implied_volatility: f64,
     #[pyo3(get)] pub iv_error: f64,
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeGreeksFirstOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda_ = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda_: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1046,7 +1258,7 @@ impl TradeGreeksFirstOrderTick {
             vega,
             rho,
             epsilon,
-            lambda,
+            lambda_,
             implied_volatility,
             iv_error,
             underlying_ms_of_day,
@@ -1059,6 +1271,24 @@ impl TradeGreeksFirstOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("TradeGreeksFirstOrderTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1086,15 +1316,15 @@ pub(crate) struct TradeGreeksImpliedVolatilityTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeGreeksImpliedVolatilityTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1118,6 +1348,24 @@ impl TradeGreeksImpliedVolatilityTick {
     }
     fn __repr__(&self) -> String {
         format!("TradeGreeksImpliedVolatilityTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1149,15 +1397,15 @@ pub(crate) struct TradeGreeksSecondOrderTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeGreeksSecondOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1186,6 +1434,24 @@ impl TradeGreeksSecondOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("TradeGreeksSecondOrderTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1217,15 +1483,15 @@ pub(crate) struct TradeGreeksThirdOrderTick {
     #[pyo3(get)] pub underlying_ms_of_day: i32,
     #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeGreeksThirdOrderTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, speed: f64, zomma: f64, color: f64, ultima: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, speed: f64, zomma: f64, color: f64, ultima: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1253,6 +1519,24 @@ impl TradeGreeksThirdOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("TradeGreeksThirdOrderTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn underlying_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1285,15 +1569,15 @@ pub(crate) struct TradeQuoteTick {
     #[pyo3(get)] pub ask: f64,
     #[pyo3(get)] pub ask_condition: i32,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeQuoteTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, quote_ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, quote_ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, quote_ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, quote_ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1327,6 +1611,24 @@ impl TradeQuoteTick {
     fn __repr__(&self) -> String {
         format!("TradeQuoteTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn quote_timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.quote_ms_of_day)
+    }
 }
 
 /// Trade tick. Core unit of trade data.
@@ -1349,15 +1651,15 @@ pub(crate) struct TradeTick {
     #[pyo3(get)] pub volume_type: i32,
     #[pyo3(get)] pub records_back: i32,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub expiration: i32,
-    #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: String,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
 }
 #[pymethods]
 impl TradeTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             sequence,
@@ -1382,6 +1684,15 @@ impl TradeTick {
     fn __repr__(&self) -> String {
         format!("TradeTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn timestamp_ms(&self) -> Option<i64> {
+        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+    }
 }
 
 /// Typed list of `CalendarDay` returned by every historical endpoint
@@ -1405,7 +1716,7 @@ impl CalendarDayList {
 impl CalendarDayList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, CalendarDay>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, CalendarDay>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::CalendarDay {
@@ -1413,11 +1724,11 @@ impl CalendarDayList {
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: t.status,
+                status: match tdbe::CalendarStatus::from_wire_text(&t.status) { Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!("status must be one of open, early_close, full_close, weekend; got {:?}", t.status))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -1446,7 +1757,7 @@ impl CalendarDayList {
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: t.status,
+                status: t.status.as_str().to_string(),
             }
         )
     }
@@ -1466,7 +1777,7 @@ impl CalendarDayList {
                     is_open: t.is_open,
                     open_time: t.open_time,
                     close_time: t.close_time,
-                    status: t.status,
+                    status: t.status.as_str().to_string(),
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -1532,7 +1843,7 @@ impl CalendarDayListIter {
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: t.status,
+                status: t.status.as_str().to_string(),
             }
         )
     }
@@ -1559,12 +1870,12 @@ impl EodTickList {
 impl EodTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, EodTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, EodTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::EodTick {
-                ms_of_day: t.ms_of_day,
-                ms_of_day2: t.ms_of_day2,
+                created_ms_of_day: t.created_ms_of_day,
+                last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -1580,13 +1891,13 @@ impl EodTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -1611,8 +1922,8 @@ impl EodTickList {
         }
         let t = &self.inner[resolved as usize];
         Ok(            EodTick {
-                ms_of_day: t.ms_of_day,
-                ms_of_day2: t.ms_of_day2,
+                created_ms_of_day: t.created_ms_of_day,
+                last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -1628,9 +1939,9 @@ impl EodTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -1646,8 +1957,8 @@ impl EodTickList {
         let list = pyo3::types::PyList::empty(py);
         for t in &self.inner {
             let obj =                 EodTick {
-                    ms_of_day: t.ms_of_day,
-                    ms_of_day2: t.ms_of_day2,
+                    created_ms_of_day: t.created_ms_of_day,
+                    last_trade_ms_of_day: t.last_trade_ms_of_day,
                     open: t.open,
                     high: t.high,
                     low: t.low,
@@ -1663,9 +1974,9 @@ impl EodTickList {
                     ask: t.ask,
                     ask_condition: t.ask_condition,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -1727,8 +2038,8 @@ impl EodTickListIter {
         let t = &self.inner[self.cursor];
         self.cursor += 1;
         Some(            EodTick {
-                ms_of_day: t.ms_of_day,
-                ms_of_day2: t.ms_of_day2,
+                created_ms_of_day: t.created_ms_of_day,
+                last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -1744,9 +2055,9 @@ impl EodTickListIter {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -1773,7 +2084,7 @@ impl GreeksAllTickList {
 impl GreeksAllTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksAllTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksAllTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::GreeksAllTick {
@@ -1800,18 +2111,18 @@ impl GreeksAllTickList {
                 dual_delta: t.dual_delta,
                 dual_gamma: t.dual_gamma,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda: t.lambda_,
                 vera: t.vera,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -1859,14 +2170,14 @@ impl GreeksAllTickList {
                 dual_delta: t.dual_delta,
                 dual_gamma: t.dual_gamma,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 vera: t.vera,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -1905,14 +2216,14 @@ impl GreeksAllTickList {
                     dual_delta: t.dual_delta,
                     dual_gamma: t.dual_gamma,
                     epsilon: t.epsilon,
-                    lambda: t.lambda,
+                    lambda_: t.lambda,
                     vera: t.vera,
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -1997,14 +2308,14 @@ impl GreeksAllTickListIter {
                 dual_delta: t.dual_delta,
                 dual_gamma: t.dual_gamma,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 vera: t.vera,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2031,7 +2342,7 @@ impl GreeksEodTickList {
 impl GreeksEodTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksEodTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksEodTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::GreeksEodTick {
@@ -2055,7 +2366,7 @@ impl GreeksEodTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda: t.lambda_,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -2075,13 +2386,13 @@ impl GreeksEodTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -2126,7 +2437,7 @@ impl GreeksEodTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -2146,9 +2457,9 @@ impl GreeksEodTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2184,7 +2495,7 @@ impl GreeksEodTickList {
                     vega: t.vega,
                     rho: t.rho,
                     epsilon: t.epsilon,
-                    lambda: t.lambda,
+                    lambda_: t.lambda,
                     gamma: t.gamma,
                     vanna: t.vanna,
                     charm: t.charm,
@@ -2204,9 +2515,9 @@ impl GreeksEodTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -2288,7 +2599,7 @@ impl GreeksEodTickListIter {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -2308,9 +2619,9 @@ impl GreeksEodTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2337,7 +2648,7 @@ impl GreeksFirstOrderTickList {
 impl GreeksFirstOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksFirstOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksFirstOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::GreeksFirstOrderTick {
@@ -2349,19 +2660,19 @@ impl GreeksFirstOrderTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda: t.lambda_,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -2394,15 +2705,15 @@ impl GreeksFirstOrderTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2426,15 +2737,15 @@ impl GreeksFirstOrderTickList {
                     vega: t.vega,
                     rho: t.rho,
                     epsilon: t.epsilon,
-                    lambda: t.lambda,
+                    lambda_: t.lambda,
                     implied_volatility: t.implied_volatility,
                     iv_error: t.iv_error,
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -2504,15 +2815,15 @@ impl GreeksFirstOrderTickListIter {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2539,7 +2850,7 @@ impl GreeksSecondOrderTickList {
 impl GreeksSecondOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksSecondOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksSecondOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::GreeksSecondOrderTick {
@@ -2556,13 +2867,13 @@ impl GreeksSecondOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -2600,9 +2911,9 @@ impl GreeksSecondOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2631,9 +2942,9 @@ impl GreeksSecondOrderTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -2708,9 +3019,9 @@ impl GreeksSecondOrderTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2737,7 +3048,7 @@ impl GreeksThirdOrderTickList {
 impl GreeksThirdOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksThirdOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksThirdOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::GreeksThirdOrderTick {
@@ -2753,13 +3064,13 @@ impl GreeksThirdOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -2796,9 +3107,9 @@ impl GreeksThirdOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2826,9 +3137,9 @@ impl GreeksThirdOrderTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -2902,9 +3213,9 @@ impl GreeksThirdOrderTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -2931,7 +3242,7 @@ impl IndexPriceAtTimeTickList {
 impl IndexPriceAtTimeTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, IndexPriceAtTimeTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, IndexPriceAtTimeTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::IndexPriceAtTimeTick {
@@ -2949,7 +3260,7 @@ impl IndexPriceAtTimeTickList {
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3109,7 +3420,7 @@ impl InterestRateTickList {
 impl InterestRateTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, InterestRateTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, InterestRateTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::InterestRateTick {
@@ -3118,7 +3429,7 @@ impl InterestRateTickList {
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3251,7 +3562,7 @@ impl IvTickList {
 impl IvTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, IvTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, IvTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::IvTick {
@@ -3266,13 +3577,13 @@ impl IvTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3308,9 +3619,9 @@ impl IvTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3337,9 +3648,9 @@ impl IvTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -3412,9 +3723,9 @@ impl IvTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3441,7 +3752,7 @@ impl MarketValueTickList {
 impl MarketValueTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, MarketValueTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, MarketValueTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::MarketValueTick {
@@ -3450,13 +3761,13 @@ impl MarketValueTickList {
                 market_ask: t.market_ask,
                 market_price: t.market_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3486,9 +3797,9 @@ impl MarketValueTickList {
                 market_ask: t.market_ask,
                 market_price: t.market_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3509,9 +3820,9 @@ impl MarketValueTickList {
                     market_ask: t.market_ask,
                     market_price: t.market_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -3578,9 +3889,9 @@ impl MarketValueTickListIter {
                 market_ask: t.market_ask,
                 market_price: t.market_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3607,7 +3918,7 @@ impl OhlcTickList {
 impl OhlcTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, OhlcTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, OhlcTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::OhlcTick {
@@ -3620,13 +3931,13 @@ impl OhlcTickList {
                 count: t.count,
                 vwap: t.vwap,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3660,9 +3971,9 @@ impl OhlcTickList {
                 count: t.count,
                 vwap: t.vwap,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3687,9 +3998,9 @@ impl OhlcTickList {
                     count: t.count,
                     vwap: t.vwap,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -3760,9 +4071,9 @@ impl OhlcTickListIter {
                 count: t.count,
                 vwap: t.vwap,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3789,20 +4100,20 @@ impl OpenInterestTickList {
 impl OpenInterestTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, OpenInterestTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, OpenInterestTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::OpenInterestTick {
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3830,9 +4141,9 @@ impl OpenInterestTickList {
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3851,9 +4162,9 @@ impl OpenInterestTickList {
                     ms_of_day: t.ms_of_day,
                     open_interest: t.open_interest,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -3918,9 +4229,9 @@ impl OpenInterestTickListIter {
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -3947,18 +4258,18 @@ impl OptionContractList {
 impl OptionContractList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, OptionContract>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, OptionContract>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::OptionContract {
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                right: match t.right.as_str() { "C" => 'C', "P" => 'P', "" => '\0', other => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -3986,7 +4297,7 @@ impl OptionContractList {
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
         )
     }
@@ -4005,7 +4316,7 @@ impl OptionContractList {
                     symbol: t.symbol.clone(),
                     expiration: t.expiration,
                     strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    right: if t.right == '\0' { String::new() } else { t.right.to_string() },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -4070,7 +4381,7 @@ impl OptionContractListIter {
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
         )
     }
@@ -4097,7 +4408,7 @@ impl PriceTickList {
 impl PriceTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, PriceTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, PriceTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::PriceTick {
@@ -4107,7 +4418,7 @@ impl PriceTickList {
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -4243,7 +4554,7 @@ impl QuoteTickList {
 impl QuoteTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, QuoteTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, QuoteTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::QuoteTick {
@@ -4258,13 +4569,13 @@ impl QuoteTickList {
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -4300,9 +4611,9 @@ impl QuoteTickList {
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4329,9 +4640,9 @@ impl QuoteTickList {
                     ask_condition: t.ask_condition,
                     date: t.date,
                     midpoint: t.midpoint,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -4404,9 +4715,9 @@ impl QuoteTickListIter {
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4433,7 +4744,7 @@ impl TradeGreeksAllTickList {
 impl TradeGreeksAllTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksAllTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksAllTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeGreeksAllTick {
@@ -4452,7 +4763,7 @@ impl TradeGreeksAllTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda: t.lambda_,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -4472,13 +4783,13 @@ impl TradeGreeksAllTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -4518,7 +4829,7 @@ impl TradeGreeksAllTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -4538,9 +4849,9 @@ impl TradeGreeksAllTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4571,7 +4882,7 @@ impl TradeGreeksAllTickList {
                     vega: t.vega,
                     rho: t.rho,
                     epsilon: t.epsilon,
-                    lambda: t.lambda,
+                    lambda_: t.lambda,
                     gamma: t.gamma,
                     vanna: t.vanna,
                     charm: t.charm,
@@ -4591,9 +4902,9 @@ impl TradeGreeksAllTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -4670,7 +4981,7 @@ impl TradeGreeksAllTickListIter {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -4690,9 +5001,9 @@ impl TradeGreeksAllTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4719,7 +5030,7 @@ impl TradeGreeksFirstOrderTickList {
 impl TradeGreeksFirstOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksFirstOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksFirstOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeGreeksFirstOrderTick {
@@ -4738,19 +5049,19 @@ impl TradeGreeksFirstOrderTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda: t.lambda_,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -4790,15 +5101,15 @@ impl TradeGreeksFirstOrderTickList {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4829,15 +5140,15 @@ impl TradeGreeksFirstOrderTickList {
                     vega: t.vega,
                     rho: t.rho,
                     epsilon: t.epsilon,
-                    lambda: t.lambda,
+                    lambda_: t.lambda,
                     implied_volatility: t.implied_volatility,
                     iv_error: t.iv_error,
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -4914,15 +5225,15 @@ impl TradeGreeksFirstOrderTickListIter {
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -4949,7 +5260,7 @@ impl TradeGreeksImpliedVolatilityTickList {
 impl TradeGreeksImpliedVolatilityTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksImpliedVolatilityTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksImpliedVolatilityTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeGreeksImpliedVolatilityTick {
@@ -4968,13 +5279,13 @@ impl TradeGreeksImpliedVolatilityTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -5014,9 +5325,9 @@ impl TradeGreeksImpliedVolatilityTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5047,9 +5358,9 @@ impl TradeGreeksImpliedVolatilityTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -5126,9 +5437,9 @@ impl TradeGreeksImpliedVolatilityTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5155,7 +5466,7 @@ impl TradeGreeksSecondOrderTickList {
 impl TradeGreeksSecondOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksSecondOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksSecondOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeGreeksSecondOrderTick {
@@ -5179,13 +5490,13 @@ impl TradeGreeksSecondOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -5230,9 +5541,9 @@ impl TradeGreeksSecondOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5268,9 +5579,9 @@ impl TradeGreeksSecondOrderTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -5352,9 +5663,9 @@ impl TradeGreeksSecondOrderTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5381,7 +5692,7 @@ impl TradeGreeksThirdOrderTickList {
 impl TradeGreeksThirdOrderTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksThirdOrderTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeGreeksThirdOrderTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeGreeksThirdOrderTick {
@@ -5404,13 +5715,13 @@ impl TradeGreeksThirdOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -5454,9 +5765,9 @@ impl TradeGreeksThirdOrderTickList {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5491,9 +5802,9 @@ impl TradeGreeksThirdOrderTickList {
                     underlying_ms_of_day: t.underlying_ms_of_day,
                     underlying_price: t.underlying_price,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -5574,9 +5885,9 @@ impl TradeGreeksThirdOrderTickListIter {
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5603,7 +5914,7 @@ impl TradeQuoteTickList {
 impl TradeQuoteTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeQuoteTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeQuoteTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeQuoteTick {
@@ -5631,13 +5942,13 @@ impl TradeQuoteTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -5686,9 +5997,9 @@ impl TradeQuoteTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5728,9 +6039,9 @@ impl TradeQuoteTickList {
                     ask: t.ask,
                     ask_condition: t.ask_condition,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -5816,9 +6127,9 @@ impl TradeQuoteTickListIter {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5845,7 +6156,7 @@ impl TradeTickList {
 impl TradeTickList {
     #[new]
     #[pyo3(signature = (ticks = Vec::new()))]
-    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeTick>>) -> Self {
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, TradeTick>>) -> PyResult<Self> {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::TradeTick {
@@ -5864,13 +6175,13 @@ impl TradeTickList {
                 volume_type: t.volume_type,
                 records_back: t.records_back,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
             }
             );
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
     fn __len__(&self) -> usize {
@@ -5910,9 +6221,9 @@ impl TradeTickList {
                 volume_type: t.volume_type,
                 records_back: t.records_back,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -5943,9 +6254,9 @@ impl TradeTickList {
                     volume_type: t.volume_type,
                     records_back: t.records_back,
                     date: t.date,
-                    expiration: t.expiration,
-                    strike: t.strike,
-                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -6022,9 +6333,9 @@ impl TradeTickListIter {
                 volume_type: t.volume_type,
                 records_back: t.records_back,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -6134,7 +6445,7 @@ pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Calen
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: t.status,
+                status: t.status.as_str().to_string(),
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6150,8 +6461,8 @@ pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::EodTick>)
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             EodTick {
-                ms_of_day: t.ms_of_day,
-                ms_of_day2: t.ms_of_day2,
+                created_ms_of_day: t.created_ms_of_day,
+                last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -6167,9 +6478,9 @@ pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::EodTick>)
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6208,14 +6519,14 @@ pub(crate) fn greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
                 dual_delta: t.dual_delta,
                 dual_gamma: t.dual_gamma,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 vera: t.vera,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6251,7 +6562,7 @@ pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -6271,9 +6582,9 @@ pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6297,15 +6608,15 @@ pub(crate) fn greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6334,9 +6645,9 @@ pub(crate) fn greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6364,9 +6675,9 @@ pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6436,9 +6747,9 @@ pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IvTick>) -
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6459,9 +6770,9 @@ pub(crate) fn market_value_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::
                 market_ask: t.market_ask,
                 market_price: t.market_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6486,9 +6797,9 @@ pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OhlcTick
                 count: t.count,
                 vwap: t.vwap,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6507,9 +6818,9 @@ pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick:
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6528,7 +6839,7 @@ pub(crate) fn option_contracts_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Op
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6573,9 +6884,9 @@ pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::QuoteTi
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6606,7 +6917,7 @@ pub(crate) fn trade_greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<ti
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 gamma: t.gamma,
                 vanna: t.vanna,
                 charm: t.charm,
@@ -6626,9 +6937,9 @@ pub(crate) fn trade_greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<ti
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6659,15 +6970,15 @@ pub(crate) fn trade_greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks
                 vega: t.vega,
                 rho: t.rho,
                 epsilon: t.epsilon,
-                lambda: t.lambda,
+                lambda_: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6698,9 +7009,9 @@ pub(crate) fn trade_greeks_implied_volatility_ticks_vec_to_pylist(py: Python<'_>
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6736,9 +7047,9 @@ pub(crate) fn trade_greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, tick
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6773,9 +7084,9 @@ pub(crate) fn trade_greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks
                 underlying_ms_of_day: t.underlying_ms_of_day,
                 underlying_price: t.underlying_price,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6815,9 +7126,9 @@ pub(crate) fn trade_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::T
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6848,9 +7159,9 @@ pub(crate) fn trade_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeTi
                 volume_type: t.volume_type,
                 records_back: t.records_back,
                 date: t.date,
-                expiration: t.expiration,
-                strike: t.strike,
-                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;

@@ -485,12 +485,15 @@ pub(crate) fn row_contract_expiration(
     }
 }
 
-/// Decode a contract `right` cell to its ASCII code (`'C'` = 67,
-/// `'P'` = 80).
+/// Decode a contract `right` cell to its logical character (`'C'` for
+/// a call, `'P'` for a put).
 ///
 /// Wildcard responses inject the contract-identity columns; `right`
-/// arrives as a `Number` ASCII code or as `Text`
-/// (`"CALL"`/`"C"`/`"PUT"`/`"P"`). `NullValue` yields `Ok(None)`.
+/// arrives as a `Number` ASCII code (67 / 80) or as `Text`
+/// (`"CALL"`/`"C"`/`"PUT"`/`"P"`). Both wire encodings decode to the
+/// character so the typed surface never carries the undecoded wire
+/// integer. `NullValue` yields `Ok(None)` (the absent-contract-id
+/// fill is `'\0'`).
 ///
 /// # Errors
 ///
@@ -502,32 +505,22 @@ pub(crate) fn row_contract_expiration(
 pub(crate) fn row_contract_right(
     row: &proto::DataValueList,
     idx: usize,
-) -> Result<Option<i32>, DecodeError> {
+) -> Result<Option<char>, DecodeError> {
     let Some(dv) = row.values.get(idx) else {
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => {
-            let n32 = match i32::try_from(*n) {
-                Ok(v) => v,
-                Err(_) => {
-                    return Err(DecodeError::UnknownEnumVariant {
-                        field: "right",
-                        raw: n.to_string(),
-                    })
-                }
-            };
-            match n32 {
-                67 | 80 => Ok(Some(n32)),
-                _ => Err(DecodeError::UnknownEnumVariant {
-                    field: "right",
-                    raw: n32.to_string(),
-                }),
-            }
-        }
+        Some(proto::data_value::DataType::Number(n)) => match *n {
+            67 => Ok(Some('C')),
+            80 => Ok(Some('P')),
+            other => Err(DecodeError::UnknownEnumVariant {
+                field: "right",
+                raw: other.to_string(),
+            }),
+        },
         Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
-            "CALL" | "C" => Ok(Some(67)),
-            "PUT" | "P" => Ok(Some(80)),
+            "CALL" | "C" => Ok(Some('C')),
+            "PUT" | "P" => Ok(Some('P')),
             other => Err(DecodeError::UnknownEnumVariant {
                 field: "right",
                 raw: other.to_string(),
@@ -537,6 +530,95 @@ pub(crate) fn row_contract_right(
         other => Err(DecodeError::TypeMismatch {
             column: idx,
             expected: "Number|Text",
+            observed: observed_name(other),
+        }),
+    }
+}
+
+/// Decode a logical boolean cell (`Number` 0 / 1 → `bool`).
+///
+/// Used by schema columns typed `bool` (e.g. `CalendarDay.is_open`).
+/// `NullValue` yields `Ok(None)` so the absent-column fill stays
+/// `false`.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::UnknownEnumVariant`] for numeric payloads
+/// outside `{0, 1}`, [`DecodeError::TypeMismatch`] on any other
+/// variant, and [`DecodeError::MissingCell`] when the row is shorter
+/// than `idx`.
+#[inline]
+pub(crate) fn row_bool(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<bool>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Number(0)) => Ok(Some(false)),
+        Some(proto::data_value::DataType::Number(1)) => Ok(Some(true)),
+        Some(proto::data_value::DataType::Number(n)) => Err(DecodeError::UnknownEnumVariant {
+            field: "bool",
+            raw: n.to_string(),
+        }),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Number",
+            observed: observed_name(other),
+        }),
+    }
+}
+
+/// Decode a calendar day-type cell to the typed
+/// [`tdbe::types::enums::CalendarStatus`].
+///
+/// Accepts the vendor's `Text` vocabulary (`"open"` / `"early_close"`
+/// / `"full_close"` / `"weekend"`) and the integer codes `0..=3`.
+/// Unknown values fail loudly so schema drift surfaces as a typed
+/// error instead of a silent mis-classification. `NullValue` yields
+/// `Ok(None)`.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::UnknownEnumVariant`] for values outside the
+/// documented vocabulary, [`DecodeError::TypeMismatch`] on any other
+/// variant, and [`DecodeError::MissingCell`] when the row is shorter
+/// than `idx`.
+#[inline]
+pub(crate) fn row_calendar_status(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<tdbe::CalendarStatus>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Text(s)) => match tdbe::CalendarStatus::from_wire_text(s)
+        {
+            Some(status) => Ok(Some(status)),
+            None => Err(DecodeError::UnknownEnumVariant {
+                field: "calendar.type",
+                raw: s.clone(),
+            }),
+        },
+        Some(proto::data_value::DataType::Number(n)) => {
+            let code = i32::try_from(*n)
+                .ok()
+                .and_then(tdbe::CalendarStatus::from_code);
+            match code {
+                Some(status) => Ok(Some(status)),
+                None => Err(DecodeError::UnknownEnumVariant {
+                    field: "calendar.type",
+                    raw: n.to_string(),
+                }),
+            }
+        }
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Text|Number",
             observed: observed_name(other),
         }),
     }

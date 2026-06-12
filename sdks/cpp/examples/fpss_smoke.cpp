@@ -36,7 +36,7 @@ const char* event_kind_name(tdx::FpssEventKind kind) {
         case TDX_FPSS_CONNECTED: return "connected";
         case TDX_FPSS_CONTRACT_ASSIGNED: return "contract_assigned";
         case TDX_FPSS_DISCONNECTED: return "disconnected";
-        case TDX_FPSS_ERROR: return "error";
+        case TDX_FPSS_PARSE_ERROR: return "parse_error";
         case TDX_FPSS_LOGIN_SUCCESS: return "login_success";
         case TDX_FPSS_MARKET_CLOSE: return "market_close";
         case TDX_FPSS_MARKET_OPEN: return "market_open";
@@ -142,9 +142,9 @@ int main(int argc, char** argv) {
                         std::cout << " message=" << event.server_error.message;
                     }
                     break;
-                case TDX_FPSS_ERROR:
-                    if (event.error.message) {
-                        std::cout << " message=" << event.error.message;
+                case TDX_FPSS_PARSE_ERROR:
+                    if (event.parse_error.message) {
+                        std::cout << " message=" << event.parse_error.message;
                     }
                     break;
                 case TDX_FPSS_UNKNOWN_FRAME:

@@ -142,6 +142,7 @@ CPP_ALIASES: dict[str, str] = {
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
+    "ParseError": "FpssParseError",
 }
 
 
@@ -909,6 +910,108 @@ def _check_orphan_rust_fields(
     return errors
 
 
+VALUE_FIELD_PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
+VALUE_FIELD_TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
+
+
+def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | None:
+    """Declared Rust-side type of `field` on `struct` in a binding crate.
+
+    Scans every `.rs` file (including `_generated/`) for the struct body
+    and returns the type text of the named field, attribute prefixes
+    (`#[pyo3(get)]`) stripped. Returns `None` when the struct or field
+    is absent. Generated and hand-written sources are treated alike —
+    the declared type IS the binding surface either way.
+    """
+    struct_re = re.compile(
+        r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
+        re.S,
+    )
+    field_re = re.compile(
+        r"(?:#\[[^\]]*\]\s*)*pub\s+" + re.escape(field) + r"\s*:\s*([^,\n]+)",
+    )
+    for path in sorted(src_dir.rglob("*.rs")):
+        text = path.read_text(encoding="utf-8")
+        for m in struct_re.finditer(text):
+            fm = field_re.search(m.group(1))
+            if fm:
+                return fm.group(1).strip()
+    return None
+
+
+def _cpp_struct_field_type(hpp: pathlib.Path, struct: str, field: str) -> str | None:
+    """Declared C++ type of `field` on `struct` in the C++ wrapper header.
+
+    Mirrors [`_struct_field_type`] for the hand-written C++ value structs
+    (`OptionContract`, etc.) whose field types live in `thetadx.hpp`
+    rather than a Rust binding crate. Returns `None` when the struct or
+    field is absent. A `cpp` key on a `[[value_field]]` row pins the
+    type this returns, closing the gap that let a C++ value struct
+    surface a raw wire integer the other bindings decode.
+    """
+    text = hpp.read_text(encoding="utf-8")
+    struct_re = re.compile(
+        r"struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
+        re.S,
+    )
+    field_re = re.compile(
+        r"([A-Za-z_][\w:<>\s\*&]*?)\s+" + re.escape(field) + r"\s*;",
+    )
+    for m in struct_re.finditer(text):
+        fm = field_re.search(m.group(1))
+        if fm:
+            return fm.group(1).strip()
+    return None
+
+
+def _check_value_field_rows(rows: list[dict[str, Any]]) -> list[str]:
+    """Field-level TYPE parity for `[[value_field]]` rows.
+
+    Each row pins the declared Rust-side type of one field on one
+    value class per binding:
+
+        [[value_field]]
+        class = "ContractRef"
+        name = "strike"
+        python = "Option<f64>"
+        typescript = "Option<f64>"
+
+    `python` / `typescript` are the Rust types in the pyclass / napi
+    object struct (omit a key to skip that binding, e.g. a
+    Python-only spelling like `lambda_`). A mismatch — the field
+    missing, or declared under a different type — fails the gate, so a
+    binding cannot silently drift a field's unit-bearing type (the
+    strike-thousandths / right-as-int / ms_of_day2 defect class).
+    """
+    errors: list[str] = []
+    for row in rows:
+        cls, field = row["class"], row["name"]
+        for lang, src_dir in (
+            ("python", VALUE_FIELD_PY_SRC),
+            ("typescript", VALUE_FIELD_TS_SRC),
+        ):
+            declared = row.get(lang)
+            if declared is None:
+                continue
+            actual = _struct_field_type(src_dir, cls, field)
+            if actual != declared:
+                errors.append(
+                    f"{cls}.{field}.{lang}: declared type `{declared}`, "
+                    f"actual `{actual or '<field missing>'}`"
+                )
+        # C++ value structs declare their field types in the wrapper
+        # header, not a Rust crate, so they get their own reader.
+        declared_cpp = row.get("cpp")
+        if declared_cpp is not None:
+            actual_cpp = _cpp_struct_field_type(CPP_HPP, _cpp_class_for(cls), field)
+            if actual_cpp != declared_cpp:
+                errors.append(
+                    f"{cls}.{field}.cpp: declared type `{declared_cpp}`, "
+                    f"actual `{actual_cpp or '<field missing>'}`"
+                )
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if "--selftest" in argv:
@@ -921,6 +1024,7 @@ def main(argv: list[str] | None = None) -> int:
     data: dict[str, Any] = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
     rows: list[dict[str, Any]] = data.get("class", [])
     method_rows: list[dict[str, Any]] = data.get("method", [])
+    value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -977,6 +1081,9 @@ def main(argv: list[str] | None = None) -> int:
     # Orphan Rust pub fields (no parity row).
     orphan_errors = _check_orphan_rust_fields(rust_fields, rows)
 
+    # Value-field TYPE parity ([[value_field]] rows).
+    value_field_errors = _check_value_field_rows(value_field_rows)
+
     # Catch-all: every Python pyclass must be either tracked
     # explicitly or via the implicit pattern (mechanical parity).
     untracked: set[str] = {
@@ -1027,6 +1134,16 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if value_field_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(value_field_errors)} value-field "
+            f"TYPE mismatch(es) (per-field `[[value_field]]` granularity):"
+        )
+        for e in value_field_errors:
+            print(f"  {e}")
+        print()
+
     if untracked:
         had_errors = True
         print(
@@ -1049,10 +1166,11 @@ def main(argv: list[str] | None = None) -> int:
     n_class = len(rows) - n_dotted
     n_fields = sum(len(v) for v in rust_fields.values())
     n_methods = len(method_rows)
+    n_value_fields = len(value_field_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
-        f"{n_methods} method rows + "
+        f"{n_methods} method rows + {n_value_fields} value-field rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -1503,6 +1621,57 @@ def _run_selftest() -> int:
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)
+
+    def _case_value_field_positive_matches() -> None:
+        """Declared Rust + C++ field types match the sources — gate silent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            py_dir = pathlib.Path(tmp) / "py"
+            py_dir.mkdir()
+            (py_dir / "gen.rs").write_text(
+                "pub struct OptionContract {\n"
+                "    #[pyo3(get)] pub right: String,\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            hpp = pathlib.Path(tmp) / "thetadx.hpp"
+            hpp.write_text(
+                "struct OptionContract {\n    char right;\n}\n",
+                encoding="utf-8",
+            )
+            assert _struct_field_type(py_dir, "OptionContract", "right") == "String"
+            assert _cpp_struct_field_type(hpp, "OptionContract", "right") == "char"
+
+    def _case_value_field_rust_type_mismatch_trips() -> None:
+        """A Rust field whose type drifted from the declared one trips."""
+        with tempfile.TemporaryDirectory() as tmp:
+            py_dir = pathlib.Path(tmp) / "py"
+            py_dir.mkdir()
+            (py_dir / "gen.rs").write_text(
+                "pub struct ContractRef {\n"
+                "    #[pyo3(get)] pub strike: Option<i32>,\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            # The declared type is dollars (f64); the source drifted to i32.
+            actual = _struct_field_type(py_dir, "ContractRef", "strike")
+            assert actual == "Option<i32>", f"reader must see the drift; got {actual!r}"
+            assert actual != "Option<f64>", "the strike-units regression must not read as clean"
+
+    def _case_value_field_cpp_type_mismatch_trips() -> None:
+        """A C++ value struct that surfaces the raw integer trips."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "thetadx.hpp"
+            hpp.write_text(
+                "struct OptionContract {\n    int32_t right;\n}\n",
+                encoding="utf-8",
+            )
+            actual = _cpp_struct_field_type(hpp, "OptionContract", "right")
+            assert actual == "int32_t", f"reader must see the int; got {actual!r}"
+            assert actual != "char", "the right-as-int regression must not read as clean"
+
+    _case("value_field positive — Rust + C++ types match the declared", _case_value_field_positive_matches)
+    _case("value_field negative — Rust strike type drift trips", _case_value_field_rust_type_mismatch_trips)
+    _case("value_field negative — C++ right-as-int trips", _case_value_field_cpp_type_mismatch_trips)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1
