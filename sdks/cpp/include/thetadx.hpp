@@ -2163,6 +2163,13 @@ inline void FpssClient::unsubscribe_many(
     for (const auto& s : subs) unsubscribe(s);
 }
 
+// Generated Arrow-IPC terminals on the history result vectors
+// (`tdx::eod_ticks_to_arrow_ipc(...)`, ...). Placed after the `detail`
+// namespace and the tick-type aliases so the wrappers can throw through
+// `detail::throw_last_ffi_error` on a serialisation failure. Mirrors
+// `FlatFileRowList::to_arrow_ipc()` and the Python columnar exit.
+#include "tick_arrow_ipc.hpp.inc"
+
 // ── Cross-language utility helpers ──────────────────────────────────────
 //
 // Thin std::string wrappers over the `'static` C-string accessors in

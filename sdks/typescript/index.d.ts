@@ -1581,6 +1581,15 @@ export interface CalendarDay {
 }
 
 /**
+ * Serialise a `CalendarDay` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function calendarDayToArrowIpc(rows: Array<CalendarDay>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::calendarOnDate`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -1686,6 +1695,15 @@ export interface EodTick {
 }
 
 /**
+ * Serialise a `EodTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function eodTickToArrowIpc(rows: Array<EodTick>): Buffer
+
+/**
  * A single FPSS event surfaced to JS/TS.
  *
  * `kind` is the discriminator — switch on it and read the matching
@@ -1757,6 +1775,15 @@ export interface GreeksAllTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksAllTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksAllTickToArrowIpc(rows: Array<GreeksAllTick>): Buffer
+
 /** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
 export interface GreeksEodTick {
   msOfDay: number
@@ -1804,6 +1831,15 @@ export interface GreeksEodTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksEodTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksEodTickToArrowIpc(rows: Array<GreeksEodTick>): Buffer
+
 /** First-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksFirstOrderTick {
   msOfDay: number
@@ -1825,6 +1861,15 @@ export interface GreeksFirstOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksFirstOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksFirstOrderTickToArrowIpc(rows: Array<GreeksFirstOrderTick>): Buffer
+
 /** Second-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksSecondOrderTick {
   msOfDay: number
@@ -1845,6 +1890,15 @@ export interface GreeksSecondOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `GreeksSecondOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksSecondOrderTickToArrowIpc(rows: Array<GreeksSecondOrderTick>): Buffer
+
 /** Third-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksThirdOrderTick {
   msOfDay: number
@@ -1863,6 +1917,15 @@ export interface GreeksThirdOrderTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `GreeksThirdOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function greeksThirdOrderTickToArrowIpc(rows: Array<GreeksThirdOrderTick>): Buffer
 
 /**
  * Optional parameters for [`ThetaDataDxClient::indexAtTimePrice`]. Keys are
@@ -1980,6 +2043,15 @@ export interface IndexPriceAtTimeTick {
 }
 
 /**
+ * Serialise a `IndexPriceAtTimeTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function indexPriceAtTimeTickToArrowIpc(rows: Array<IndexPriceAtTimeTick>): Buffer
+
+/**
  * Optional parameters for [`ThetaDataDxClient::indexSnapshotMarketValue`]. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -2047,6 +2119,15 @@ export interface InterestRateTick {
   rate: number
 }
 
+/**
+ * Serialise a `InterestRateTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function interestRateTickToArrowIpc(rows: Array<InterestRateTick>): Buffer
+
 export declare const enum Interval {
   Tick = 'tick',
   Ms10 = '10ms',
@@ -2083,6 +2164,15 @@ export interface IvTick {
   right?: string
 }
 
+/**
+ * Serialise a `IvTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function ivTickToArrowIpc(rows: Array<IvTick>): Buffer
+
 /** FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate). */
 export interface LoginSuccess {
   permissions: string
@@ -2110,6 +2200,15 @@ export interface MarketValueTick {
   right?: string
 }
 
+/**
+ * Serialise a `MarketValueTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function marketValueTickToArrowIpc(rows: Array<MarketValueTick>): Buffer
+
 /** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
 export interface OhlcTick {
   msOfDay: number
@@ -2125,6 +2224,15 @@ export interface OhlcTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `OhlcTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function ohlcTickToArrowIpc(rows: Array<OhlcTick>): Buffer
 
 /** FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
 export interface Ohlcvc {
@@ -2158,6 +2266,15 @@ export interface OpenInterestTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `OpenInterestTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function openInterestTickToArrowIpc(rows: Array<OpenInterestTick>): Buffer
 
 /**
  * Optional parameters for [`ThetaDataDxClient::optionAtTimeQuote`]. Keys are
@@ -3182,6 +3299,15 @@ export interface PriceTick {
   date: number
 }
 
+/**
+ * Serialise a `PriceTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function priceTickToArrowIpc(rows: Array<PriceTick>): Buffer
+
 /** FPSS Quote tick. Mirrors `FpssData::Quote`. */
 export interface Quote {
   contract: Contract
@@ -3215,6 +3341,15 @@ export interface QuoteTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `QuoteTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function quoteTickToArrowIpc(rows: Array<QuoteTick>): Buffer
 
 export declare const enum RateType {
   Sofr = 'sofr',
@@ -3652,6 +3787,15 @@ export interface TradeGreeksAllTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksAllTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksAllTickToArrowIpc(rows: Array<TradeGreeksAllTick>): Buffer
+
 /** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
 export interface TradeGreeksFirstOrderTick {
   msOfDay: number
@@ -3680,6 +3824,15 @@ export interface TradeGreeksFirstOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksFirstOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksFirstOrderTickToArrowIpc(rows: Array<TradeGreeksFirstOrderTick>): Buffer
+
 /** Per-trade implied-volatility tick (single `implied_volatility` + */
 export interface TradeGreeksImpliedVolatilityTick {
   msOfDay: number
@@ -3701,6 +3854,15 @@ export interface TradeGreeksImpliedVolatilityTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `TradeGreeksImpliedVolatilityTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksImpliedVolatilityTickToArrowIpc(rows: Array<TradeGreeksImpliedVolatilityTick>): Buffer
 
 /** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
 export interface TradeGreeksSecondOrderTick {
@@ -3729,6 +3891,15 @@ export interface TradeGreeksSecondOrderTick {
   right?: string
 }
 
+/**
+ * Serialise a `TradeGreeksSecondOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksSecondOrderTickToArrowIpc(rows: Array<TradeGreeksSecondOrderTick>): Buffer
+
 /** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
 export interface TradeGreeksThirdOrderTick {
   msOfDay: number
@@ -3754,6 +3925,15 @@ export interface TradeGreeksThirdOrderTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `TradeGreeksThirdOrderTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeGreeksThirdOrderTickToArrowIpc(rows: Array<TradeGreeksThirdOrderTick>): Buffer
 
 /** Combined trade + quote tick. */
 export interface TradeQuoteTick {
@@ -3785,6 +3965,15 @@ export interface TradeQuoteTick {
   strike?: number
   right?: string
 }
+
+/**
+ * Serialise a `TradeQuoteTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeQuoteTickToArrowIpc(rows: Array<TradeQuoteTick>): Buffer
 
 /** Trade tick. Core unit of trade data. */
 export interface TradeTick {
@@ -3819,6 +4008,15 @@ export interface TradeTick {
   /** True when the trade is seller-initiated (ext_condition1 == 12). */
   isSeller: boolean
 }
+
+/**
+ * Serialise a `TradeTick` history result to an Arrow IPC stream
+ * (the `apache-arrow` wire form). Mirrors the FlatFiles
+ * `FlatFileRowList.toArrowIpc()` exit and the Python
+ * `<TickName>List.to_arrow()` terminal so every binding can reach a
+ * dataframe from an in-band history result.
+ */
+export declare function tradeTickToArrowIpc(rows: Array<TradeTick>): Buffer
 
 /** FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
 export interface UnknownControl {

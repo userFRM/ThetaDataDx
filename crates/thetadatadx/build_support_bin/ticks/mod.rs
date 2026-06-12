@@ -111,6 +111,14 @@ fn render_sdk_generated_files(
             contents: cpp::render_cpp_tick_flag_accessors(&schema),
         },
         GeneratedSourceFile {
+            // C++ Arrow-IPC terminals on the history result vectors
+            // (`tdx::eod_ticks_to_arrow_ipc(...)`). Included from
+            // `thetadx.hpp`; mirrors `FlatFileRowList::to_arrow_ipc()` and
+            // the Python `<TickName>List.to_arrow()` columnar exit.
+            relative_path: "sdks/cpp/include/tick_arrow_ipc.hpp.inc",
+            contents: cpp::render_cpp_tick_arrow_ipc(&schema),
+        },
+        GeneratedSourceFile {
             relative_path: "tools/cli/src/raw_headers_generated.rs",
             contents: cli_headers::render_cli_raw_headers(&schema),
         },

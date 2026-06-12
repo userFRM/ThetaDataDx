@@ -796,6 +796,48 @@ void tdx_string_array_free(TdxStringArray arr);
 void tdx_greeks_result_free(TdxGreeksResult* result);
 void tdx_subscription_array_free(TdxSubscriptionArray* arr);
 
+/* ── Arrow IPC terminal for history tick rows ── */
+
+/* Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
+ * tdx_*_to_arrow_ipc terminals. Caller MUST free with tdx_arrow_bytes_free.
+ * Layout-identical to TdxFlatFileBytes. */
+typedef struct TdxArrowBytes {
+    const uint8_t* data;
+    size_t len;
+} TdxArrowBytes;
+
+/* Serialise a span of history tick rows as an Arrow IPC stream — the same
+ * columnar exit Python exposes via <TickName>List.to_arrow(). `rows` may be
+ * NULL only when `len` is 0 (a valid zero-row stream). Returns (data=NULL,
+ * len=0) on error with tdx_last_error() set; on success the caller MUST free
+ * the bytes with tdx_arrow_bytes_free. The element type is the layout-pinned
+ * tick struct the matching history endpoint returns. */
+TdxArrowBytes tdx_eod_ticks_to_arrow_ipc(const TdxEodTick* rows, size_t len);
+TdxArrowBytes tdx_ohlc_ticks_to_arrow_ipc(const TdxOhlcTick* rows, size_t len);
+TdxArrowBytes tdx_trade_ticks_to_arrow_ipc(const TdxTradeTick* rows, size_t len);
+TdxArrowBytes tdx_quote_ticks_to_arrow_ipc(const TdxQuoteTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_all_ticks_to_arrow_ipc(const TdxGreeksAllTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_eod_ticks_to_arrow_ipc(const TdxGreeksEodTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_first_order_ticks_to_arrow_ipc(const TdxGreeksFirstOrderTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_second_order_ticks_to_arrow_ipc(const TdxGreeksSecondOrderTick* rows, size_t len);
+TdxArrowBytes tdx_greeks_third_order_ticks_to_arrow_ipc(const TdxGreeksThirdOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_all_ticks_to_arrow_ipc(const TdxTradeGreeksAllTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_first_order_ticks_to_arrow_ipc(const TdxTradeGreeksFirstOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_second_order_ticks_to_arrow_ipc(const TdxTradeGreeksSecondOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_third_order_ticks_to_arrow_ipc(const TdxTradeGreeksThirdOrderTick* rows, size_t len);
+TdxArrowBytes tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(const TdxTradeGreeksImpliedVolatilityTick* rows, size_t len);
+TdxArrowBytes tdx_iv_ticks_to_arrow_ipc(const TdxIvTick* rows, size_t len);
+TdxArrowBytes tdx_price_ticks_to_arrow_ipc(const TdxPriceTick* rows, size_t len);
+TdxArrowBytes tdx_index_price_at_time_ticks_to_arrow_ipc(const TdxIndexPriceAtTimeTick* rows, size_t len);
+TdxArrowBytes tdx_open_interest_ticks_to_arrow_ipc(const TdxOpenInterestTick* rows, size_t len);
+TdxArrowBytes tdx_market_value_ticks_to_arrow_ipc(const TdxMarketValueTick* rows, size_t len);
+TdxArrowBytes tdx_calendar_days_to_arrow_ipc(const TdxCalendarDay* rows, size_t len);
+TdxArrowBytes tdx_interest_rate_ticks_to_arrow_ipc(const TdxInterestRateTick* rows, size_t len);
+TdxArrowBytes tdx_trade_quote_ticks_to_arrow_ipc(const TdxTradeQuoteTick* rows, size_t len);
+
+/** Free a byte buffer returned by any tdx_*_to_arrow_ipc terminal. */
+void tdx_arrow_bytes_free(TdxArrowBytes bytes);
+
 /* ── Error ── */
 
 /** Retrieve the last error message (or NULL if no error).

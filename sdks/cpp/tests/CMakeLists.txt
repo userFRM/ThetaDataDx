@@ -50,6 +50,9 @@ set(THETADX_CPP_TEST_SOURCES
     # the streaming-contract strike accessor — cross-binding parity with
     # the Python __repr__ / TypeScript toString surfaces.
     fluent_rendering.cpp
+    # Arrow-IPC terminal on the history result vectors — cross-binding
+    # parity with the Python `<TickName>List.to_arrow()` columnar exit.
+    arrow_ipc.cpp
 )
 
 add_executable(thetadatadx_cpp_tests ${THETADX_CPP_TEST_SOURCES})

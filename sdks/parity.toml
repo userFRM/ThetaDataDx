@@ -1222,3 +1222,18 @@ typescript = "bool"
 class = "TradeTick"
 name = "is_seller"
 typescript = "bool"
+
+# ─── Arrow-IPC terminal on history results ────────────────────────────
+#
+# The columnar Arrow exit on an in-band history result is present on every
+# binding: Python via the `<TickName>List.to_arrow()` terminal, TypeScript
+# via the generated `<tick>ToArrowIpc(rows)` napi free functions, and C++
+# via the generated `tdx::<collection>_to_arrow_ipc(std::vector<Tick>)`
+# free functions over the `tdx_<collection>_to_arrow_ipc` C ABI. All three
+# binding surfaces are generated from `tick_schema.toml` and funnel through
+# the one `TicksArrowExt::to_arrow` + Arrow IPC `StreamWriter` path, so they
+# stay in lockstep by construction; the `generate_sdk_surfaces --check`
+# drift gate and the `check_c_abi_completeness` header/symbol parity gate
+# guard a regression. They are free functions, not methods on a tracked
+# class, so they are not expressible as `[[method]]` / `[[value_field]]`
+# rows — this note records the contract the drift gates enforce.
