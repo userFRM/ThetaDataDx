@@ -1231,6 +1231,202 @@ class = "TradeTick"
 name = "is_seller"
 typescript = "bool"
 
+# ─── `*_timestamp_ms` epoch accessors ─────────────────────────────────
+#
+# Unix-epoch-millisecond conveniences combining a tick's `date` column
+# with each of its milliseconds-of-day columns (`ms_of_day` →
+# `timestamp_ms`, `<x>_ms_of_day` → `<x>_timestamp_ms`). One schema
+# source (`tick_schema.toml` columns, projected through
+# `timestamp_accessor_fields`) emits them onto every surface, and every
+# surface funnels through the one DST-aware core
+# (`tdbe::time::date_ms_to_epoch_ms`) — no binding reimplements the
+# Eastern-Time offset rules. They stay in lockstep by construction and
+# the `generate_sdk_surfaces --check` drift gate guards a regression: a
+# milliseconds-of-day column added or dropped regenerates the Rust
+# inherent `impl`, the Python computed properties, the TypeScript object
+# fields, and (for the free-function form) the C++ side atomically.
+#
+# The shape is the idiomatic one per binding, so the surface is not
+# uniform across them: Rust + Python expose `Option<i64>` methods /
+# computed properties; C++ exposes one `tdx::timestamp_ms(date,
+# ms_of_day)` free function reused for every `(date, *_ms_of_day)` pair
+# (tick rows are C struct aliases with no member methods) over the
+# `tdx_timestamp_ms` C ABI; TypeScript carries precomputed
+# `Option<BigInt>` fields on the `#[napi(object)]` row (TS tick rows are
+# plain data objects, also method-less). Only the TypeScript half lands
+# as a struct field this checker can read, so the `[[value_field]]` rows
+# below pin that half; the Python computed properties, the Rust inherent
+# `impl`, and the single C++ free function are pinned by the shared-source
+# drift gate. Encoding a `cpp = ...` per-tick field here would assert a
+# struct member that does not exist (the C++ shape is the one free
+# function), so it is recorded in this note rather than forced into a
+# false match.
+
+[[value_field]]
+class = "EodTick"
+name = "created_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "EodTick"
+name = "last_trade_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksEodTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksEodTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksFirstOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksFirstOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksSecondOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksSecondOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksThirdOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksThirdOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IndexPriceAtTimeTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IvTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IvTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "MarketValueTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "OhlcTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "OpenInterestTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "PriceTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "QuoteTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksAllTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksAllTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksFirstOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksFirstOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksImpliedVolatilityTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksImpliedVolatilityTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksSecondOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksSecondOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksThirdOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksThirdOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeQuoteTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeQuoteTick"
+name = "quote_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
 # ─── Arrow-IPC terminal on history results ────────────────────────────
 #
 # The columnar Arrow exit on an in-band history result is present on every
