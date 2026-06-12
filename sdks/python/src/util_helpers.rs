@@ -14,6 +14,7 @@
 //! Hand-written rather than codegen'd. The function set is finite and
 //! the codegen pipeline targets dynamic-schema endpoints.
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -66,14 +67,41 @@ fn exchange_symbol(code: i32) -> &'static str {
     tdbe::exchange::exchange_symbol(code)
 }
 
+/// Convert a signed wire-encoded trade-sequence value to its unsigned
+/// monotonic form. `signed_value` must lie in the i32 wire range
+/// (`-2_147_483_648 ..= 2_147_483_647`): the upstream terminal encodes
+/// trade sequences as i32, so a value outside that domain is not a wire
+/// sequence and is rejected with `ValueError` rather than silently
+/// reinterpreted into a look-correct-but-wrong id. A value that does not
+/// fit the `i64` parameter type still surfaces as the built-in
+/// `OverflowError` from argument coercion, unchanged.
 #[pyfunction]
-fn sequence_signed_to_unsigned(signed_value: i64) -> u64 {
-    tdbe::sequences::signed_to_unsigned(signed_value)
+fn sequence_signed_to_unsigned(signed_value: i64) -> PyResult<u64> {
+    if !(tdbe::sequences::SEQUENCE_MIN..=tdbe::sequences::SEQUENCE_MAX).contains(&signed_value) {
+        return Err(PyValueError::new_err(format!(
+            "sequence_signed_to_unsigned: {signed_value} is outside the i32 wire range \
+             (-2_147_483_648 ..= 2_147_483_647)"
+        )));
+    }
+    Ok(tdbe::sequences::signed_to_unsigned(signed_value))
 }
 
+/// Convert an unsigned monotonic trade-sequence value back to its signed
+/// wire encoding. `unsigned_value` must lie in the unsigned wire range
+/// (`0 ..= 2^32 - 1`): the monotonic sequence id is never wider than one
+/// i32 cycle, so a value above that domain is rejected with `ValueError`
+/// rather than silently reinterpreted. A negative argument still
+/// surfaces as the built-in `OverflowError` from `u64` coercion,
+/// unchanged.
 #[pyfunction]
-fn sequence_unsigned_to_signed(unsigned_value: u64) -> i64 {
-    tdbe::sequences::unsigned_to_signed(unsigned_value)
+fn sequence_unsigned_to_signed(unsigned_value: u64) -> PyResult<i64> {
+    if unsigned_value > u64::from(u32::MAX) {
+        return Err(PyValueError::new_err(format!(
+            "sequence_unsigned_to_signed: {unsigned_value} is above the unsigned wire range \
+             (0 ..= 2^32 - 1)"
+        )));
+    }
+    Ok(tdbe::sequences::unsigned_to_signed(unsigned_value))
 }
 
 /// Register the `thetadatadx.util` submodule on the parent module.

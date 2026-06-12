@@ -67,3 +67,37 @@ def test_sequence_round_trip(util):
     for s in (0, 1, -1, 1_000_000, -1_000_000):
         u = util.sequence_signed_to_unsigned(s)
         assert util.sequence_unsigned_to_signed(u) == s
+
+
+def test_sequence_wire_range_boundaries_round_trip(util):
+    # The wire domain is the i32 cycle for the signed direction and
+    # 0 ..= 2^32 - 1 for the unsigned direction; the boundary values
+    # convert without raising.
+    assert util.sequence_signed_to_unsigned(2_147_483_647) is not None
+    assert util.sequence_signed_to_unsigned(-2_147_483_648) is not None
+    assert util.sequence_unsigned_to_signed(4_294_967_295) is not None
+
+
+def test_sequence_out_of_wire_range_raises_value_error(util):
+    # A representable integer outside the wire domain is a rejected value,
+    # not a silent reinterpret. It must raise ValueError, matching the
+    # TypeScript InvalidParameterError / C++ InvalidParameterError for the
+    # same input. Before the fix, sequence_unsigned_to_signed(2^32)
+    # returned 0.
+    with pytest.raises(ValueError):
+        util.sequence_signed_to_unsigned(2_147_483_648)  # i32::MAX + 1
+    with pytest.raises(ValueError):
+        util.sequence_signed_to_unsigned(-2_147_483_649)  # i32::MIN - 1
+    with pytest.raises(ValueError):
+        util.sequence_unsigned_to_signed(4_294_967_296)  # 2^32
+
+
+def test_sequence_representation_overflow_stays_overflow_error(util):
+    # A value that does not fit the parameter's own integer type is a
+    # representation overflow, surfaced by pyo3 argument coercion as the
+    # built-in OverflowError. This is intentionally distinct from the
+    # wire-range ValueError above and must not be reclassified: a negative
+    # passed into the u64 parameter overflows before the wire-range check
+    # can run.
+    with pytest.raises(OverflowError):
+        util.sequence_unsigned_to_signed(-1)

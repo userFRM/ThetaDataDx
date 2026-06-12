@@ -923,8 +923,13 @@ void tdx_config_free(TdxConfig* config);
  *             reset after a continuous data-flow window configured via
  *             `tdx_config_set_reconnect_stable_window_secs`.
  *   policy=1: Manual -- no auto-reconnect.
+ * Returns 0 on success, -1 on an invalid policy (outside {0, 1}) or null
+ * config. A rejected policy sets tdx_last_error_code to
+ * TDX_ERR_INVALID_PARAMETER so an unknown value is rejected with the
+ * same typed class the Python / TypeScript bindings raise, never
+ * silently coerced to Auto.
  */
-void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
+int32_t tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
 
 /**
  * Set the per-class transient-failure attempt budget for the
@@ -1541,12 +1546,21 @@ const char* tdx_calendar_status_name(int32_t code);
 int64_t tdx_timestamp_ms(int32_t date, int32_t ms_of_day);
 
 /** Convert a signed wire-encoded trade-sequence value to its unsigned
- *  monotonic form. */
-uint64_t tdx_sequence_signed_to_unsigned(int64_t signed_value);
+ *  monotonic form. `signed_value` must lie in the i32 wire range
+ *  (-2,147,483,648 ..= 2,147,483,647). Writes the result to `out` and
+ *  returns 0 on success; returns -1 and sets tdx_last_error_code to
+ *  TDX_ERR_INVALID_PARAMETER when `signed_value` is outside the wire
+ *  range or `out` is null, so an out-of-range value is rejected rather
+ *  than silently reinterpreted. */
+int32_t tdx_sequence_signed_to_unsigned(int64_t signed_value, uint64_t* out);
 
 /** Convert an unsigned monotonic trade-sequence value back to its signed
- *  wire encoding. */
-int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
+ *  wire encoding. `unsigned_value` must lie in the unsigned wire range
+ *  (0 ..= 2^32 - 1). Writes the result to `out` and returns 0 on
+ *  success; returns -1 and sets tdx_last_error_code to
+ *  TDX_ERR_INVALID_PARAMETER when `unsigned_value` is above the wire
+ *  range or `out` is null. */
+int32_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Streaming — #[repr(C)] event types                                    */

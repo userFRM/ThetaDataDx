@@ -28,14 +28,17 @@ TEST_CASE("Config::set_reconnect_policy accepts Auto and Manual selectors",
     REQUIRE_NOTHROW(cfg.set_reconnect_policy(1)); // Manual
 }
 
-TEST_CASE("Config::set_reconnect_policy treats unknown selectors as Auto",
+TEST_CASE("Config::set_reconnect_policy rejects unknown selectors with InvalidParameterError",
           "[config][reconnect][offline]") {
-    // The C ABI accepts an int selector; values other than 0/1 fall
-    // through to the documented default (Auto). The wrapper must not
-    // throw on the unknown input.
+    // An unknown selector (outside {0, 1}) is rejected with the typed
+    // invalid-parameter class rather than silently coerced to Auto —
+    // the cross-binding contract the Python ValueError / TypeScript
+    // InvalidParameterError already honour. The leaf must narrow
+    // ThetaDataError so generic handlers still observe it.
     auto cfg = tdx::Config::production();
-    REQUIRE_NOTHROW(cfg.set_reconnect_policy(7));
-    REQUIRE_NOTHROW(cfg.set_reconnect_policy(-1));
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(-1), tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), tdx::ThetaDataError);
 }
 
 TEST_CASE("Config::set_reconnect_max_attempts accepts representative budgets without throwing",

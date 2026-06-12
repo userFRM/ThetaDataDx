@@ -137,9 +137,12 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 /// - `mode = 0`: Batched (default) -- flush only on PING every 100ms
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
 ///
-/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` /
-/// `tdx_last_error_code = TDX_ERR_CONFIG` when `mode` is outside the
-/// documented `{0, 1}` set or when `config` is null.
+/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` when
+/// `mode` is outside the documented `{0, 1}` set or when `config` is
+/// null. A rejected `mode` value carries
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` (the same typed
+/// class the Python / TypeScript bindings raise for a bad enum value);
+/// a null `config` carries `TDX_ERR_CONFIG`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) -> i32 {
     ffi_boundary!(-1, {
@@ -158,7 +161,7 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
                     &format!(
                         "tdx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
                     ),
-                    crate::error::TDX_ERR_CONFIG,
+                    crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
@@ -181,14 +184,47 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 ///   `tdx_config_set_reconnect_max_rate_limited_attempts`,
 ///   `tdx_config_set_reconnect_stable_window_secs`).
 /// - `policy = 1`: Manual -- no auto-reconnect, user calls reconnect explicitly
+///
+/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` /
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `policy` is
+/// outside the documented `{0, 1}` set, so an unknown policy is rejected
+/// with the same typed class the Python / TypeScript bindings raise
+/// rather than being silently coerced to `Auto`. A null `config` is
+/// rejected with `TDX_ERR_CONFIG`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig, policy: i32) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.reconnect.policy = match policy {
+pub unsafe extern "C" fn tdx_config_set_reconnect_policy(
+    config: *mut TdxConfig,
+    policy: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "tdx_config_set_reconnect_policy: config handle is null",
+                crate::error::TDX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        let value = match policy {
+            0 => thetadatadx::ReconnectPolicy::Auto(thetadatadx::ReconnectAttemptLimits::default()),
             1 => thetadatadx::ReconnectPolicy::Manual,
-            _ => thetadatadx::ReconnectPolicy::Auto(thetadatadx::ReconnectAttemptLimits::default()),
+            other => {
+                crate::error::set_error_with_code(
+                    &format!(
+                        "tdx_config_set_reconnect_policy: invalid policy {other}; expected 0 (Auto) or 1 (Manual)"
+                    ),
+                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                );
+                return -1;
+            }
         };
+        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new`
+        // that has not been freed; null was rejected above; `&mut *` produces a
+        // unique reference valid for the call duration because the caller owns
+        // the Box and the FFI contract forbids concurrent calls on the same
+        // handle.
+        let config = unsafe { &mut *config };
+        config.inner.reconnect.policy = value;
+        0
     })
 }
 
@@ -616,7 +652,9 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_server_restart_ms(
 ///
 /// Returns `0` on success. Returns `-1` and sets `tdx_last_error` when
 /// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
-/// null.
+/// null. A rejected `mode` value carries
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// enum int surfaces the same typed class across every binding.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_jitter(config: *mut TdxConfig, mode: i32) -> i32 {
     ffi_boundary!(-1, {
@@ -630,9 +668,12 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_jitter(config: *mut TdxConfig,
             2 => thetadatadx::JitterMode::Decorrelated,
             3 => thetadatadx::JitterMode::None,
             other => {
-                set_error(&format!(
-                    "tdx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
-                ));
+                crate::error::set_error_with_code(
+                    &format!(
+                        "tdx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
+                    ),
+                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                );
                 return -1;
             }
         };
@@ -1084,7 +1125,9 @@ pub unsafe extern "C" fn tdx_config_get_fpss_ring_size(
 ///
 /// Returns `0` on success. Returns `-1` and sets `tdx_last_error`
 /// when `policy` is outside the documented `{0, 1}` set or `config`
-/// is null.
+/// is null. A rejected `policy` value carries
+/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// enum int surfaces the same typed class across every binding.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_fpss_host_selection(
     config: *mut TdxConfig,
@@ -1099,9 +1142,12 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_selection(
             0 => thetadatadx::HostSelectionPolicy::Shuffled,
             1 => thetadatadx::HostSelectionPolicy::FixedOrder,
             other => {
-                set_error(&format!(
-                    "tdx_config_set_fpss_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
-                ));
+                crate::error::set_error_with_code(
+                    &format!(
+                        "tdx_config_set_fpss_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
+                    ),
+                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                );
                 return -1;
             }
         };
@@ -2132,19 +2178,28 @@ mod reconnect_setter_tests {
     }
 
     #[test]
-    fn reconnect_policy_unknown_selector_falls_through_to_auto() {
-        // The C ABI accepts an int selector; values other than 0/1
-        // resolve to the documented default (`Auto`). Pin the
-        // behaviour so the FFI cannot drift away from the documented
-        // contract without trapping the test.
+    fn reconnect_policy_unknown_selector_rejected_with_typed_code() {
+        // An int selector outside `{0, 1}` is rejected with the typed
+        // invalid-parameter class rather than silently coerced to
+        // `Auto` — the cross-binding contract the Python ValueError /
+        // TypeScript InvalidParameterError already honour. The setter
+        // returns `-1`, sets the typed code, and leaves the prior
+        // policy untouched.
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 1);
-            super::tdx_config_set_reconnect_policy(cfg, 7);
+            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, 1), 0);
+            crate::error::tdx_clear_error();
+            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, 7), -1);
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER
+            );
+            // The rejected call leaves the previously-set Manual policy
+            // in place rather than overwriting it with a coerced Auto.
             assert!(matches!(
                 (*cfg).inner.reconnect.policy,
-                thetadatadx::ReconnectPolicy::Auto(_)
+                thetadatadx::ReconnectPolicy::Manual
             ));
             super::tdx_config_free(cfg);
         }
@@ -2905,6 +2960,61 @@ mod resilience_knob_tests {
     }
 
     #[test]
+    fn reconnect_policy_round_trips_and_rejects_invalid() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut policy: i32 = -1;
+            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(policy, 0, "production default policy is Auto");
+            for p in [1, 0] {
+                assert_eq!(super::tdx_config_set_reconnect_policy(cfg, p), 0);
+                assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+                assert_eq!(policy, p);
+            }
+            // An unknown selector is rejected with the typed
+            // invalid-parameter class rather than silently coerced to
+            // Auto — the cross-binding contract the Python ValueError /
+            // TypeScript InvalidParameterError already honour.
+            assert_eq!(
+                super::tdx_config_set_reconnect_policy(cfg, 7),
+                -1,
+                "unknown policy rejected, not coerced"
+            );
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER
+            );
+            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, -5), -1);
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER
+            );
+            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(policy, 0, "rejected policy leaves the config unchanged");
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flush_mode_round_trips_and_rejects_invalid_with_typed_code() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            assert_eq!(super::tdx_config_set_flush_mode(cfg, 0), 0);
+            assert_eq!(super::tdx_config_set_flush_mode(cfg, 1), 0);
+            // A rejected enum value surfaces the typed invalid-parameter
+            // class, not the generic config code.
+            assert_eq!(super::tdx_config_set_flush_mode(cfg, 9), -1);
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER
+            );
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
     fn reconnect_cadence_and_replay_round_trip() {
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
@@ -2980,6 +3090,11 @@ mod resilience_knob_tests {
                 super::tdx_config_set_reconnect_jitter(cfg, 9),
                 -1,
                 "invalid mode rejected"
+            );
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+                "a rejected enum value surfaces the typed invalid-parameter class"
             );
             assert_eq!(super::tdx_config_get_reconnect_jitter(cfg, &mut mode), 0);
             assert_eq!(mode, 0, "rejected mode leaves the config unchanged");
@@ -3079,6 +3194,11 @@ mod resilience_knob_tests {
                 super::tdx_config_set_fpss_host_selection(cfg, 5),
                 -1,
                 "invalid policy rejected"
+            );
+            assert_eq!(
+                crate::error::tdx_last_error_code(),
+                crate::error::TDX_ERR_INVALID_PARAMETER,
+                "a rejected enum value surfaces the typed invalid-parameter class"
             );
 
             let mut has_value = true;
