@@ -320,6 +320,18 @@ harness = false
 required-features = ["__internal"]
 
 [[bench]]
+# Records allocations per decoded row for each representative tick type
+# through `thetadatadx::decode::{decode_data_table, parse_*_ticks}` under
+# a counting global allocator, and writes the deterministic per-row
+# figures to `target/perf-gate/decode_allocations.json` for the perf
+# gate. Gated on `__internal` so the wire / decode surface stays off the
+# published API. The counting allocator lives only in this bench binary;
+# the shipped rlib allocator is unchanged.
+name = "bench_decode_allocations"
+harness = false
+required-features = ["__internal"]
+
+[[bench]]
 # Closed-loop measurement of the MDDS transport against a loopback
 # mock server: per-request latency percentiles, aggregate throughput,
 # allocation, and CPU per request across a concurrency x frame-shape
