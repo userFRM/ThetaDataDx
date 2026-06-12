@@ -129,7 +129,7 @@ columns = [
 # `RemoveReason` (on `Disconnected.reason` and `Reconnecting.reason`) is
 # `#[repr(i16)]` upstream; we surface it as `i32` matching how `sec_type`
 # on `Contract` carries the `SecType` enum's discriminant. Consumers
-# compare against `tdbe::types::enums::RemoveReason as i32`.
+# compare against `thetadatadx::RemoveReason as i32`.
 
 [events.LoginSuccess]
 kind = "control"
@@ -173,7 +173,7 @@ columns = [
 
 [events.Disconnected]
 kind = "control"
-doc = "FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation."
+doc = "FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation."
 columns = [
     { name = "reason", type = "i32" },
 ]

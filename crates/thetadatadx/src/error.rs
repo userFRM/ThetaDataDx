@@ -637,19 +637,22 @@ impl Error {
     }
 }
 
-impl From<tdbe::error::Error> for Error {
-    fn from(err: tdbe::error::Error) -> Self {
-        // The pure-data crate carries a small error enum; fold its variants
-        // into the closest typed `thetadatadx::Error` variant so callers
-        // can use `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
-        // from a `Result<_, thetadatadx::Error>` context. Every bridge
-        // routes to a typed `ConfigErrorKind` variant (`InvalidValue`
-        // for upstream config / parse failures, `Io` for I/O surfaces)
-        // so retry classifiers can dispatch on the structured kind.
+impl From<crate::tdbe::error::Error> for Error {
+    fn from(err: crate::tdbe::error::Error) -> Self {
+        // The data-format layer carries a small error enum; fold its
+        // variants into the closest typed `thetadatadx::Error` variant so
+        // callers can use `?` when invoking the offline analytics surface
+        // (e.g. `greeks::all_greeks`, `greeks::parse_right`) from a
+        // `Result<_, thetadatadx::Error>` context. Every bridge routes to
+        // a typed `ConfigErrorKind` variant (`InvalidValue` for parse /
+        // domain failures, `Io` for I/O surfaces) so retry classifiers can
+        // dispatch on the structured kind. The field label is `"input"`:
+        // these failures reflect a bad caller-supplied value, never an
+        // SDK-internal name.
         match err {
-            tdbe::error::Error::Config(msg) => Self::config_invalid("tdbe", msg),
-            tdbe::error::Error::Io(e) => Self::Io(e),
-            other => Self::config_invalid("tdbe", other.to_string()),
+            crate::tdbe::error::Error::Config(msg) => Self::config_invalid("input", msg),
+            crate::tdbe::error::Error::Io(e) => Self::Io(e),
+            other => Self::config_invalid("input", other.to_string()),
         }
     }
 }

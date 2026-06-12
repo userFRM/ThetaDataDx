@@ -22,7 +22,6 @@ doc = false
 [dependencies]
 # The native ThetaData implementation we're wrapping in Python bindings.
 thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow", "__internal"] }
-tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 
 # Direct prost dep for decoding `ResponseData` bytes in the
 # `decode_response_bytes` hook. Pinned to the same version the engine

@@ -85,7 +85,7 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
 /// column matches (with a `warn` emitted on non-empty tables).
 ///
 /// `Price` cells with `price_type` outside
-/// `0..=tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
+/// `0..=crate::tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
 /// and emit a rate-unlimited `tracing::warn!`.
 #[must_use]
 pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option<String>> {
@@ -104,7 +104,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
                     proto::data_value::DataType::Text(s) => Some(s.clone()),
                     proto::data_value::DataType::Number(n) => Some(n.to_string()),
                     proto::data_value::DataType::Price(p) => {
-                        match tdbe::types::price::Price::with_value_and_type(p.value, p.r#type) {
+                        match crate::tdbe::types::price::Price::with_value_and_type(p.value, p.r#type) {
                             Ok(price) => Some(format!("{}", price.to_f64())),
                             Err(err) => {
                                 tracing::warn!(
@@ -133,13 +133,16 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 /// column matches (with a `warn` emitted on non-empty tables).
 ///
 /// `Price` cells with `price_type` outside
-/// `0..=tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
+/// `0..=crate::tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
 /// and emit a `tracing::warn!`.
 ///
 /// Only compiled under `__internal` — called by workspace bindings only.
 #[cfg(feature = "__internal")]
 #[must_use]
-pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Option<tdbe::Price>> {
+pub fn extract_price_column(
+    table: &proto::DataTable,
+    header: &str,
+) -> Vec<Option<crate::tdbe::Price>> {
     let Some(col_idx) = resolve_column(table, header, "Price") else {
         return vec![];
     };
@@ -153,7 +156,9 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
                 .and_then(|dv| dv.data_type.as_ref())
                 .and_then(|dt| match dt {
                     proto::data_value::DataType::Price(p) => {
-                        match tdbe::types::price::Price::with_value_and_type(p.value, p.r#type) {
+                        match crate::tdbe::types::price::Price::with_value_and_type(
+                            p.value, p.r#type,
+                        ) {
                             Ok(price) => Some(price),
                             Err(err) => {
                                 tracing::warn!(

@@ -64,7 +64,7 @@ pub(crate) struct FlatfileRequestBody {
 fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
     let mut body = format::error_envelope(error_type, msg);
     let json_bytes =
-        tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
+        thetadatadx::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
             tracing::error!(error = %err, "flatfile error envelope serialise failed");
             format!(
                 "{{\"header\":{{\"error_type\":\"serialization_error\",\

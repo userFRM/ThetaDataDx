@@ -44,7 +44,7 @@ pub(crate) struct TickTypeDef {
     /// Declarative boolean flag-word accessors decoded from the tick's
     /// integer flag / condition columns (e.g. `is_cancelled`,
     /// `regular_trading_hours`). The Rust core hand-writes these in
-    /// `crates/tdbe/src/types/tick.rs`; this list is the single source
+    /// `crates/thetadatadx/src/tdbe/types/tick.rs`; this list is the single source
     /// the SDK emitters project into Python (computed `#[getter]`),
     /// TypeScript (precomputed `#[napi(object)]` field), and C++ (a free
     /// function in `thetadx.hpp`) so a binding caller never hand-decodes

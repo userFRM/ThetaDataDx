@@ -20,7 +20,7 @@
 //! See `report/ThetaDataDxClient_API_DX_Review_Rust_Python.md` for the
 //! refactor target shape this module implements.
 
-use tdbe::types::enums::{SecType, StreamMsgType};
+use crate::tdbe::types::enums::{SecType, StreamMsgType};
 
 use super::contract::Contract;
 
@@ -95,7 +95,7 @@ pub enum FullSubscriptionKind {
 ///
 /// ```rust,no_run
 /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
-/// # use tdbe::types::enums::SecType;
+/// # use thetadatadx::SecType;
 /// let stock_quote   = Contract::stock("AAPL").quote();
 /// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" }).unwrap().trade();
 /// let full_opt_oi   = SecType::Option.full_open_interest();
@@ -215,7 +215,7 @@ impl Contract {
 
 /// Fluent constructors on [`SecType`] for full-stream subscriptions.
 ///
-/// `SecType` lives in the `tdbe` crate, so the fluent methods are
+/// [`SecType`] lives in the data-format layer, so the fluent methods are
 /// provided as an extension trait imported here. Bring it into scope
 /// via the [`crate::prelude`] glob or
 /// `use thetadatadx::fpss::protocol::SecTypeExt`.

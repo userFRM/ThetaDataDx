@@ -64,7 +64,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
     Ok(vec![
         GeneratedSourceFile {
-            relative_path: "crates/tdbe/src/types/generated/enums_endpoint.rs",
+            relative_path: "crates/thetadatadx/src/tdbe/types/generated/enums_endpoint.rs",
             contents: enums::render_tdbe_enums(&enum_projections),
         },
         GeneratedSourceFile {

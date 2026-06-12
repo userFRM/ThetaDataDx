@@ -8,7 +8,7 @@ extern crate napi_derive;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use napi::Either;
-use tdbe::types::tick;
+use thetadatadx as tick;
 use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
@@ -516,7 +516,7 @@ mod fluent;
 pub use fluent::{ContractRef, SecType, Subscription};
 
 // Cross-language utility helpers. Adds the `Util` napi class
-// re-exporting `tdbe::{conditions, exchange, sequences}` lookup tables
+// re-exporting `thetadatadx::utils::{conditions, exchange, sequences}` lookup tables
 // under camelCase JS method names.
 mod util_helpers;
 pub use util_helpers::Util;

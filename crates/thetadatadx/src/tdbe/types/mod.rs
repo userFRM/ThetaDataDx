@@ -1,0 +1,20 @@
+pub mod enums;
+pub mod price;
+pub mod tick;
+
+// Generator-emitted modules live in `generated/`. The submodule
+// itself is empty (a doc hub) — the actual files are reached via
+// `include!("generated/<name>.rs")` from the hand-written
+// `enums.rs` / `tick.rs` siblings, so the feature gates and
+// hand-written `impl` blocks keep their place above each include site.
+mod generated;
+
+// Flat facade for the `types` submodule. Callers and the crate root
+// reach the leaf modules (`types::tick`, `types::enums`, `types::price`)
+// directly, so `unused_imports` is allowed on the convenience surface.
+#[allow(unused_imports)]
+pub use enums::*;
+#[allow(unused_imports)]
+pub use price::{Price, PriceError, MAX_PRICE_TYPE};
+#[allow(unused_imports)]
+pub use tick::*;

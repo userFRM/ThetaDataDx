@@ -129,7 +129,7 @@ pub struct ContractAssigned {
     pub contract: Contract,
 }
 
-/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation.
+/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -507,7 +507,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "disconnected";
             out.disconnected = Some(Disconnected {
                 reason,
-                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
             });
         }
         BufferedEvent::LoginSuccess {
@@ -560,7 +560,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                 reason,
                 attempt,
                 delay_ms: BigInt::from(delay_ms),
-                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
             });
         }
         BufferedEvent::ReconnectsExhausted {
@@ -571,7 +571,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.reconnects_exhausted = Some(ReconnectsExhausted {
                 reason,
                 attempts,
-                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
             });
         }
         BufferedEvent::ReqResponse {

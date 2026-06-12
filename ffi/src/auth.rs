@@ -3305,11 +3305,11 @@ mod resilience_knob_tests {
             match &(*cfg).inner.reconnect.policy {
                 thetadatadx::ReconnectPolicy::Custom(f) => {
                     // TimedOut = 4 on the wire; attempt 1 -> 41 ms.
-                    let d = f(tdbe::types::enums::RemoveReason::TimedOut, 1)
+                    let d = f(thetadatadx::RemoveReason::TimedOut, 1)
                         .expect("non-negative return becomes a delay");
                     assert_eq!(d, std::time::Duration::from_millis(41));
                     // Attempt 3 -> negative return -> stop.
-                    assert!(f(tdbe::types::enums::RemoveReason::TimedOut, 3).is_none());
+                    assert!(f(thetadatadx::RemoveReason::TimedOut, 3).is_none());
                 }
                 other => panic!("expected Custom policy, got {other:?}"),
             }

@@ -19,9 +19,9 @@
 use std::fs;
 
 use serde::Deserialize;
-use tdbe::types::tick::{CalendarDay, EodTick, GreeksAllTick, OhlcTick, TradeQuoteTick, TradeTick};
 use thetadatadx::decode::{self, DecodeError};
 use thetadatadx::wire as proto;
+use thetadatadx::{CalendarDay, EodTick, GreeksAllTick, OhlcTick, TradeQuoteTick, TradeTick};
 
 #[path = "common/capture_loader.rs"]
 mod capture_loader;

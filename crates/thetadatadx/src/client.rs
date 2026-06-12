@@ -44,7 +44,7 @@ use crate::error::Error;
 use crate::fpss::protocol::{Contract, FullSubscriptionKind, Subscription, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
 use crate::mdds::MddsClient;
-use tdbe::types::enums::SecType;
+use crate::tdbe::types::enums::SecType;
 
 /// Snapshot of the streaming side of the unified client.
 ///
@@ -824,7 +824,7 @@ impl ThetaDataDxClient {
     /// ```rust,no_run
     /// # use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
     /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
-    /// # use tdbe::types::enums::SecType;
+    /// # use thetadatadx::SecType;
     /// # async fn doc(client: &ThetaDataDxClient) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
     /// let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;

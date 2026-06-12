@@ -10,10 +10,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use tdbe::types::enums::SecType;
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::SecType;
 use thetadatadx::ThetaDataDxClient;
 
 fn now_ns() -> u64 {

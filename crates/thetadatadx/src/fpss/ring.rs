@@ -365,10 +365,10 @@ mod tests {
     use super::super::events::FpssEventInternal;
     use super::*;
     use crate::fpss::{FpssControl, FpssData, FpssEvent};
+    use crate::tdbe::types::enums::RemoveReason;
     use disruptor::{build_single_producer, Producer};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
-    use tdbe::types::enums::RemoveReason;
 
     #[test]
     fn adaptive_wait_strategy_is_copy_send() {

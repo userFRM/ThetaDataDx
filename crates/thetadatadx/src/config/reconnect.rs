@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tdbe::types::enums::RemoveReason;
+use crate::tdbe::types::enums::RemoveReason;
 
 use crate::backoff::JitterMode;
 

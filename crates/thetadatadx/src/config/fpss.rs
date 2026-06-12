@@ -101,7 +101,7 @@ pub struct FpssConfig {
     /// Drives the per-connection initial socket read timeout, the framing
     /// layer's mid-frame stall budget, and the I/O loop's overall
     /// "no frames received" deadline that triggers
-    /// [`tdbe::types::enums::RemoveReason::TimedOut`]. Default `3_000`
+    /// [`crate::tdbe::types::enums::RemoveReason::TimedOut`]. Default `3_000`
     /// — the server heartbeats every ~100 ms on a quiet session, so
     /// three seconds of total silence is ~30 missed heartbeats and a
     /// dead link is declared quickly instead of after the previous

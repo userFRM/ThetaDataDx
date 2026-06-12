@@ -10,8 +10,8 @@
 
 use std::sync::Arc;
 
-use tdbe::types::enums::SecType;
-use tdbe::Right;
+use crate::tdbe::types::enums::SecType;
+use crate::tdbe::Right;
 
 use crate::error::Error;
 
@@ -88,7 +88,7 @@ impl Contract {
     ///
     /// ```
     /// use thetadatadx::fpss::protocol::Contract;
-    /// use tdbe::types::enums::SecType;
+    /// use thetadatadx::SecType;
     ///
     /// let c = Contract::stock("AAPL");
     /// assert_eq!(&*c.symbol, "AAPL");
@@ -171,9 +171,9 @@ impl Contract {
         // H4: reject impossible expirations (00000000, 20260230,
         // 19990431, …) on every public option-builder input. Uses the
         // same canonical Gregorian validator the MDDS validator calls
-        // (`tdbe::time::is_valid_yyyymmdd`) so the two surfaces agree
+        // (`crate::tdbe::time::is_valid_yyyymmdd`) so the two surfaces agree
         // on what counts as a real calendar date.
-        if !tdbe::time::is_valid_yyyymmdd(exp) {
+        if !crate::tdbe::time::is_valid_yyyymmdd(exp) {
             return Err(Error::config_invalid(
                 "contract.expiration",
                 format!(
@@ -181,7 +181,7 @@ impl Contract {
                 ),
             ));
         }
-        let is_call = tdbe::right::parse_right_strict(right)?
+        let is_call = crate::tdbe::right::parse_right_strict(right)?
             .as_is_call()
             .ok_or_else(|| {
                 Error::config_internal("parse_right_strict returned Both despite strict mode")
@@ -264,7 +264,7 @@ impl Contract {
     /// prefix for diagnostic correlation.
     #[must_use]
     pub fn pending(contract_id: i32) -> Self {
-        use tdbe::types::enums::SecType;
+        use crate::tdbe::types::enums::SecType;
         Self {
             symbol: Arc::from(
                 format!(
@@ -438,7 +438,7 @@ impl Contract {
         // (Feb 30) or `260431` (Apr 31)) using the same canonical
         // Gregorian validator as MDDS + `Contract::option`. Previously
         // any 6-digit numeric string was accepted silently.
-        if !tdbe::time::is_valid_yyyymmdd(expiration) {
+        if !crate::tdbe::time::is_valid_yyyymmdd(expiration) {
             return Err(Error::config_invalid(
                 "contract.expiration",
                 format!(

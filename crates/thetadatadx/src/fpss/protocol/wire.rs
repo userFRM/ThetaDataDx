@@ -6,7 +6,7 @@
 //!
 //! Behaviour conforms to the ThetaData FPSS wire protocol.
 
-use tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
+use crate::tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 
 use super::contract::Contract;
 use crate::error::Error;

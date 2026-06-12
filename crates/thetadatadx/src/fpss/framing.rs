@@ -24,7 +24,7 @@
 use std::io::{Read, Write};
 use std::time::{Duration, Instant};
 
-use tdbe::types::enums::StreamMsgType;
+use crate::tdbe::types::enums::StreamMsgType;
 
 use super::protocol::READ_TIMEOUT_MS;
 

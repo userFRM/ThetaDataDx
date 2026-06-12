@@ -479,7 +479,7 @@ fn raw_ms(ms: i32) -> sonic_rs::Value {
 /// the REST and MCP frontends through the `json_canon` crate so all three
 /// produce byte-identical output for the same tick payload.
 fn raw_f64(value: f64) -> sonic_rs::Value {
-    tdbe::json_canon::finite_or_null(value)
+    thetadatadx::json_canon::finite_or_null(value)
 }
 
 /// Raw integer value as JSON number.
@@ -516,7 +516,7 @@ fn raw_right_label(is_call: bool, is_put: bool) -> sonic_rs::Value {
 //  Tick rendering helpers — reduce repetition across subcommands
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
+fn render_eod(ticks: &[thetadatadx::EodTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "created",
@@ -588,7 +588,7 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
+fn render_ohlc(ticks: &[thetadatadx::OhlcTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date", "time", "open", "high", "low", "close", "volume", "count",
     ]);
@@ -626,7 +626,7 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
+fn render_trades(ticks: &[thetadatadx::TradeTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "time",
@@ -677,7 +677,7 @@ fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
+fn render_quotes(ticks: &[thetadatadx::QuoteTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -737,7 +737,7 @@ fn render_string_list(items: &[String], header: &str, fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &OutputFormat) {
+fn render_trade_quotes(ticks: &[thetadatadx::TradeQuoteTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "time",
@@ -808,7 +808,7 @@ fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &Output
     td.render(fmt);
 }
 
-fn render_open_interest(ticks: &[tdbe::types::tick::OpenInterestTick], fmt: &OutputFormat) {
+fn render_open_interest(ticks: &[thetadatadx::OpenInterestTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "open_interest"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:203-218
     // (open_interest_ticks_to_columnar).
@@ -833,7 +833,7 @@ fn render_open_interest(ticks: &[tdbe::types::tick::OpenInterestTick], fmt: &Out
     td.render(fmt);
 }
 
-fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &OutputFormat) {
+fn render_market_value(ticks: &[thetadatadx::MarketValueTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -868,7 +868,7 @@ fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &Outpu
     td.render(fmt);
 }
 
-fn render_greeks(ticks: &[tdbe::types::tick::GreeksAllTick], fmt: &OutputFormat) {
+fn render_greeks(ticks: &[thetadatadx::GreeksAllTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -970,7 +970,7 @@ fn render_greeks(ticks: &[tdbe::types::tick::GreeksAllTick], fmt: &OutputFormat)
     td.render(fmt);
 }
 
-fn render_greeks_eod(ticks: &[tdbe::types::tick::GreeksEodTick], fmt: &OutputFormat) {
+fn render_greeks_eod(ticks: &[thetadatadx::GreeksEodTick], fmt: &OutputFormat) {
     // End-of-day Greeks fused with the 12-column EOD trade/quote context
     // (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
     // `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
@@ -1062,10 +1062,7 @@ fn render_greeks_eod(ticks: &[tdbe::types::tick::GreeksEodTick], fmt: &OutputFor
     td.render(fmt);
 }
 
-fn render_greeks_first_order(
-    ticks: &[tdbe::types::tick::GreeksFirstOrderTick],
-    fmt: &OutputFormat,
-) {
+fn render_greeks_first_order(ticks: &[thetadatadx::GreeksFirstOrderTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1125,10 +1122,7 @@ fn render_greeks_first_order(
     td.render(fmt);
 }
 
-fn render_greeks_second_order(
-    ticks: &[tdbe::types::tick::GreeksSecondOrderTick],
-    fmt: &OutputFormat,
-) {
+fn render_greeks_second_order(ticks: &[thetadatadx::GreeksSecondOrderTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1185,10 +1179,7 @@ fn render_greeks_second_order(
     td.render(fmt);
 }
 
-fn render_greeks_third_order(
-    ticks: &[tdbe::types::tick::GreeksThirdOrderTick],
-    fmt: &OutputFormat,
-) {
+fn render_greeks_third_order(ticks: &[thetadatadx::GreeksThirdOrderTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1242,7 +1233,7 @@ fn render_greeks_third_order(
     td.render(fmt);
 }
 
-fn render_trade_greeks_all(ticks: &[tdbe::types::tick::TradeGreeksAllTick], fmt: &OutputFormat) {
+fn render_trade_greeks_all(ticks: &[thetadatadx::TradeGreeksAllTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1318,7 +1309,7 @@ fn render_trade_greeks_all(ticks: &[tdbe::types::tick::TradeGreeksAllTick], fmt:
 }
 
 fn render_trade_greeks_first_order(
-    ticks: &[tdbe::types::tick::TradeGreeksFirstOrderTick],
+    ticks: &[thetadatadx::TradeGreeksFirstOrderTick],
     fmt: &OutputFormat,
 ) {
     let mut td = TabularData::new(vec![
@@ -1382,7 +1373,7 @@ fn render_trade_greeks_first_order(
 }
 
 fn render_trade_greeks_second_order(
-    ticks: &[tdbe::types::tick::TradeGreeksSecondOrderTick],
+    ticks: &[thetadatadx::TradeGreeksSecondOrderTick],
     fmt: &OutputFormat,
 ) {
     let mut td = TabularData::new(vec![
@@ -1447,7 +1438,7 @@ fn render_trade_greeks_second_order(
 }
 
 fn render_trade_greeks_third_order(
-    ticks: &[tdbe::types::tick::TradeGreeksThirdOrderTick],
+    ticks: &[thetadatadx::TradeGreeksThirdOrderTick],
     fmt: &OutputFormat,
 ) {
     let mut td = TabularData::new(vec![
@@ -1509,7 +1500,7 @@ fn render_trade_greeks_third_order(
 }
 
 fn render_trade_greeks_implied_volatility(
-    ticks: &[tdbe::types::tick::TradeGreeksImpliedVolatilityTick],
+    ticks: &[thetadatadx::TradeGreeksImpliedVolatilityTick],
     fmt: &OutputFormat,
 ) {
     let mut td = TabularData::new(vec![
@@ -1560,7 +1551,7 @@ fn render_trade_greeks_implied_volatility(
     td.render(fmt);
 }
 
-fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
+fn render_iv(ticks: &[thetadatadx::IvTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:136-153
     // (iv_ticks_to_columnar).
@@ -1587,7 +1578,7 @@ fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
+fn render_price(ticks: &[thetadatadx::PriceTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "price"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:233-242
     // (price_ticks_to_columnar). PriceTick has no contract-id fields.
@@ -1605,10 +1596,7 @@ fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_index_price_at_time(
-    ticks: &[tdbe::types::tick::IndexPriceAtTimeTick],
-    fmt: &OutputFormat,
-) {
+fn render_index_price_at_time(ticks: &[thetadatadx::IndexPriceAtTimeTick], fmt: &OutputFormat) {
     // Trade-shaped row published by `index_at_time_price` (10 wire
     // columns: `timestamp`, `sequence`, `ext_condition1..4`,
     // `condition`, `size`, `exchange`, `price`). An earlier `PriceTick`
@@ -1654,7 +1642,7 @@ fn render_index_price_at_time(
     td.render(fmt);
 }
 
-fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) {
+fn render_calendar(days: &[thetadatadx::CalendarDay], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:6-19
     // `is_open` is a logical boolean and `status` carries the vendor
@@ -1682,7 +1670,7 @@ fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) 
     td.render(fmt);
 }
 
-fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &OutputFormat) {
+fn render_interest_rates(ticks: &[thetadatadx::InterestRateTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "rate"]);
     // Canonical schema -- matches `INTEREST_RATE_TICK_RAW_HEADERS`
     // (regenerated from `tick_schema.toml`).
@@ -1696,7 +1684,7 @@ fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &Ou
     td.render(fmt);
 }
 
-fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
+fn render_option_contracts(contracts: &[thetadatadx::OptionContract], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["symbol", "expiration", "strike", "right"]);
     // Canonical schema -- `right` renders as the logical character
     // ("C" / "P"), the same projection every tick type and the Python /
@@ -1967,7 +1955,7 @@ mod tests {
         // `push_with_raw` length guard is a `debug_assert`, compiled out
         // in release, so only this test catches a release-mode drift.
         use super::OHLC_TICK_RAW_HEADERS;
-        let tick = tdbe::types::tick::OhlcTick {
+        let tick = thetadatadx::OhlcTick {
             ms_of_day: 34_200_000,
             open: 309.625,
             high: 310.94,

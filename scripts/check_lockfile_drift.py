@@ -11,7 +11,7 @@ The repository tracks five independent `Cargo.lock` files:
 Each can resolve a shared transitive dependency to a different
 version. For most deps that's fine; for security-sensitive deps
 (`rustls`, `webpki-roots`, `h2`, `tokio`, `reqwest`) and for
-direct-API deps (`thetadatadx`, `tdbe`) we want them pinned to
+the direct-API `thetadatadx` crate we want them pinned to
 the same version everywhere so a workspace-root patch propagates
 to every shipped binding.
 
@@ -67,7 +67,6 @@ SECURITY_CRITICAL = {
 # user-facing surface backed by different SDK builds.
 SDK_OWNED = {
     "thetadatadx",
-    "tdbe",
     "thetadatadx-ffi",
 }
 

@@ -15,7 +15,6 @@ pub struct WorkerThreadsSetting {
     pub n: u32,
 }
 
-
 /// `(reason, attempt)` argument object handed to the JS reconnect
 /// callback registered via `Config.setReconnectCallback`. `reason` is
 /// the disconnect `RemoveReason` discriminant; `attempt` is the
@@ -26,7 +25,6 @@ pub struct ReconnectDecisionArgs {
     pub reason: i32,
     pub attempt: u32,
 }
-
 
 /// Decode a non-negative `u64` from a JS `bigint` argument, with the
 /// setter name in the failure diagnostic.
@@ -323,15 +321,11 @@ impl Config {
         ))
     }
 
-
     /// Set the cap (ms) on the exponential generic-transient reconnect
     /// ladder. The ladder starts at `reconnectWaitMs` and doubles per
     /// consecutive attempt up to this value. Default `30_000n`.
     #[napi(js_name = "setReconnectWaitMaxMs")]
-    pub fn set_reconnect_wait_max_ms(
-        &self,
-        ms: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
+    pub fn set_reconnect_wait_max_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let value = bigint_to_u64("setReconnectWaitMaxMs", &ms)?;
         let mut guard = self
             .inner
@@ -659,7 +653,6 @@ impl Config {
         Ok(())
     }
 
-
     // ── FPSS transport knobs — parity with Python / C++ / FFI ──────
 
     /// Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
@@ -686,7 +679,10 @@ impl Config {
 
     /// Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.
     #[napi(js_name = "setFpssConnectTimeoutMs")]
-    pub fn set_fpss_connect_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+    pub fn set_fpss_connect_timeout_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
         let value = bigint_to_u64("setFpssConnectTimeoutMs", &ms)?;
         let mut guard = self
             .inner
@@ -703,7 +699,9 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.connect_timeout_ms))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.connect_timeout_ms,
+        ))
     }
 
     /// Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
@@ -725,7 +723,9 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.ping_interval_ms))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.ping_interval_ms,
+        ))
     }
 
     /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect.
@@ -747,7 +747,9 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.io_read_slice_ms))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.io_read_slice_ms,
+        ))
     }
 
     /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`.
@@ -769,12 +771,17 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.data_watchdog_ms))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.data_watchdog_ms,
+        ))
     }
 
     /// Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect.
     #[napi(js_name = "setFpssKeepaliveIdleSecs")]
-    pub fn set_fpss_keepalive_idle_secs(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+    pub fn set_fpss_keepalive_idle_secs(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
         let value = bigint_to_u64("setFpssKeepaliveIdleSecs", &ms)?;
         let mut guard = self
             .inner
@@ -791,12 +798,17 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.keepalive_idle_secs))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.keepalive_idle_secs,
+        ))
     }
 
     /// Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.
     #[napi(js_name = "setFpssKeepaliveIntervalSecs")]
-    pub fn set_fpss_keepalive_interval_secs(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+    pub fn set_fpss_keepalive_interval_secs(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
         let value = bigint_to_u64("setFpssKeepaliveIntervalSecs", &ms)?;
         let mut guard = self
             .inner
@@ -813,7 +825,9 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.keepalive_interval_secs))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.fpss.keepalive_interval_secs,
+        ))
     }
 
     /// Set the number of unanswered TCP keepalive probes after which
@@ -926,9 +940,7 @@ impl Config {
     /// Current `fpss.host_shuffle_seed` value (`null` = per-client
     /// entropy).
     #[napi(getter, js_name = "fpssHostShuffleSeed")]
-    pub fn fpss_host_shuffle_seed(
-        &self,
-    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
+    pub fn fpss_host_shuffle_seed(&self) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
         let guard = self
             .inner
             .lock()

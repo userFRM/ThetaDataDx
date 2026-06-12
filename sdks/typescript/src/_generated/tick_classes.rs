@@ -773,8 +773,8 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                created_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.created_ms_of_day).map(BigInt::from),
-                last_trade_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.last_trade_ms_of_day).map(BigInt::from),
+                created_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.created_ms_of_day).map(BigInt::from),
+                last_trade_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.last_trade_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -816,8 +816,8 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -871,8 +871,8 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -900,8 +900,8 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -928,8 +928,8 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -955,8 +955,8 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -978,7 +978,7 @@ fn index_price_at_time_ticks_to_class_vec(ticks: &[tick::IndexPriceAtTimeTick]) 
                 exchange: t.exchange,
                 price: t.price,
                 date: t.date,
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1015,8 +1015,8 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1035,7 +1035,7 @@ fn market_value_ticks_to_class_vec(ticks: &[tick::MarketValueTick]) -> Vec<Marke
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1058,7 +1058,7 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1075,7 +1075,7 @@ fn open_interest_ticks_to_class_vec(ticks: &[tick::OpenInterestTick]) -> Vec<Ope
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1103,7 +1103,7 @@ fn price_ticks_to_class_vec(ticks: &[tick::PriceTick]) -> Vec<PriceTick> {
                 ms_of_day: t.ms_of_day,
                 price: t.price,
                 date: t.date,
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1128,7 +1128,7 @@ fn quote_ticks_to_class_vec(ticks: &[tick::QuoteTick]) -> Vec<QuoteTick> {
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1177,8 +1177,8 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1213,8 +1213,8 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1243,8 +1243,8 @@ fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeks
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1278,8 +1278,8 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1312,8 +1312,8 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1351,8 +1351,8 @@ fn trade_quote_ticks_to_class_vec(ticks: &[tick::TradeQuoteTick]) -> Vec<TradeQu
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                quote_timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.quote_ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                quote_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.quote_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1387,7 +1387,7 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 is_incremental_volume: t.volume_type == 0,
                 regular_trading_hours: (34200000..=57600000).contains(&t.ms_of_day),
                 is_seller: t.ext_condition1 == 12,
-                timestamp_ms: tdbe::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
+                timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1408,7 +1408,7 @@ pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::b
                 is_open: r.is_open,
                 open_time: r.open_time,
                 close_time: r.close_time,
-                status: match tdbe::types::enums::CalendarStatus::from_wire_text(&r.status) { Some(status) => status, None => return Err(napi::Error::from_reason(format!("[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}", r.status))) },
+                status: match thetadatadx::CalendarStatus::from_wire_text(&r.status) { Some(status) => status, None => return Err(napi::Error::from_reason(format!("[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}", r.status))) },
             })
         })
         .collect::<napi::Result<Vec<tick::CalendarDay>>>()?;

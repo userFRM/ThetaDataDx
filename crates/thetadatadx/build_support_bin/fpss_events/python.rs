@@ -217,7 +217,7 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     )
     .unwrap();
     // Symbolic name accessor for control variants whose `reason: i32`
-    // column is the wire encoding of `tdbe::types::enums::RemoveReason`.
+    // column is the wire encoding of `thetadatadx::RemoveReason`.
     // Lets Python users branch on the variant name (`event.reason_name
     // == "TooManyRequests"`) instead of looking up the integer.
     if matches!(
@@ -231,9 +231,7 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
         out.push_str("    /// Derived from the wire-level `reason` integer.\n");
         out.push_str("    #[getter]\n");
         out.push_str("    fn reason_name(&self) -> &'static str {\n");
-        out.push_str(
-            "        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()\n",
-        );
+        out.push_str("        thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()\n");
         out.push_str("    }\n");
     }
     out.push_str("}\n");

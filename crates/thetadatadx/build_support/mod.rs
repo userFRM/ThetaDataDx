@@ -1,18 +1,22 @@
 //! Build-time generator orchestration for `thetadatadx`.
 //!
-//! The build pipeline has three responsibilities:
+//! The build pipeline has four responsibilities:
 //! - compile `proto/mdds.proto` and emit the gRPC client stubs
 //!   (`grpc::run` drives `prost-build` with our custom service
 //!   generator — no `tonic-build`);
 //! - generate tick decoders from `tick_schema.toml`;
 //! - generate endpoint-facing surfaces from the explicit endpoint
-//!   spec plus the upstream wire contract in `proto/mdds.proto`.
+//!   spec plus the upstream wire contract in `proto/mdds.proto`;
+//! - generate the trade/quote condition tables from `data/*.toml`
+//!   into the internal `tdbe` module.
 
+mod conditions;
 mod endpoints;
 mod grpc;
 mod ticks;
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+    conditions::generate()?;
     grpc::run()?;
     // Drift check runs unconditionally: prost-build re-emits the
     // generated stubs into `$OUT_DIR/beta_endpoints.rs`, and we

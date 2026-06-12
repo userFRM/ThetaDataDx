@@ -663,9 +663,9 @@ unsafe fn coerce_subscription(
             };
             let sec_type_str = require_cstr!(sec_type_ptr, None);
             let sec_type = match sec_type_str.to_uppercase().as_str() {
-                "STOCK" => tdbe::types::enums::SecType::Stock,
-                "OPTION" => tdbe::types::enums::SecType::Option,
-                "INDEX" => tdbe::types::enums::SecType::Index,
+                "STOCK" => thetadatadx::SecType::Stock,
+                "OPTION" => thetadatadx::SecType::Option,
+                "INDEX" => thetadatadx::SecType::Index,
                 other => {
                     set_error(&format!(
                         "invalid sec_type {other:?} (expected STOCK, OPTION, INDEX)"

@@ -28,11 +28,11 @@ use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, S
 /// `Subscription`.
 #[napi(js_name = "SecType")]
 pub struct SecType {
-    pub(crate) inner: tdbe::types::enums::SecType,
+    pub(crate) inner: thetadatadx::SecType,
 }
 
 impl SecType {
-    pub(crate) fn from_inner(inner: tdbe::types::enums::SecType) -> Self {
+    pub(crate) fn from_inner(inner: thetadatadx::SecType) -> Self {
         Self { inner }
     }
 }
@@ -42,25 +42,25 @@ impl SecType {
     /// `SecType.stock()` — equity-side full-stream constructor.
     #[napi(factory)]
     pub fn stock() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Stock)
+        Self::from_inner(thetadatadx::SecType::Stock)
     }
 
     /// `SecType.option()` — option-side full-stream constructor.
     #[napi(factory)]
     pub fn option() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Option)
+        Self::from_inner(thetadatadx::SecType::Option)
     }
 
     /// `SecType.index()` — index-side full-stream constructor.
     #[napi(factory)]
     pub fn index() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Index)
+        Self::from_inner(thetadatadx::SecType::Index)
     }
 
     /// `SecType.rate()` — rate-side full-stream constructor.
     #[napi(factory)]
     pub fn rate() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Rate)
+        Self::from_inner(thetadatadx::SecType::Rate)
     }
 
     /// Full-stream Trade subscription for this security type.

@@ -24,7 +24,7 @@ use crate::mdds::endpoint_args::EndpointError;
 ///
 /// Centralised so `YYYYMMDD` and `YYYY-MM-DD` paths cannot drift on
 /// the bounds they document. Bounds match
-/// [`tdbe::time::is_valid_gregorian_date`].
+/// [`crate::tdbe::time::is_valid_gregorian_date`].
 const GREGORIAN_BOUNDS_MSG: &str =
     "valid Gregorian date (year 1900-2100, month 1-12, day-of-month including 4/100/400 leap rule)";
 
@@ -33,8 +33,8 @@ const GREGORIAN_BOUNDS_MSG: &str =
 /// Both the `YYYYMMDD` and `YYYY-MM-DD` parsers feed the parsed
 /// components through this single helper, so the surface accepts
 /// exactly the same set of real dates regardless of which textual
-/// form the caller used. The check itself lives in `tdbe::time` so
-/// MDDS, FPSS, and `tdbe` consumers all use one canonical Gregorian
+/// form the caller used. The check itself lives in `crate::tdbe::time` so
+/// the MDDS, FPSS, and data-format paths all use one canonical Gregorian
 /// validator.
 fn check_gregorian(
     year: i32,
@@ -43,7 +43,7 @@ fn check_gregorian(
     value: &str,
     param_name: &str,
 ) -> Result<(), EndpointError> {
-    if tdbe::time::is_valid_gregorian_date(year, month, day) {
+    if crate::tdbe::time::is_valid_gregorian_date(year, month, day) {
         Ok(())
     } else {
         Err(EndpointError::InvalidParams(format!(
@@ -257,7 +257,7 @@ pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), Endpoi
     // Call/Put/Both here -- per-endpoint logic in the MDDS client
     // decides whether `both` / `*` is meaningful -- so we only care
     // about "is this parseable at all".
-    tdbe::right::parse_right(value).map(|_| ()).map_err(|_| {
+    crate::tdbe::right::parse_right(value).map(|_| ()).map_err(|_| {
         EndpointError::InvalidParams(format!(
             "'{param_name}' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{value}'"
         ))

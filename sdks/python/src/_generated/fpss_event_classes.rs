@@ -80,7 +80,7 @@ impl ContractAssigned {
     fn kind(&self) -> &'static str { "contract_assigned" }
 }
 
-/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation.
+/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Disconnected {
@@ -100,7 +100,7 @@ impl Disconnected {
     /// Derived from the wire-level `reason` integer.
     #[getter]
     fn reason_name(&self) -> &'static str {
-        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
+        thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
     }
 }
 
@@ -314,7 +314,7 @@ impl Reconnecting {
     /// Derived from the wire-level `reason` integer.
     #[getter]
     fn reason_name(&self) -> &'static str {
-        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
+        thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
     }
 }
 
@@ -339,7 +339,7 @@ impl ReconnectsExhausted {
     /// Derived from the wire-level `reason` integer.
     #[getter]
     fn reason_name(&self) -> &'static str {
-        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()
+        thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
     }
 }
 

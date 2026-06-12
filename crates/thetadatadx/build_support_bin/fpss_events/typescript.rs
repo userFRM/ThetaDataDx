@@ -217,7 +217,7 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
         event_name,
         "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
     ) {
-        out.push_str("                reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),\n");
+        out.push_str("                reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),\n");
     }
     out.push_str("            });\n        }\n");
     out
@@ -254,7 +254,7 @@ fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
         writeln!(out, "    pub {}: {},", column.name, ty).unwrap();
     }
     // Symbolic name field for control variants whose `reason: i32`
-    // column is the wire encoding of `tdbe::types::enums::RemoveReason`.
+    // column is the wire encoding of `thetadatadx::RemoveReason`.
     // TS users branch on the variant name (`event.disconnected.reasonName
     // === "TooManyRequests"`) instead of looking up the integer.
     if matches!(

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use tdbe::types::enums::StreamMsgType;
+use crate::tdbe::types::enums::StreamMsgType;
 
 use super::super::events::IoCommand;
 use super::super::protocol::build_ping_payload;
@@ -70,9 +70,9 @@ pub(in crate::fpss) fn ping_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tdbe::types::enums::StreamMsgType;
     use std::sync::mpsc as std_mpsc;
     use std::time::Instant;
-    use tdbe::types::enums::StreamMsgType;
 
     /// The configurable `ping_interval_ms` knob actually paces the
     /// background heartbeat. Setting a 30 ms interval must produce

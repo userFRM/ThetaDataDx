@@ -106,8 +106,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 | Scope | What it covers |
 |-------|---------------|
-| `tdbe` | `crates/tdbe/` |
-| `core` | `crates/thetadatadx/` |
+| `core` | `crates/thetadatadx/` (includes the `tdbe` data-format layer) |
 | `ffi` | `ffi/` |
 | `python` | `sdks/python/` |
 | `typescript` | `sdks/typescript/` |
@@ -164,8 +163,9 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
    - `cargo build` generates the parser
    - The header comments in `tick_schema.toml` document the TOML format
-   - Note: tick type structs, `Price`, enums, codecs, and Greeks live in `crates/tdbe/`.
-     If you add a new tick type or modify existing types, edit `tdbe` first.
+   - Note: tick type structs, `Price`, enums, codecs, and Greeks live in the
+     internal data-format module `crates/thetadatadx/src/tdbe/`. If you add a new
+     tick type or modify existing types, edit that module first.
 
 4. **Review the generated mdds/runtime surfaces**
    - Most endpoint additions should not require hand-editing files under `mdds/`
@@ -197,7 +197,7 @@ Every PR must include:
 
 ## Public API Stability
 
-The Rust crates published from this repo (`tdbe`, `thetadatadx`) follow
+The Rust crate published from this repo (`thetadatadx`) follows
 [semver](https://semver.org/) on every release. CI gates this with
 [`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks):
 

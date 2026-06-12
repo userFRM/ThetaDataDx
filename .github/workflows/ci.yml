@@ -290,9 +290,9 @@ jobs:
       - run: python3 scripts/check_docs_consistency.py
       - run: python3 scripts/check_version_sync.py
       # Cross-Cargo.lock dependency-version drift on security-critical
-      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx,
-      # tdbe) deps. A workspace bump must land in every binding
-      # lockfile or the wheel / npm package ships a stale runtime.
+      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
+      # deps. A workspace bump must land in every binding lockfile or the
+      # wheel / npm package ships a stale runtime.
       - run: python3 scripts/check_lockfile_drift.py
       - run: python3 scripts/validate_agreement_test.py
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
@@ -450,7 +450,6 @@ jobs:
             done
           }
 
-          publish_or_skip tdbe crates/tdbe/Cargo.toml
           publish_or_skip thetadatadx crates/thetadatadx/Cargo.toml
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

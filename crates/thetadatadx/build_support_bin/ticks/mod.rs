@@ -82,20 +82,20 @@ fn render_sdk_generated_files(
             contents: rust_frames::render_rust_frames(&schema),
         },
         GeneratedSourceFile {
-            // tdbe tick structs -- `#[repr(C, align(N))]` definitions
+            // Data-layer tick structs -- `#[repr(C, align(N))]` definitions
             // emitted from the schema. Hand-written `tick.rs` `pub use`s
             // them and adds the macro applications + custom impls the
             // schema cannot express.
-            relative_path: "crates/tdbe/src/types/generated/tick.rs",
+            relative_path: "crates/thetadatadx/src/tdbe/types/generated/tick.rs",
             contents: tdbe_structs::render_tdbe_tick_structs(&schema),
         },
         GeneratedSourceFile {
-            // tdbe layout asserts -- per-tick `size_of` / `align_of` /
+            // Data-layer layout asserts -- per-tick `size_of` / `align_of` /
             // `offset_of!` asserts emitted from the schema. Hand-written
             // `tick.rs` `include!`s this file inside `#[cfg(test)]`.
             // Adding a tick type to `tick_schema.toml` therefore picks up
             // ABI guard coverage automatically.
-            relative_path: "crates/tdbe/src/types/generated/tick_layout_asserts.rs",
+            relative_path: "crates/thetadatadx/src/tdbe/types/generated/tick_layout_asserts.rs",
             contents: tdbe_structs::render_tdbe_layout_asserts(&schema),
         },
         GeneratedSourceFile {

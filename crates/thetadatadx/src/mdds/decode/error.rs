@@ -118,8 +118,8 @@ pub enum DecodeError {
         raw: String,
     },
     /// A `Price` cell carried a `price_type` outside
-    /// `0..=tdbe::types::price::MAX_PRICE_TYPE`. Mirrors
-    /// `tdbe::types::price::PriceError::PriceTypeOutOfRange` on the
+    /// `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`. Mirrors
+    /// `crate::tdbe::types::price::PriceError::PriceTypeOutOfRange` on the
     /// decode boundary.
     #[error("invalid price_type {raw} (expected 0..=19)")]
     InvalidPriceType {

@@ -1239,7 +1239,7 @@ typescript = "bool"
 # source (`tick_schema.toml` columns, projected through
 # `timestamp_accessor_fields`) emits them onto every surface, and every
 # surface funnels through the one DST-aware core
-# (`tdbe::time::date_ms_to_epoch_ms`) — no binding reimplements the
+# (`thetadatadx::time::date_ms_to_epoch_ms`) — no binding reimplements the
 # Eastern-Time offset rules. They stay in lockstep by construction and
 # the `generate_sdk_surfaces --check` drift gate guards a regression: a
 # milliseconds-of-day column added or dropped regenerates the Rust

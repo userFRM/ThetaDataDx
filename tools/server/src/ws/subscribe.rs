@@ -3,9 +3,9 @@
 use axum::extract::ws::WebSocket;
 use sonic_rs::prelude::*;
 
-use tdbe::time::is_valid_yyyymmdd;
-use tdbe::types::enums::SecType;
 use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::time::is_valid_yyyymmdd;
+use thetadatadx::SecType;
 
 use crate::state::AppState;
 use crate::validation;
@@ -199,7 +199,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         //
         // Range-check ALONE accepts impossible Gregorian dates like
         // 20260230 (Feb 30) or 20260431 (Apr 31). Run the canonical
-        // `tdbe::time::is_valid_yyyymmdd` validator alongside so the WS
+        // `thetadatadx::time::is_valid_yyyymmdd` validator alongside so the WS
         // subscribe path enforces the same calendar discipline the
         // REST validator does on the historical endpoints.
         // Both checks must pass: the bounds gate is the cheap precheck
@@ -393,7 +393,7 @@ fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
 
 /// Parse the option `right` field into the contract sides to subscribe.
 ///
-/// Routes through the same `tdbe::right::parse_right` parser the REST
+/// Routes through the same `thetadatadx::greeks::parse_right` parser the REST
 /// validators use, so the two surfaces accept one vocabulary:
 /// `call` / `put` / `both` / `C` / `P` / `*`, case-insensitive. `Both`
 /// (and `*`) yields both sides — the FPSS wire addresses single-side
@@ -402,7 +402,7 @@ fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
     let raw = raw.ok_or_else(|| {
         "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: <missing>".to_string()
     })?;
-    let parsed = tdbe::right::parse_right(raw).map_err(|_| {
+    let parsed = thetadatadx::greeks::parse_right(raw).map_err(|_| {
         format!(
             "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{raw}'"
         )
@@ -517,7 +517,7 @@ mod tests {
     /// path. Impossible calendar dates like 20260230 (Feb 30) or
     /// 20260431 (Apr 31) used to leak through because the WS path only
     /// applied the cheap `is_valid_yyyymmdd_range` bounds check; the
-    /// REST handlers ran the full `tdbe::time::is_valid_yyyymmdd`
+    /// REST handlers ran the full `thetadatadx::time::is_valid_yyyymmdd`
     /// calendar check alongside. Pin both behaviours here.
     #[test]
     fn ws_canonical_validator_rejects_impossible_gregorian_dates() {

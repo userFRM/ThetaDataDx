@@ -39,9 +39,9 @@ use std::time::{Duration, Instant};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
-use tdbe::types::price::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::Price;
 
 /// Events shipped per Criterion sample. Sized so per-iteration wall
 /// clock dwarfs Criterion measurement overhead and so the consumer

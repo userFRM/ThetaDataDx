@@ -37,7 +37,7 @@
 
 use std::sync::Arc;
 
-use tdbe::types::tick::{
+use thetadatadx::{
     GreeksEodTick, IndexPriceAtTimeTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
     TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
 };

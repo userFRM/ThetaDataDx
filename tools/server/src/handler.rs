@@ -45,7 +45,7 @@ pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
 pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
     let mut body = format::error_envelope(error_type, msg);
     let json_bytes =
-        tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
+        thetadatadx::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
             tracing::error!(
                 error = %err,
                 "error envelope failed to serialise; emitting minimal fallback"
@@ -72,7 +72,7 @@ pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) ->
 /// structured `500` carrying the underlying error message rather than an
 /// empty `200 OK` body.
 fn json_response(val: &mut sonic_rs::Value) -> Response {
-    match tdbe::json_canon::canonicalize_and_serialize(val) {
+    match thetadatadx::json_canon::canonicalize_and_serialize(val) {
         Ok(json_bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
@@ -418,7 +418,7 @@ fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
     // Collapse non-finite leaves once across the whole tree, then
     // serialise row-by-row; per-row serialisation cannot reintroduce
     // non-canonical cells.
-    tdbe::json_canon::canonicalize(json_val);
+    thetadatadx::json_canon::canonicalize(json_val);
     let rows = json_val
         .get("response")
         .and_then(|v: &sonic_rs::Value| v.as_array());
@@ -992,7 +992,7 @@ mod tests {
     async fn ndjson_response_collapses_non_finite_cells_to_null() {
         let mut row = sonic_rs::json!({"symbol": "AAPL", "vega": Value::new_null()});
         if let Some(o) = row.as_object_mut() {
-            o.insert(&"vega", tdbe::json_canon::finite_or_null(f64::NAN));
+            o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
         let mut envelope = format::ok_envelope(vec![row]);
         let resp = ndjson_response(&mut envelope);
@@ -1187,7 +1187,7 @@ mod tests {
             "vega": Value::new_null(),
         });
         if let Some(o) = row.as_object_mut() {
-            o.insert(&"vega", tdbe::json_canon::finite_or_null(f64::NAN));
+            o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
         let mut envelope = format::ok_envelope(vec![row]);
 

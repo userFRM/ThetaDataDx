@@ -29,7 +29,7 @@ use std::io::{Cursor, Write};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
+use thetadatadx::{RemoveReason, SecType, StreamMsgType};
 
 use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
@@ -111,7 +111,7 @@ fn market_close_frame(out: &mut Vec<u8>) {
 /// price_type, date]` (12 fields = contract_id + 11 quote fields).
 ///
 /// We deliberately do NOT roll our own FIT encoder here — instead we
-/// rely on the public `tdbe::codec::fit::encode_absolute` helper if
+/// rely on the `thetadatadx::codec::fit::encode_absolute` helper if
 /// available; otherwise we mark the synthetic-tick block as
 /// best-effort and assert only on framing-level outcomes.
 fn synthetic_quote_payload() -> Vec<u8> {

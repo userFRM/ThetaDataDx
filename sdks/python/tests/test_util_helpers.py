@@ -1,10 +1,10 @@
 """Cross-language utility helpers — Python binding parity tests (issue #424).
 
 Verifies the `thetadatadx.util` submodule exposes the same lookup surface
-as the Rust core (`tdbe::{conditions, exchange, sequences}`). Reference
-values mirror the Rust unit tests in
-`crates/tdbe/src/conditions/mod.rs` and
-`crates/tdbe/src/exchange.rs`, so cross-language drift trips this test.
+as the Rust core (`thetadatadx::utils::{conditions, exchange, sequences}`).
+Reference values mirror the Rust unit tests in
+`crates/thetadatadx/src/tdbe/conditions/mod.rs` and
+`crates/thetadatadx/src/tdbe/exchange.rs`, so cross-language drift trips this test.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def util():
 
 
 def test_condition_name_known_codes(util):
-    # Mirrors crates/tdbe/src/conditions/mod.rs: condition_name(0) == "REGULAR",
+    # Mirrors crates/thetadatadx/src/tdbe/conditions/mod.rs: condition_name(0) == "REGULAR",
     # (40) == "CANC", (148) == "EXTENDEDHOURSTRADE".
     assert util.condition_name(0) == "REGULAR"
     assert util.condition_name(40) == "CANC"
@@ -40,7 +40,7 @@ def test_condition_name_out_of_range(util):
 
 
 def test_exchange_name_known_codes(util):
-    # Mirrors crates/tdbe/src/exchange.rs: exchange_name(0) == "Composite",
+    # Mirrors crates/thetadatadx/src/tdbe/exchange.rs: exchange_name(0) == "Composite",
     # (3) == "NewYorkStockExchange".
     assert util.exchange_name(0) == "Composite"
     assert util.exchange_name(3) == "NewYorkStockExchange"

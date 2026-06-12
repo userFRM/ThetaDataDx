@@ -8,7 +8,7 @@
 
 use arrow_array::RecordBatch;
 use arrow_schema::DataType;
-use tdbe::types::tick;
+use thetadatadx as tick;
 use thetadatadx::frames::TicksArrowExt;
 
 fn columns(batch: &RecordBatch) -> Vec<String> {
@@ -36,7 +36,7 @@ fn calendar_day_to_arrow() {
         is_open: true,
         open_time: 34200000,
         close_time: 57600000,
-        status: tdbe::CalendarStatus::Open,
+        status: thetadatadx::CalendarStatus::Open,
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);

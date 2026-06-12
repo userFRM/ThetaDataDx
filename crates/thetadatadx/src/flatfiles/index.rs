@@ -173,7 +173,7 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
                 ))
             })?;
             let exp = read_i32(&mut e)?;
-            if !tdbe::time::is_valid_yyyymmdd(exp) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(exp) {
                 return Err(Error::decode_codec(format!(
                     "flatfiles INDEX: invalid expiration YYYYMMDD {exp}"
                 )));
@@ -189,7 +189,7 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
             // Per-row DATE supersedes the entry-level trading date for
             // CSV emission; validate and discard.
             let date = read_i32(&mut e)?;
-            if !tdbe::time::is_valid_yyyymmdd(date) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(date) {
                 return Err(Error::decode_codec(format!(
                     "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
                 )));
@@ -207,7 +207,7 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
                 ))
             })?;
             let date = read_i32(&mut e)?;
-            if !tdbe::time::is_valid_yyyymmdd(date) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(date) {
                 return Err(Error::decode_codec(format!(
                     "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
                 )));

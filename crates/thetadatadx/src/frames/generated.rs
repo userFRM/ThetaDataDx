@@ -19,7 +19,7 @@ use polars::prelude::{DataFrame, NamedFrom, PlSmallStr, PolarsResult, Series};
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::CalendarDay] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -54,7 +54,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::CalendarDay] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::CalendarDay] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -81,7 +81,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::CalendarDay] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -176,7 +176,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::EodTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -248,7 +248,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksAllTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -387,7 +387,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksAllTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksAllTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -492,7 +492,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksAllTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksEodTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -679,7 +679,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksEodTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksEodTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -820,7 +820,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksEodTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksFirstOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -903,7 +903,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksFirstOrderTick] 
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksFirstOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -966,7 +966,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksFirstOrderTick]
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksSecondOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1045,7 +1045,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksSecondOrderTick]
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksSecondOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1105,7 +1105,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksSecondOrderTick
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksThirdOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1180,7 +1180,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::GreeksThirdOrderTick] 
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1237,7 +1237,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick]
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::IndexPriceAtTimeTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTimeTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1296,7 +1296,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::IndexPriceAtTimeTick] 
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IndexPriceAtTimeTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTimeTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1341,7 +1341,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IndexPriceAtTimeTick]
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::InterestRateTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -1364,7 +1364,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::InterestRateTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::InterestRateTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -1382,7 +1382,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::InterestRateTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::IvTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1453,7 +1453,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::IvTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IvTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1507,7 +1507,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IvTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::MarketValueTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1554,7 +1554,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::MarketValueTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::MarketValueTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1590,7 +1590,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::MarketValueTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::OhlcTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1653,7 +1653,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OhlcTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OhlcTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1701,7 +1701,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OhlcTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::OpenInterestTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1740,7 +1740,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OpenInterestTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OpenInterestTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1770,7 +1770,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OpenInterestTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::OptionContract] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_symbol: Vec<String> = Vec::with_capacity(n);
@@ -1801,7 +1801,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OptionContract] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OptionContract] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_symbol: Vec<String> = Vec::with_capacity(n);
@@ -1825,7 +1825,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OptionContract] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::PriceTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1852,7 +1852,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::PriceTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::PriceTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1873,7 +1873,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::PriceTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::QuoteTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1944,7 +1944,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::QuoteTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1998,7 +1998,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2165,7 +2165,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksAllTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAllTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2291,7 +2291,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksAllTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirstOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2402,7 +2402,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderT
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksFirstOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFirstOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2486,7 +2486,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksFirstOrder
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2573,7 +2573,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVola
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2639,7 +2639,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksImpliedVol
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSecondOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2746,7 +2746,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrder
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksSecondOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSecondOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2827,7 +2827,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksSecondOrde
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThirdOrderTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2930,7 +2930,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderT
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksThirdOrderTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThirdOrderTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3008,7 +3008,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksThirdOrder
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3131,7 +3131,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeQuoteTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3224,7 +3224,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeQuoteTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
-impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeTick] {
+impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3311,7 +3311,7 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeTick] {
 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
-impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeTick] {
+impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);

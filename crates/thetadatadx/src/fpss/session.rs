@@ -1,7 +1,7 @@
 //! FPSS session lifecycle: the [`reconnect_delay`] classifier that maps
 //! a `RemoveReason` to a retry policy.
 
-use tdbe::types::enums::RemoveReason;
+use crate::tdbe::types::enums::RemoveReason;
 
 use super::protocol::{RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS};
 

@@ -10,9 +10,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::Instant;
 
+use crate::tdbe::types::enums::StreamMsgType;
+use crate::tdbe::types::price::Price;
 use metrics::Counter;
-use tdbe::types::enums::StreamMsgType;
-use tdbe::types::price::Price;
 
 use super::accumulator::OhlcvcAccumulator;
 use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
@@ -71,7 +71,7 @@ static FPSS_INVALID_PRICE_TYPE_MARKET_VALUE: LazyLock<Counter> = LazyLock::new(
 );
 
 /// Reassemble an FPSS wire `Price` cell. Returns `None` when
-/// `price_type` is outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
+/// `price_type` is outside `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`.
 #[inline]
 fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
     Price::with_value_and_type(value, price_type)
@@ -200,7 +200,7 @@ pub const UNRESOLVED_CONTRACT_SYMBOL_PREFIX: &str = "__pending:";
 fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
     Arc::new(Contract {
         symbol: Arc::from(format!("{UNRESOLVED_CONTRACT_SYMBOL_PREFIX}{contract_id}").as_str()),
-        sec_type: tdbe::types::enums::SecType::Unknown,
+        sec_type: crate::tdbe::types::enums::SecType::Unknown,
         expiration: None,
         is_call: None,
         strike_thousandths: None,
@@ -1355,7 +1355,7 @@ mod tests {
                 // state.
                 assert_eq!(
                     contract.sec_type,
-                    tdbe::types::enums::SecType::Unknown,
+                    crate::tdbe::types::enums::SecType::Unknown,
                     "missing contract_id must surface sec_type = Unknown"
                 );
                 // The sentinel's `symbol` carries the unresolved wire id
@@ -1470,7 +1470,7 @@ mod tests {
             FpssEvent::Data(FpssData::Quote { contract, .. }) => {
                 assert_eq!(
                     contract.sec_type,
-                    tdbe::types::enums::SecType::Unknown,
+                    crate::tdbe::types::enums::SecType::Unknown,
                     "post-Restart tick on known-but-cleared ID must surface Unknown"
                 );
                 assert_ne!(

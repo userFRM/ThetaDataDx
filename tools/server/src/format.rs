@@ -11,8 +11,8 @@
 //! ```
 
 use sonic_rs::prelude::*;
-use tdbe::types::tick::*;
 use thetadatadx::endpoint::EndpointOutput;
+use thetadatadx::*;
 
 // ---------------------------------------------------------------------------
 //  JSON envelope
@@ -887,7 +887,7 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     // an explicit sentinel string so the CSV column is observable rather
     // than silently empty.
     let mut owned = value.clone();
-    tdbe::json_canon::canonicalize(&mut owned);
+    thetadatadx::json_canon::canonicalize(&mut owned);
     match sonic_rs::to_string(&owned) {
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
@@ -934,7 +934,7 @@ fn escape_csv_field(value: &str) -> String {
 mod tests {
     use super::*;
     use sonic_rs::JsonContainerTrait;
-    use tdbe::types::tick::{GreeksAllTick, QuoteTick, TradeQuoteTick};
+    use thetadatadx::{GreeksAllTick, QuoteTick, TradeQuoteTick};
 
     /// The error envelope must carry `header.error_type` + `header.error_msg`
     /// with an empty `response` array — the same shape the Java terminal

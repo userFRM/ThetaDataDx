@@ -248,8 +248,7 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK |
-| [`crates/tdbe`](crates/tdbe/) | `tdbe` | Shared tick types, Greeks, and price math |
+| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK — tick types, Greeks, price math, and the network client in one crate |
 | [`sdks/python`](sdks/python/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
 | [`sdks/typescript`](sdks/typescript/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |

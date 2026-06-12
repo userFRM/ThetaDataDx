@@ -1,12 +1,13 @@
-//! Emit `crates/tdbe/src/types/generated/tick.rs` -- the `#[repr(C, align(N))]`
-//! struct definitions for every tick type declared in `tick_schema.toml`.
+//! Emit `crates/thetadatadx/src/tdbe/types/generated/tick.rs` -- the
+//! `#[repr(C, align(N))]` struct definitions for every tick type declared
+//! in `tick_schema.toml`.
 //!
-//! The hand-written `crates/tdbe/src/types/tick.rs` keeps the items the
-//! schema cannot (yet) express: the `impl_contract_id!` macro applications,
-//! custom `impl TradeTick { ... }` flag helpers, and `OptionContract`'s
-//! deep-copy methods. It `pub use`s the structs from this generated file
-//! so every `Vec<tdbe::T>` consumer in the workspace picks up new tick
-//! types automatically.
+//! The hand-written `crates/thetadatadx/src/tdbe/types/tick.rs` keeps the
+//! items the schema cannot (yet) express: the `impl_contract_id!` macro
+//! applications, custom `impl TradeTick { ... }` flag helpers, and
+//! `OptionContract`'s deep-copy methods. It `pub use`s the structs from
+//! this generated file so every `Vec<T>` consumer in the workspace picks
+//! up new tick types automatically.
 //!
 //! Layout decisions (alignment, copy-derive, contract-id field tail,
 //! `QuoteTick.midpoint`) are taken straight from the schema:
@@ -77,7 +78,7 @@ fn render_timestamp_accessors(type_name: &str, def: &TickTypeDef) -> String {
              \x20   /// primary; this accessor is a convenience at the epoch boundary.\n\
              \x20   #[must_use]\n\
              \x20   pub fn {accessor}(&self) -> Option<i64> {{\n\
-             \x20       crate::time::date_ms_to_epoch_ms(self.date, self.{field})\n\
+             \x20       crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.{field})\n\
              \x20   }}"
         )
         .unwrap();
@@ -104,8 +105,8 @@ pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, Strin
     out
 }
 
-/// Emit `crates/tdbe/src/types/generated/tick_layout_asserts.rs` -- a
-/// `#[cfg(test)]` module containing `size_of` / `align_of` / `offset_of!`
+/// Emit `crates/thetadatadx/src/tdbe/types/generated/tick_layout_asserts.rs`
+/// -- a `#[cfg(test)]` module containing `size_of` / `align_of` / `offset_of!`
 /// asserts for every tick struct in the schema. The hand-written
 /// `tick.rs` `include!`s it.
 ///
@@ -130,7 +131,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
          // Per-tick `size_of` / `align_of` / `offset_of!` asserts. Pinned\n\
          // against the Go FFI offset table emitted from the same schema, so\n\
          // any drift between Rust struct layout and the C / Go FFI mirrors\n\
-         // surfaces on `cargo test -p tdbe` before it lands on the FFI side.\n\
+         // surfaces on `cargo test -p thetadatadx` before it lands on the FFI side.\n\
          \n\
          #[cfg(test)]\n\
          mod layout_asserts {\n\
@@ -279,7 +280,7 @@ fn struct_field_rust_type(column_type: &str, type_name: &str, field: &str) -> &'
         "String" => "String",
         "right" => "char",
         "bool" => "bool",
-        "calendar_status" => "crate::types::enums::CalendarStatus",
+        "calendar_status" => "crate::tdbe::types::enums::CalendarStatus",
         other => panic!("unsupported tdbe struct field type '{other}' for {type_name}.{field}"),
     }
 }

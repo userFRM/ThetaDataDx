@@ -26,9 +26,9 @@ use std::time::Instant;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use tdbe::types::enums::StreamMsgType;
 use thetadatadx::fpss::__test_internals::{decode_frame, DeltaState};
 use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::StreamMsgType;
 
 // ─── Counting allocator ──────────────────────────────────────────────
 //

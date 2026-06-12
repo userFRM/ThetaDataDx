@@ -11,8 +11,8 @@ license = "Apache-2.0"
 keywords = ["thetadata", "terminal", "market-data", "rest-api", "websocket"]
 categories = ["finance", "network-programming", "web-programming::http-server"]
 
-# Binary — not published to crates.io. Only `tdbe` and `thetadatadx`
-# are published per the publish-crate CI job.
+# Binary — not published to crates.io. Only `thetadatadx` is published
+# per the publish-crate CI job.
 publish = false
 
 [workspace]
@@ -24,7 +24,6 @@ path = "src/main.rs"
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file", "__internal"] }
 rustls = { version = "0.23.38", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }
 sonic-rs = "0.5.8"

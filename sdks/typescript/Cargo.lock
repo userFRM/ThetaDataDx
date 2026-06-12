@@ -2013,16 +2013,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tdbe"
-version = "0.14.0"
-dependencies = [
- "serde",
- "sonic-rs",
- "thiserror 2.0.18",
- "toml",
-]
-
-[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2060,7 +2050,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "socket2",
- "tdbe",
+ "sonic-rs",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
@@ -2086,7 +2076,6 @@ dependencies = [
  "napi-derive",
  "serde",
  "serde_json",
- "tdbe",
  "thetadatadx",
  "tokio",
 ]

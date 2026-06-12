@@ -1560,7 +1560,7 @@ export declare class Util {
   static exchangeSymbol(code: number): string
   /**
    * Convert a signed wire-encoded trade-sequence value to its unsigned
-   * monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+   * monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
    * Accepts a JS BigInt in the **i32 wire range**
    * (`-2_147_483_648 ..= 2_147_483_647`) — the upstream Java
    * terminal encodes trade sequences as i32; the SDK widens to
@@ -1573,7 +1573,7 @@ export declare class Util {
   static sequenceSignedToUnsigned(signedValue: bigint): bigint
   /**
    * Convert an unsigned monotonic trade-sequence value back to its
-   * signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+   * signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
    * Accepts a JS BigInt in the unsigned wire range
    * (`0 ..= SEQUENCE_RANGE - 1`, i.e. `0 ..= 2^32 - 1`); returns a
    * JS BigInt for symmetry with `sequenceSignedToUnsigned`.
@@ -1678,7 +1678,7 @@ export interface ContractAssigned {
   contract: Contract
 }
 
-/** FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation. */
+/** FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation. */
 export interface Disconnected {
   reason: number
   /**

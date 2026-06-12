@@ -68,6 +68,14 @@
 //! inside the crate — consumers see typed tick rows on the historical side
 //! and a typed [`fpss::FpssEvent`] stream on the streaming side.
 
+// `wire_semantics.rs` is `#[path]`-shared between this library and the
+// `generate_sdk_surfaces` binary's code-generation tree. The binary sees
+// the library as the external `thetadatadx` crate, so the shared file
+// names the offline right-parser through `thetadatadx::greeks` rather than
+// `crate::`. This self-alias lets the same `thetadatadx::` path resolve
+// inside the library build too.
+extern crate self as thetadatadx;
+
 // ─── Internal module tree ────────────────────────────────────────────────────
 
 pub mod auth;
@@ -105,6 +113,27 @@ pub(crate) mod grpc;
 pub mod grpc;
 
 pub(crate) mod observability;
+
+// The binary-encoding data layer — tick types, enums, `Price`, the
+// FIT/FIE codecs, Black-Scholes Greeks, and the condition / exchange /
+// sequence lookups. The crate root re-exports its public surface under
+// stable `thetadatadx::*` paths (see the re-export blocks below); the
+// `tdbe` name itself stays internal so the SDK ships as one crate with
+// one published package. Never widen to `pub` — that would resurface
+// the `tdbe` path consumers must not depend on.
+//
+// The layer carries the complete data-format API: some entry points
+// (the per-Greek Black-Scholes primitives, the FIE encoder, the
+// canonical-JSON helpers, a handful of enum/error constructors) have no
+// caller inside a default-feature build — they are reached by the
+// `__internal` re-exports below (workspace tools and bindings) and by the
+// data-format benches. Enabling `__internal` makes those re-exports `pub`,
+// so dead-code analysis still covers the whole layer there; the
+// allow applies only to the narrower default build where the curated
+// public surface does not name them.
+#[cfg_attr(not(feature = "__internal"), allow(dead_code))]
+pub(crate) mod tdbe;
+
 pub mod util;
 
 // `mdds/` holds the macros, registry, validate, wire_semantics, and the
@@ -254,7 +283,7 @@ pub use flatfiles_api::*;
 
 // ─── Tick types ───────────────────────────────────────────────────────────────
 
-pub use tdbe::types::tick::{
+pub use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
     GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
     MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
@@ -264,11 +293,15 @@ pub use tdbe::types::tick::{
 
 // ─── Enums and price wrapper ──────────────────────────────────────────────────
 
-pub use tdbe::types::enums::{
+pub use crate::tdbe::types::enums::{
     DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
     StreamResponseType, Venue, Version,
 };
-pub use tdbe::types::price::Price;
+// `Price` plus the `PriceError` its fallible constructor
+// (`Price::with_value_and_type`) returns and the `MAX_PRICE_TYPE` bound
+// that constructor validates against — the public fixed-point price
+// surface.
+pub use crate::tdbe::types::price::{Price, PriceError, MAX_PRICE_TYPE};
 
 // ─── Offline Black-Scholes (Greeks + implied volatility) ─────────────────────
 
@@ -278,10 +311,21 @@ pub use tdbe::types::price::Price;
 /// Use [`all_greeks`] to compute the full Greek surface from a quoted option
 /// price, or [`implied_volatility`] for the Newton-Raphson IV solve alone.
 pub mod greeks {
-    pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
-    pub use tdbe::right::{parse_right, parse_right_strict, ParsedRight};
+    /// Error returned by the offline analytics surface ([`all_greeks`],
+    /// [`implied_volatility`], [`parse_right`], [`parse_right_strict`]) for
+    /// an unrecognised `right` or an out-of-domain input. Distinct from the
+    /// networking [`crate::Error`]; it converts into it via `?`.
+    pub use crate::tdbe::error::Error;
+    pub use crate::tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
+    pub use crate::tdbe::right::{parse_right, parse_right_strict, ParsedRight};
 }
-pub use greeks::*;
+// Crate-root re-export of the offline-analytics surface. `greeks::Error`
+// is deliberately NOT glob-promoted here — the crate root already binds
+// the networking [`Error`], and the analytics error stays addressable as
+// `greeks::Error`.
+pub use greeks::{
+    all_greeks, implied_volatility, parse_right, parse_right_strict, GreeksResult, ParsedRight,
+};
 
 // ─── Utility modules ─────────────────────────────────────────────────────────
 
@@ -291,8 +335,69 @@ pub use greeks::*;
 /// - [`utils::exchange`] — exchange-code to name mapping
 /// - [`utils::sequences`] — sequence-number utilities
 pub mod utils {
-    pub use tdbe::{conditions, exchange, sequences};
+    pub use crate::tdbe::{conditions, exchange, sequences};
 }
+
+// ─── Doc-hidden data-layer internals reachable by tools/bindings/benches ──────
+//
+// The shipped public surface above is curated. Workspace tools
+// (`tools/cli`, `tools/server`, `tools/mcp`), bindings (`ffi`,
+// `sdks/python`, `sdks/typescript`), and the bench harnesses reach a few
+// more data-layer items: the DST-aware epoch math, the canonical JSON
+// finite-or-null sanitiser, the FIT/FIE codecs, and the calendar-status
+// enum the generated tick constructors validate against. These are gated
+// on `__internal` so they stay out of the SemVer commitment and rendered
+// rustdoc; external crates MUST NOT enable that feature. The `tdbe` name
+// never appears in the path — these resolve as `thetadatadx::time`,
+// `thetadatadx::json_canon`, `thetadatadx::codec`, and
+// `thetadatadx::CalendarStatus`.
+
+/// DST-aware epoch / civil-date math (`date_ms_to_epoch_ms`,
+/// `is_valid_yyyymmdd`, `timestamp_to_date`, ...).
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::tdbe::time;
+
+/// Canonical JSON helpers (`finite_or_null`, `canonicalize`,
+/// `canonicalize_and_serialize`) for the CLI / server / MCP renderers.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::tdbe::json_canon;
+
+/// FIT/FIE 4-bit nibble codecs for FPSS tick compression.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::tdbe::codec;
+
+/// Full Black-Scholes primitive surface (`value`, `delta`, `gamma`, the
+/// higher-order Greeks, and the IV solver). The curated [`greeks`] module
+/// re-exports only the three stable entry points; this doc-hidden alias
+/// gives the offline-pricing bench the per-Greek functions it measures.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::tdbe::greeks as black_scholes;
+
+/// Calendar-day market status enum (`Open`, `EarlyClose`, `FullClose`,
+/// `Weekend`). The generated tick constructors validate the wire string
+/// against it; the FFI calendar-status helper resolves codes through it.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::tdbe::types::enums::CalendarStatus;
 
 // ─── DataFrame extension traits (feature-gated) ──────────────────────────────
 
@@ -355,7 +460,7 @@ pub mod prelude {
     pub use crate::fpss::protocol::{
         Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
     };
-    pub use tdbe::types::enums::SecType;
+    pub use crate::tdbe::types::enums::SecType;
 }
 
 /// Install the ring `CryptoProvider` as the process-wide rustls default.

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
+use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
 use super::protocol::Contract;
 
@@ -31,7 +31,7 @@ use super::protocol::Contract;
 /// When a data frame arrives before the matching `ContractAssigned`
 /// frame, the `contract` field holds an unresolved-contract sentinel.
 /// Detect it via
-/// `contract.sec_type == tdbe::types::enums::SecType::Unknown` — the
+/// `contract.sec_type == crate::tdbe::types::enums::SecType::Unknown` — the
 /// canonical, type-safe check.
 ///
 /// The sentinel's `symbol` carries the wire-internal contract id under
@@ -130,8 +130,7 @@ pub enum FpssData {
     ///
     /// A calculated theoretical market value derived from the real-time
     /// bid/ask of the underlying quote — not a raw field. The SDK nudges
-    /// the bid/ask by a size-imbalance + spread-aware rule (see
-    /// [`super::decode`] for the exact algorithm) and reports the
+    /// the bid/ask by a size-imbalance + spread-aware rule and reports the
     /// resulting `market_bid` / `market_ask` plus their integer midpoint
     /// `market_price`, matching the JVM terminal's per-contract market
     /// value stream. The feed is per-contract (no full-stream variant).
@@ -469,7 +468,7 @@ pub(super) enum IoCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tdbe::types::price::Price;
+    use crate::tdbe::types::price::Price;
 
     /// `FpssEventInternal::as_public` relies on. Any future change that
     /// breaks size, alignment, or discriminant equality between
