@@ -7,8 +7,10 @@
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListSymbolsOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -19,8 +21,10 @@ pub struct StockListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListDatesOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -35,8 +39,10 @@ pub struct StockSnapshotOHLCOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -51,8 +57,10 @@ pub struct StockSnapshotTradeOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -67,8 +75,10 @@ pub struct StockSnapshotQuoteOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -83,8 +93,10 @@ pub struct StockSnapshotMarketValueOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -95,8 +107,10 @@ pub struct StockSnapshotMarketValueOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryEODOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -119,8 +133,10 @@ pub struct StockHistoryOHLCOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -141,8 +157,10 @@ pub struct StockHistoryTradeOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -165,8 +183,10 @@ pub struct StockHistoryQuoteOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -189,8 +209,10 @@ pub struct StockHistoryTradeQuoteOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -203,8 +225,10 @@ pub struct StockHistoryTradeQuoteOptions {
 pub struct StockAtTimeTradeOptions {
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -217,8 +241,10 @@ pub struct StockAtTimeTradeOptions {
 pub struct StockAtTimeQuoteOptions {
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -229,8 +255,10 @@ pub struct StockAtTimeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListSymbolsOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -241,8 +269,10 @@ pub struct OptionListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListDatesOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -253,8 +283,10 @@ pub struct OptionListDatesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListExpirationsOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -265,8 +297,10 @@ pub struct OptionListExpirationsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListStrikesOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -279,8 +313,10 @@ pub struct OptionListStrikesOptions {
 pub struct OptionListContractsOptions {
     /// Maximum days to expiration
     pub max_dte: Option<i32>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -301,8 +337,10 @@ pub struct OptionSnapshotOHLCOptions {
     pub strike_range: Option<i32>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -321,8 +359,10 @@ pub struct OptionSnapshotTradeOptions {
     pub strike_range: Option<i32>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -343,8 +383,10 @@ pub struct OptionSnapshotQuoteOptions {
     pub strike_range: Option<i32>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -365,8 +407,10 @@ pub struct OptionSnapshotOpenInterestOptions {
     pub strike_range: Option<i32>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -387,8 +431,10 @@ pub struct OptionSnapshotMarketValueOptions {
     pub strike_range: Option<i32>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -421,8 +467,10 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -455,8 +503,10 @@ pub struct OptionSnapshotGreeksAllOptions {
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -489,8 +539,10 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -523,8 +575,10 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -557,8 +611,10 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -577,8 +633,10 @@ pub struct OptionHistoryEODOptions {
     pub max_dte: Option<i32>,
     /// Strike range filter
     pub strike_range: Option<i32>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -605,8 +663,10 @@ pub struct OptionHistoryOHLCOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -633,8 +693,10 @@ pub struct OptionHistoryTradeOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -663,8 +725,10 @@ pub struct OptionHistoryQuoteOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -693,8 +757,10 @@ pub struct OptionHistoryTradeQuoteOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -717,8 +783,10 @@ pub struct OptionHistoryOpenInterestOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -747,8 +815,10 @@ pub struct OptionHistoryGreeksEODOptions {
     pub max_dte: Option<i32>,
     /// Strike range filter
     pub strike_range: Option<i32>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -783,8 +853,10 @@ pub struct OptionHistoryGreeksAllOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -819,8 +891,10 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -855,8 +929,10 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -891,8 +967,10 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -927,8 +1005,10 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -963,8 +1043,10 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -999,8 +1081,10 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1035,8 +1119,10 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1071,8 +1157,10 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1107,8 +1195,10 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1127,8 +1217,10 @@ pub struct OptionAtTimeTradeOptions {
     pub max_dte: Option<i32>,
     /// Strike range filter
     pub strike_range: Option<i32>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1147,8 +1239,10 @@ pub struct OptionAtTimeQuoteOptions {
     pub max_dte: Option<i32>,
     /// Strike range filter
     pub strike_range: Option<i32>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1159,8 +1253,10 @@ pub struct OptionAtTimeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListSymbolsOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1171,8 +1267,10 @@ pub struct IndexListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListDatesOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1185,8 +1283,10 @@ pub struct IndexListDatesOptions {
 pub struct IndexSnapshotOHLCOptions {
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1199,8 +1299,10 @@ pub struct IndexSnapshotOHLCOptions {
 pub struct IndexSnapshotPriceOptions {
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1213,8 +1315,10 @@ pub struct IndexSnapshotPriceOptions {
 pub struct IndexSnapshotMarketValueOptions {
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1225,8 +1329,10 @@ pub struct IndexSnapshotMarketValueOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryEODOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1243,8 +1349,10 @@ pub struct IndexHistoryOHLCOptions {
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1265,8 +1373,10 @@ pub struct IndexHistoryPriceOptions {
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1277,8 +1387,10 @@ pub struct IndexHistoryPriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexAtTimePriceOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1289,8 +1401,10 @@ pub struct IndexAtTimePriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOpenTodayOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1301,8 +1415,10 @@ pub struct CalendarOpenTodayOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOnDateOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1313,8 +1429,10 @@ pub struct CalendarOnDateOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarYearOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1325,8 +1443,10 @@ pub struct CalendarYearOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct InterestRateHistoryEODOptions {
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1345,8 +1465,10 @@ pub struct StockHistoryOHLCRangeOptions {
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
-    /// Per-call deadline in milliseconds; on expiry the returned Promise
-    /// rejects and the underlying request is cancelled.
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
     pub timeout_ms: Option<f64>,
 }
 
@@ -1361,13 +1483,17 @@ impl ThetaDataDxClient {
         options: Option<StockListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.stock_list_symbols();
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -1387,13 +1513,17 @@ impl ThetaDataDxClient {
         options: Option<StockListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.stock_list_dates(&request_type, &symbol);
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -1418,6 +1548,10 @@ impl ThetaDataDxClient {
         options: Option<StockSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
@@ -1431,8 +1565,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1455,6 +1589,10 @@ impl ThetaDataDxClient {
         options: Option<StockSnapshotTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
@@ -1468,8 +1606,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1492,6 +1630,10 @@ impl ThetaDataDxClient {
         options: Option<StockSnapshotQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
@@ -1505,8 +1647,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1529,6 +1671,10 @@ impl ThetaDataDxClient {
         options: Option<StockSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
@@ -1542,8 +1688,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1563,13 +1709,17 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1596,6 +1746,10 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
@@ -1624,8 +1778,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1650,6 +1804,10 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
@@ -1674,8 +1832,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1703,6 +1861,10 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
@@ -1731,8 +1893,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1758,6 +1920,10 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
@@ -1786,8 +1952,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1817,6 +1983,10 @@ impl ThetaDataDxClient {
         options: Option<StockAtTimeTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -1827,8 +1997,8 @@ impl ThetaDataDxClient {
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1858,6 +2028,10 @@ impl ThetaDataDxClient {
         options: Option<StockAtTimeQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -1868,8 +2042,8 @@ impl ThetaDataDxClient {
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -1886,13 +2060,17 @@ impl ThetaDataDxClient {
         options: Option<OptionListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.option_list_symbols();
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -1918,14 +2096,18 @@ impl ThetaDataDxClient {
         options: Option<OptionListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = tdx.option_list_dates(&request_type, &symbol, expiration.as_str());
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -1945,13 +2127,17 @@ impl ThetaDataDxClient {
         options: Option<OptionListExpirationsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.option_list_expirations(&symbol);
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -1972,14 +2158,18 @@ impl ThetaDataDxClient {
         options: Option<OptionListStrikesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = tdx.option_list_strikes(&symbol, expiration.as_str());
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -2004,6 +2194,10 @@ impl ThetaDataDxClient {
         options: Option<OptionListContractsOptions>,
     ) -> napi::Result<Vec<OptionContract>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
@@ -2012,8 +2206,8 @@ impl ThetaDataDxClient {
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2037,6 +2231,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2061,8 +2259,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2087,6 +2285,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2107,8 +2309,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2133,6 +2335,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2157,8 +2363,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2184,6 +2390,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2208,8 +2418,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2232,6 +2442,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2256,8 +2470,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2286,6 +2500,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2334,8 +2552,8 @@ impl ThetaDataDxClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2364,6 +2582,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2412,8 +2634,8 @@ impl ThetaDataDxClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2442,6 +2664,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2490,8 +2716,8 @@ impl ThetaDataDxClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2520,6 +2746,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2568,8 +2798,8 @@ impl ThetaDataDxClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2598,6 +2828,10 @@ impl ThetaDataDxClient {
         options: Option<OptionSnapshotGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
@@ -2646,8 +2880,8 @@ impl ThetaDataDxClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2675,6 +2909,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
@@ -2697,8 +2935,8 @@ impl ThetaDataDxClient {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2727,6 +2965,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -2764,8 +3006,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2794,6 +3036,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -2831,8 +3077,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2861,6 +3107,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -2902,8 +3152,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -2933,6 +3183,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -2974,8 +3228,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3001,6 +3255,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3030,8 +3288,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3061,6 +3319,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksEODOptions>,
     ) -> napi::Result<Vec<GreeksEodTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
@@ -3103,8 +3365,8 @@ impl ThetaDataDxClient {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3136,6 +3398,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3189,8 +3455,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3221,6 +3487,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<Vec<TradeGreeksAllTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3274,8 +3544,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3307,6 +3577,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3360,8 +3634,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3392,6 +3666,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3445,8 +3723,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3478,6 +3756,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3531,8 +3813,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3563,6 +3845,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3616,8 +3902,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3649,6 +3935,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3702,8 +3992,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3734,6 +4024,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3787,8 +4081,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3819,6 +4113,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3872,8 +4170,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3903,6 +4201,10 @@ impl ThetaDataDxClient {
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<TradeGreeksImpliedVolatilityTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
@@ -3956,8 +4258,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -3986,6 +4288,10 @@ impl ThetaDataDxClient {
         options: Option<OptionAtTimeTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
@@ -4009,8 +4315,8 @@ impl ThetaDataDxClient {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4037,6 +4343,10 @@ impl ThetaDataDxClient {
         options: Option<OptionAtTimeQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
@@ -4060,8 +4370,8 @@ impl ThetaDataDxClient {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4078,13 +4388,17 @@ impl ThetaDataDxClient {
         options: Option<IndexListSymbolsOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.index_list_symbols();
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -4103,13 +4417,17 @@ impl ThetaDataDxClient {
         options: Option<IndexListDatesOptions>,
     ) -> napi::Result<Vec<String>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         spawn_endpoint_task(async move {
             let call = tdx.index_list_dates(&symbol);
-            if let Some(ms) = options.timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+            if let Some(ms) = timeout_ms {
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
                 }
             } else {
                 call.await
@@ -4129,6 +4447,10 @@ impl ThetaDataDxClient {
         options: Option<IndexSnapshotOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
@@ -4138,8 +4460,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4158,6 +4480,10 @@ impl ThetaDataDxClient {
         options: Option<IndexSnapshotPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
@@ -4167,8 +4493,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4187,6 +4513,10 @@ impl ThetaDataDxClient {
         options: Option<IndexSnapshotMarketValueOptions>,
     ) -> napi::Result<Vec<MarketValueTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
@@ -4196,8 +4526,8 @@ impl ThetaDataDxClient {
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4217,13 +4547,17 @@ impl ThetaDataDxClient {
         options: Option<IndexHistoryEODOptions>,
     ) -> napi::Result<Vec<EodTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4250,6 +4584,10 @@ impl ThetaDataDxClient {
         options: Option<IndexHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4267,8 +4605,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_time {
                 request = request.end_time(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4295,6 +4633,10 @@ impl ThetaDataDxClient {
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let interval = options.interval;
@@ -4319,8 +4661,8 @@ impl ThetaDataDxClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4342,14 +4684,18 @@ impl ThetaDataDxClient {
         options: Option<IndexAtTimePriceOptions>,
     ) -> napi::Result<Vec<IndexPriceAtTimeTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4368,11 +4714,15 @@ impl ThetaDataDxClient {
         options: Option<CalendarOpenTodayOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.calendar_open_today();
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4393,12 +4743,16 @@ impl ThetaDataDxClient {
         options: Option<CalendarOnDateOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.calendar_on_date(date.as_str());
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4419,11 +4773,15 @@ impl ThetaDataDxClient {
         options: Option<CalendarYearOptions>,
     ) -> napi::Result<Vec<CalendarDay>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.calendar_year(&year);
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4447,13 +4805,17 @@ impl ThetaDataDxClient {
         options: Option<InterestRateHistoryEODOptions>,
     ) -> napi::Result<Vec<InterestRateTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })
@@ -4477,6 +4839,10 @@ impl ThetaDataDxClient {
         options: Option<StockHistoryOHLCRangeOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
         let tdx = self.tdx.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4498,8 +4864,8 @@ impl ThetaDataDxClient {
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
-            if let Some(ms) = options.timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })

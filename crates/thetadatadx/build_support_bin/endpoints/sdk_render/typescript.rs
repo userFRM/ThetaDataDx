@@ -100,8 +100,10 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
         )
         .unwrap();
     }
-    out.push_str("    /// Per-call deadline in milliseconds; on expiry the returned Promise\n");
-    out.push_str("    /// rejects and the underlying request is cancelled.\n");
+    out.push_str("    /// Per-call deadline as a non-negative whole number of milliseconds;\n");
+    out.push_str("    /// on expiry the returned Promise rejects and the underlying request\n");
+    out.push_str("    /// is cancelled. A non-finite, negative, or fractional value is\n");
+    out.push_str("    /// rejected with `InvalidParameterError` rather than coerced.\n");
     out.push_str("    pub timeout_ms: Option<f64>,\n");
     out.push_str("}\n");
     out
@@ -153,6 +155,17 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     }
 
     out.push_str("        let options = options.unwrap_or_default();\n");
+
+    // Validate the per-call deadline up front, before the request task
+    // is spawned: the option rides in as a JS `number` (f64), and an
+    // `as u64` cast would silently rewrite a non-finite, negative, or
+    // fractional value instead of rejecting it. `validate_timeout_ms`
+    // returns the integer-domain `u64` the other bindings take, or an
+    // `InvalidParameterError`; `?` rejects the Promise synchronously.
+    out.push_str("        let timeout_ms = match options.timeout_ms {\n");
+    out.push_str("            Some(ms) => Some(validate_timeout_ms(ms)?),\n");
+    out.push_str("            None => None,\n");
+    out.push_str("        };\n");
 
     // Clone the `Arc` client handle so the spawned future owns a
     // `'static` borrow source: the request builder borrows the client,
@@ -233,10 +246,12 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             name = endpoint.name,
         )
         .unwrap();
-        out.push_str("            if let Some(ms) = options.timeout_ms {\n");
-        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {\n");
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
         out.push_str("                    Ok(inner) => inner,\n");
-        out.push_str("                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),\n");
+        out.push_str(
+            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
+        );
         out.push_str("                }\n");
         out.push_str("            } else {\n");
         out.push_str("                call.await\n");
@@ -292,9 +307,9 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         .unwrap();
         out.push_str("            }\n");
     }
-    out.push_str("            if let Some(ms) = options.timeout_ms {\n");
+    out.push_str("            if let Some(ms) = timeout_ms {\n");
     out.push_str(
-        "                request = request.with_deadline(std::time::Duration::from_millis(ms as u64));\n",
+        "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
     );
     out.push_str("            }\n");
     out.push_str("            request.await\n");

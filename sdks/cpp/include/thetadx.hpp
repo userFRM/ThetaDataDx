@@ -144,9 +144,6 @@ struct Greeks {
     double lambda;
 };
 
-/* Generated in endpoint_options.hpp.inc. */
-#include "endpoint_options.hpp.inc"
-
 // ══════════════════════════════════════════════════════════════════════════
 // Typed exception hierarchy
 // ══════════════════════════════════════════════════════════════════════════
@@ -289,6 +286,12 @@ class StreamError : public ThetaDataError {
 public:
     using ThetaDataError::ThetaDataError;
 };
+
+// Generated request-options bag. Included after the exception hierarchy
+// so its `with_deadline` setter can throw the complete
+// `InvalidParameterError` type when handed a negative deadline.
+/* Generated in endpoint_options.hpp.inc. */
+#include "endpoint_options.hpp.inc"
 
 // ── RAII typed array wrappers ──
 

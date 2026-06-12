@@ -250,6 +250,46 @@ describe('Config setter input-validation parity (native)', () => {
   });
 });
 
+describe('Sequence-util wire-range input-validation parity (native)', () => {
+  it('sequenceUnsignedToSigned rejects an above-wire-range value as InvalidParameterError', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    // 2^32 fits the BigInt parameter but is outside the unsigned wire
+    // range (0 ..= 2^32 - 1). It is a rejected value, not a silent
+    // reinterpret, so through the wrapped surface it reclassifies to
+    // InvalidParameterError — matching the Python ValueError / C++
+    // InvalidParameterError for the same input. Before the fix this
+    // returned 0.
+    assert.throws(
+      () => mod.Util.sequenceUnsignedToSigned(4294967296n),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'an above-wire-range sequence value must reclassify to InvalidParameterError',
+    );
+  });
+
+  it('sequenceSignedToUnsigned rejects an out-of-i32-range value as InvalidParameterError', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    assert.throws(
+      () => mod.Util.sequenceSignedToUnsigned(2147483648n),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'an out-of-i32-range sequence value must reclassify to InvalidParameterError',
+    );
+  });
+
+  it('sequence converters round-trip in-wire-range values', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+
+    for (const signed of [-2147483648n, -1n, 0n, 1n, 2147483647n]) {
+      const unsigned = mod.Util.sequenceSignedToUnsigned(signed);
+      assert.equal(mod.Util.sequenceUnsignedToSigned(unsigned), signed);
+    }
+  });
+});
+
 describe('FLATFILES enum-parse input-validation parity (native)', () => {
   it('flatFiles.request with an unknown sec_type throws InvalidParameterError', async (t) => {
     const mod = await loadWrapped();
@@ -281,5 +321,88 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'an unknown flat-file req_type must reclassify to InvalidParameterError',
     );
+  });
+});
+
+describe('timeoutMs input-validation parity (native)', () => {
+  // `timeoutMs` rides in the per-endpoint options object as a JS `number`
+  // (an IEEE-754 double). The integer-typed bindings (Python / C++ / C
+  // ABI) take a `u64`, which cannot represent a non-finite, negative, or
+  // fractional deadline; this binding rejects the same inputs rather than
+  // coercing them. A bare `as u64` cast would silently rewrite `NaN` and a
+  // negative value to `0` (an instant deadline), `Infinity` to `u64::MAX`
+  // (a multi-century deadline), and a fractional value to its truncation —
+  // each the opposite of the caller's intent. The reject must surface as
+  // `InvalidParameterError`, the same class the Python binding raises
+  // (`ValueError`) for the identical bad input, so a caller's
+  // `catch (e instanceof InvalidParameterError)` branch ports across
+  // bindings. Validation runs synchronously before the request task is
+  // spawned, so the Promise rejects regardless of network state.
+  //
+  // Both endpoint shapes are covered: a builder-backed endpoint
+  // (`stockSnapshotQuote`) and a string-list endpoint (`stockListSymbols`),
+  // since each consumes the deadline at a separate generated cast site.
+  const badValues = [
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['-Infinity', Number.NEGATIVE_INFINITY],
+    ['a negative value', -1],
+    ['a fractional value', 1.9],
+  ];
+
+  for (const [label, value] of badValues) {
+    it(`stockSnapshotQuote rejects ${label} timeoutMs as InvalidParameterError`, async (t) => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const tdx = tryConnect(mod);
+      if (!tdx) {
+        t.skip('no credentials available to build a client for the endpoint surface');
+        return;
+      }
+
+      await assert.rejects(
+        () => tdx.stockSnapshotQuote('AAPL', { timeoutMs: value }),
+        (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+        `a ${label} timeoutMs must reject as InvalidParameterError, not coerce`,
+      );
+    });
+  }
+
+  it('stockListSymbols rejects a negative timeoutMs on the string-list path', async (t) => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const tdx = tryConnect(mod);
+    if (!tdx) {
+      t.skip('no credentials available to build a client for the endpoint surface');
+      return;
+    }
+
+    await assert.rejects(
+      () => tdx.stockListSymbols({ timeoutMs: -1 }),
+      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+      'a negative timeoutMs must reject on the string-list path too',
+    );
+  });
+
+  it('stockSnapshotQuote accepts a valid whole-millisecond timeoutMs', async (t) => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const tdx = tryConnect(mod);
+    if (!tdx) {
+      t.skip('no credentials available to build a client for the endpoint surface');
+      return;
+    }
+
+    // A valid integer deadline must pass validation and reach the core
+    // client. The round-trip may surface a data/network error, but it must
+    // never be an InvalidParameterError from the deadline guard.
+    try {
+      await tdx.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
+    } catch (err) {
+      assert.ok(
+        !(err instanceof mod.InvalidParameterError),
+        `a valid integer timeoutMs must not be rejected by validation: ${err.message}`,
+      );
+    }
   });
 });

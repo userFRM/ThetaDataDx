@@ -61,6 +61,44 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
     napi::Error::from_reason(format!("[InvalidParameterError] {message}"))
 }
 
+/// Validate a JavaScript `timeoutMs` deadline and convert it to the
+/// integer millisecond domain the Python, C++, and C ABI bindings take.
+///
+/// `timeoutMs` rides in the options object as a JS `number` (an IEEE-754
+/// double). The integer-typed bindings cannot represent a fractional,
+/// negative, or non-finite deadline, so this binding rejects the same
+/// inputs rather than coercing them: an `as u64` cast would silently
+/// rewrite `NaN` and a negative value to `0` (an instant deadline),
+/// `Infinity` to `u64::MAX` (a multi-century deadline), and a fractional
+/// value to its truncation — each the opposite of a caller's intent. A
+/// rejected value surfaces as `InvalidParameterError`, the typed class
+/// the Python binding raises (`ValueError`) for the identical input, so
+/// a caller's `catch (e instanceof InvalidParameterError)` branch ports
+/// across bindings.
+pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
+    if !timeout_ms.is_finite() {
+        return Err(invalid_parameter_err(format!(
+            "timeoutMs must be a non-negative integer number of milliseconds; got {timeout_ms}"
+        )));
+    }
+    if timeout_ms < 0.0 {
+        return Err(invalid_parameter_err(format!(
+            "timeoutMs must be non-negative; got {timeout_ms}"
+        )));
+    }
+    if timeout_ms.fract() != 0.0 {
+        return Err(invalid_parameter_err(format!(
+            "timeoutMs must be a whole number of milliseconds; got {timeout_ms}"
+        )));
+    }
+    if timeout_ms > u64::MAX as f64 {
+        return Err(invalid_parameter_err(format!(
+            "timeoutMs exceeds the representable millisecond range; got {timeout_ms}"
+        )));
+    }
+    Ok(timeout_ms as u64)
+}
+
 /// Run an endpoint round-trip off the runtime's execution thread and
 /// hand the result back as a `napi::Result`.
 ///
