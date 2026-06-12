@@ -73,17 +73,21 @@ python = true
 typescript = true
 cpp = true
 
+# `NoDataFoundError` / `TimeoutError` are Python-only back-compat
+# aliases of the canonical `NotFoundError` / `DeadlineExceededError`
+# (registered as the same type object under both names). TypeScript and
+# C++ ship only the canonical names, so the alias rows stay Python-only.
 [[class]]
 name = "NoDataFoundError"
 python = true
-typescript = false
-cpp = false         # C++ folds NoData into the generic `Error` class with `.kind == NoData`
+typescript = false  # canonical `NotFoundError` only; no TS alias
+cpp = false         # canonical `NotFoundError` only; no C++ alias
 
 [[class]]
 name = "TimeoutError"
 python = true
-typescript = false
-cpp = false         # C++ folds Timeout into the generic `Error` class with `.kind == Timeout`
+typescript = false  # canonical `DeadlineExceededError` only; no TS alias
+cpp = false         # canonical `DeadlineExceededError` only; no C++ alias
 
 [[class]]
 name = "Subscription"
@@ -111,60 +115,90 @@ cpp = true
 
 # ── Typed exception hierarchy.
 #
-# C++ exposes one class per leaf, matching the Python tree.
-# TypeScript surfaces every error variant via a single discriminated
-# `Error` class with `.kind` (see `index.d.ts` line ~1127); the
-# narrowing pattern is `if (e.kind === "InvalidCredentials")`. That
-# is intentional — JS error classes don't compose with `instanceof`
-# across native module boundaries — so each row below records the TS
-# column as `false` rather than misrepresenting the surface.
+# The canonical leaf class names (`NotFoundError`,
+# `DeadlineExceededError`, `UnavailableError`, `InvalidParameterError`,
+# ...) are identical across Python, TypeScript, and C++, so a handler
+# ports across bindings by class name.
+#
+# C++ exposes one class per leaf in `thetadx.hpp`, matching the Python
+# tree. TypeScript also exposes one runtime class per leaf, but they
+# live in the package entry point `streaming-session.{js,d.ts}` (the
+# napi shim re-casts every `[ClassName] ...`-prefixed rejection into the
+# matching subclass). The parity checker reads the napi-generated
+# `index.d.ts`, which does not declare these JS-side classes, so each
+# row records the TypeScript column as `false` — the classes exist on
+# the public TS surface, they are simply not in the file the gate scans.
 
 [[class]]
 name = "ThetaDataError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "AuthenticationError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "InvalidCredentialsError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "SubscriptionError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "RateLimitError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+cpp = true
+
+[[class]]
+name = "InvalidParameterError"
+python = true
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "NetworkError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+cpp = true
+
+[[class]]
+name = "UnavailableError"
+python = true
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+cpp = true
+
+[[class]]
+name = "DeadlineExceededError"
+python = true
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+cpp = true
+
+[[class]]
+name = "NotFoundError"
+python = true
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "SchemaMismatchError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 [[class]]
 name = "StreamError"
 python = true
-typescript = false
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
 
 # ─── FlatFilesConfig cross-binding setters ─────────────────────────────

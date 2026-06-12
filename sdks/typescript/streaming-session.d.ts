@@ -28,17 +28,28 @@ export type Contract = ContractRef;
 // ── Typed error hierarchy ─────────────────────────────────────────────
 //
 // Every `thetadatadx::Error` surfaced through the napi boundary is
-// re-cast on the JS side as one of the leaves below. The hierarchy
-// mirrors the Python `to_py_err` leaf set one-for-one so the
-// cross-binding error contract stays uniform — port a Python
-// `except thetadatadx.SubscriptionError` clause to TS by writing
-// `catch (e) { if (e instanceof tdx.SubscriptionError) { ... } }`.
+// re-cast on the JS side as one of the leaves below. The canonical leaf
+// set (`NotFoundError`, `DeadlineExceededError`, `UnavailableError`,
+// `InvalidParameterError`, ...) is identical to the Python, C++, and C
+// ABI leaf sets, so a `catch` clause ports across bindings by class name
+// — port a Python `except thetadatadx.SubscriptionError` clause to TS by
+// writing `catch (e) { if (e instanceof tdx.SubscriptionError) { ... } }`.
+// Python additionally ships two back-compat aliases
+// (`NoDataFoundError` / `TimeoutError`) that have no equivalent here.
 
 export class ThetaDataError extends Error {}
 export class AuthenticationError extends ThetaDataError {}
 export class InvalidCredentialsError extends AuthenticationError {}
 export class SubscriptionError extends ThetaDataError {}
-export class RateLimitError extends ThetaDataError {}
+export class RateLimitError extends ThetaDataError {
+  /**
+   * Server-supplied minimum back-off in seconds, parsed from the
+   * upstream `google.rpc.RetryInfo` hint, or `null` when none was
+   * supplied. Always present so callers can read it unconditionally.
+   */
+  retryAfter: number | null;
+}
+export class InvalidParameterError extends ThetaDataError {}
 export class NotFoundError extends ThetaDataError {}
 export class DeadlineExceededError extends ThetaDataError {}
 export class UnavailableError extends ThetaDataError {}

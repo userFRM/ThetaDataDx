@@ -34,7 +34,7 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -233,7 +233,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -343,7 +343,7 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -398,7 +398,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -453,7 +453,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -508,7 +508,7 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -563,7 +563,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -632,7 +632,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -701,7 +701,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -742,7 +742,7 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -804,7 +804,7 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -852,7 +852,7 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -907,7 +907,7 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -969,7 +969,7 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1024,7 +1024,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1079,7 +1079,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1134,7 +1134,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1189,7 +1189,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1244,7 +1244,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1299,7 +1299,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1354,7 +1354,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1409,7 +1409,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1464,7 +1464,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1519,7 +1519,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1588,7 +1588,7 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1650,7 +1650,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1712,7 +1712,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1774,7 +1774,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1836,7 +1836,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1898,7 +1898,7 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -1967,7 +1967,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2029,7 +2029,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2091,7 +2091,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2153,7 +2153,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2215,7 +2215,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2277,7 +2277,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2339,7 +2339,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2401,7 +2401,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2463,7 +2463,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2525,7 +2525,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2587,7 +2587,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2663,7 +2663,7 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2739,7 +2739,7 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2780,7 +2780,7 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2828,7 +2828,7 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2876,7 +2876,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2924,7 +2924,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -2972,7 +2972,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3034,7 +3034,7 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3096,7 +3096,7 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3151,7 +3151,7 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3220,7 +3220,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3261,7 +3261,7 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3309,7 +3309,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3357,7 +3357,7 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3419,7 +3419,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }
@@ -3481,7 +3481,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
                 empty
             }
             Err(error) => {
-                set_error(&error.to_string());
+                set_error_from(&thetadatadx::Error::from(error));
                 empty
             }
         }

@@ -147,8 +147,12 @@ struct Greeks {
 // generic `catch (const std::runtime_error&)` continue to observe
 // the failure unchanged; callers that want structured handling can
 // `catch (const SubscriptionError&)` for a tier / permission error
-// or `catch (const RateLimitError&)` for a 429-shaped response,
-// matching the Python and TypeScript leaf sets one-for-one.
+// or `catch (const RateLimitError&)` for a 429-shaped response. The
+// canonical leaf names (`NotFoundError`, `DeadlineExceededError`,
+// `UnavailableError`, `InvalidParameterError`, ...) are identical to
+// the Python and TypeScript leaf sets, so a handler ports across
+// bindings by name. Python additionally ships two back-compat aliases
+// (`NoDataFoundError` / `TimeoutError`) that have no C++ equivalent.
 //
 // The dispatcher [`detail::throw_for_grpc_kind`] reads
 // `tdx_last_error_code()` (typed discriminant set inside the FFI
@@ -207,9 +211,25 @@ public:
 };
 
 /// Rate limit / quota (gRPC `ResourceExhausted`, HTTP 429).
+///
+/// Carries the server-supplied minimum back-off in seconds when the
+/// upstream attached a `google.rpc.RetryInfo` detail, so a caller can
+/// honour the cooldown as a value (`retry_after()`) instead of parsing
+/// the message text. `retry_after()` is `std::nullopt` when no hint was
+/// supplied.
 class RateLimitError : public ThetaDataError {
 public:
     using ThetaDataError::ThetaDataError;
+
+    RateLimitError(const std::string& message, std::optional<double> retry_after_seconds)
+        : ThetaDataError(message), retry_after_(retry_after_seconds) {}
+
+    /// Server-supplied minimum back-off in seconds, or `std::nullopt`
+    /// when the upstream attached no `RetryInfo` hint.
+    std::optional<double> retry_after() const { return retry_after_; }
+
+private:
+    std::optional<double> retry_after_;
 };
 
 /// Empty result / unknown contract (gRPC `NotFound`,
@@ -245,6 +265,16 @@ public:
     using ThetaDataError::ThetaDataError;
 };
 
+/// A client-side parameter was rejected by input validation (a bad
+/// value, an out-of-range number, a missing required field). Distinct
+/// from the root `ThetaDataError` so a malformed-but-rejected argument
+/// is distinguishable by catch type from an unrelated configuration
+/// fault (config-file I/O, TOML parse), which stays on the root class.
+class InvalidParameterError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
 /// FPSS streaming protocol / state-machine failure.
 class StreamError : public ThetaDataError {
 public:
@@ -259,6 +289,16 @@ namespace detail {
 /// discriminant `code` (one of the `TDX_ERR_*` constants in
 /// `thetadx.h`). Used by every wrapper that already has the formatted
 /// message in hand and wants the right leaf class without re-parsing.
+/// Read the thread-local rate-limit back-off hint and convert it to
+/// seconds, or `std::nullopt` when the FFI slot carries no hint (`-1`).
+inline std::optional<double> last_ffi_retry_after_seconds() {
+    const int64_t ms = tdx_last_error_retry_after_ms();
+    if (ms < 0) {
+        return std::nullopt;
+    }
+    return static_cast<double>(ms) / 1000.0;
+}
+
 [[noreturn]] inline void throw_for_code(int32_t code, const std::string& message) {
     switch (code) {
         case TDX_ERR_AUTHENTICATION:
@@ -268,7 +308,9 @@ namespace detail {
         case TDX_ERR_SUBSCRIPTION:
             throw SubscriptionError("thetadatadx: " + message);
         case TDX_ERR_RATE_LIMIT:
-            throw RateLimitError("thetadatadx: " + message);
+            // Carry the server back-off hint (if any) so the caller can
+            // read `RateLimitError::retry_after()` as a value.
+            throw RateLimitError("thetadatadx: " + message, last_ffi_retry_after_seconds());
         case TDX_ERR_NOT_FOUND:
             throw NotFoundError("thetadatadx: " + message);
         case TDX_ERR_DEADLINE_EXCEEDED:
@@ -279,6 +321,8 @@ namespace detail {
             throw NetworkError("thetadatadx: " + message);
         case TDX_ERR_SCHEMA_MISMATCH:
             throw SchemaMismatchError("thetadatadx: " + message);
+        case TDX_ERR_INVALID_PARAMETER:
+            throw InvalidParameterError("thetadatadx: " + message);
         case TDX_ERR_STREAM:
             throw StreamError("thetadatadx: " + message);
         case TDX_ERR_OTHER:

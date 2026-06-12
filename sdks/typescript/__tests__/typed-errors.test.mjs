@@ -34,6 +34,7 @@ describe('typed error hierarchy', () => {
       'InvalidCredentialsError',
       'SubscriptionError',
       'RateLimitError',
+      'InvalidParameterError',
       'NotFoundError',
       'DeadlineExceededError',
       'UnavailableError',
@@ -133,5 +134,62 @@ describe('typed error hierarchy', () => {
       () => stub.throwIt('something raw and untyped'),
       (err) => err instanceof Error && !(err instanceof mod.ThetaDataError),
     );
+  });
+
+  it('exposes retryAfter on RateLimitError and a default of null', async () => {
+    let mod;
+    try {
+      const imported = await import(wrapperImportPath);
+      mod = imported.default ?? imported;
+    } catch (err) {
+      if (err.code === 'ERR_DLOPEN_FAILED') return;
+      throw err;
+    }
+
+    // Default: a RateLimitError constructed without a hint carries a
+    // null retryAfter so callers can read it unconditionally.
+    const bare = new mod.RateLimitError('429');
+    assert.equal(bare.retryAfter, null);
+
+    // The shim widens the prefix to `[RateLimitError retry_after_ms=N]`
+    // when the server attached a RetryInfo hint; the interceptor parses
+    // the hint off and seats it as `retryAfter` in seconds. Mirror the
+    // shim's parse here (the real `rethrowTyped` is module-private).
+    const PREFIX_RE = /^\[([A-Za-z]+Error)(?:\s+retry_after_ms=(\d+))?\]\s*(.*)$/s;
+    const parse = (message) => {
+      const match = PREFIX_RE.exec(message);
+      const [, className, retryAfterMs, payload] = match;
+      const Cls = mod[className];
+      const typed = new Cls(payload);
+      if (retryAfterMs !== undefined && typed instanceof mod.RateLimitError) {
+        typed.retryAfter = Number(retryAfterMs) / 1000;
+      }
+      return typed;
+    };
+
+    const withHint = parse('[RateLimitError retry_after_ms=1500] back off');
+    assert.ok(withHint instanceof mod.RateLimitError);
+    assert.equal(withHint.retryAfter, 1.5);
+    assert.equal(withHint.message, 'back off');
+
+    const withoutHint = parse('[RateLimitError] back off');
+    assert.ok(withoutHint instanceof mod.RateLimitError);
+    assert.equal(withoutHint.retryAfter, null);
+  });
+
+  it('maps a rejected parameter to InvalidParameterError', async () => {
+    let mod;
+    try {
+      const imported = await import(wrapperImportPath);
+      mod = imported.default ?? imported;
+    } catch (err) {
+      if (err.code === 'ERR_DLOPEN_FAILED') return;
+      throw err;
+    }
+
+    assert.equal(typeof mod.InvalidParameterError, 'function');
+    const inst = new mod.InvalidParameterError('bad date');
+    assert.ok(inst instanceof mod.ThetaDataError);
+    assert.equal(inst.name, 'InvalidParameterError');
   });
 });

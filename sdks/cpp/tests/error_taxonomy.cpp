@@ -34,9 +34,53 @@ TEST_CASE("ThetaDataError is the root of the SDK exception hierarchy",
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::UnavailableError>);
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::NetworkError>);
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::SchemaMismatchError>);
+    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::InvalidParameterError>);
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::StreamError>);
     // InvalidCredentialsError narrows AuthenticationError.
     STATIC_REQUIRE(std::is_base_of_v<tdx::AuthenticationError, tdx::InvalidCredentialsError>);
+}
+
+TEST_CASE("throw_for_code routes the invalid-parameter discriminant to InvalidParameterError",
+          "[errors][offline]") {
+    // A rejected client parameter (`TDX_ERR_INVALID_PARAMETER`) must
+    // surface as `InvalidParameterError`, distinguishable by catch type
+    // from the generic `ThetaDataError` that the environmental config
+    // code (`TDX_ERR_CONFIG`) still produces.
+    try {
+        tdx::detail::throw_for_code(TDX_ERR_INVALID_PARAMETER, "bad date");
+        FAIL("throw_for_code must throw");
+    } catch (const tdx::InvalidParameterError&) {
+        // expected
+    } catch (const tdx::ThetaDataError& e) {
+        FAIL("expected InvalidParameterError, got generic ThetaDataError: " << e.what());
+    }
+
+    // The generic config code stays on the root class.
+    try {
+        tdx::detail::throw_for_code(TDX_ERR_CONFIG, "toml parse");
+        FAIL("throw_for_code must throw");
+    } catch (const tdx::InvalidParameterError& e) {
+        FAIL("TDX_ERR_CONFIG must not surface as InvalidParameterError: " << e.what());
+    } catch (const tdx::ThetaDataError&) {
+        // expected — generic config fault
+    }
+}
+
+TEST_CASE("RateLimitError carries the server retry_after as a typed value",
+          "[errors][offline]") {
+    // A `RateLimitError` constructed with a back-off hint exposes it as
+    // seconds; one constructed without a hint reports `std::nullopt`.
+    tdx::RateLimitError with_hint("thetadatadx: 429", 1.5);
+    REQUIRE(with_hint.retry_after().has_value());
+    REQUIRE(with_hint.retry_after().value() == 1.5);
+
+    tdx::RateLimitError without_hint("thetadatadx: 429", std::nullopt);
+    REQUIRE_FALSE(without_hint.retry_after().has_value());
+
+    // The legacy single-arg constructor still compiles and defaults the
+    // hint to absent.
+    tdx::RateLimitError legacy("thetadatadx: 429");
+    REQUIRE_FALSE(legacy.retry_after().has_value());
 }
 
 TEST_CASE("classify_grpc_kind routes every canonical gRPC status to the right leaf",

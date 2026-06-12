@@ -842,11 +842,91 @@ class InvalidCredentialsError(AuthenticationError): ...
 
 
 @final
-class NetworkError(ThetaDataError): ...
+class SubscriptionError(ThetaDataError):
+    """Tier / plan does not cover the request (gRPC ``PermissionDenied``)."""
+
+    ...
 
 
 @final
-class NoDataFoundError(ThetaDataError): ...
+class RateLimitError(ThetaDataError):
+    """Rate limit / quota exhausted (gRPC ``ResourceExhausted``, HTTP 429).
+
+    ``retry_after`` is the server-supplied minimum back-off in seconds
+    when the upstream attached a ``google.rpc.RetryInfo`` detail, or
+    ``None`` when no hint was supplied. The attribute is always present
+    so callers can read it unconditionally.
+    """
+
+    retry_after: Optional[float]
+
+
+@final
+class InvalidParameterError(ThetaDataError):
+    """A client-side parameter was rejected by input validation.
+
+    Distinct from the root :class:`ThetaDataError` so a malformed-but-
+    rejected argument (bad value, out-of-range number, missing required
+    field) is distinguishable by class from an unrelated configuration
+    fault (config-file I/O, TOML parse), which stays on the root class.
+    """
+
+    ...
+
+
+@final
+class SchemaMismatchError(ThetaDataError):
+    """Decoder schema mismatch — usually a server proto bump."""
+
+    ...
+
+
+@final
+class NetworkError(ThetaDataError):
+    """Transport-layer failure (TCP / TLS / IO) other than ``Unavailable``."""
+
+    ...
+
+
+@final
+class UnavailableError(ThetaDataError):
+    """Upstream unavailable (gRPC ``Unavailable``, often retryable)."""
+
+    ...
+
+
+@final
+class DeadlineExceededError(ThetaDataError):
+    """Per-request deadline elapsed (``timeout_ms`` / gRPC ``DeadlineExceeded``)."""
+
+    ...
+
+
+@final
+class NotFoundError(ThetaDataError):
+    """Empty result / unknown contract (gRPC ``NotFound``)."""
+
+    ...
+
+
+@final
+class StreamError(ThetaDataError):
+    """FPSS streaming protocol / state-machine failure."""
+
+    ...
+
+
+# ── Back-compatibility aliases ────────────────────────────────────────
+#
+# `NoDataFoundError` and `TimeoutError` are registered as assignment
+# aliases of their canonical replacements (`NotFoundError` /
+# `DeadlineExceededError`) — the same class object under both names — so
+# existing `except thetadatadx.NoDataFoundError` / `except
+# thetadatadx.TimeoutError` clauses keep catching the dispatched
+# canonical class. New code should use the canonical names. Typed here
+# as the canonical class so `except` narrowing matches runtime identity.
+NoDataFoundError: Type[NotFoundError]
+TimeoutError: Type[DeadlineExceededError]
 
 
 # ─────────────────────────────────────────────────────────────────────

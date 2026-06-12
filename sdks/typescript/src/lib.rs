@@ -33,11 +33,23 @@ pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
 /// base `ThetaDataError` so callers writing `catch (e instanceof
 /// tdx.ThetaDataError)` continue to observe every failure.
 ///
-/// Mirrors the Python `to_py_err` leaf set one-for-one so the
-/// cross-binding error contract stays uniform.
+/// The canonical leaf set (`NotFoundError`, `DeadlineExceededError`,
+/// `UnavailableError`, `InvalidParameterError`, ...) is identical to the
+/// Python, C++, and C ABI leaf sets, so an `except`/`catch` clause ports
+/// across bindings by name. Python additionally ships two back-compat
+/// aliases (`NoDataFoundError` / `TimeoutError`) that do not exist here.
+///
+/// When the error is a rate limit carrying a server `retry_after` hint,
+/// the prefix is widened to `"[RateLimitError retry_after_ms=N] ..."` so
+/// the JS shim can surface the back-off as a typed `retryAfter` property
+/// (seconds) on the thrown `RateLimitError`.
 pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     let class = leaf_class_for(&e);
-    napi::Error::from_reason(format!("[{class}] {e}"))
+    let prefix = match e.retry_after() {
+        Some(d) => format!("[{class} retry_after_ms={}]", d.as_millis()),
+        None => format!("[{class}]"),
+    };
+    napi::Error::from_reason(format!("{prefix} {e}"))
 }
 
 /// Run an endpoint round-trip off the runtime's execution thread and
@@ -71,8 +83,8 @@ where
 }
 
 /// Pick the typed leaf class name for a `thetadatadx::Error`. The
-/// JS shim parses this prefix off the error reason. Mirrors the
-/// Python `to_py_err` dispatch table.
+/// JS shim parses this prefix off the error reason. The canonical leaf
+/// names match the Python `to_py_err` dispatch one-for-one.
 fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
     use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
     match e {
@@ -100,7 +112,16 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
         thetadatadx::Error::Decode { .. } | thetadatadx::Error::Decompress { .. } => {
             "SchemaMismatchError"
         }
-        thetadatadx::Error::Config { .. } => "ThetaDataError",
+        // User-input validation failures route to the dedicated
+        // invalid-parameter class; environmental config faults stay on
+        // the root class.
+        thetadatadx::Error::Config { kind, .. } => {
+            if kind.is_invalid_parameter() {
+                "InvalidParameterError"
+            } else {
+                "ThetaDataError"
+            }
+        }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
             FpssErrorKind::TooManyRequests => "RateLimitError",
             FpssErrorKind::Timeout => "DeadlineExceededError",

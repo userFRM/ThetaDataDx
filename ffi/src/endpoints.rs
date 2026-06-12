@@ -9,7 +9,7 @@
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::error::set_error;
+use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{
     insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
