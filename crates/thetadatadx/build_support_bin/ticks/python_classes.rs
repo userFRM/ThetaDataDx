@@ -513,7 +513,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         writeln!(out, "    fn {accessor}(&self) -> Option<i64> {{").unwrap();
         writeln!(
             out,
-            "        tdbe::time::date_ms_to_epoch_ms(self.date, self.{field})"
+            "        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.{field})"
         )
         .unwrap();
         out.push_str("    }\n");
@@ -522,7 +522,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     // flag columns (e.g. `is_cancelled`). Exposed as read-only computed
     // properties so a caller reads `tick.is_cancelled` instead of
     // hand-decoding `condition_flags`. The predicate matches the
-    // hand-written Rust `impl` in `crates/tdbe/src/types/tick.rs`.
+    // hand-written Rust `impl` in `crates/thetadatadx/src/tdbe/types/tick.rs`.
     for flag in &def.flag_accessors {
         writeln!(out, "\n    /// {}", flag.doc).unwrap();
         writeln!(out, "    #[getter]").unwrap();
@@ -677,7 +677,7 @@ fn pyclass_to_tick_expr(
             "calendar_status" => {
                 writeln!(
                     out,
-                    "{indent}    {field}: match tdbe::CalendarStatus::from_wire_text(&{source_expr}.{py_ident}) {{ Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!(\"status must be one of open, early_close, full_close, weekend; got {{:?}}\", {source_expr}.{py_ident}))) }},",
+                    "{indent}    {field}: match thetadatadx::CalendarStatus::from_wire_text(&{source_expr}.{py_ident}) {{ Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!(\"status must be one of open, early_close, full_close, weekend; got {{:?}}\", {source_expr}.{py_ident}))) }},",
                 )
                 .unwrap();
             }

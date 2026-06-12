@@ -52,7 +52,7 @@ static FPSS_DRAIN_YIELDS: LazyLock<Counter> =
 static FPSS_RECONNECTS: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.reconnects"));
 
-use tdbe::types::enums::{RemoveReason, StreamMsgType};
+use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
@@ -81,7 +81,7 @@ type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
             super::protocol::SubscriptionKind,
-            tdbe::types::enums::SecType,
+            crate::tdbe::types::enums::SecType,
         )>,
     >,
 >;

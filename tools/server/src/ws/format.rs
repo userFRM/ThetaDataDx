@@ -249,7 +249,7 @@ pub(super) fn fpss_event_to_ws_json(
 /// fence that catches the unlikely case of a real contract whose
 /// type-tag round-trips to `Unknown` from a downstream decoder bug.
 fn is_unresolved_contract(c: &Contract) -> bool {
-    c.sec_type == tdbe::types::enums::SecType::Unknown
+    c.sec_type == thetadatadx::SecType::Unknown
         && c.symbol.starts_with(UNRESOLVED_CONTRACT_SYMBOL_PREFIX)
 }
 

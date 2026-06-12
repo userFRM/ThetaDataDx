@@ -106,7 +106,7 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(right_key)
             )
             .unwrap();
-            out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
+            out.push_str("            let g = thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
             out.push_str(
                 "            let mut td = TabularData::new(vec![\"greek\", \"value\"]);\n",
             );
@@ -149,7 +149,7 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(right_key)
             )
             .unwrap();
-            out.push_str("            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
+            out.push_str("            let (iv, iv_error) = thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
             out.push_str(
                 "            let mut td = TabularData::new(vec![\"iv\", \"iv_error\"]);\n",
             );

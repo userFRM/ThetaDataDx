@@ -11,11 +11,11 @@
 //! - A leading `0xCE` byte in any row is a `DATE` marker — the row has no
 //!   user-visible data and its end-nibble must be skipped.
 //!
-//! The FIT codec itself (`tdbe::codec::fit::FitReader` +
-//! `tdbe::codec::fit::apply_deltas`) is shared with the FPSS surface so
+//! The FIT codec itself (`crate::tdbe::codec::fit::FitReader` +
+//! `crate::tdbe::codec::fit::apply_deltas`) is shared with the FPSS surface so
 //! we get exact wire-format parity for free.
 
-use tdbe::codec::fit::{apply_deltas, FitReader};
+use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 
 use crate::error::Error;
 

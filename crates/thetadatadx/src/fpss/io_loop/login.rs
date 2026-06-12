@@ -7,7 +7,7 @@
 //! captured for replay onto the event bus once the Disruptor producer
 //! is live.
 
-use tdbe::types::enums::{RemoveReason, StreamMsgType};
+use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::error::Error;
 

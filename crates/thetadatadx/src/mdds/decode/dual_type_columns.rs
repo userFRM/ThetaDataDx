@@ -8,7 +8,7 @@
 //! coalescing silently.
 
 use crate::proto;
-use tdbe::types::tick::{CalendarDay, OptionContract};
+use crate::tdbe::types::tick::{CalendarDay, OptionContract};
 
 use super::cell::{cell_type, row_price_f64, row_text};
 use super::error::{observed_name, DecodeError};
@@ -76,7 +76,7 @@ pub fn parse_option_contracts_v3(
                                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
                             }
                         };
-                        if !tdbe::time::is_valid_yyyymmdd(n32) {
+                        if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
                             return Err(DecodeError::InvalidDate { raw: n.to_string() });
                         }
                         n32
@@ -165,8 +165,8 @@ pub fn parse_option_contracts_v3(
 ///
 /// Accepts both compact `YYYYMMDD` (e.g. `"20260413"`) and ISO
 /// `YYYY-MM-DD` (e.g. `"2026-04-13"`). Both shapes are validated
-/// through [`tdbe::time::is_valid_yyyymmdd`] /
-/// [`tdbe::time::is_valid_gregorian_date`].
+/// through [`crate::tdbe::time::is_valid_yyyymmdd`] /
+/// [`crate::tdbe::time::is_valid_gregorian_date`].
 ///
 /// # Errors
 ///
@@ -177,7 +177,7 @@ pub fn parse_option_contracts_v3(
 #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
 pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
     if let Ok(n) = s.parse::<i32>() {
-        if tdbe::time::is_valid_yyyymmdd(n) {
+        if crate::tdbe::time::is_valid_yyyymmdd(n) {
             return Ok(n);
         }
         return Err(DecodeError::InvalidDate { raw: s.to_string() });
@@ -189,7 +189,7 @@ pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
             parts[1].parse::<u32>(),
             parts[2].parse::<u32>(),
         ) {
-            if tdbe::time::is_valid_gregorian_date(y, m, d) {
+            if crate::tdbe::time::is_valid_gregorian_date(y, m, d) {
                 return Ok(y * 10_000 + (m as i32) * 100 + (d as i32));
             }
         }
@@ -225,14 +225,14 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
 
 /// Map a v3 calendar `type` text to `(is_open, status)`.
 ///
-/// The status vocabulary is the exported [`tdbe::CalendarStatus`] enum
+/// The status vocabulary is the exported [`crate::tdbe::CalendarStatus`] enum
 /// — the typed form of the vendor's text values (`open` /
 /// `early_close` / `full_close` / `weekend`). Returns
 /// [`DecodeError::UnknownEnumVariant`] when the text falls outside the
 /// documented vendor vocabulary so a future schema change surfaces as
 /// a loud typed error instead of a silent mis-classification.
-fn calendar_type_text(s: &str) -> Result<(bool, tdbe::CalendarStatus), DecodeError> {
-    match tdbe::CalendarStatus::from_wire_text(s) {
+fn calendar_type_text(s: &str) -> Result<(bool, crate::tdbe::CalendarStatus), DecodeError> {
+    match crate::tdbe::CalendarStatus::from_wire_text(s) {
         Some(status) => Ok((status.is_open(), status)),
         None => Err(DecodeError::UnknownEnumVariant {
             field: "calendar.type",
@@ -253,7 +253,7 @@ fn calendar_type_text(s: &str) -> Result<(bool, tdbe::CalendarStatus), DecodeErr
 /// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> true, else -> false |
 /// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
 /// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
-/// | `status`     | `type`        | Text        | [`tdbe::CalendarStatus`] vocabulary   |
+/// | `status`     | `type`        | Text        | [`crate::tdbe::CalendarStatus`] vocabulary   |
 ///
 /// Note: `calendar_on_date` and `calendar_open_today` omit the `date`
 /// column (the `date` field is `0` on those rows). The `type` column is
@@ -311,13 +311,13 @@ pub fn parse_calendar_days_v3(
                                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
                             }
                         };
-                        if !tdbe::time::is_valid_yyyymmdd(n32) {
+                        if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
                             return Err(DecodeError::InvalidDate { raw: n.to_string() });
                         }
                         n32
                     }
                     Some(proto::data_value::DataType::Timestamp(ts)) => {
-                        tdbe::time::timestamp_to_date(ts.epoch_ms)
+                        crate::tdbe::time::timestamp_to_date(ts.epoch_ms)
                     }
                     Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => 0,
@@ -349,7 +349,7 @@ pub fn parse_calendar_days_v3(
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => {
-                        (false, tdbe::CalendarStatus::FullClose)
+                        (false, crate::tdbe::CalendarStatus::FullClose)
                     }
                     None => {
                         return Err(DecodeError::TypeMismatch {
@@ -366,7 +366,7 @@ pub fn parse_calendar_days_v3(
                         });
                     }
                 },
-                None => (false, tdbe::CalendarStatus::FullClose),
+                None => (false, crate::tdbe::CalendarStatus::FullClose),
             };
 
             let open_time = decode_calendar_time(row, open_idx)?;

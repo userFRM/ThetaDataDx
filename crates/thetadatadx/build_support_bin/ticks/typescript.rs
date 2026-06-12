@@ -8,7 +8,7 @@
 //! endpoint is fully typed, no `any`.
 //!
 //! A parallel `{snake_type}_to_class_vec(&[tick::Type]) -> Vec<Type>` helper
-//! copies Rust tick structs (from `tdbe::types::tick`) into the `#[napi]`
+//! copies Rust tick structs (the `thetadatadx::*` tick types) into the `#[napi]`
 //! types. The helpers are drop-in substitutes for the `..._to_columnar`
 //! converters used previously.
 
@@ -195,7 +195,7 @@ fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
         // round-trip it back through the enum, rejecting anything outside the
         // documented vocabulary rather than mis-classifying schema drift.
         "calendar_status" => format!(
-            "match tdbe::types::enums::CalendarStatus::from_wire_text(&r.{field}) {{ Some(status) => status, None => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {{:?}}\", r.{field}))) }}"
+            "match thetadatadx::CalendarStatus::from_wire_text(&r.{field}) {{ Some(status) => status, None => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {{:?}}\", r.{field}))) }}"
         ),
         // Plain Copy primitives (i32 / f64 / bool) deref straight through.
         _ => format!("r.{field}"),
@@ -385,14 +385,14 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
         .unwrap();
     }
     // Resolve each `*_timestamp_ms` epoch value once at conversion time
-    // through the shared DST-aware core (`tdbe::time::date_ms_to_epoch_ms`,
+    // through the shared DST-aware core (`thetadatadx::time::date_ms_to_epoch_ms`,
     // the same function the Python accessor and the `tdx_timestamp_ms`
     // FFI call) and ride it as a precomputed `Option<BigInt>` field — no
     // date math is reimplemented in the binding.
     for (accessor, field) in timestamp_accessor_fields(def) {
         writeln!(
             out,
-            "                {accessor}: tdbe::time::date_ms_to_epoch_ms(t.date, t.{field}).map(BigInt::from),"
+            "                {accessor}: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.{field}).map(BigInt::from),"
         )
         .unwrap();
     }

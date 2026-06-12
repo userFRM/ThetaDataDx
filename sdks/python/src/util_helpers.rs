@@ -1,6 +1,6 @@
 //! Cross-language utility helpers — Python bindings.
 //!
-//! Wraps the lookup tables in `tdbe::{conditions, exchange, sequences}`
+//! Wraps the lookup tables in `thetadatadx::utils::{conditions, exchange, sequences}`
 //! and exposes them under the `thetadatadx.util` Python submodule:
 //!
 //! ```python
@@ -19,52 +19,52 @@ use pyo3::prelude::*;
 
 #[pyfunction]
 fn condition_name(code: i32) -> &'static str {
-    tdbe::conditions::condition_name(code)
+    thetadatadx::utils::conditions::condition_name(code)
 }
 
 #[pyfunction]
 fn condition_description(code: i32) -> &'static str {
-    tdbe::conditions::condition_description(code)
+    thetadatadx::utils::conditions::condition_description(code)
 }
 
 #[pyfunction]
 fn is_cancel(code: i32) -> bool {
-    tdbe::conditions::is_cancel(code)
+    thetadatadx::utils::conditions::is_cancel(code)
 }
 
 #[pyfunction]
 fn updates_volume(code: i32) -> bool {
-    tdbe::conditions::updates_volume(code)
+    thetadatadx::utils::conditions::updates_volume(code)
 }
 
 #[pyfunction]
 fn quote_condition_name(code: i32) -> &'static str {
-    tdbe::conditions::quote_condition_name(code)
+    thetadatadx::utils::conditions::quote_condition_name(code)
 }
 
 #[pyfunction]
 fn quote_condition_description(code: i32) -> &'static str {
-    tdbe::conditions::quote_condition_description(code)
+    thetadatadx::utils::conditions::quote_condition_description(code)
 }
 
 #[pyfunction]
 fn is_firm(code: i32) -> bool {
-    tdbe::conditions::is_firm(code)
+    thetadatadx::utils::conditions::is_firm(code)
 }
 
 #[pyfunction]
 fn is_halted(code: i32) -> bool {
-    tdbe::conditions::is_halted(code)
+    thetadatadx::utils::conditions::is_halted(code)
 }
 
 #[pyfunction]
 fn exchange_name(code: i32) -> &'static str {
-    tdbe::exchange::exchange_name(code)
+    thetadatadx::utils::exchange::exchange_name(code)
 }
 
 #[pyfunction]
 fn exchange_symbol(code: i32) -> &'static str {
-    tdbe::exchange::exchange_symbol(code)
+    thetadatadx::utils::exchange::exchange_symbol(code)
 }
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
@@ -77,13 +77,17 @@ fn exchange_symbol(code: i32) -> &'static str {
 /// `OverflowError` from argument coercion, unchanged.
 #[pyfunction]
 fn sequence_signed_to_unsigned(signed_value: i64) -> PyResult<u64> {
-    if !(tdbe::sequences::SEQUENCE_MIN..=tdbe::sequences::SEQUENCE_MAX).contains(&signed_value) {
+    if !(thetadatadx::utils::sequences::SEQUENCE_MIN..=thetadatadx::utils::sequences::SEQUENCE_MAX)
+        .contains(&signed_value)
+    {
         return Err(PyValueError::new_err(format!(
             "sequence_signed_to_unsigned: {signed_value} is outside the i32 wire range \
              (-2_147_483_648 ..= 2_147_483_647)"
         )));
     }
-    Ok(tdbe::sequences::signed_to_unsigned(signed_value))
+    Ok(thetadatadx::utils::sequences::signed_to_unsigned(
+        signed_value,
+    ))
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its signed
@@ -101,7 +105,9 @@ fn sequence_unsigned_to_signed(unsigned_value: u64) -> PyResult<i64> {
              (0 ..= 2^32 - 1)"
         )));
     }
-    Ok(tdbe::sequences::unsigned_to_signed(unsigned_value))
+    Ok(thetadatadx::utils::sequences::unsigned_to_signed(
+        unsigned_value,
+    ))
 }
 
 /// Register the `thetadatadx.util` submodule on the parent module.

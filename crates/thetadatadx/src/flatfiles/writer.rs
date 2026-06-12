@@ -61,7 +61,7 @@ pub(crate) fn data_indices(fmt: &[DataType], price_type_idx: Option<usize>) -> V
         .collect()
 }
 
-/// Per-row PRICE_TYPE exponent for `tdbe::Price` decoding.
+/// Per-row PRICE_TYPE exponent for `crate::tdbe::Price` decoding.
 ///
 /// When PRICE_TYPE is in the schema, the value at that column is the
 /// vendor `price_type` field (real price = `value * 10^(price_type - 10)`).
@@ -73,21 +73,21 @@ pub(crate) fn price_type_for_row(row: &[i32], price_type_idx: Option<usize>) -> 
 }
 
 /// Convert a wire `(value, price_type)` pair to its real f64 price
-/// using the canonical [`tdbe::types::price::Price`] semantics. Returns
+/// using the canonical [`crate::tdbe::types::price::Price`] semantics. Returns
 /// `0.0` for `price_type == 0` (vendor sentinel for "no price").
 ///
 /// # Errors
 ///
 /// Returns `Error::decode_codec(..)` when `price_type` is outside
-/// `0..=tdbe::types::price::MAX_PRICE_TYPE`. The raw wire value is
+/// `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`. The raw wire value is
 /// captured in the message.
 pub(crate) fn decode_price(integer: i32, price_type: i32) -> Result<f64, Error> {
-    tdbe::types::price::Price::with_value_and_type(integer, price_type)
+    crate::tdbe::types::price::Price::with_value_and_type(integer, price_type)
         .map(|p| p.to_f64())
         .map_err(|_| {
             Error::decode_codec(format!(
                 "flatfile price_type {price_type} outside valid range [0, {}]",
-                tdbe::types::price::MAX_PRICE_TYPE
+                crate::tdbe::types::price::MAX_PRICE_TYPE
             ))
         })
 }

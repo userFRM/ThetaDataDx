@@ -67,7 +67,7 @@ fn build_flat_file_payload(id: i64, sec: SecType, req: ReqType, date: &str) -> V
 
 /// Validate that `date` is exactly 8 ASCII digits AND a real Gregorian
 /// calendar date. Rejects shape-only matches like `"00000000"` or
-/// `"20260230"` via the canonical `tdbe::time::is_valid_yyyymmdd`
+/// `"20260230"` via the canonical `crate::tdbe::time::is_valid_yyyymmdd`
 /// validator shared with MDDS + FPSS.
 fn validate_date(date: &str) -> Result<(), Error> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
@@ -82,7 +82,7 @@ fn validate_date(date: &str) -> Result<(), Error> {
             format!("date {date:?} must be YYYYMMDD digits"),
         )
     })?;
-    if !tdbe::time::is_valid_yyyymmdd(yyyymmdd) {
+    if !crate::tdbe::time::is_valid_yyyymmdd(yyyymmdd) {
         return Err(Error::config_invalid(
             "flatfiles.date",
             format!("date {date:?} is not a valid Gregorian date"),

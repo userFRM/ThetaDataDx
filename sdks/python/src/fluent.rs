@@ -26,18 +26,18 @@ use pyo3::types::{PyDict, PyList};
 
 use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind};
 
-/// Mirror of the Rust `tdbe::types::enums::SecType` value, exposed as
+/// Mirror of the Rust `thetadatadx::SecType` value, exposed as
 /// a Python class with class-level constants so users can write
-/// `SecType.OPTION.full_trades()` without importing the underlying
-/// `tdbe` crate.
+/// `SecType.OPTION.full_trades()` without touching the Rust enum
+/// directly.
 #[pyclass(module = "thetadatadx", name = "SecType", frozen, skip_from_py_object)]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PySecType {
-    pub(crate) inner: tdbe::types::enums::SecType,
+    pub(crate) inner: thetadatadx::SecType,
 }
 
 impl PySecType {
-    pub(crate) fn from_inner(inner: tdbe::types::enums::SecType) -> Self {
+    pub(crate) fn from_inner(inner: thetadatadx::SecType) -> Self {
         Self { inner }
     }
 }
@@ -47,25 +47,25 @@ impl PySecType {
     #[classattr]
     #[allow(non_snake_case)]
     fn STOCK() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Stock)
+        Self::from_inner(thetadatadx::SecType::Stock)
     }
 
     #[classattr]
     #[allow(non_snake_case)]
     fn OPTION() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Option)
+        Self::from_inner(thetadatadx::SecType::Option)
     }
 
     #[classattr]
     #[allow(non_snake_case)]
     fn INDEX() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Index)
+        Self::from_inner(thetadatadx::SecType::Index)
     }
 
     #[classattr]
     #[allow(non_snake_case)]
     fn RATE() -> Self {
-        Self::from_inner(tdbe::types::enums::SecType::Rate)
+        Self::from_inner(thetadatadx::SecType::Rate)
     }
 
     /// Full-stream Trade subscription for this security type. Pair with

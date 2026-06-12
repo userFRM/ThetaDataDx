@@ -86,10 +86,10 @@ columns = [
 ]
 # Boolean flag-word accessors decoded from the integer condition / flag
 # columns, mirroring the hand-written Rust `impl TradeTick` helpers in
-# `crates/tdbe/src/types/tick.rs`. Projected into Python (computed
+# `crates/thetadatadx/src/tdbe/types/tick.rs`. Projected into Python (computed
 # property), TypeScript (precomputed object field), and C++ (free
 # function) so a caller never hand-decodes `condition_flags` /
-# `price_flags`. The literal operands match `crates/tdbe/src/flags.rs`.
+# `price_flags`. The literal operands match `crates/thetadatadx/src/tdbe/flags.rs`.
 flag_accessors = [
     { name = "is_cancelled",             field = "condition",       kind = "range_inclusive", lo = 40, hi = 44, doc = "True when the trade carries a cancelled-trade condition (codes 40-44)." },
     { name = "trade_condition_no_last",  field = "condition_flags", kind = "bit_set",         value = 1,        doc = "True when the trade condition flags set the 'no last' bit (this trade must not update the last price)." },

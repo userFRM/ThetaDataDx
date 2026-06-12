@@ -20,7 +20,7 @@ use super::error::observed_name;
 use super::error::DecodeError;
 use super::headers::find_header;
 use crate::proto;
-use tdbe::types::tick::{
+use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
     GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
     MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
@@ -37,7 +37,7 @@ use tdbe::types::tick::{
 /// string under the header `created`; accepting `Text` here keeps every
 /// `date`-typed parser tolerant of either wire shape with no per-parser
 /// branching. `Number` carries the date already in YYYYMMDD form and is
-/// validated via [`tdbe::time::is_valid_yyyymmdd`]; `Timestamp` is
+/// validated via [`crate::tdbe::time::is_valid_yyyymmdd`]; `Timestamp` is
 /// converted to an Eastern-Time YYYYMMDD integer; `Text` flows through
 /// [`parse_iso_date`]. `NullValue` yields `Ok(None)`; any other type
 /// yields `Err(TypeMismatch)`.
@@ -49,7 +49,7 @@ use tdbe::types::tick::{
 /// `data_type` oneof being unset). Returns [`DecodeError::MissingCell`]
 /// when the row has fewer cells than `idx`. Returns
 /// [`DecodeError::InvalidDate`] when a `Number` cell does not fit `i32`
-/// or fails [`tdbe::time::is_valid_yyyymmdd`].
+/// or fails [`crate::tdbe::time::is_valid_yyyymmdd`].
 #[inline]
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
     let Some(dv) = row.values.get(idx) else {
@@ -61,13 +61,13 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
                 Ok(v) => v,
                 Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
             };
-            if !tdbe::time::is_valid_yyyymmdd(n32) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
             }
             Ok(Some(n32))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
+            Ok(Some(crate::tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }
         Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s)?)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
@@ -114,7 +114,7 @@ pub(crate) fn row_number(
             Ok(Some(n32))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
+            Ok(Some(crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -189,7 +189,7 @@ pub(crate) fn row_price_type(
 /// Returns [`DecodeError::TypeMismatch`] on any other cell type and
 /// [`DecodeError::MissingCell`] on a missing cell. Returns
 /// [`DecodeError::InvalidPriceType`] when the wire `price_type` falls
-/// outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
+/// outside `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 #[inline]
@@ -202,7 +202,7 @@ pub(crate) fn row_price_f64(
     };
     match dv.data_type.as_ref() {
         Some(proto::data_value::DataType::Price(p)) => {
-            let price = tdbe::types::price::Price::with_value_and_type(p.value, p.r#type)
+            let price = crate::tdbe::types::price::Price::with_value_and_type(p.value, p.r#type)
                 .map_err(|_| DecodeError::InvalidPriceType { raw: p.r#type })?;
             Ok(Some(price.to_f64()))
         }
@@ -257,7 +257,7 @@ pub(crate) fn row_text(
 /// Returns [`DecodeError::TypeMismatch`] for any other cell variant.
 /// Returns [`DecodeError::MissingCell`] for an out-of-bounds column
 /// index. Returns [`DecodeError::InvalidPriceType`] when `price_type`
-/// is outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
+/// is outside `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`.
 #[inline]
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
@@ -274,7 +274,7 @@ pub(crate) fn row_number_i64(
             if v == 0 {
                 return Ok(Some(0));
             }
-            if !(0..=tdbe::types::price::MAX_PRICE_TYPE).contains(&p.r#type) {
+            if !(0..=crate::tdbe::types::price::MAX_PRICE_TYPE).contains(&p.r#type) {
                 return Err(DecodeError::InvalidPriceType { raw: p.r#type });
             }
             let price_type = p.r#type;
@@ -345,7 +345,7 @@ pub(crate) fn row_eod_number(
             .map_err(|_| DecodeError::NumericOverflow { raw: n.to_string() }),
         Some(proto::data_value::DataType::Price(p)) => Ok(Some(p.value)),
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
+            Ok(Some(crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -379,7 +379,7 @@ pub(crate) fn row_eod_number_i64(
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => Ok(Some(i64::from(p.value))),
         Some(proto::data_value::DataType::Timestamp(ts)) => Ok(Some(i64::from(
-            tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms),
+            crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms),
         ))),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -394,7 +394,7 @@ pub(crate) fn row_eod_number_i64(
 ///
 /// Numeric payloads (`Number` after an `i32` bounds check, `Price`
 /// via its raw `value`) validate through
-/// [`tdbe::time::is_valid_yyyymmdd`]; `Timestamp` converts to an
+/// [`crate::tdbe::time::is_valid_yyyymmdd`]; `Timestamp` converts to an
 /// Eastern-Time `YYYYMMDD`. `NullValue` yields `Ok(None)`.
 ///
 /// # Errors
@@ -417,13 +417,13 @@ pub(crate) fn row_eod_date(
                 Ok(v) => v,
                 Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
             };
-            if !tdbe::time::is_valid_yyyymmdd(n32) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
             }
             Ok(Some(n32))
         }
         Some(proto::data_value::DataType::Price(p)) => {
-            if !tdbe::time::is_valid_yyyymmdd(p.value) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(p.value) {
                 return Err(DecodeError::InvalidDate {
                     raw: p.value.to_string(),
                 });
@@ -431,7 +431,7 @@ pub(crate) fn row_eod_date(
             Ok(Some(p.value))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
+            Ok(Some(crate::tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -470,7 +470,7 @@ pub(crate) fn row_contract_expiration(
                 Ok(v) => v,
                 Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
             };
-            if !tdbe::time::is_valid_yyyymmdd(n32) {
+            if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
             }
             Ok(Some(n32))
@@ -572,7 +572,7 @@ pub(crate) fn row_bool(
 }
 
 /// Decode a calendar day-type cell to the typed
-/// [`tdbe::types::enums::CalendarStatus`].
+/// [`crate::tdbe::types::enums::CalendarStatus`].
 ///
 /// Accepts the vendor's `Text` vocabulary (`"open"` / `"early_close"`
 /// / `"full_close"` / `"weekend"`) and the integer codes `0..=3`.
@@ -590,23 +590,24 @@ pub(crate) fn row_bool(
 pub(crate) fn row_calendar_status(
     row: &proto::DataValueList,
     idx: usize,
-) -> Result<Option<tdbe::CalendarStatus>, DecodeError> {
+) -> Result<Option<crate::tdbe::CalendarStatus>, DecodeError> {
     let Some(dv) = row.values.get(idx) else {
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Text(s)) => match tdbe::CalendarStatus::from_wire_text(s)
-        {
-            Some(status) => Ok(Some(status)),
-            None => Err(DecodeError::UnknownEnumVariant {
-                field: "calendar.type",
-                raw: s.clone(),
-            }),
-        },
+        Some(proto::data_value::DataType::Text(s)) => {
+            match crate::tdbe::CalendarStatus::from_wire_text(s) {
+                Some(status) => Ok(Some(status)),
+                None => Err(DecodeError::UnknownEnumVariant {
+                    field: "calendar.type",
+                    raw: s.clone(),
+                }),
+            }
+        }
         Some(proto::data_value::DataType::Number(n)) => {
             let code = i32::try_from(*n)
                 .ok()
-                .and_then(tdbe::CalendarStatus::from_code);
+                .and_then(crate::tdbe::CalendarStatus::from_code);
             match code {
                 Some(status) => Ok(Some(status)),
                 None => Err(DecodeError::UnknownEnumVariant {

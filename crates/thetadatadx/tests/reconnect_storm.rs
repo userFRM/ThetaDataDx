@@ -30,7 +30,7 @@ use std::io::Cursor;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use tdbe::types::enums::StreamMsgType;
+use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,

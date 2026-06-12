@@ -14,7 +14,7 @@
 //! `cargo fuzz` (libFuzzer) requires a nightly toolchain plus a
 //! standalone `fuzz/` workspace. The CI runner here is stable-only,
 //! so we use proptest — already a dev-dependency for the existing
-//! property tests in `tdbe` — for a regression gate that runs in
+//! data-layer property tests — for a regression gate that runs in
 //! seconds, not minutes. This is NOT exhaustive coverage; it is a
 //! shape guard against panics from new variants slipping into the
 //! decoder dispatch.
@@ -26,11 +26,11 @@ use std::sync::Arc;
 
 use proptest::prelude::*;
 
-use tdbe::types::enums::StreamMsgType;
 use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::StreamMsgType;
 
 /// Drive arbitrary bytes through the read+decode pipeline and assert
 /// the only observable outcomes are: bounded number of frames yielded,

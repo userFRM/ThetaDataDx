@@ -8,8 +8,8 @@ description = "C FFI layer for thetadatadx — used by Go and C++ SDKs"
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
-# Internal FFI shim — never published to crates.io. Only `tdbe` and
-# `thetadatadx` are published (see publish-crate job in ci.yml).
+# Internal FFI shim — never published to crates.io. Only `thetadatadx`
+# is published (see publish-crate job in ci.yml).
 publish = false
 
 [lints]
@@ -31,7 +31,6 @@ testing-panic-boundary = []
 
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx", features = ["arrow", "__internal"] }
-tdbe = { version = "0.14.0", path = "../crates/tdbe" }
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 arrow-ipc = "58.1.0"
 # Used by the FPSS streaming callback silent-drop observability path

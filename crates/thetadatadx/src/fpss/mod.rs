@@ -104,7 +104,7 @@ use crate::auth::Credentials;
 use crate::backoff::JitterMode;
 use crate::config::{FpssFlushMode, HostSelectionPolicy, ReconnectPolicy};
 use crate::error::Error;
-use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
+use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
@@ -760,7 +760,7 @@ struct SpawnArgs<'a, P> {
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
     active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
-    active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
+    active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
     ring_cursors: Arc<RingCursors>,
@@ -834,7 +834,7 @@ pub struct FpssClient {
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (full-stream) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
-        Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
+        Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>>,
     /// The server address the initial connect landed on. Snapshot;
     /// see `last_connected_addr()` for the live session address.
     server_addr: String,
@@ -1158,7 +1158,12 @@ impl FpssClient {
         let active_subs: Arc<Mutex<Vec<(protocol::SubscriptionKind, protocol::Contract)>>> =
             Arc::new(Mutex::new(Vec::new()));
         let active_full_subs: Arc<
-            Mutex<Vec<(protocol::SubscriptionKind, tdbe::types::enums::SecType)>>,
+            Mutex<
+                Vec<(
+                    protocol::SubscriptionKind,
+                    crate::tdbe::types::enums::SecType,
+                )>,
+            >,
         > = Arc::new(Mutex::new(Vec::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
@@ -1820,7 +1825,7 @@ impl FpssClient {
     fn send_full_stream(
         &self,
         kind: protocol::FullSubscriptionKind,
-        sec_type: tdbe::types::enums::SecType,
+        sec_type: crate::tdbe::types::enums::SecType,
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
@@ -2052,7 +2057,7 @@ impl FpssClient {
     /// Get a snapshot of currently active full-type (full-stream) subscriptions.
     pub fn active_full_subscriptions(
         &self,
-    ) -> Vec<(SubscriptionKind, tdbe::types::enums::SecType)> {
+    ) -> Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)> {
         self.active_full_subs
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2081,7 +2086,7 @@ impl FpssClient {
     pub fn restore_subscriptions(
         &self,
         per_contract: &[(SubscriptionKind, Contract)],
-        full_type: &[(SubscriptionKind, tdbe::types::enums::SecType)],
+        full_type: &[(SubscriptionKind, crate::tdbe::types::enums::SecType)],
     ) -> Result<(), Error> {
         let pacing = crate::client::ReplayPacing {
             burst_size: self.replay_burst_size,
@@ -2192,8 +2197,9 @@ impl FpssClient {
         let authenticated = Arc::new(AtomicBool::new(true));
         let active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>> =
             Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>> =
-            Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: Arc<
+            Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>,
+        > = Arc::new(Mutex::new(Vec::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let ring_cursors = Arc::new(RingCursors::new());
@@ -2637,7 +2643,7 @@ mod full_stream_guard_tests {
     use super::{full_stream_sec_type_supported, FpssClient, HarnessPublishMode};
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::SecTypeExt;
-    use tdbe::types::enums::SecType;
+    use crate::tdbe::types::enums::SecType;
 
     /// The full-stream broadcast is only delivered upstream for Stock and
     /// Option. The subscribe boundary uses this predicate to reject any

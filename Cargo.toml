@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
+members = ["crates/thetadatadx", "tools/cli", "ffi"]
 exclude = ["sdks/python", "sdks/typescript", "tools/mcp", "tools/server"]
 resolver = "2"
 
@@ -7,9 +7,9 @@ resolver = "2"
 # `<field>.workspace = true` so bumping the repo URL, the Apache-2.0
 # license, or the MSRV happens in exactly one place.
 #
-# `version` is intentionally NOT hoisted because the workspace ships two
-# independent semver tracks: `tdbe` (0.x encoding crate) and everything
-# else (the 8.0.x SDK line). Each member keeps its own `version = "..."`.
+# `version` is intentionally NOT hoisted: the workspace members carry
+# independent semver tracks, so each member keeps its own
+# `version = "..."`.
 [workspace.package]
 edition = "2021"
 rust-version = "1.88"

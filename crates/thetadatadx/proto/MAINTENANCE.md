@@ -52,7 +52,7 @@ proto/
 
 3. **Tick parser codegen**: the build reads `tick_schema.toml` and generates
    `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
-   The public tick structs live in `crates/tdbe/src/types/tick.rs` and must stay
+   The public tick structs live in `crates/thetadatadx/src/tdbe/types/tick.rs` and must stay
    aligned with that schema.
 
 All three steps are automatic. Just run `cargo build`.

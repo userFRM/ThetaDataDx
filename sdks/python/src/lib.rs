@@ -5,7 +5,7 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
-use tdbe::types::tick;
+use thetadatadx as tick;
 use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;

@@ -83,7 +83,7 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"arrow\")))]\n");
     writeln!(
         out,
-        "impl crate::frames::TicksArrowExt for [tdbe::types::tick::{type_name}] {{"
+        "impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::{type_name}] {{"
     )
     .unwrap();
     out.push_str(
@@ -204,7 +204,7 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"polars\")))]\n");
     writeln!(
         out,
-        "impl crate::frames::TicksPolarsExt for [tdbe::types::tick::{type_name}] {{"
+        "impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::{type_name}] {{"
     )
     .unwrap();
     out.push_str("    fn to_polars(&self) -> PolarsResult<DataFrame> {\n");

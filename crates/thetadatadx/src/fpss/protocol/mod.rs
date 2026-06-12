@@ -4,7 +4,7 @@
 //!
 //! ## Message codes
 //!
-//! See [`tdbe::types::enums::StreamMsgType`] for the per-direction byte-code enum.
+//! See [`crate::tdbe::types::enums::StreamMsgType`] for the per-direction byte-code enum.
 //!
 //! ## Contract serialization
 //!

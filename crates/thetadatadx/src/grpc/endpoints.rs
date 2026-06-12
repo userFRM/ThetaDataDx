@@ -128,7 +128,7 @@ pub mod bench_support {
     use super::{map_channel_error, Channel, Error, HashMap, CLIENT_PARAMETER_VALUE};
     use crate::decode;
     use crate::proto;
-    use tdbe::types::tick::EodTick;
+    use crate::tdbe::types::tick::EodTick;
 
     fn make_query_info(session_uuid: String, client_type: String) -> proto::QueryInfo {
         let mut query_parameters = HashMap::with_capacity(1);

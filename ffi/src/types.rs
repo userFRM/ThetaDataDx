@@ -153,54 +153,66 @@ macro_rules! tick_array_type {
     };
 }
 
-tick_array_type!(TdxEodTickArray, tdbe::EodTick);
-tick_array_type!(TdxOhlcTickArray, tdbe::OhlcTick);
-tick_array_type!(TdxTradeTickArray, tdbe::TradeTick);
-tick_array_type!(TdxQuoteTickArray, tdbe::QuoteTick);
+tick_array_type!(TdxEodTickArray, thetadatadx::EodTick);
+tick_array_type!(TdxOhlcTickArray, thetadatadx::OhlcTick);
+tick_array_type!(TdxTradeTickArray, thetadatadx::TradeTick);
+tick_array_type!(TdxQuoteTickArray, thetadatadx::QuoteTick);
 // Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
 // `_second_order` / `_third_order`. The full union for the interval-sampled
 // `option_*_greeks_all` endpoints lands on `TdxGreeksAllTickArray`; the
 // end-of-day endpoint `option_history_greeks_eod` lands on
 // `TdxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
 // the interval-sampled all-union shape).
-tick_array_type!(TdxGreeksAllTickArray, tdbe::GreeksAllTick);
-tick_array_type!(TdxGreeksEodTickArray, tdbe::GreeksEodTick);
-tick_array_type!(TdxGreeksFirstOrderTickArray, tdbe::GreeksFirstOrderTick);
-tick_array_type!(TdxGreeksSecondOrderTickArray, tdbe::GreeksSecondOrderTick);
-tick_array_type!(TdxGreeksThirdOrderTickArray, tdbe::GreeksThirdOrderTick);
+tick_array_type!(TdxGreeksAllTickArray, thetadatadx::GreeksAllTick);
+tick_array_type!(TdxGreeksEodTickArray, thetadatadx::GreeksEodTick);
+tick_array_type!(
+    TdxGreeksFirstOrderTickArray,
+    thetadatadx::GreeksFirstOrderTick
+);
+tick_array_type!(
+    TdxGreeksSecondOrderTickArray,
+    thetadatadx::GreeksSecondOrderTick
+);
+tick_array_type!(
+    TdxGreeksThirdOrderTickArray,
+    thetadatadx::GreeksThirdOrderTick
+);
 // Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
 // carry the nine trade-side execution columns alongside the Greek values --
 // distinct from the interval-sampled `TdxGreeks*TickArray` whose rows carry
 // the bid/ask quote pair instead.
-tick_array_type!(TdxTradeGreeksAllTickArray, tdbe::TradeGreeksAllTick);
+tick_array_type!(TdxTradeGreeksAllTickArray, thetadatadx::TradeGreeksAllTick);
 tick_array_type!(
     TdxTradeGreeksFirstOrderTickArray,
-    tdbe::TradeGreeksFirstOrderTick
+    thetadatadx::TradeGreeksFirstOrderTick
 );
 tick_array_type!(
     TdxTradeGreeksSecondOrderTickArray,
-    tdbe::TradeGreeksSecondOrderTick
+    thetadatadx::TradeGreeksSecondOrderTick
 );
 tick_array_type!(
     TdxTradeGreeksThirdOrderTickArray,
-    tdbe::TradeGreeksThirdOrderTick
+    thetadatadx::TradeGreeksThirdOrderTick
 );
 tick_array_type!(
     TdxTradeGreeksImpliedVolatilityTickArray,
-    tdbe::TradeGreeksImpliedVolatilityTick
+    thetadatadx::TradeGreeksImpliedVolatilityTick
 );
-tick_array_type!(TdxIvTickArray, tdbe::IvTick);
-tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
+tick_array_type!(TdxIvTickArray, thetadatadx::IvTick);
+tick_array_type!(TdxPriceTickArray, thetadatadx::PriceTick);
 // Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
 // `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
 // `exchange`, `price`). Distinct from the bare `TdxPriceTickArray`
 // used by `index_snapshot_price` / `index_history_price` (3 columns).
-tick_array_type!(TdxIndexPriceAtTimeTickArray, tdbe::IndexPriceAtTimeTick);
-tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
-tick_array_type!(TdxMarketValueTickArray, tdbe::MarketValueTick);
-tick_array_type!(TdxCalendarDayArray, tdbe::CalendarDay);
-tick_array_type!(TdxInterestRateTickArray, tdbe::InterestRateTick);
-tick_array_type!(TdxTradeQuoteTickArray, tdbe::TradeQuoteTick);
+tick_array_type!(
+    TdxIndexPriceAtTimeTickArray,
+    thetadatadx::IndexPriceAtTimeTick
+);
+tick_array_type!(TdxOpenInterestTickArray, thetadatadx::OpenInterestTick);
+tick_array_type!(TdxMarketValueTickArray, thetadatadx::MarketValueTick);
+tick_array_type!(TdxCalendarDayArray, thetadatadx::CalendarDay);
+tick_array_type!(TdxInterestRateTickArray, thetadatadx::InterestRateTick);
+tick_array_type!(TdxTradeQuoteTickArray, thetadatadx::TradeQuoteTick);
 
 /// Generate a `#[no_mangle] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
@@ -275,7 +287,7 @@ tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 // other tick vector) serialises it to an Arrow IPC stream and hands the
 // bytes to arrow-cpp, the same columnar exit Python exposes via
 // `<TickName>List.to_arrow()`. The tick structs are the layout-pinned
-// `tdbe::*Tick` types the history endpoints already return, so the bytes go
+// `thetadatadx::*Tick` types the history endpoints already return, so the bytes go
 // straight through `TicksArrowExt::to_arrow` with no re-marshaling.
 
 /// Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
@@ -369,55 +381,73 @@ macro_rules! tick_array_to_arrow_ipc {
     };
 }
 
-tick_array_to_arrow_ipc!(tdx_eod_ticks_to_arrow_ipc, tdbe::EodTick);
-tick_array_to_arrow_ipc!(tdx_ohlc_ticks_to_arrow_ipc, tdbe::OhlcTick);
-tick_array_to_arrow_ipc!(tdx_trade_ticks_to_arrow_ipc, tdbe::TradeTick);
-tick_array_to_arrow_ipc!(tdx_quote_ticks_to_arrow_ipc, tdbe::QuoteTick);
-tick_array_to_arrow_ipc!(tdx_greeks_all_ticks_to_arrow_ipc, tdbe::GreeksAllTick);
-tick_array_to_arrow_ipc!(tdx_greeks_eod_ticks_to_arrow_ipc, tdbe::GreeksEodTick);
+tick_array_to_arrow_ipc!(tdx_eod_ticks_to_arrow_ipc, thetadatadx::EodTick);
+tick_array_to_arrow_ipc!(tdx_ohlc_ticks_to_arrow_ipc, thetadatadx::OhlcTick);
+tick_array_to_arrow_ipc!(tdx_trade_ticks_to_arrow_ipc, thetadatadx::TradeTick);
+tick_array_to_arrow_ipc!(tdx_quote_ticks_to_arrow_ipc, thetadatadx::QuoteTick);
+tick_array_to_arrow_ipc!(
+    tdx_greeks_all_ticks_to_arrow_ipc,
+    thetadatadx::GreeksAllTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_greeks_eod_ticks_to_arrow_ipc,
+    thetadatadx::GreeksEodTick
+);
 tick_array_to_arrow_ipc!(
     tdx_greeks_first_order_ticks_to_arrow_ipc,
-    tdbe::GreeksFirstOrderTick
+    thetadatadx::GreeksFirstOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_greeks_second_order_ticks_to_arrow_ipc,
-    tdbe::GreeksSecondOrderTick
+    thetadatadx::GreeksSecondOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_greeks_third_order_ticks_to_arrow_ipc,
-    tdbe::GreeksThirdOrderTick
+    thetadatadx::GreeksThirdOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_trade_greeks_all_ticks_to_arrow_ipc,
-    tdbe::TradeGreeksAllTick
+    thetadatadx::TradeGreeksAllTick
 );
 tick_array_to_arrow_ipc!(
     tdx_trade_greeks_first_order_ticks_to_arrow_ipc,
-    tdbe::TradeGreeksFirstOrderTick
+    thetadatadx::TradeGreeksFirstOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_trade_greeks_second_order_ticks_to_arrow_ipc,
-    tdbe::TradeGreeksSecondOrderTick
+    thetadatadx::TradeGreeksSecondOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_trade_greeks_third_order_ticks_to_arrow_ipc,
-    tdbe::TradeGreeksThirdOrderTick
+    thetadatadx::TradeGreeksThirdOrderTick
 );
 tick_array_to_arrow_ipc!(
     tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc,
-    tdbe::TradeGreeksImpliedVolatilityTick
+    thetadatadx::TradeGreeksImpliedVolatilityTick
 );
-tick_array_to_arrow_ipc!(tdx_iv_ticks_to_arrow_ipc, tdbe::IvTick);
-tick_array_to_arrow_ipc!(tdx_price_ticks_to_arrow_ipc, tdbe::PriceTick);
+tick_array_to_arrow_ipc!(tdx_iv_ticks_to_arrow_ipc, thetadatadx::IvTick);
+tick_array_to_arrow_ipc!(tdx_price_ticks_to_arrow_ipc, thetadatadx::PriceTick);
 tick_array_to_arrow_ipc!(
     tdx_index_price_at_time_ticks_to_arrow_ipc,
-    tdbe::IndexPriceAtTimeTick
+    thetadatadx::IndexPriceAtTimeTick
 );
-tick_array_to_arrow_ipc!(tdx_open_interest_ticks_to_arrow_ipc, tdbe::OpenInterestTick);
-tick_array_to_arrow_ipc!(tdx_market_value_ticks_to_arrow_ipc, tdbe::MarketValueTick);
-tick_array_to_arrow_ipc!(tdx_calendar_days_to_arrow_ipc, tdbe::CalendarDay);
-tick_array_to_arrow_ipc!(tdx_interest_rate_ticks_to_arrow_ipc, tdbe::InterestRateTick);
-tick_array_to_arrow_ipc!(tdx_trade_quote_ticks_to_arrow_ipc, tdbe::TradeQuoteTick);
+tick_array_to_arrow_ipc!(
+    tdx_open_interest_ticks_to_arrow_ipc,
+    thetadatadx::OpenInterestTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_market_value_ticks_to_arrow_ipc,
+    thetadatadx::MarketValueTick
+);
+tick_array_to_arrow_ipc!(tdx_calendar_days_to_arrow_ipc, thetadatadx::CalendarDay);
+tick_array_to_arrow_ipc!(
+    tdx_interest_rate_ticks_to_arrow_ipc,
+    thetadatadx::InterestRateTick
+);
+tick_array_to_arrow_ipc!(
+    tdx_trade_quote_ticks_to_arrow_ipc,
+    thetadatadx::TradeQuoteTick
+);
 
 /// Free a byte buffer returned by any `tdx_*_to_arrow_ipc` terminal.
 #[no_mangle]
@@ -468,7 +498,7 @@ pub struct TdxOptionContractArray {
 
 impl TdxOptionContractArray {
     pub(crate) fn from_vec(
-        contracts: Vec<tdbe::OptionContract>,
+        contracts: Vec<thetadatadx::OptionContract>,
     ) -> Result<Self, std::ffi::NulError> {
         let len = contracts.len();
         if len == 0 {

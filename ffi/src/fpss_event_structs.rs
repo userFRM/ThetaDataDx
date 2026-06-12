@@ -50,7 +50,7 @@ pub enum TdxFpssEventKind {
 pub struct TdxContract {
 /// Ticker symbol (e.g. "AAPL"). Null until ContractAssigned arrives.
 pub symbol: *const c_char,
-/// Security type code — matches `tdbe::types::enums::SecType`.
+/// Security type code — matches `thetadatadx::SecType`.
 pub sec_type: i32,
 /// Whether `expiration` is meaningful (options only).
 pub has_expiration: bool,
@@ -168,7 +168,7 @@ pub struct TdxFpssContractAssigned {
     pub contract: TdxContract,
 }
 
-/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation.
+/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
 #[repr(C)]
 pub struct TdxFpssDisconnected {
     pub reason: i32,

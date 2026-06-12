@@ -43,7 +43,7 @@ pub struct TdxGreeksResult {
 /// Compute all 23 Black-Scholes Greeks + IV.
 ///
 /// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
-/// the `tdbe::right::parse_right` canonical parser). Returns a heap-allocated
+/// the `thetadatadx::greeks::parse_right` canonical parser). Returns a heap-allocated
 /// `TdxGreeksResult`, or null on error (invalid UTF-8 / unrecognised right /
 /// resolves to `both`). Caller must free the result with
 /// `tdx_greeks_result_free`.
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
 ) -> *mut TdxGreeksResult {
     ffi_boundary!(std::ptr::null_mut(), {
         let right_str = require_cstr!(right, std::ptr::null_mut());
-        let g = match tdbe::greeks::all_greeks(
+        let g = match thetadatadx::greeks::all_greeks(
             spot,
             strike,
             rate,
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
 /// Compute implied volatility via bisection.
 ///
 /// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
-/// the `tdbe::right::parse_right` canonical parser). Returns IV in `*out_iv`
+/// the `thetadatadx::greeks::parse_right` canonical parser). Returns IV in `*out_iv`
 /// and error in `*out_error`. Returns 0 on success, -1 on failure (null
 /// pointers / invalid UTF-8 / unrecognised right / resolves to `both`).
 ///
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
             return -1;
         }
         let right_str = require_cstr!(right, -1);
-        let (iv, err) = match tdbe::greeks::implied_volatility(
+        let (iv, err) = match thetadatadx::greeks::implied_volatility(
             spot,
             strike,
             rate,
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 //  Condition / exchange / sequence helper accessors
 //
 //  Cross-language utility parity. The lookup tables live in
-//  `tdbe::{conditions, exchange, sequences}`. The C ABI wraps them as
+//  `thetadatadx::{conditions, exchange, sequences}`. The C ABI wraps them as
 //  string-returning entry points (returning `'static` UTF-8 NUL-terminated
 //  C strings — the underlying tables are `&'static str`, so the caller
 //  MUST NOT free the returned pointer) plus a couple of `bool`-returning
@@ -185,8 +185,8 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 
 // R4: every `tdx_condition_*` / `tdx_exchange_*` / `tdx_quote_condition_*`
 // entry point wraps its body in `ffi_boundary!` so a panic in the
-// `tdbe` lookup tables (debug-build invariant trips, etc.) or in
-// `static_cstr` (cache mutex contention, allocator OOM) cannot abort
+// condition / exchange lookup tables (debug-build invariant trips,
+// etc.) or in `static_cstr` (cache mutex contention, allocator OOM) cannot abort
 // the host process. The wrappers return the documented "unknown"
 // sentinel:
 //   - `*const c_char` returners → `std::ptr::null()` (caller already
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 #[no_mangle]
 pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::conditions::condition_name(code))
+        static_cstr(thetadatadx::utils::conditions::condition_name(code))
     })
 }
 
@@ -216,27 +216,29 @@ pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn tdx_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::conditions::condition_description(code))
+        static_cstr(thetadatadx::utils::conditions::condition_description(code))
     })
 }
 
 /// True if the trade condition code represents a cancellation.
 #[no_mangle]
 pub extern "C" fn tdx_condition_is_cancel(code: i32) -> bool {
-    ffi_boundary!(false, { tdbe::conditions::is_cancel(code) })
+    ffi_boundary!(false, { thetadatadx::utils::conditions::is_cancel(code) })
 }
 
 /// True if the trade condition code updates the volume bar.
 #[no_mangle]
 pub extern "C" fn tdx_condition_updates_volume(code: i32) -> bool {
-    ffi_boundary!(false, { tdbe::conditions::updates_volume(code) })
+    ffi_boundary!(false, {
+        thetadatadx::utils::conditions::updates_volume(code)
+    })
 }
 
 /// Look up the human-readable quote condition name for `code`.
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::conditions::quote_condition_name(code))
+        static_cstr(thetadatadx::utils::conditions::quote_condition_name(code))
     })
 }
 
@@ -244,27 +246,29 @@ pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::conditions::quote_condition_description(code))
+        static_cstr(thetadatadx::utils::conditions::quote_condition_description(
+            code,
+        ))
     })
 }
 
 /// True if the quote condition is firm (binding).
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_is_firm(code: i32) -> bool {
-    ffi_boundary!(false, { tdbe::conditions::is_firm(code) })
+    ffi_boundary!(false, { thetadatadx::utils::conditions::is_firm(code) })
 }
 
 /// True if the quote condition indicates a trading halt.
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_is_halted(code: i32) -> bool {
-    ffi_boundary!(false, { tdbe::conditions::is_halted(code) })
+    ffi_boundary!(false, { thetadatadx::utils::conditions::is_halted(code) })
 }
 
 /// Look up the human-readable exchange name for a numeric code.
 #[no_mangle]
 pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::exchange::exchange_name(code))
+        static_cstr(thetadatadx::utils::exchange::exchange_name(code))
     })
 }
 
@@ -272,12 +276,12 @@ pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
-        static_cstr(tdbe::exchange::exchange_symbol(code))
+        static_cstr(thetadatadx::utils::exchange::exchange_symbol(code))
     })
 }
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
-/// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+/// monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
 ///
 /// `signed` must lie in the i32 wire range
 /// (`-2_147_483_648 ..= 2_147_483_647`): the upstream terminal encodes
@@ -302,7 +306,10 @@ pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut 
             );
             return -1;
         }
-        if !(tdbe::sequences::SEQUENCE_MIN..=tdbe::sequences::SEQUENCE_MAX).contains(&signed) {
+        if !(thetadatadx::utils::sequences::SEQUENCE_MIN
+            ..=thetadatadx::utils::sequences::SEQUENCE_MAX)
+            .contains(&signed)
+        {
             crate::error::set_error_with_code(
                 &format!(
                     "tdx_sequence_signed_to_unsigned: {signed} is outside the i32 wire range (-2_147_483_648 ..= 2_147_483_647)"
@@ -314,14 +321,14 @@ pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut 
         // SAFETY: `out` is non-null per the guard above and the FFI
         // contract pins the storage for the call duration.
         unsafe {
-            *out = tdbe::sequences::signed_to_unsigned(signed);
+            *out = thetadatadx::utils::sequences::signed_to_unsigned(signed);
         }
         0
     })
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its
-/// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+/// signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
 ///
 /// `unsigned` must lie in the unsigned wire range (`0 ..= 2^32 - 1`):
 /// the monotonic sequence id is never wider than one i32 cycle, so a
@@ -357,7 +364,7 @@ pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mu
         // SAFETY: `out` is non-null per the guard above and the FFI
         // contract pins the storage for the call duration.
         unsafe {
-            *out = tdbe::sequences::unsigned_to_signed(unsigned);
+            *out = thetadatadx::utils::sequences::unsigned_to_signed(unsigned);
         }
         0
     })
@@ -375,7 +382,8 @@ pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mu
 pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(
-            tdbe::CalendarStatus::from_code(code).map_or("UNKNOWN", tdbe::CalendarStatus::as_str),
+            thetadatadx::CalendarStatus::from_code(code)
+                .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str),
         )
     })
 }
@@ -392,7 +400,7 @@ pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
     ffi_boundary!(-1, {
-        tdbe::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
+        thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
     })
 }
 
@@ -437,7 +445,7 @@ pub unsafe extern "C" fn tdx_contract_strike_dollars(
 }
 
 /// Convert a `&'static str` from the lookup tables into a stable
-/// `*const c_char` for FFI. The `tdbe` tables are compile-time arrays
+/// `*const c_char` for FFI. The lookup tables are compile-time arrays
 /// of NUL-free `&'static str`; we register one `CString` per distinct
 /// string in a process-lifetime `OnceLock<Mutex<HashMap<...>>>` and
 /// return the cached pointer so the C side can hold it indefinitely.
@@ -465,7 +473,7 @@ fn static_cstr(s: &'static str) -> *const c_char {
             // Tables are compile-time `&'static str` literals known to
             // be NUL-free; CString::new only fails on interior NULs.
             let owned =
-                CString::new(s).expect("tdbe lookup-table strings must not contain interior NULs");
+                CString::new(s).expect("lookup-table strings must not contain interior NULs");
             // Leak so the pointer is `'static` for the caller. There is
             // a finite, small number of distinct entries (≤ a few hundred
             // across all tables), so the leak is bounded.
@@ -532,7 +540,10 @@ mod sequence_tests {
             // SAFETY: `out` points at a live stack slot for the call.
             let rc = unsafe { super::tdx_sequence_signed_to_unsigned(signed, &mut out) };
             assert_eq!(rc, 0, "in-range input {signed} accepted");
-            assert_eq!(out, tdbe::sequences::signed_to_unsigned(signed));
+            assert_eq!(
+                out,
+                thetadatadx::utils::sequences::signed_to_unsigned(signed)
+            );
         }
     }
 
@@ -558,7 +569,10 @@ mod sequence_tests {
             // SAFETY: `out` points at a live stack slot for the call.
             let rc = unsafe { super::tdx_sequence_unsigned_to_signed(unsigned, &mut out) };
             assert_eq!(rc, 0, "in-range input {unsigned} accepted");
-            assert_eq!(out, tdbe::sequences::unsigned_to_signed(unsigned));
+            assert_eq!(
+                out,
+                thetadatadx::utils::sequences::unsigned_to_signed(unsigned)
+            );
         }
     }
 

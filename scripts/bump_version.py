@@ -7,13 +7,12 @@ Usage:
 Reads the canonical version from ``crates/thetadatadx/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
 version of the published artifact and rewrites it. All four npm
-``package.json`` files, the seven workspace Cargo.toml files (workspace +
+``package.json`` files, the seven member Cargo.toml files (thetadatadx +
 ffi + tools/cli + tools/mcp + tools/server + sdks/python +
 sdks/typescript), and the three ``optionalDependencies`` pins inside
 ``sdks/typescript/package.json``. Cargo.lock files are refreshed via
 ``cargo update --workspace`` against every manifest that carries its own
-lockfile. ``crates/tdbe/Cargo.toml`` is NOT touched -- tdbe ships its
-own version cadence; bump it separately if its surface changed.
+lockfile.
 
 After the bump, ``scripts/check_version_sync.py`` runs to verify nothing
 got missed. Exits non-zero if anything is out of sync.

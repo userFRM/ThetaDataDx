@@ -20,7 +20,7 @@ use crate::decode;
 use crate::error::Error;
 use crate::proto;
 
-use tdbe::types::tick::{
+use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
     GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
     MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,

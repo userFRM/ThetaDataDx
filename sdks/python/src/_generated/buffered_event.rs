@@ -13,7 +13,7 @@ pub(crate) enum BufferedEvent {
         id: i32,
         contract: fpss::protocol::Contract,
     },
-    /// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation.
+    /// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
     Disconnected {
         reason: i32,
     },

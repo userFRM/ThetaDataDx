@@ -291,7 +291,7 @@ const STREAMS: &[StreamSpec] = &[
 fn rust_tab(spec: &StreamSpec) -> String {
     let needs_sectype = spec.rust_sub.starts_with("SecType");
     let imports = if needs_sectype {
-        "use thetadatadx::fpss::protocol::SecTypeExt;\nuse thetadatadx::fpss::{FpssData, FpssEvent};\nuse tdbe::types::enums::SecType;"
+        "use thetadatadx::fpss::protocol::SecTypeExt;\nuse thetadatadx::fpss::{FpssData, FpssEvent};\nuse thetadatadx::SecType;"
     } else {
         "use thetadatadx::fpss::protocol::Contract;\nuse thetadatadx::fpss::{FpssData, FpssEvent};"
     };

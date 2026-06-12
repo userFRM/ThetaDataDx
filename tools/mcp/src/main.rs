@@ -425,7 +425,7 @@ fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, righ
     object.insert("right", option_right_value(right));
 }
 
-fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
+fn serialize_eod_ticks(ticks: &[thetadatadx::EodTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -455,7 +455,7 @@ fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
+fn serialize_ohlc_ticks(ticks: &[thetadatadx::OhlcTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -476,7 +476,7 @@ fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
+fn serialize_trade_ticks(ticks: &[thetadatadx::TradeTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -496,7 +496,7 @@ fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
+fn serialize_quote_ticks(ticks: &[thetadatadx::QuoteTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -520,7 +520,7 @@ fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> Value {
+fn serialize_trade_quote_ticks(ticks: &[thetadatadx::TradeQuoteTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -557,7 +557,7 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_open_interest_ticks(ticks: &[tdbe::types::tick::OpenInterestTick]) -> Value {
+fn serialize_open_interest_ticks(ticks: &[thetadatadx::OpenInterestTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -570,7 +570,7 @@ fn serialize_open_interest_ticks(ticks: &[tdbe::types::tick::OpenInterestTick]) 
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) -> Value {
+fn serialize_market_value_ticks(ticks: &[thetadatadx::MarketValueTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -586,7 +586,7 @@ fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) ->
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_all_ticks(ticks: &[tdbe::types::tick::GreeksAllTick]) -> Value {
+fn serialize_greeks_all_ticks(ticks: &[thetadatadx::GreeksAllTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -612,7 +612,7 @@ fn serialize_greeks_all_ticks(ticks: &[tdbe::types::tick::GreeksAllTick]) -> Val
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_eod_ticks(ticks: &[tdbe::types::tick::GreeksEodTick]) -> Value {
+fn serialize_greeks_eod_ticks(ticks: &[thetadatadx::GreeksEodTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -642,7 +642,7 @@ fn serialize_greeks_eod_ticks(ticks: &[tdbe::types::tick::GreeksEodTick]) -> Val
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_first_order_ticks(ticks: &[tdbe::types::tick::GreeksFirstOrderTick]) -> Value {
+fn serialize_greeks_first_order_ticks(ticks: &[thetadatadx::GreeksFirstOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -663,9 +663,7 @@ fn serialize_greeks_first_order_ticks(ticks: &[tdbe::types::tick::GreeksFirstOrd
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_second_order_ticks(
-    ticks: &[tdbe::types::tick::GreeksSecondOrderTick],
-) -> Value {
+fn serialize_greeks_second_order_ticks(ticks: &[thetadatadx::GreeksSecondOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -686,7 +684,7 @@ fn serialize_greeks_second_order_ticks(
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_third_order_ticks(ticks: &[tdbe::types::tick::GreeksThirdOrderTick]) -> Value {
+fn serialize_greeks_third_order_ticks(ticks: &[thetadatadx::GreeksThirdOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -707,7 +705,7 @@ fn serialize_greeks_third_order_ticks(ticks: &[tdbe::types::tick::GreeksThirdOrd
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_trade_greeks_all_ticks(ticks: &[tdbe::types::tick::TradeGreeksAllTick]) -> Value {
+fn serialize_trade_greeks_all_ticks(ticks: &[thetadatadx::TradeGreeksAllTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -736,7 +734,7 @@ fn serialize_trade_greeks_all_ticks(ticks: &[tdbe::types::tick::TradeGreeksAllTi
 }
 
 fn serialize_trade_greeks_first_order_ticks(
-    ticks: &[tdbe::types::tick::TradeGreeksFirstOrderTick],
+    ticks: &[thetadatadx::TradeGreeksFirstOrderTick],
 ) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -761,7 +759,7 @@ fn serialize_trade_greeks_first_order_ticks(
 }
 
 fn serialize_trade_greeks_second_order_ticks(
-    ticks: &[tdbe::types::tick::TradeGreeksSecondOrderTick],
+    ticks: &[thetadatadx::TradeGreeksSecondOrderTick],
 ) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -786,7 +784,7 @@ fn serialize_trade_greeks_second_order_ticks(
 }
 
 fn serialize_trade_greeks_third_order_ticks(
-    ticks: &[tdbe::types::tick::TradeGreeksThirdOrderTick],
+    ticks: &[thetadatadx::TradeGreeksThirdOrderTick],
 ) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -811,7 +809,7 @@ fn serialize_trade_greeks_third_order_ticks(
 }
 
 fn serialize_trade_greeks_implied_volatility_ticks(
-    ticks: &[tdbe::types::tick::TradeGreeksImpliedVolatilityTick],
+    ticks: &[thetadatadx::TradeGreeksImpliedVolatilityTick],
 ) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -833,7 +831,7 @@ fn serialize_trade_greeks_implied_volatility_ticks(
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_iv_ticks(ticks: &[tdbe::types::tick::IvTick]) -> Value {
+fn serialize_iv_ticks(ticks: &[thetadatadx::IvTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -848,7 +846,7 @@ fn serialize_iv_ticks(ticks: &[tdbe::types::tick::IvTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
+fn serialize_price_ticks(ticks: &[thetadatadx::PriceTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -861,7 +859,7 @@ fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_index_price_at_time_ticks(ticks: &[tdbe::types::tick::IndexPriceAtTimeTick]) -> Value {
+fn serialize_index_price_at_time_ticks(ticks: &[thetadatadx::IndexPriceAtTimeTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -882,7 +880,7 @@ fn serialize_index_price_at_time_ticks(ticks: &[tdbe::types::tick::IndexPriceAtT
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
+fn serialize_calendar_days(days: &[thetadatadx::CalendarDay]) -> Value {
     let rows: Vec<Value> = days
         .iter()
         .map(|d| {
@@ -896,7 +894,7 @@ fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
     json!({ "days": rows, "count": rows.len() })
 }
 
-fn serialize_interest_rate_ticks(ticks: &[tdbe::types::tick::InterestRateTick]) -> Value {
+fn serialize_interest_rate_ticks(ticks: &[thetadatadx::InterestRateTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| json!({"date": t.date, "rate": t.rate}))
@@ -904,7 +902,7 @@ fn serialize_interest_rate_ticks(ticks: &[tdbe::types::tick::InterestRateTick]) 
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_option_contracts(contracts: &[tdbe::types::tick::OptionContract]) -> Value {
+fn serialize_option_contracts(contracts: &[thetadatadx::OptionContract]) -> Value {
     let rows: Vec<Value> = contracts
         .iter()
         .map(|c| {
@@ -1146,7 +1144,7 @@ async fn handle_request(
 /// `tools/call` arm so the regression test for issue #459 can exercise the
 /// canonicalisation path without spinning up a live `ThetaDataDxClient` client.
 fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
-    match tdbe::json_canon::canonicalize_and_serialize(result) {
+    match thetadatadx::json_canon::canonicalize_and_serialize(result) {
         Ok(text) => JsonRpcResponse::success(
             id,
             json!({
@@ -1338,7 +1336,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use tdbe::types::tick::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick};
+    use thetadatadx::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick};
 
     fn sample_eod_tick(expiration: i32, strike: f64, right: char) -> EodTick {
         EodTick {
@@ -1792,7 +1790,7 @@ mod tests {
         });
         if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut()) {
             if let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut()) {
-                row.insert("vega", tdbe::json_canon::finite_or_null(f64::NAN));
+                row.insert("vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
             }
         }
 

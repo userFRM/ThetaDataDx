@@ -12,7 +12,7 @@
 //! # #[cfg(feature = "polars")]
 //! # fn doc() {
 //! use thetadatadx::frames::TicksPolarsExt;
-//! use tdbe::types::tick::EodTick;
+//! use thetadatadx::EodTick;
 //! let ticks: Vec<EodTick> = Vec::new();
 //! let _df = ticks.as_slice().to_polars().expect("empty frame is valid");
 //! # }
@@ -21,7 +21,7 @@
 /// Convert a slice of tick rows into a [`polars::prelude::DataFrame`].
 ///
 /// Feature-gated on the `polars` Cargo feature. Implemented for every
-/// tick type in [`tdbe::types::tick`]; the per-type impls live in the
+/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...); the per-type impls live in the
 /// generator-emitted `frames/generated.rs`.
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
@@ -36,7 +36,7 @@ pub trait TicksPolarsExt {
 /// Convert a slice of tick rows into an [`arrow_array::RecordBatch`].
 ///
 /// Feature-gated on the `arrow` Cargo feature. Implemented for every
-/// tick type in [`tdbe::types::tick`]; the per-type impls live in the
+/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...); the per-type impls live in the
 /// generator-emitted `frames/generated.rs`.
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]

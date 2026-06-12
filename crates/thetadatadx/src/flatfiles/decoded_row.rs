@@ -57,7 +57,7 @@ impl FlatFileRow {
     ///
     /// Propagates `Error::decode_codec(..)` from
     /// [`crate::flatfiles::writer::decode_price`] when `price_type` is
-    /// outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
+    /// outside `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`.
     pub(crate) fn from_decoded(
         symbol: &str,
         expiration: Option<i32>,

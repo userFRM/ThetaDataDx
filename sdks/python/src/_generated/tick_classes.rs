@@ -120,7 +120,7 @@ impl EodTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn created_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.created_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.created_ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -129,7 +129,7 @@ impl EodTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn last_trade_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.last_trade_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.last_trade_ms_of_day)
     }
 }
 
@@ -231,7 +231,7 @@ impl GreeksAllTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -240,7 +240,7 @@ impl GreeksAllTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -383,7 +383,7 @@ impl GreeksEodTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -392,7 +392,7 @@ impl GreeksEodTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -457,7 +457,7 @@ impl GreeksFirstOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -466,7 +466,7 @@ impl GreeksFirstOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -529,7 +529,7 @@ impl GreeksSecondOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -538,7 +538,7 @@ impl GreeksSecondOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -600,7 +600,7 @@ impl GreeksThirdOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -609,7 +609,7 @@ impl GreeksThirdOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -671,7 +671,7 @@ impl IndexPriceAtTimeTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -785,7 +785,7 @@ impl IvTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -794,7 +794,7 @@ impl IvTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -838,7 +838,7 @@ impl MarketValueTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -898,7 +898,7 @@ impl OhlcTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -938,7 +938,7 @@ impl OpenInterestTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -1001,7 +1001,7 @@ impl PriceTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -1068,7 +1068,7 @@ impl QuoteTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 }
 
@@ -1191,7 +1191,7 @@ impl TradeGreeksAllTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1200,7 +1200,7 @@ impl TradeGreeksAllTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1279,7 +1279,7 @@ impl TradeGreeksFirstOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1288,7 +1288,7 @@ impl TradeGreeksFirstOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1356,7 +1356,7 @@ impl TradeGreeksImpliedVolatilityTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1365,7 +1365,7 @@ impl TradeGreeksImpliedVolatilityTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1442,7 +1442,7 @@ impl TradeGreeksSecondOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1451,7 +1451,7 @@ impl TradeGreeksSecondOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1527,7 +1527,7 @@ impl TradeGreeksThirdOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1536,7 +1536,7 @@ impl TradeGreeksThirdOrderTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
     }
 }
 
@@ -1618,7 +1618,7 @@ impl TradeQuoteTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -1627,7 +1627,7 @@ impl TradeQuoteTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn quote_timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.quote_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.quote_ms_of_day)
     }
 }
 
@@ -1691,7 +1691,7 @@ impl TradeTick {
     /// convenience at the epoch boundary.
     #[getter]
     fn timestamp_ms(&self) -> Option<i64> {
-        tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
     /// True when the trade carries a cancelled-trade condition (codes 40-44).
@@ -1760,7 +1760,7 @@ impl CalendarDayList {
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
-                status: match tdbe::CalendarStatus::from_wire_text(&t.status) { Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!("status must be one of open, early_close, full_close, weekend; got {:?}", t.status))) },
+                status: match thetadatadx::CalendarStatus::from_wire_text(&t.status) { Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!("status must be one of open, early_close, full_close, weekend; got {:?}", t.status))) },
             }
             );
         }

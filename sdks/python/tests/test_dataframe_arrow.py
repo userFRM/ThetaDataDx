@@ -383,7 +383,7 @@ def test_to_arrow_does_not_need_polars(monkeypatch):
 
 def test_option_contract_right_is_string_in_arrow_schema():
     # The generator-emitted `OptionContract` pyclass field is `symbol`
-    # (matching the upstream `tdbe::types::tick::OptionContract` shape).
+    # (matching the upstream `thetadatadx::OptionContract` shape).
     # The field was renamed from `root` to `symbol`; pass
     # `symbol=...` explicitly to match the generated
     # `#[pyo3(signature = (*, symbol = ...))]`.

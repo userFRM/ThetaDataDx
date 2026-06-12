@@ -14,7 +14,7 @@
 //!
 //! Public API surface is preserved at `thetadatadx::decode::*` via the
 //! crate-root re-export of this module. Eastern-time / DST primitives
-//! previously living here have moved to [`tdbe::time`] and are reused by
+//! previously living here have moved to [`crate::tdbe::time`] and are reused by
 //! the FPSS latency path.
 
 pub mod cell;
@@ -28,7 +28,7 @@ pub mod transport;
 // `parse_calendar_days_v3` and `parse_option_contracts_v3` are used by the
 // generated MDDS endpoint macros (`mdds_parsed_endpoints_generated.rs`) — keep
 // them always-compiled. The calendar day-type vocabulary is the typed
-// `tdbe::CalendarStatus` enum carried on `CalendarDay.status` directly.
+// `crate::tdbe::CalendarStatus` enum carried on `CalendarDay.status` directly.
 pub use dual_type_columns::{parse_calendar_days_v3, parse_option_contracts_v3};
 pub use error::DecodeError;
 // `extract_number_column` and `extract_price_column` are used by workspace

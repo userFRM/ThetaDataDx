@@ -77,7 +77,7 @@ pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> Str
 
 /// Emit a typed `AllGreeks` pyclass so `all_greeks(...)` returns a
 /// frozen, attribute-accessible value instead of a `PyDict`. Fields
-/// mirror `tdbe::greeks::GreeksResult` 1:1 via `greek_result_fields()`.
+/// mirror `thetadatadx::greeks::GreeksResult` 1:1 via `greek_result_fields()`.
 fn render_all_greeks_pyclass() -> String {
     let mut out = String::new();
     out.push_str(include_str!(
@@ -394,7 +394,7 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
             out.push_str(") -> PyResult<AllGreeks> {\n");
             writeln!(
                 out,
-                "    let g = tdbe::greeks::all_greeks({}).map_err(thetadatadx::Error::from).map_err(to_py_err)?;",
+                "    let g = thetadatadx::greeks::all_greeks({}).map_err(thetadatadx::Error::from).map_err(to_py_err)?;",
                 utility
                     .params
                     .iter()
@@ -424,7 +424,7 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
             out.push_str(") -> PyResult<(f64, f64)> {\n");
             writeln!(
                 out,
-                "    tdbe::greeks::implied_volatility({}).map_err(thetadatadx::Error::from).map_err(to_py_err)",
+                "    thetadatadx::greeks::implied_volatility({}).map_err(thetadatadx::Error::from).map_err(to_py_err)",
                 utility
                     .params
                     .iter()

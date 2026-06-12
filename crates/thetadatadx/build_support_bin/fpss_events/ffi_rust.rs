@@ -68,7 +68,7 @@ fn render_contract_struct_rust() -> &'static str {
 pub struct TdxContract {\n\
     /// Ticker symbol (e.g. \"AAPL\"). Null until ContractAssigned arrives.\n\
     pub symbol: *const c_char,\n\
-    /// Security type code — matches `tdbe::types::enums::SecType`.\n\
+    /// Security type code — matches `thetadatadx::SecType`.\n\
     pub sec_type: i32,\n\
     /// Whether `expiration` is meaningful (options only).\n\
     pub has_expiration: bool,\n\

@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use tdbe::codec::fit::{apply_deltas, FitReader};
+use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 
 use super::accumulator::OhlcvcAccumulator;
 

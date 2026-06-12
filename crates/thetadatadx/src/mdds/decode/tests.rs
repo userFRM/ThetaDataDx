@@ -1,6 +1,6 @@
 //! Tests for the row-cell decoders, column extractors, and v3 hand-written
 //! parsers. Eastern-time / DST primitive tests live with their canonical
-//! home in `tdbe::time`.
+//! home in `crate::tdbe::time`.
 
 use super::cell::{
     row_date, row_number, row_number_i64, row_price_f64, row_price_type, row_price_value, row_text,
@@ -446,7 +446,7 @@ fn parse_calendar_v3_holiday() {
     assert!(!d.is_open);
     assert_eq!(d.open_time, 0);
     assert_eq!(d.close_time, 0);
-    assert_eq!(d.status, tdbe::CalendarStatus::FullClose);
+    assert_eq!(d.status, crate::tdbe::CalendarStatus::FullClose);
 }
 
 #[cfg(feature = "__internal")]
@@ -470,7 +470,7 @@ fn parse_calendar_v3_open_day() {
     assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000); // 9:30 AM = 9*3600+30*60 = 34200 seconds = 34200000 ms
     assert_eq!(d.close_time, 57_600_000); // 4:00 PM = 16*3600 = 57600 seconds = 57600000 ms
-    assert_eq!(d.status, tdbe::CalendarStatus::Open);
+    assert_eq!(d.status, crate::tdbe::CalendarStatus::Open);
 }
 
 #[cfg(feature = "__internal")]
@@ -494,7 +494,7 @@ fn parse_calendar_v3_early_close() {
     assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000);
     assert_eq!(d.close_time, 46_800_000); // 1:00 PM = 13*3600 = 46800 seconds = 46800000 ms
-    assert_eq!(d.status, tdbe::CalendarStatus::EarlyClose);
+    assert_eq!(d.status, crate::tdbe::CalendarStatus::EarlyClose);
 }
 
 #[cfg(feature = "__internal")]
@@ -509,7 +509,7 @@ fn parse_calendar_v3_weekend() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert!(!d.is_open);
-    assert_eq!(d.status, tdbe::CalendarStatus::Weekend);
+    assert_eq!(d.status, crate::tdbe::CalendarStatus::Weekend);
 }
 
 #[test]
@@ -949,7 +949,7 @@ fn parse_greeks_all_ticks_decodes_first_order_subset_with_silent_gaps() {
 
     // Wire-present columns: bit-exact against the input.
     // `dv_price(value, 6)` decodes as `value * 10^(6-10) = value / 10000`
-    // (see `tdbe::types::price::Price::to_f64`).
+    // (see `crate::tdbe::types::price::Price::to_f64`).
     assert_eq!(t.ms_of_day, 34_200_000);
     assert!((t.implied_volatility - 0.2142).abs() < 1e-9);
     assert!((t.delta - 0.5023).abs() < 1e-9);
@@ -1457,7 +1457,7 @@ fn parse_option_contracts_v3_errors_on_invalid_expiration_text() {
 }
 
 // Numeric YYYYMMDD wire arms validate via
-// `tdbe::time::is_valid_yyyymmdd`; calendar-impossible payloads
+// `crate::tdbe::time::is_valid_yyyymmdd`; calendar-impossible payloads
 // surface as `DecodeError::InvalidDate`.
 
 #[test]

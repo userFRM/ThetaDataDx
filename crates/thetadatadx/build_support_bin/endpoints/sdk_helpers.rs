@@ -333,8 +333,8 @@ pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> String {
 
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
 /// `#[napi(object)]` struct name emitted in `tick_classes.rs`. The TS SDK
-/// binds each Rust tick struct (from `tdbe::types::tick`) to this flat
-/// napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.
+/// binds each Rust tick struct (the `thetadatadx::*` tick types) to this
+/// flat napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.
 pub(super) fn ts_class_name(return_type: &str) -> String {
     render_for(return_type).ts_class.clone()
 }

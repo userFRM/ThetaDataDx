@@ -12,7 +12,7 @@ license.workspace = true
 keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
 categories = ["finance", "api-bindings", "network-programming", "encoding"]
 readme = "README.md"
-include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+include = ["src/**/*", "proto/**/*", "data/*.toml", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
 name = "thetadatadx"
@@ -79,8 +79,6 @@ __internal = []
 mimalloc-allocator = ["dep:mimalloc"]
 
 [dependencies]
-tdbe = { version = "0.14.0", path = "../tdbe" }
-
 # Protobuf message types for the MDDS wire contract; the gRPC client
 # in `src/grpc/` consumes these directly.
 prost = "=0.14.4"
@@ -192,6 +190,10 @@ arrow-array = { version = "58.1.0", optional = true }
 arrow-schema = { version = "58.1.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output.
 serde_json = "1.0.137"
+# SIMD JSON parser/serializer backing the canonical JSON helpers in the
+# data-format layer (`tdbe::json_canon`): finite-or-null sanitisation and
+# stable key ordering for the CLI / server / MCP renderers.
+sonic-rs = "0.5.8"
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or
@@ -251,9 +253,12 @@ libc = "0.2"
 # entirely.
 prost-build = "=0.14.4"
 regex = "1.12.3"
+# Parses `data/{trade,quote}_conditions.toml` into the committed
+# `src/tdbe/conditions/tables_generated.rs` (see `build_support/conditions.rs`),
+# and loads the captured-response fixture sidecars for the decode-surface
+# generators. Build-time only — not in the runtime dep graph.
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
-tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
 # by the Python SDK's `streaming_async()` surface (see
@@ -341,6 +346,40 @@ required-features = ["__internal"]
 name = "grpc_transport_comparison"
 harness = false
 required-features = ["__test-helpers"]
+
+# Data-format layer micro-benchmarks. These exercise the internal `tdbe`
+# module directly: the FIT/FIE nibble codecs, the Black-Scholes Greek
+# primitives, the `Price` fixed-point conversions, the enum lookups, and
+# the tick field accessors. `bench_fit` / `bench_fie` / `bench_greeks`
+# reach the codec and full Black-Scholes surfaces re-exported behind
+# `__internal`; `bench_enums` / `bench_price` / `bench_tick` ride the
+# stable public types.
+[[bench]]
+name = "bench_fit"
+harness = false
+required-features = ["__internal"]
+
+[[bench]]
+name = "bench_fie"
+harness = false
+required-features = ["__internal"]
+
+[[bench]]
+name = "bench_price"
+harness = false
+
+[[bench]]
+name = "bench_greeks"
+harness = false
+required-features = ["__internal"]
+
+[[bench]]
+name = "bench_enums"
+harness = false
+
+[[bench]]
+name = "bench_tick"
+harness = false
 
 # Integration tests that drive `fpss::__test_internals` to exercise the
 # `read_frame_into → decode_frame → FpssEvent` pipeline against synthetic

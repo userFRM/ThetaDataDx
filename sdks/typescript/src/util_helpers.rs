@@ -1,6 +1,6 @@
 //! Cross-language utility helpers — TypeScript / napi-rs bindings.
 //!
-//! Wraps `tdbe::{conditions, exchange, sequences}` lookup tables and
+//! Wraps `thetadatadx::utils::{conditions, exchange, sequences}` lookup tables and
 //! exposes them under a `Util` JS namespace:
 //!
 //! ```ts
@@ -25,56 +25,56 @@ pub struct Util;
 impl Util {
     #[napi(js_name = "conditionName")]
     pub fn condition_name(code: i32) -> String {
-        tdbe::conditions::condition_name(code).to_string()
+        thetadatadx::utils::conditions::condition_name(code).to_string()
     }
 
     #[napi(js_name = "conditionDescription")]
     pub fn condition_description(code: i32) -> String {
-        tdbe::conditions::condition_description(code).to_string()
+        thetadatadx::utils::conditions::condition_description(code).to_string()
     }
 
     #[napi(js_name = "isCancel")]
     pub fn is_cancel(code: i32) -> bool {
-        tdbe::conditions::is_cancel(code)
+        thetadatadx::utils::conditions::is_cancel(code)
     }
 
     #[napi(js_name = "updatesVolume")]
     pub fn updates_volume(code: i32) -> bool {
-        tdbe::conditions::updates_volume(code)
+        thetadatadx::utils::conditions::updates_volume(code)
     }
 
     #[napi(js_name = "quoteConditionName")]
     pub fn quote_condition_name(code: i32) -> String {
-        tdbe::conditions::quote_condition_name(code).to_string()
+        thetadatadx::utils::conditions::quote_condition_name(code).to_string()
     }
 
     #[napi(js_name = "quoteConditionDescription")]
     pub fn quote_condition_description(code: i32) -> String {
-        tdbe::conditions::quote_condition_description(code).to_string()
+        thetadatadx::utils::conditions::quote_condition_description(code).to_string()
     }
 
     #[napi(js_name = "isFirm")]
     pub fn is_firm(code: i32) -> bool {
-        tdbe::conditions::is_firm(code)
+        thetadatadx::utils::conditions::is_firm(code)
     }
 
     #[napi(js_name = "isHalted")]
     pub fn is_halted(code: i32) -> bool {
-        tdbe::conditions::is_halted(code)
+        thetadatadx::utils::conditions::is_halted(code)
     }
 
     #[napi(js_name = "exchangeName")]
     pub fn exchange_name(code: i32) -> String {
-        tdbe::exchange::exchange_name(code).to_string()
+        thetadatadx::utils::exchange::exchange_name(code).to_string()
     }
 
     #[napi(js_name = "exchangeSymbol")]
     pub fn exchange_symbol(code: i32) -> String {
-        tdbe::exchange::exchange_symbol(code).to_string()
+        thetadatadx::utils::exchange::exchange_symbol(code).to_string()
     }
 
     /// Convert a signed wire-encoded trade-sequence value to its unsigned
-    /// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+    /// monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
     /// Accepts a JS BigInt in the **i32 wire range**
     /// (`-2_147_483_648 ..= 2_147_483_647`) — the upstream Java
     /// terminal encodes trade sequences as i32; the SDK widens to
@@ -91,11 +91,13 @@ impl Util {
                  (-2_147_483_648 ..= 2_147_483_647)",
             )
         })?;
-        Ok(BigInt::from(tdbe::sequences::signed_to_unsigned(signed)))
+        Ok(BigInt::from(
+            thetadatadx::utils::sequences::signed_to_unsigned(signed),
+        ))
     }
 
     /// Convert an unsigned monotonic trade-sequence value back to its
-    /// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+    /// signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
     /// Accepts a JS BigInt in the unsigned wire range
     /// (`0 ..= SEQUENCE_RANGE - 1`, i.e. `0 ..= 2^32 - 1`); returns a
     /// JS BigInt for symmetry with `sequenceSignedToUnsigned`.
@@ -123,7 +125,9 @@ impl Util {
                  (0 ..= 2^32 - 1)",
             ));
         }
-        Ok(BigInt::from(tdbe::sequences::unsigned_to_signed(value)))
+        Ok(BigInt::from(
+            thetadatadx::utils::sequences::unsigned_to_signed(value),
+        ))
     }
 }
 

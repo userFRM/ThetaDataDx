@@ -1,14 +1,14 @@
 //! `TicksPolarsExt::to_polars` coverage.
 //!
 //! Runs under `cargo test -p thetadatadx --features polars`. Verifies
-//! every tick type in `tdbe::types::tick` has a generator-emitted impl
+//! every tick type in `thetadatadx` has a generator-emitted impl
 //! and asserts the produced DataFrame has the expected column set,
 //! column order, row count, and primitive dtypes.
 
 #![cfg(feature = "polars")]
 
 use polars::prelude::{DataFrame, DataType};
-use tdbe::types::tick;
+use thetadatadx as tick;
 use thetadatadx::frames::TicksPolarsExt;
 
 fn columns(df: &DataFrame) -> Vec<String> {
@@ -29,7 +29,7 @@ fn calendar_day_to_polars() {
         is_open: true,
         open_time: 34200000,
         close_time: 57600000,
-        status: tdbe::CalendarStatus::Open,
+        status: thetadatadx::CalendarStatus::Open,
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
