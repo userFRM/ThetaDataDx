@@ -1,0 +1,177 @@
+name: Release Server Binaries
+
+# Builds the `thetadatadx-server` binary for each supported platform on that
+# platform's own native runner (no cross-compilation from a single host) and
+# ships it as a self-contained archive. When a GitHub Release is published the
+# archives are attached to that release; a manual `workflow_dispatch` run
+# uploads them as workflow artifacts instead, so binaries can be produced for
+# testing without cutting a tag.
+#
+# Signing is deferred: the binaries ship unsigned with per-OS launch
+# instructions in the bundled README. The packaging step is the single point
+# where a code-signing + notarization step can later be inserted (before the
+# archive is created) without restructuring the matrix or the upload paths.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-server-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.archive }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      # Needed only on the `release: published` path, where the job uploads the
+      # archive to the release with `gh release upload`. Harmless on
+      # `workflow_dispatch`, where the archive is an artifact instead.
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows x64 — MSVC toolchain, `.exe` inside a zip.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: thetadatadx-server-windows-x86_64.zip
+          # macOS arm64 (Apple silicon) — the native target of the runner.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: thetadatadx-server-macos-arm64.tar.gz
+          # macOS x64 (Intel) — cross-target on the same Apple-silicon runner
+          # via `rustup target add`; both Apple targets share macos-latest.
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: thetadatadx-server-macos-x86_64.tar.gz
+          # Linux x64 — static musl so the binary has no system-library
+          # dependency and runs on any glibc/musl distribution.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            archive: thetadatadx-server-linux-x86_64.tar.gz
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # The server crate declares its own `[workspace]`, so its build
+          # output lands under `tools/server/target`. Key the cache on the
+          # target triple so each matrix leg keeps a separate cache.
+          workspaces: tools/server
+          key: ${{ matrix.target }}
+
+      # `thetadatadx` builds its gRPC client from `proto/mdds.proto` via
+      # prost-build, which needs the protobuf compiler on every runner.
+      - uses: ./.github/actions/install-protoc
+
+      # musl is not a host target on ubuntu-latest. `musl-tools` provides the
+      # `musl-gcc` wrapper that ring / zstd's C build invokes when targeting
+      # `x86_64-unknown-linux-musl`.
+      - name: Install musl toolchain (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Add Rust target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build release binary
+        shell: bash
+        # The musl C builds (ring, zstd) need an explicit compiler; cargo reads
+        # the target-scoped CC. glibc/MSVC/Darwin legs ignore it.
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --locked --manifest-path tools/server/Cargo.toml --target ${{ matrix.target }}
+
+      # Stage the binary plus a short run-instructions README into a clean
+      # directory, then compress it. A signing + notarization step belongs
+      # here, after staging and before the archive is created.
+      - name: Package archive
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          bindir="tools/server/target/${{ matrix.target }}/release"
+          stage="$(mktemp -d)/thetadatadx-server"
+          mkdir -p "$stage"
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "$bindir/thetadatadx-server.exe" "$stage/"
+          else
+            cp "$bindir/thetadatadx-server" "$stage/"
+          fi
+
+          cat > "$stage/README.txt" <<'EOF'
+          thetadatadx-server
+          ==================
+
+          A local HTTP REST (port 25503) and WebSocket (port 25520) server that
+          speaks the v3 route surface. It connects to the upstream data servers
+          directly; no Java terminal is required.
+
+          These binaries are not code-signed yet, so each operating system asks
+          for a one-time confirmation the first time you run them.
+
+          Windows
+            1. Unzip this archive.
+            2. Double-click thetadatadx-server.exe. If a "Windows protected your
+               PC" SmartScreen dialog appears, click "More info", then
+               "Run anyway".
+
+          macOS
+            1. Unpack this archive.
+            2. Right-click (or Control-click) thetadatadx-server and choose
+               "Open", then confirm "Open" in the dialog. If macOS still blocks
+               it, open System Settings > Privacy & Security and click
+               "Open Anyway" next to the thetadatadx-server entry.
+
+          Linux
+            1. Unpack this archive.
+            2. Make the binary executable, then run it:
+                 chmod +x thetadatadx-server
+                 ./thetadatadx-server
+
+          On the first launch the server prompts for the email and password of
+          your ThetaData login and saves them to a local creds.txt file so the
+          prompt does not repeat. Pass --creds <path> to use a different file.
+          EOF
+
+          out="$(pwd)/${{ matrix.archive }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # `7z` ships on GitHub Windows runners and produces a standard zip.
+            ( cd "$(dirname "$stage")" && 7z a -tzip "$out" "$(basename "$stage")" >/dev/null )
+          else
+            tar -czf "$out" -C "$(dirname "$stage")" "$(basename "$stage")"
+          fi
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
+      # Published release: attach the archive to that release.
+      - name: Upload to release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" "${{ steps.package.outputs.path }}" --clobber
+
+      # Manual dispatch: publish the archive as a workflow artifact for testing.
+      - name: Upload artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ steps.package.outputs.path }}

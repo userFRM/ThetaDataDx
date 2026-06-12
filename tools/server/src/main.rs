@@ -29,7 +29,9 @@ mod state;
 mod validation;
 mod ws;
 
+use std::io::{IsTerminal, Write};
 use std::net::SocketAddr;
+use std::path::Path;
 
 use clap::Parser;
 use tower_http::cors::CorsLayer;
@@ -189,16 +191,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 drop(password); // explicit for readers; `Zeroizing` scrubs on drop
                 c
             }
-            None => {
-                let c = Credentials::from_file(&args.creds)?;
-                tracing::info!(creds_file = %args.creds, "loaded credentials from file");
-                c
-            }
+            None => load_or_prompt_credentials(&args.creds)?,
         }
     } else {
-        let c = Credentials::from_file(&args.creds)?;
-        tracing::info!(creds_file = %args.creds, "loaded credentials from file");
-        c
+        load_or_prompt_credentials(&args.creds)?
     };
 
     // Step 2: Load config -- prefer --config file, then --fpss-region.
@@ -320,6 +316,106 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     tracing::info!("thetadatadx-server stopped");
+    Ok(())
+}
+
+/// Resolve credentials when neither `--email` nor `--password` was passed.
+///
+/// Resolution order:
+/// 1. If the credentials file at `creds_path` exists, load it (the long-
+///    standing `--creds` behaviour: email on line 1, password on line 2).
+/// 2. If the file is absent and stdin is an interactive terminal, prompt
+///    for email and password on first run, then persist them to
+///    `creds_path` in the same two-line format so the prompt does not
+///    repeat on the next launch.
+/// 3. If the file is absent and stdin is **not** a terminal (CI, a piped
+///    invocation, a service manager), fall through to `Credentials::from_file`
+///    so the process fails fast with the existing missing-file error instead
+///    of blocking forever on a read that will never receive input.
+fn load_or_prompt_credentials(creds_path: &str) -> Result<Credentials, Box<dyn std::error::Error>> {
+    if Path::new(creds_path).exists() {
+        let c = Credentials::from_file(creds_path)?;
+        tracing::info!(creds_file = %creds_path, "loaded credentials from file");
+        return Ok(c);
+    }
+
+    if !std::io::stdin().is_terminal() {
+        // Non-interactive and no file: preserve the historical behaviour of
+        // erroring on missing credentials rather than hanging on stdin.
+        let c = Credentials::from_file(creds_path)?;
+        tracing::info!(creds_file = %creds_path, "loaded credentials from file");
+        return Ok(c);
+    }
+
+    let (email, password) = prompt_credentials(creds_path)?;
+    persist_credentials(creds_path, &email, password.as_str())?;
+    tracing::info!(creds_file = %creds_path, "saved credentials entered at the first-run prompt");
+    let c = Credentials::new(email, password.as_str().to_string());
+    drop(password); // explicit for readers; `Zeroizing` scrubs on drop
+    Ok(c)
+}
+
+/// Prompt the operator for an email and password on first run.
+///
+/// The email is read from stdin in the clear; the password is read with
+/// echo suppressed via `rpassword` and handed back inside `Zeroizing` so the
+/// typed bytes are wiped from the heap on drop, matching the `--password`
+/// flag path. The password is never logged or echoed.
+fn prompt_credentials(
+    creds_path: &str,
+) -> Result<(String, Zeroizing<String>), Box<dyn std::error::Error>> {
+    // Prompts go to stderr, mirroring the startup banner, so stdout stays
+    // free for anything a wrapper script might capture.
+    eprintln!();
+    eprintln!("No credentials file found at \"{creds_path}\".");
+    eprintln!("Enter your ThetaData login to continue; it will be saved to that file.");
+
+    eprint!("Email: ");
+    std::io::stderr().flush()?;
+    let mut email = String::new();
+    std::io::stdin().read_line(&mut email)?;
+    let email = email.trim().to_string();
+    if email.is_empty() {
+        return Err("email must not be empty".into());
+    }
+
+    // `rpassword` reads without echoing the typed characters. Move the
+    // returned `String` straight into `Zeroizing` so the plaintext is
+    // scrubbed when this value drops.
+    let password = Zeroizing::new(rpassword::prompt_password("Password: ")?);
+    if password.trim().is_empty() {
+        return Err("password must not be empty".into());
+    }
+
+    Ok((email, password))
+}
+
+/// Persist first-run credentials to `creds_path` in the two-line format
+/// `Credentials::from_file` expects (email on line 1, password on line 2).
+///
+/// On Unix the file is created with `0600` (owner read/write only) so the
+/// saved secret is not world-readable; on other platforms the default
+/// permissions apply.
+fn persist_credentials(
+    creds_path: &str,
+    email: &str,
+    password: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::OpenOptions;
+
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(creds_path)?;
+    // Trailing newline keeps the file shape identical to a hand-written
+    // creds.txt and round-trips through `Credentials::from_file`, which
+    // trims each line.
+    write!(file, "{email}\n{password}\n")?;
+    file.flush()?;
     Ok(())
 }
 
