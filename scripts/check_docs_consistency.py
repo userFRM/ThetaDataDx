@@ -109,10 +109,10 @@ def expect_not_contains(path: Path, snippet: str) -> None:
 
 
 def check_static_docs() -> None:
-    expect_contains(ROOT / "README.md", "VitePress documentation site")
+    expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
     expect_contains(
         ROOT / "README.md",
-        "MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC",
+        "MCP server exposing every historical endpoint to AI clients",
     )
 
     expect_contains(
