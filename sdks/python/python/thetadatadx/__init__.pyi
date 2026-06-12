@@ -12,6 +12,18 @@ typed mirror would be high-maintenance noise.
 
 Mypy / pyright pick this up via the ``py.typed`` marker (PEP 561)
 shipped alongside this file.
+
+Return types on PyO3-exported callables are NOT verified by the
+stubtest gate: a compiled extension presents an opaque ``builtin``
+descriptor whose annotations stubtest cannot read, so it never
+compares the declared return against the concrete runtime object
+(e.g. it cannot tell ``tuple[float, float]`` from ``float``). The
+return annotation on every function and method below is therefore
+hand-maintained against the live runtime and must be kept correct
+by hand when the binding changes — the gate will not flag a wrong
+one. The ``tests/test_typed_surface.py`` guard re-checks the
+non-trivial offline-constructible returns at runtime to catch
+drift the gate cannot.
 """
 
 from __future__ import annotations
@@ -953,6 +965,11 @@ def all_greeks(
 ) -> AllGreeks: ...
 
 
+# Returns a ``(iv, iv_error)`` pair: the implied volatility from the
+# bisection solver and the residual `(model_price - option_price) /
+# option_price` at that vol. The runtime hands back a 2-tuple, not a
+# bare float — stubtest cannot see the difference, so this annotation
+# is the only thing keeping callers correct.
 def implied_volatility(
     spot: float,
     strike: float,
@@ -961,27 +978,53 @@ def implied_volatility(
     tte: float,
     option_price: float,
     right: str,
-) -> float: ...
+) -> tuple[float, float]: ...
 
 
 @final
 class AllGreeks:
-    """Greeks bundle returned by ``all_greeks(...)``."""
+    """All 23 Black-Scholes Greeks plus IV returned by ``all_greeks(...)``.
 
+    Field order mirrors ``tdbe::greeks::GreeksResult`` (the Rust
+    single-source-of-truth the binding wraps): the model value and IV
+    pair first, then first-, second-, and third-order Greeks, then the
+    ``d1`` / ``d2`` auxiliaries. Every attribute is a plain ``float``.
+    """
+
+    # Model price + implied-volatility pair.
+    value: float
+    iv: float
+    iv_error: float
+    # First-order Greeks.
     delta: float
     gamma: float
     theta: float
     vega: float
     rho: float
-    epsilon: float
-    speed: float
-    charm: float
-    color: float
+    # Second-order Greeks.
     vanna: float
-    veta: float
+    charm: float
     vomma: float
+    veta: float
+    vera: float
+    # Third-order Greeks.
+    speed: float
+    zomma: float
+    color: float
     ultima: float
-    implied_volatility: float
+    # Auxiliary quantities.
+    d1: float
+    d2: float
+    dual_delta: float
+    dual_gamma: float
+    epsilon: float
+    # NOTE: the runtime also exposes ``lambda`` (the option elasticity,
+    # `delta * spot / value`). It is reachable only as
+    # ``getattr(result, "lambda")`` because ``lambda`` is a reserved
+    # Python keyword and cannot be written as a stub attribute or in
+    # ordinary attribute-access syntax. It is intentionally absent from
+    # the typed body for that reason; the field carries an ``f64`` at
+    # runtime like every other Greek here.
 
 
 # ─────────────────────────────────────────────────────────────────────
