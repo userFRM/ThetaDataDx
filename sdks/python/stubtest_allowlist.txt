@@ -70,14 +70,6 @@ thetadatadx\..*\.__exit__
 # (there is no runtime use that needs it as a value).
 thetadatadx\.EventCallback
 
-# `Contract.option(symbol, expiration=..., strike=..., right=...)` is
-# documented as kwarg-only on the second-and-onwards arguments because
-# the doc string + every example uses them as kwargs. The Rust pyo3
-# signature accepts them positionally — `stubtest` reports the
-# positional-but-stubbed-as-keyword variant as drift. Allow it: the
-# user-visible default is keyword-only, the runtime is permissive.
-thetadatadx\.Contract\.option
-
 # `FpssEvent` is a type alias declared in the stub for
 # documentation purposes — it never appears at runtime (there is
 # no runtime use that needs it as a value).
