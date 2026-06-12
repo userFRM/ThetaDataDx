@@ -12,6 +12,8 @@ readme = "README.md"
 # PyPI package only; never publish this PyO3 shim to crates.io.
 publish = false
 
+[workspace]
+
 [lib]
 name = "thetadatadx"
 crate-type = ["cdylib"]

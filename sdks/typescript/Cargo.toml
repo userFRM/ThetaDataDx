@@ -9,6 +9,8 @@ homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
 readme = "README.md"
 
+[workspace]
+
 [lib]
 crate-type = ["cdylib"]
 
