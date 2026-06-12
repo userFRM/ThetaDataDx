@@ -20,7 +20,7 @@ expiration = tdx.option_list_expirations("SPY")[0]
 chain = tdx.option_snapshot_greeks_all("SPY", expiration)
 
 # 3. Closest-to-the-money calls by absolute delta.
-calls = [t for t in chain if t.right == 67]            # ASCII 'C'
+calls = [t for t in chain if t.right == "C"]
 for t in sorted(calls, key=lambda t: abs(t.delta - 0.5))[:5]:
     print(f"{t.strike:8.1f}  delta={t.delta:+.3f}  iv={t.implied_volatility:.4f}")
 ```

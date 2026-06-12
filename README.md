@@ -126,12 +126,9 @@ npm install thetadatadx
 ```
 
 ```typescript
-import { Credentials, Config, Contract, ThetaDataDxClient } from 'thetadatadx';
+import { Contract, ThetaDataDxClient } from 'thetadatadx';
 
-const client = new ThetaDataDxClient(
-  Credentials.fromFile('creds.txt'),
-  Config.production(),
-);
+const client = ThetaDataDxClient.connectFromFile('creds.txt');
 
 client.startStreaming((event) => {
   if (event.kind === 'trade') {

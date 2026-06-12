@@ -324,7 +324,7 @@ int main() {
     // constructed above — the previous example referenced an
     // undefined `unified` variable and would not compile.
     auto stock  = tdx::Contract::stock("AAPL");
-    auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
+    auto option = tdx::Contract::option("SPY", {.expiration="20260620", .strike="550", .right="C"});
 
     fpss.subscribe(stock.quote());
     fpss.subscribe(option.trade());
@@ -346,7 +346,7 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `tdx::Contract::stock(symbol)` | `Contract` | Stock contract |
-| `tdx::Contract::option(symbol, exp, strike, right)` | `Contract` | Option contract |
+| `tdx::Contract::option(symbol, {.expiration=, .strike=, .right=})` | `Contract` | Option contract |
 | `contract.quote()` / `.trade()` / `.open_interest()` | `SubscriptionRef` | Per-contract subscription |
 | `tdx::SecType::option().full_trades()` / `.full_open_interest()` | `SubscriptionRef` | Full-stream subscription |
 | `unified.subscribe(sub)` | `void` | Install a subscription |

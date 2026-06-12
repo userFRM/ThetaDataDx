@@ -49,7 +49,7 @@ async function main() {
   // value the polymorphic `client.subscribe(...)` accepts directly,
   // matching the documented Rust / Python shape.
   const stock  = ContractRef.stock('AAPL');
-  const option = ContractRef.option('SPY', '20260620', '550', 'C');
+  const option = ContractRef.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
 
   await using session = await tdx.streaming((event) => {
     if (event.kind === 'quote') {
