@@ -194,6 +194,6 @@
     /// Fetch end-of-day interest rate history.
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
-    /// Fetch intraday OHLC bars across a date range.
+    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 

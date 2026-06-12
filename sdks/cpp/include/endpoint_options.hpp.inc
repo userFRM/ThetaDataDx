@@ -4,6 +4,17 @@
 /// `timeout_ms` is the cross-cutting per-call deadline; see `with_timeout_ms`
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
 /// `tdx::Error` carrying "Request deadline exceeded" is thrown.
+///
+/// This is one shared options bag passed to every endpoint, so the compiler
+/// cannot reject a setter that does not apply to the endpoint you call: a
+/// `with_annual_dividend(...)` on a `stock_history_ohlc` call, or a
+/// `with_strike(...)` on `calendar_on_date`, compiles and is silently
+/// dropped — only the parameters the endpoint actually accepts reach the
+/// wire. Each endpoint method documents the parameters it honours; consult
+/// that list rather than relying on a setter compiling. The Python keyword
+/// signatures and the TypeScript per-method options objects enforce this at
+/// the call site by construction; in C++ the shared bag trades that
+/// per-endpoint checking for one stable struct across all endpoints.
 struct EndpointRequestOptions {
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     std::optional<std::string> venue;
@@ -29,13 +40,13 @@ struct EndpointRequestOptions {
     std::optional<int32_t> max_dte;
     /// Strike range filter
     std::optional<int32_t> strike_range;
-    /// Annual dividend
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     std::optional<double> annual_dividend;
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     std::optional<std::string> rate_type;
-    /// Rate value
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     std::optional<double> rate_value;
-    /// Stock price
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     std::optional<double> stock_price;
     /// Greeks model version. Accepted values: `latest`, `1`.
     std::optional<std::string> version;

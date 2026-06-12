@@ -7,6 +7,8 @@
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListSymbolsOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -17,6 +19,8 @@ pub struct StockListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockListDatesOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -27,8 +31,12 @@ pub struct StockListDatesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotOHLCOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -39,8 +47,12 @@ pub struct StockSnapshotOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotTradeOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -51,8 +63,12 @@ pub struct StockSnapshotTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotQuoteOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -63,8 +79,12 @@ pub struct StockSnapshotQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockSnapshotMarketValueOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -75,6 +95,8 @@ pub struct StockSnapshotMarketValueOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryEODOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -85,12 +107,20 @@ pub struct StockHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryOHLCOptions {
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -101,11 +131,18 @@ pub struct StockHistoryOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeOptions {
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -116,12 +153,20 @@ pub struct StockHistoryTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryQuoteOptions {
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -132,12 +177,20 @@ pub struct StockHistoryQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeQuoteOptions {
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     pub exclusive: Option<bool>,
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -148,7 +201,10 @@ pub struct StockHistoryTradeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockAtTimeTradeOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -159,7 +215,10 @@ pub struct StockAtTimeTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockAtTimeQuoteOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -170,6 +229,8 @@ pub struct StockAtTimeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListSymbolsOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -180,6 +241,8 @@ pub struct OptionListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListDatesOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -190,6 +253,8 @@ pub struct OptionListDatesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListExpirationsOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -200,6 +265,8 @@ pub struct OptionListExpirationsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListStrikesOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -210,7 +277,10 @@ pub struct OptionListStrikesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListContractsOptions {
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -221,11 +291,18 @@ pub struct OptionListContractsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotOHLCOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -236,10 +313,16 @@ pub struct OptionSnapshotOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotTradeOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -250,11 +333,18 @@ pub struct OptionSnapshotTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotQuoteOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -265,11 +355,18 @@ pub struct OptionSnapshotQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotOpenInterestOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -280,11 +377,18 @@ pub struct OptionSnapshotOpenInterestOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotMarketValueOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -295,17 +399,30 @@ pub struct OptionSnapshotMarketValueOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -316,17 +433,30 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -337,17 +467,30 @@ pub struct OptionSnapshotGreeksAllOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -358,17 +501,30 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -379,17 +535,30 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionSnapshotGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -400,10 +569,16 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryEODOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -414,14 +589,24 @@ pub struct OptionHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryOHLCOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -432,14 +617,24 @@ pub struct OptionHistoryOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -450,15 +645,26 @@ pub struct OptionHistoryTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryQuoteOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -469,15 +675,26 @@ pub struct OptionHistoryQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeQuoteOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     pub exclusive: Option<bool>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -488,12 +705,20 @@ pub struct OptionHistoryTradeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryOpenInterestOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -504,15 +729,26 @@ pub struct OptionHistoryOpenInterestOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksEODOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     pub underlyer_use_nbbo: Option<bool>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -523,18 +759,32 @@ pub struct OptionHistoryGreeksEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -545,18 +795,32 @@ pub struct OptionHistoryGreeksAllOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -567,18 +831,32 @@ pub struct OptionHistoryTradeGreeksAllOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -589,18 +867,32 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -611,18 +903,32 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -633,18 +939,32 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -655,18 +975,32 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -677,18 +1011,32 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -699,18 +1047,32 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryGreeksImpliedVolatilityOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -721,18 +1083,32 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -743,10 +1119,16 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionAtTimeTradeOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -757,10 +1139,16 @@ pub struct OptionAtTimeTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionAtTimeQuoteOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
+    /// Maximum days to expiration
     pub max_dte: Option<i32>,
+    /// Strike range filter
     pub strike_range: Option<i32>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -771,6 +1159,8 @@ pub struct OptionAtTimeQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListSymbolsOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -781,6 +1171,8 @@ pub struct IndexListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexListDatesOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -791,7 +1183,10 @@ pub struct IndexListDatesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotOHLCOptions {
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -802,7 +1197,10 @@ pub struct IndexSnapshotOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotPriceOptions {
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -813,7 +1211,10 @@ pub struct IndexSnapshotPriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexSnapshotMarketValueOptions {
+    /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -824,6 +1225,8 @@ pub struct IndexSnapshotMarketValueOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryEODOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -834,9 +1237,14 @@ pub struct IndexHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryOHLCOptions {
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -847,11 +1255,18 @@ pub struct IndexHistoryOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryPriceOptions {
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End date YYYYMMDD
     pub end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -862,6 +1277,8 @@ pub struct IndexHistoryPriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexAtTimePriceOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -872,6 +1289,8 @@ pub struct IndexAtTimePriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOpenTodayOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -882,6 +1301,8 @@ pub struct CalendarOpenTodayOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarOnDateOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -892,6 +1313,8 @@ pub struct CalendarOnDateOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct CalendarYearOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -902,6 +1325,8 @@ pub struct CalendarYearOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct InterestRateHistoryEODOptions {
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -912,10 +1337,16 @@ pub struct InterestRateHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryOHLCRangeOptions {
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
+    /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
+    /// Per-call deadline in milliseconds; on expiry the returned Promise
+    /// rejects and the underlying request is cancelled.
     pub timeout_ms: Option<f64>,
 }
 
@@ -4030,7 +4461,7 @@ impl ThetaDataDxClient {
         Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
-    /// Fetch intraday OHLC bars across a date range.
+    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     ///
     /// Defaults (upstream):
     /// - `interval`: `"1s"`

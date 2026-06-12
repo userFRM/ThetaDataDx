@@ -331,7 +331,7 @@ binding = "builder"
 
 [[param_groups.annual_dividend_input.params]]
 name = "annual_dividend"
-description = "Annual dividend"
+description = "Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year)."
 param_type = "Float"
 required = false
 binding = "builder"
@@ -351,7 +351,7 @@ default = "sofr"
 
 [[param_groups.rate_value_input.params]]
 name = "rate_value"
-description = "Rate value"
+description = "Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."
 param_type = "Float"
 required = false
 binding = "builder"
@@ -371,7 +371,7 @@ use = "rate_value_input"
 
 [[param_groups.stock_price_input.params]]
 name = "stock_price"
-description = "Stock price"
+description = "Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."
 param_type = "Float"
 required = false
 binding = "builder"
@@ -1837,11 +1837,17 @@ vendor_docstring = """
 rest_path = "/v3/rate/history/eod"
 returns = "InterestRateTicks"
 
+# The `_range` suffix mirrors a distinct upstream vendor route
+# (`/v3/stock/history/ohlc_range`), separate from the single-date
+# `/v3/stock/history/ohlc` route that `stock_history_ohlc` maps to. It is
+# the one endpoint family the vendor exposes as a dedicated range route
+# rather than as start/end parameters on the base route, so the suffix is a
+# faithful 1:1 mirror of the upstream surface, not a naming inconsistency.
 [[endpoints]]
 name = "stock_history_ohlc_range"
 template = "stock_history_ohlc_range"
 wire_name = "stock_history_ohlc"
-description = "Fetch intraday OHLC bars across a date range."
+description = "Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route."
 rest_path = "/v3/stock/history/ohlc_range"
 returns = "OhlcTicks"
 

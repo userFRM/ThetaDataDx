@@ -3426,7 +3426,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
     })
 }
 
-/// Fetch intraday OHLC bars across a date range.
+/// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
