@@ -38,19 +38,26 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-# Fix a RUSTSEC by upgrading the dependency. The single exception below is
-# documented with a concrete `# Reason:` and a tracking issue; it is the
-# only case where the patched upstream release does not yet exist.
+# Fix a RUSTSEC by upgrading the dependency. The two exceptions below are
+# documented with a concrete `# Reason:` and a tracking issue; they are the
+# only cases where the patched upstream release does not yet exist.
 ignore = [
-    # Reason: RUSTSEC-2026-0176 (out-of-bounds read in the optimized
-    # `nth`/`nth_back` paths for `PyList`/`PyTuple` iterators) is fixed in
-    # pyo3 0.29, but the async bridge (`pyo3-async-runtimes` 0.28.0) and the
-    # Arrow boundary (`pyo3-arrow` 0.18.0) both require `pyo3 ^0.28`, so 0.29
-    # cannot resolve until they publish compat builds. The workspace never
-    # calls the vulnerable methods — the only `.nth()` is `std::env::Args::nth`
-    # in `bench_latency`, not a Python sequence iterator — so exposure is nil.
-    # Tracked in #684; delete this entry when the pyo3 0.29 bump lands.
+    # Both entries clear when pyo3 0.29 becomes reachable. pyo3 0.29 fixes
+    # both advisories, but the async bridge (`pyo3-async-runtimes` 0.28.0) and
+    # the Arrow boundary (`pyo3-arrow` 0.18.0) still require `pyo3 ^0.28`, so
+    # the upgrade cannot resolve until they publish compat builds. Tracked in
+    # #684; delete both entries when the bump lands.
+    #
+    # Reason: RUSTSEC-2026-0176 — out-of-bounds read in the optimized
+    # `nth`/`nth_back` paths for `PyList`/`PyTuple` iterators. The workspace
+    # never calls them — the only `.nth()` is `std::env::Args::nth` in
+    # `bench_latency`, not a Python sequence iterator — so exposure is nil.
     "RUSTSEC-2026-0176",
+    # Reason: RUSTSEC-2026-0177 — missing `Sync` bound on
+    # `PyCFunction::new_closure` closures. The workspace never constructs a
+    # `PyCFunction::new_closure`, so the unsound cross-thread share is
+    # unreachable from our code — exposure is nil.
+    "RUSTSEC-2026-0177",
 ]
 
 [licenses]
