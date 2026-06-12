@@ -1,0 +1,60 @@
+name: Perf Gate
+
+# Per-binding performance-regression gate built on a DETERMINISTIC
+# metric: allocations per decoded row. Unlike the wall-clock Criterion
+# gate in `ci.yml`, this gate keys on an allocation count, which is a
+# property of the code rather than of the runner. The identical fixture
+# decodes with the identical number of allocations on a 2-vCPU hosted
+# runner and on a developer workstation, so the gate runs on shared
+# hardware without flaking. The rationale is documented in full in the
+# header of `scripts/check_perf_gate.py`.
+#
+# Kept in its own workflow file (not folded into `ci.yml`) so the gate's
+# bench step and baseline evolve without colliding with other in-flight
+# CI work.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pin the directory the bench writes its metric report into, decoupled
+  # from the cargo invocation's working directory (Criterion runs benches
+  # with the crate root as cwd). The gate reads from the same path.
+  PERF_GATE_OUT_DIR: ${{ github.workspace }}/target/perf-gate
+
+jobs:
+  decode-allocations:
+    name: Decode allocations-per-row gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      # Same four-step Rust preamble every build job in this repo uses:
+      # stable toolchain, Swatinem cache, protoc.
+      - uses: ./.github/actions/setup-rust-deps
+      - name: Run the decode-allocations bench (counting allocator, no live creds)
+        # The counting global allocator lives only in this bench binary;
+        # the shipped library allocator is unchanged. `__internal` exposes
+        # the wire / decode surface the bench drives. The bench writes
+        # per-row allocation figures to PERF_GATE_OUT_DIR.
+        run: |
+          cargo bench -p thetadatadx --features __internal \
+              --bench bench_decode_allocations --locked -- --noplot
+      - name: Compare against the committed baseline
+        # Relative threshold plus an absolute floor, mirroring
+        # `check_bench_regression.py`. The metric is exact (an integer
+        # count over a fixed row count, no jitter), so the threshold is
+        # tight; the floor keeps the gate meaningful if a baseline ever
+        # approaches zero allocations per row.
+        run: python3 scripts/check_perf_gate.py --threshold 10
