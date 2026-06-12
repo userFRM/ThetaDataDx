@@ -1,14 +1,15 @@
 # ThetaDataDx Live Option Chain
 
-Real-time option chain viewer powered by ThetaDataDx's native Rust SDK.
-No JVM required --- connects directly to ThetaData servers via the
-`thetadatadx` Python bindings.
+Option chain viewer powered by the ThetaDataDx native SDK. No JVM
+required --- connects directly to ThetaData servers via the `thetadatadx`
+Python bindings. Quotes, last trades, open interest, and Greeks all come
+from the snapshot endpoints, which refresh through the trading day.
 
 ## What it looks like
 
 A full-width Streamlit dashboard with:
 
-- **Sidebar**: credentials, ticker input, display controls, Greeks parameters
+- **Sidebar**: credentials, ticker input, and display controls
 - **Tabs**: one per expiration (nearest 12 shown), labeled with date and DTE
 - **Option chain table**: calls on the left, strike in the center, puts on the right
 - **Color coding**: ITM cells tinted green, ATM strike highlighted gold
@@ -26,13 +27,13 @@ Then open `http://localhost:8501` in your browser.
 
 ## Features
 
-- Connects to ThetaData production servers via native Rust SDK (no JVM)
+- Connects to ThetaData production servers via the native SDK (no JVM)
 - Supports both inline credentials and `creds.txt` file authentication
-- Live spot price display from `stock_snapshot_ohlc`
+- Spot price from `stock_snapshot_ohlc`
 - Option quotes from `option_snapshot_quote` / `option_snapshot_trade`
 - Open interest from `option_snapshot_open_interest`
-- Greeks (IV, Delta, Gamma, Theta) computed locally via the built-in
-  Rust Black-Scholes calculator (`all_greeks`)
+- Greeks (IV, Delta, Gamma, Theta) from `option_snapshot_greeks_all`,
+  computed server-side per contract
 - Configurable number of strikes around ATM (5--50)
 - Configurable auto-refresh interval
 - Manual refresh button

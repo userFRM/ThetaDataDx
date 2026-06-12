@@ -1,8 +1,6 @@
 # Notebooks
 
-Interactive Jupyter notebooks demonstrating the `thetadatadx` Python SDK. Each notebook is self-contained and progresses from basics to advanced real-time streaming.
-
-> **FLATFILES coverage:** the existing notebooks cover the MDDS (historical) and FPSS (streaming) surfaces. A FLATFILES notebook walking through whole-universe daily blobs is tracked alongside the Python binding work — see issue [#435](https://github.com/userFRM/ThetaDataDx/issues/435) and the per-binding flat-file demos issue [#445](https://github.com/userFRM/ThetaDataDx/issues/445). Once the Python binding ships flat-file methods, a `notebooks/flat-files/` directory will land here.
+Interactive Jupyter notebooks demonstrating the `thetadatadx` Python SDK. Each notebook is self-contained and progresses from basics to real-time streaming.
 
 ## Prerequisites
 
@@ -48,7 +46,7 @@ creds = Credentials("your-email@example.com", "your-password")
 | 102 | [Historical Analysis](102_historical_analysis.ipynb) | Price charts, daily returns distribution, intraday volume, bid-ask spreads, multi-symbol comparison |
 | 103 | [Options Chain](103_options_chain.ipynb) | Build a full option chain DataFrame, implied volatility smile, open interest visualization |
 | 104 | [Greeks Surface](104_greeks_surface.ipynb) | 3D volatility surface, delta/gamma/theta heatmaps, time decay analysis |
-| 105 | [Real-Time Streaming](105_realtime_streaming.ipynb) | FPSS quote and trade subscriptions, event collection, trade flow summary |
+| 105 | [Real-Time Streaming](105_realtime_streaming.ipynb) | Streaming quote and trade subscriptions, event collection, trade-flow summary |
 | 106 | [Live Option Chain](106_live_option_chain.ipynb) | In-notebook interactive chain with ipywidgets, auto-refresh, IV smile and term structure plots |
 | 107 | [Full Trade Stream](107_full_trade_stream.ipynb) | Stock + option trade firehose, block detector, momentum analysis, premium flow dashboard |
 
@@ -59,12 +57,12 @@ creds = Credentials("your-email@example.com", "your-password")
 The entry point. Covers installation, authentication, and a tour of the core API surface:
 
 1. Install `thetadatadx` with pandas support
-2. Create `Credentials` and connect a `ThetaDataDx` client to production servers
+2. Create `Credentials` and connect a `ThetaDataDxClient` to production servers
 3. List all available stock symbols
 4. Fetch AAPL end-of-day data and convert to a pandas DataFrame
 5. Fetch 1-minute OHLC bars for a single trading day
 6. List SPY option expirations and strikes
-7. Compute all 22 Greeks (including IV) with the built-in Rust Black-Scholes calculator
+7. Compute implied volatility and the full Greeks set with the built-in Black-Scholes calculator
 
 ### 102 - Historical Analysis
 
@@ -90,52 +88,56 @@ Build a complete option chain from scratch:
 
 ### 104 - Greeks Surface
 
-Three-dimensional visualization of the options Greeks:
+Three-dimensional visualization of the option Greeks, pulled from the snapshot Greeks endpoint:
 
 1. Fetch 6 expirations spanning near-term to several months out
-2. Compute full Greeks across all expirations and strikes
-3. Build the IV surface (strike x expiration x IV)
+2. Pull snapshot Greeks across all expirations and strikes
+3. Build the IV surface (moneyness x expiration x IV)
 4. 3D surface plot of implied volatility
 5. Delta, gamma, theta heatmaps across the surface
-6. Time decay analysis: theta acceleration as expiration approaches
+6. Time-decay analysis: ATM Greeks as expiration approaches
 
 ### 105 - Real-Time Streaming
 
-Introduction to the FPSS (Fast Push Streaming Service) client:
+Introduction to the streaming client and its push-callback model:
 
-1. Start streaming via `ThetaDataDx` (persistent TCP connection)
+1. Open a streaming session and register an event callback
 2. Subscribe to AAPL quote updates
-3. Collect quote events over a 10-second window
+3. Collect events over a 10-second window
 4. Display quote updates in a table
 5. Subscribe to AAPL trades
-6. Trade flow summary
-7. Clean unsubscribe and shutdown
+6. Trade-flow summary
+7. Close the streaming session
 
-**Note:** FPSS streaming requires real-time data access in your ThetaData subscription. Data is only available during market hours (9:30 AM - 4:00 PM ET).
+Events arrive as typed objects (`Quote`, `Trade`, `LoginSuccess`, ...) narrowed with `isinstance` or `match`; fields are plain attributes.
+
+**Note:** Streaming requires real-time data access in your ThetaData subscription and an active streaming session. Data flows only during market hours (9:30 AM - 4:00 PM ET).
 
 ### 106 - Live Option Chain
 
-A fully interactive, live-updating option chain rendered inside the notebook:
+An interactive, live-updating option chain rendered inside the notebook:
 
 - Dropdown expiration selector
-- Full chain with Greeks computed via the Rust Black-Scholes calculator
+- Full chain with Greeks from the snapshot Greeks endpoint
 - ITM/ATM color coding
 - One-click and auto-refresh modes
 - IV smile plot and multi-expiration term structure visualization
 
-Requires `ipywidgets`. For a richer standalone GUI with tabbed expirations and configurable display, see the [Streamlit live-chain app](live-chain/).
+This notebook reads snapshot endpoints (not the streaming feed), so it works whenever snapshot data is available during the trading day. Requires `ipywidgets`. For a richer standalone GUI with tabbed expirations and configurable display, see the [Streamlit live-chain app](live-chain/).
 
 ### 107 - Full Trade Stream
 
-Advanced real-time trade analysis covering the full firehose:
+Real-time trade analysis covering a watchlist and an option chain:
 
-1. Connect and authenticate
+1. Open a streaming session
 2. Subscribe to stock trade streams for a watchlist of symbols
-3. Real-time analysis: volume by symbol, large block detection, price momentum, buy/sell imbalance
+3. Real-time analysis: volume by symbol, large-block detection, price momentum, buy/sell imbalance
 4. Subscribe to option trades per-contract (underlying, expiration, strike, right)
-5. Combined stock + option dashboard with live-updating summary
+5. Snapshot-based unusual-activity, put/call ratio, and premium-flow views
 
-The Rust core decodes FIT payloads and delta-decompresses ticks before they reach Python. Each event dict has named fields (`price`, `size`, `exchange`, `condition`, `ms_of_day`, etc.) - no raw payload handling required.
+Each `Trade` event carries named fields (`price`, `size`, `exchange`, `condition`, `ms_of_day`, `sequence`) decoded by the SDK - no raw payload handling required.
+
+**Note:** Streaming requires real-time data access and an active streaming session. Trades flow only during market hours.
 
 ## Running
 
