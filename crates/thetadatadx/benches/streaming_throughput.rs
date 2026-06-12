@@ -27,25 +27,18 @@
 //!   allocation) — this matches the live decode path where the
 //!   contract is interned in the FPSS contract cache and every event
 //!   takes a refcount on the same pointer.
-//! - Python variants pre-acquire the deque / Queue object once per
-//!   sample and stash it as `Py<PyAny>` on the consumer closure. The
-//!   timed region acquires the GIL per event (matches the recommended
-//!   Python integration pattern from `sdks/python/README.md`).
 //!
 //! Run: `cargo bench --bench streaming_throughput -- --noplot`
 
 use std::ffi::c_void;
 use std::hint::black_box;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use tdbe::types::price::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssData, FpssEvent};
@@ -257,224 +250,6 @@ fn run_ffi_simulated(contract: Arc<Contract>) -> (u64, Duration) {
     result
 }
 
-// ─── Variant 5: PyO3 + collections.deque.append(tuple) ────────────────
-
-fn run_pyo3_deque_append(contract: Arc<Contract>) -> (u64, Duration) {
-    // Acquire the deque object once per sample. Two `Py<PyAny>`
-    // handles: one held by the bench thread (for length read-out
-    // after the run), one moved into the consumer closure.
-    let (deque, deque_consumer) = Python::attach(|py| -> PyResult<(Py<PyAny>, Py<PyAny>)> {
-        let collections = py.import("collections")?;
-        let deque_cls = collections.getattr("deque")?;
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("maxlen", EVENTS_PER_ITER + 16)?;
-        let dq = deque_cls.call((), Some(&kwargs))?.unbind();
-        let dq_clone = dq.clone_ref(py);
-        Ok((dq, dq_clone))
-    })
-    .expect("pyo3 deque construction failed");
-
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
-        Python::attach(|py| {
-            // Mirror the recommended Python integration pattern: build
-            // a small tuple (5 fields) and append it to the deque.
-            // Tuple construction is the dominant cost on the Python
-            // side because it allocates a PyObject per event.
-            if let FpssEvent::Data(FpssData::Trade {
-                ms_of_day,
-                price,
-                size,
-                received_at_ns,
-                ..
-            }) = evt
-            {
-                if let Ok(tup) = (*ms_of_day, *price, *size, *received_at_ns).into_pyobject(py) {
-                    let _ = deque_consumer.bind(py).call_method1("append", (tup,));
-                }
-            }
-        });
-    });
-    let result = drive_publish(producer, delivered, contract);
-    let len = Python::attach(|py| deque.bind(py).len().expect("deque len"));
-    black_box(len);
-    result
-}
-
-// ─── Variant 6: PyO3 + queue.Queue.put_nowait(tuple) ──────────────────
-
-fn run_pyo3_queue_put_nowait(contract: Arc<Contract>) -> (u64, Duration) {
-    let (q, q_consumer) = Python::attach(|py| -> PyResult<(Py<PyAny>, Py<PyAny>)> {
-        let queue_mod = py.import("queue")?;
-        let queue_cls = queue_mod.getattr("Queue")?;
-        // maxsize=0 -> unbounded. Matches the typical "drain on
-        // worker thread" pattern for Python integrators.
-        let q = queue_cls.call((0i32,), None)?.unbind();
-        let q_clone = q.clone_ref(py);
-        Ok((q, q_clone))
-    })
-    .expect("pyo3 Queue construction failed");
-
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
-        Python::attach(|py| {
-            if let FpssEvent::Data(FpssData::Trade {
-                ms_of_day,
-                price,
-                size,
-                received_at_ns,
-                ..
-            }) = evt
-            {
-                if let Ok(tup) = (*ms_of_day, *price, *size, *received_at_ns).into_pyobject(py) {
-                    let _ = q_consumer.bind(py).call_method1("put_nowait", (tup,));
-                }
-            }
-        });
-    });
-    let result = drive_publish(producer, delivered, contract);
-    let qsize = Python::attach(|py| {
-        q.bind(py)
-            .call_method0("qsize")
-            .and_then(|v| v.extract::<usize>())
-            .unwrap_or(0)
-    });
-    black_box(qsize);
-    result
-}
-
-// ─── Variant 7: PyO3 zero-copy lazy-getter pyclass + deque.append ─────
-//
-// Mirrors the Python SDK's `FpssEvent` zero-copy wrapper. A
-// `#[pyclass(frozen, freelist = 256)]` is reused across events via
-// PyO3's per-class freelist (no heap alloc per event). The class
-// holds a raw `*const FpssEvent` borrowed from the consumer closure
-// scope plus a per-instance `AtomicBool` lifetime guard. Field access
-// through the lazy getters is what the Python user pays — the
-// 5-field tuple build of variant 5 is gone.
-//
-// The bench callback only touches one field (`price`) on the
-// event, matching the typical "filter by price band" pattern; the
-// throughput floor is the cost of crossing the binding once
-// regardless of how many fields the user reads.
-
-#[pyclass(frozen, freelist = 256, name = "BenchFpssEvent")]
-struct BenchPyEvent {
-    /// Raw pointer to a `FpssEvent` borrowed from the Disruptor consumer
-    /// closure scope. Valid only while `valid` is true; flipped to false
-    /// after the synchronous user callback returns.
-    inner: *const FpssEvent,
-    /// Lifetime guard. `Acquire` on every getter, `Release` after the
-    /// callback returns. A retained handle (e.g., the user pushed the
-    /// event into a list) raises `ValueError` on subsequent field access
-    /// rather than reading freed memory.
-    valid: AtomicBool,
-}
-
-// SAFETY: `BenchPyEvent` is constructed and dropped on the same
-// (Disruptor consumer) thread; the Python interpreter may move the
-// PyObject across threads, but every field access goes through the
-// `valid: AtomicBool` gate so a stale pointer can never be
-// dereferenced after the closure returns. The underlying `FpssEvent`
-// is `Send + Sync` (`Arc<Contract>` + scalars). The bench mirrors the
-// SDK's contract here exactly.
-unsafe impl Send for BenchPyEvent {}
-// SAFETY: same argument as the `Send` impl above — every field access
-// is gated by an `Acquire` load on `valid`, so a thread that observes a
-// live `BenchPyEvent` reads a non-stale `FpssEvent` reference. The
-// `FpssEvent` graph itself is `Sync`.
-unsafe impl Sync for BenchPyEvent {}
-
-impl BenchPyEvent {
-    #[inline]
-    fn evt(&self) -> PyResult<&FpssEvent> {
-        if !self.valid.load(Ordering::Acquire) {
-            return Err(PyValueError::new_err(
-                "BenchFpssEvent accessed outside callback scope",
-            ));
-        }
-        // SAFETY: `valid` is true, which the consumer closure guarantees
-        // until it sets `valid = false` on closure exit. The pointer
-        // therefore points at a `FpssEvent` borrowed from a stack-pinned
-        // closure scope that strictly outlives the synchronous getter
-        // call.
-        Ok(unsafe { &*self.inner })
-    }
-}
-
-#[pymethods]
-impl BenchPyEvent {
-    #[getter]
-    fn price(&self) -> PyResult<Option<f64>> {
-        match self.evt()? {
-            FpssEvent::Data(FpssData::Trade { price, .. }) => Ok(Some(*price)),
-            _ => Ok(None),
-        }
-    }
-    #[getter]
-    fn size(&self) -> PyResult<Option<i32>> {
-        match self.evt()? {
-            FpssEvent::Data(FpssData::Trade { size, .. }) => Ok(Some(*size)),
-            _ => Ok(None),
-        }
-    }
-    #[getter]
-    fn ms_of_day(&self) -> PyResult<Option<i32>> {
-        match self.evt()? {
-            FpssEvent::Data(FpssData::Trade { ms_of_day, .. }) => Ok(Some(*ms_of_day)),
-            _ => Ok(None),
-        }
-    }
-}
-
-fn run_pyo3_zerocopy_class_deque_append(contract: Arc<Contract>) -> (u64, Duration) {
-    let (deque, deque_consumer) = Python::attach(|py| -> PyResult<(Py<PyAny>, Py<PyAny>)> {
-        let collections = py.import("collections")?;
-        let deque_cls = collections.getattr("deque")?;
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("maxlen", EVENTS_PER_ITER + 16)?;
-        let dq = deque_cls.call((), Some(&kwargs))?.unbind();
-        let dq_clone = dq.clone_ref(py);
-        Ok((dq, dq_clone))
-    })
-    .expect("pyo3 deque construction failed");
-
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
-        Python::attach(|py| {
-            // SAFETY: `evt` is borrowed from the consumer closure
-            // scope and lives for the synchronous duration of this
-            // `Python::attach` block — the lifetime guard below
-            // invalidates the wrapper immediately on scope exit, so
-            // the user code (here `deque.append(py_evt)`) cannot read
-            // the pointer after we leave.
-            let py_evt = match Py::new(
-                py,
-                BenchPyEvent {
-                    inner: evt as *const FpssEvent,
-                    valid: AtomicBool::new(true),
-                },
-            ) {
-                Ok(p) => p,
-                Err(e) => {
-                    e.write_unraisable(py, None);
-                    return;
-                }
-            };
-            // The realistic Python integrator pattern: hand the event
-            // to `deque.append`. The deque retains the wrapper, but
-            // any later field access raises `ValueError` since we
-            // invalidate below.
-            let bound = py_evt.bind(py).clone();
-            let _ = deque_consumer.bind(py).call_method1("append", (bound,));
-            // Invalidate so the retained wrapper safe-fails on later
-            // access. Matches the SDK contract exactly.
-            py_evt.borrow(py).valid.store(false, Ordering::Release);
-        });
-    });
-    let result = drive_publish(producer, delivered, contract);
-    let len = Python::attach(|py| deque.bind(py).len().expect("deque len"));
-    black_box(len);
-    result
-}
-
 // ─── Criterion driver ──────────────────────────────────────────────────
 
 /// Run `runner` exactly `iters` times, summing the in-loop wall clock
@@ -524,29 +299,10 @@ fn bench_ffi_simulated(c: &mut Criterion) {
     bench_variant(c, "ffi_simulated", run_ffi_simulated);
 }
 
-fn bench_pyo3_deque_append(c: &mut Criterion) {
-    bench_variant(c, "pyo3_deque_append", run_pyo3_deque_append);
-}
-
-fn bench_pyo3_queue_put_nowait(c: &mut Criterion) {
-    bench_variant(c, "pyo3_queue_put_nowait", run_pyo3_queue_put_nowait);
-}
-
-fn bench_pyo3_zerocopy_class_deque_append(c: &mut Criterion) {
-    bench_variant(
-        c,
-        "pyo3_zerocopy_class_deque_append",
-        run_pyo3_zerocopy_class_deque_append,
-    );
-}
-
 criterion_group!(
     streaming_throughput,
     bench_rust_noop,
     bench_rust_vec_push,
     bench_ffi_simulated,
-    bench_pyo3_deque_append,
-    bench_pyo3_queue_put_nowait,
-    bench_pyo3_zerocopy_class_deque_append,
 );
 criterion_main!(streaming_throughput);
