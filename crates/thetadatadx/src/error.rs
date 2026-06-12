@@ -197,6 +197,28 @@ pub enum ConfigErrorKind {
     Internal(String),
 }
 
+impl ConfigErrorKind {
+    /// True when this kind reflects a rejected user-supplied parameter
+    /// (a bad value, an out-of-range number, a missing required field)
+    /// rather than an environmental fault (config-file I/O, TOML parse)
+    /// or an internal invariant violation.
+    ///
+    /// The bindings route the user-input kinds to a dedicated
+    /// invalid-parameter error class so a caller can distinguish a
+    /// malformed-but-rejected argument from an unrelated configuration
+    /// failure by class, while `Io` / `TomlParse` / `Internal` stay on
+    /// the root error class.
+    #[must_use]
+    pub fn is_invalid_parameter(&self) -> bool {
+        matches!(
+            self,
+            ConfigErrorKind::OutOfRange { .. }
+                | ConfigErrorKind::MissingField(_)
+                | ConfigErrorKind::InvalidValue { .. }
+        )
+    }
+}
+
 /// Canonical gRPC status codes.
 ///
 /// Numeric discriminants match the gRPC wire codes one-for-one (see
@@ -593,6 +615,26 @@ impl Error {
         let message = kind.to_string();
         Self::Decompress { kind, message }
     }
+
+    // ─── Structured accessors ───────────────────────────────────────────
+
+    /// Server-supplied minimum backoff before the next retry, when the
+    /// upstream attached a `google.rpc.RetryInfo` detail to a
+    /// rate-limit status.
+    ///
+    /// Returns `Some(duration)` only for a [`Error::Grpc`] carrying the
+    /// hint; every other variant (and a rate-limit status without the
+    /// detail) returns `None`. The language bindings surface this as a
+    /// typed field on their rate-limit error class so a caller can read
+    /// the back-off interval as a value instead of parsing it out of the
+    /// message text.
+    #[must_use]
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            Error::Grpc { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
 }
 
 impl From<tdbe::error::Error> for Error {
@@ -866,6 +908,53 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn retry_after_exposes_grpc_hint() {
+        let with_hint = Error::Grpc {
+            kind: GrpcStatusKind::ResourceExhausted,
+            message: "429".into(),
+            retry_after: Some(std::time::Duration::from_millis(1500)),
+        };
+        assert_eq!(
+            with_hint.retry_after(),
+            Some(std::time::Duration::from_millis(1500))
+        );
+
+        let no_hint = Error::Grpc {
+            kind: GrpcStatusKind::ResourceExhausted,
+            message: "429".into(),
+            retry_after: None,
+        };
+        assert_eq!(no_hint.retry_after(), None);
+
+        // Non-gRPC variants never carry a retry hint.
+        assert_eq!(Error::NoData.retry_after(), None);
+        assert_eq!(Error::Timeout { duration_ms: 500 }.retry_after(), None);
+    }
+
+    #[test]
+    fn config_kind_invalid_parameter_partition() {
+        // User-input rejections are invalid-parameter kinds.
+        assert!(ConfigErrorKind::OutOfRange {
+            field: "fpss.timeout_ms".into(),
+            value: 0,
+            min: 100,
+            max: 60_000,
+        }
+        .is_invalid_parameter());
+        assert!(ConfigErrorKind::MissingField("auth.email".into()).is_invalid_parameter());
+        assert!(ConfigErrorKind::InvalidValue {
+            field: "mdds.uri".into(),
+            message: "not a URI".into(),
+        }
+        .is_invalid_parameter());
+
+        // Environmental / internal faults are not.
+        assert!(!ConfigErrorKind::Io("file not found".into()).is_invalid_parameter());
+        assert!(!ConfigErrorKind::TomlParse("expected `]`".into()).is_invalid_parameter());
+        assert!(!ConfigErrorKind::Internal("semaphore closed".into()).is_invalid_parameter());
     }
 
     #[test]

@@ -16,7 +16,16 @@ use std::ptr;
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
     static LAST_ERROR_CODE: std::cell::Cell<i32> = const { std::cell::Cell::new(TDX_ERR_NONE) };
+    /// Server-supplied rate-limit back-off in milliseconds, or `-1` when
+    /// the last error carries no `RetryInfo` hint. Read via
+    /// [`tdx_last_error_retry_after_ms`] so the C++ `RateLimitError`
+    /// surfaces the back-off as a typed value.
+    static LAST_ERROR_RETRY_AFTER_MS: std::cell::Cell<i64> = const { std::cell::Cell::new(-1) };
 }
+
+/// Sentinel returned by [`tdx_last_error_retry_after_ms`] when the last
+/// error carries no rate-limit back-off hint.
+pub const TDX_RETRY_AFTER_NONE: i64 = -1;
 
 /// Typed error-code discriminants surfaced via [`tdx_last_error_code`].
 ///
@@ -40,12 +49,20 @@ pub const TDX_ERR_NETWORK: i32 = 9;
 pub const TDX_ERR_SCHEMA_MISMATCH: i32 = 10;
 pub const TDX_ERR_STREAM: i32 = 11;
 pub const TDX_ERR_CONFIG: i32 = 12;
+/// A client-side parameter was rejected by input validation (a bad
+/// value, an out-of-range number, a missing required field). Distinct
+/// from [`TDX_ERR_CONFIG`], which stays reserved for environmental
+/// configuration faults (config-file I/O, TOML parse, internal
+/// invariant) so a rejected argument is distinguishable by code from an
+/// unrelated configuration failure.
+pub const TDX_ERR_INVALID_PARAMETER: i32 = 13;
 
 pub(crate) fn set_error(msg: &str) {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = CString::new(msg).ok();
     });
     LAST_ERROR_CODE.with(|c| c.set(TDX_ERR_OTHER));
+    clear_retry_after();
 }
 
 /// Set the error string and pin the typed discriminant explicitly. Used by
@@ -57,15 +74,30 @@ pub(crate) fn set_error_with_code(msg: &str, code: i32) {
         *e.borrow_mut() = CString::new(msg).ok();
     });
     LAST_ERROR_CODE.with(|c| c.set(code));
+    clear_retry_after();
 }
 
 /// Set both the formatted error string AND the typed discriminant
 /// from a [`thetadatadx::Error`]. The string keeps the previous
 /// surface; the code is what the C++ / TypeScript bindings dispatch
-/// on to pick the right exception class.
+/// on to pick the right exception class. A rate-limit back-off hint, if
+/// the error carries one, is stashed for [`tdx_last_error_retry_after_ms`].
 pub(crate) fn set_error_from(err: &thetadatadx::Error) {
     set_error_string_only(&err.to_string());
     LAST_ERROR_CODE.with(|c| c.set(error_code_for(err)));
+    let retry_after_ms = err
+        .retry_after()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+        .unwrap_or(TDX_RETRY_AFTER_NONE);
+    LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(retry_after_ms));
+}
+
+/// Reset the rate-limit back-off slot to "no hint". Called by every
+/// error setter that does not carry a `RetryInfo` detail so a stale hint
+/// from a prior rate-limit error is never misattributed to an unrelated
+/// failure.
+fn clear_retry_after() {
+    LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(TDX_RETRY_AFTER_NONE));
 }
 
 /// Set the error string without touching the typed code. Used by the
@@ -104,7 +136,17 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
         Error::Timeout { .. } => TDX_ERR_DEADLINE_EXCEEDED,
         Error::Transport { .. } | Error::Tls(_) | Error::Io(_) | Error::Http(_) => TDX_ERR_NETWORK,
         Error::Decode { .. } | Error::Decompress { .. } => TDX_ERR_SCHEMA_MISMATCH,
-        Error::Config { .. } => TDX_ERR_CONFIG,
+        // Split user-input validation failures out from environmental
+        // config faults so the C++ / C ABI surface a dedicated
+        // invalid-parameter class while file-I/O / TOML / internal
+        // faults stay on the generic config code.
+        Error::Config { kind, .. } => {
+            if kind.is_invalid_parameter() {
+                TDX_ERR_INVALID_PARAMETER
+            } else {
+                TDX_ERR_CONFIG
+            }
+        }
         Error::Fpss { kind, .. } => match kind {
             FpssErrorKind::TooManyRequests => TDX_ERR_RATE_LIMIT,
             FpssErrorKind::Timeout => TDX_ERR_DEADLINE_EXCEEDED,
@@ -127,6 +169,22 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
 pub extern "C" fn tdx_last_error_code() -> i32 {
     ffi_boundary!(TDX_ERR_OTHER, {
         LAST_ERROR_CODE.with(std::cell::Cell::get)
+    })
+}
+
+/// Retrieve the server-supplied rate-limit back-off of the last FFI
+/// error on this thread, in milliseconds, or [`TDX_RETRY_AFTER_NONE`]
+/// (`-1`) when the error carries no `RetryInfo` hint.
+///
+/// Set only for a rate-limit error whose upstream status attached a
+/// `google.rpc.RetryInfo` detail; every other error (and a rate-limit
+/// error without the detail) reads `-1`. The C++ `RateLimitError`
+/// exposes this as a typed `retry_after()` value so a caller can honour
+/// the back-off without parsing the message text.
+#[no_mangle]
+pub extern "C" fn tdx_last_error_retry_after_ms() -> i64 {
+    ffi_boundary!(TDX_RETRY_AFTER_NONE, {
+        LAST_ERROR_RETRY_AFTER_MS.with(std::cell::Cell::get)
     })
 }
 
@@ -162,6 +220,7 @@ pub extern "C" fn tdx_clear_error() {
             *e.borrow_mut() = None;
         });
         LAST_ERROR_CODE.with(|c| c.set(TDX_ERR_NONE));
+        LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(TDX_RETRY_AFTER_NONE));
     })
 }
 
@@ -359,10 +418,65 @@ mod tests {
             error_code_for(&thetadatadx::Error::decode_codec("cell type mismatch")),
             TDX_ERR_SCHEMA_MISMATCH
         );
+    }
+
+    #[test]
+    fn config_validation_routes_to_invalid_parameter_others_to_config() {
+        // User-input validation failures get the dedicated discriminant.
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_invalid("ffi", "bad")),
+            TDX_ERR_INVALID_PARAMETER
+        );
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::config_out_of_range("ffi", 0, 1, 9)),
+            TDX_ERR_INVALID_PARAMETER
+        );
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::config_missing("ffi")),
+            TDX_ERR_INVALID_PARAMETER
+        );
+        // Environmental config faults stay on the generic config code.
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::config_io("file not found")),
             TDX_ERR_CONFIG
         );
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::config_toml("expected `]`")),
+            TDX_ERR_CONFIG
+        );
+    }
+
+    #[test]
+    fn set_error_from_stashes_retry_after_hint() {
+        // A rate-limit error with a RetryInfo hint populates the
+        // retry-after slot in milliseconds; reading it back returns the
+        // hint, and clearing resets it to the "no hint" sentinel.
+        tdx_clear_error();
+        set_error_from(&thetadatadx::Error::Grpc {
+            kind: GrpcStatusKind::ResourceExhausted,
+            message: "429".into(),
+            retry_after: Some(std::time::Duration::from_millis(1500)),
+        });
+        assert_eq!(tdx_last_error_code(), TDX_ERR_RATE_LIMIT);
+        assert_eq!(tdx_last_error_retry_after_ms(), 1500);
+
+        // A rate-limit error without a hint reads the sentinel.
+        set_error_from(&grpc(GrpcStatusKind::ResourceExhausted));
+        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
+
+        // A plain `set_error` clears any prior hint so it is never
+        // misattributed to an unrelated failure.
+        set_error_from(&thetadatadx::Error::Grpc {
+            kind: GrpcStatusKind::ResourceExhausted,
+            message: "429".into(),
+            retry_after: Some(std::time::Duration::from_millis(2000)),
+        });
+        assert_eq!(tdx_last_error_retry_after_ms(), 2000);
+        set_error("unrelated failure");
+        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
+
+        tdx_clear_error();
+        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
     }
 
     #[test]

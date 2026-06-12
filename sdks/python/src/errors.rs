@@ -24,9 +24,22 @@
 //! Rust SDK layer is picked up here via the `non_exhaustive` catch-all so
 //! the build never breaks on upstream additions.
 //!
-//! The `NoDataFoundError` class name matches the upstream vendor's Python
-//! SDK (Apache-2.0) by design — users porting from `thetadata` to
-//! `thetadatadx` keep the same `except` clause.
+//! # Canonical leaf vocabulary
+//!
+//! The canonical leaf class names are identical across every binding
+//! (Python, TypeScript, C++, and the C ABI discriminants): a `NotFound`
+//! status raises `NotFoundError`, an expired deadline raises
+//! `DeadlineExceededError`, and an `Unavailable` status raises
+//! `UnavailableError`. Porting an `except` clause from one binding to
+//! another keeps the same class name.
+//!
+//! `NoDataFoundError` and `TimeoutError` remain as documented
+//! back-compatibility aliases: each is registered as the same type
+//! object as its canonical replacement (`NotFoundError` /
+//! `DeadlineExceededError`), so existing
+//! `except thetadatadx.NoDataFoundError` / `except thetadatadx.TimeoutError`
+//! clauses keep catching the same conditions. New code should reach for
+//! the canonical names.
 
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -49,35 +62,68 @@ create_exception!(thetadatadx, InvalidCredentialsError, AuthenticationError);
 create_exception!(thetadatadx, SubscriptionError, ThetaDataError);
 
 // Rate limiting: gRPC `ResourceExhausted` / `TooManyRequests` / HTTP 429.
+// Carries a `retry_after` attribute (float seconds, or `None`) read from
+// the upstream `google.rpc.RetryInfo` detail when the server attached
+// one, so callers can honour a server-instructed back-off as a value.
 create_exception!(thetadatadx, RateLimitError, ThetaDataError);
+
+// Client-side input validation rejected a parameter (a bad value, an
+// out-of-range number, a missing required field). Distinct from the root
+// `ThetaDataError` so a malformed-but-rejected argument is distinguishable
+// by class from an unrelated configuration fault (config-file I/O, TOML
+// parse, internal invariant) which stays on the root class.
+create_exception!(thetadatadx, InvalidParameterError, ThetaDataError);
 
 // Decoder schema mismatch — surfaces `Error::Decode` + `DecodeError`
 // variants. Triggering cause is usually a proto bump on the server before
 // the SDK is refreshed.
 create_exception!(thetadatadx, SchemaMismatchError, ThetaDataError);
 
-// Transport — TCP / gRPC / TLS failures.
+// Transport — TCP / TLS / IO failures other than an explicit
+// `Unavailable` status (which routes to `UnavailableError`).
 create_exception!(thetadatadx, NetworkError, ThetaDataError);
 
-// Per-request deadline (`with_deadline(d)` / `timeout_ms` kwarg).
-// Intentionally NOT inheriting from the stdlib builtins.TimeoutError — the
-// v8.0.1 behavior mapped to `PyTimeoutError` but that conflates user-
-// imposed deadlines with OS-level socket timeouts. Callers who want the
-// stdlib behaviour can `except (thetadatadx.TimeoutError, TimeoutError)`.
-// The local name deliberately shadows the stdlib name inside the
-// `thetadatadx` namespace, matching the vendor SDK convention.
-create_exception!(thetadatadx, TimeoutError, ThetaDataError);
+// Upstream unavailable — gRPC `Unavailable`. Split out from
+// `NetworkError` so the canonical leaf set matches the other bindings:
+// an `Unavailable` status raises `UnavailableError` in Python,
+// TypeScript, and C++ alike.
+create_exception!(thetadatadx, UnavailableError, ThetaDataError);
 
-// Empty result — gRPC `NotFound`. Class name matches the upstream vendor
-// SDK's `NoDataFoundError` so users porting from `thetadata` to
-// `thetadatadx` keep the same `except` clause.
-create_exception!(thetadatadx, NoDataFoundError, ThetaDataError);
+// Per-request deadline (`with_deadline(d)` / `timeout_ms` kwarg) and
+// upstream `DeadlineExceeded`. Intentionally NOT inheriting from the
+// stdlib `builtins.TimeoutError` — a user-imposed deadline is not an
+// OS-level socket timeout. Callers who want the stdlib behaviour can
+// `except (thetadatadx.DeadlineExceededError, TimeoutError)`.
+create_exception!(thetadatadx, DeadlineExceededError, ThetaDataError);
+
+// Empty result — gRPC `NotFound`. The canonical name matches the other
+// bindings (`NotFoundError` in TypeScript / C++ / the C ABI codes).
+create_exception!(thetadatadx, NotFoundError, ThetaDataError);
 
 // FPSS streaming protocol / state-machine failures.
 create_exception!(thetadatadx, StreamError, ThetaDataError);
 
+// ── Back-compatibility aliases ────────────────────────────────────────
+//
+// `NoDataFoundError` and `TimeoutError` predate the cross-binding
+// vocabulary unification. They are registered in [`register_exceptions`]
+// as true assignment aliases of their canonical replacements
+// (`NotFoundError` / `DeadlineExceededError`) — the same type object is
+// added to the module under both names, so
+// `thetadatadx.NoDataFoundError is thetadatadx.NotFoundError` holds and an
+// existing `except thetadatadx.NoDataFoundError` clause keeps catching
+// the conditions the dispatch raises. No separate subclass is created:
+// an alias must share identity with its target to preserve the `except`
+// semantics. New code should use the canonical names.
+
 /// Register every exception class on the module. Called from
 /// `thetadatadx_py` at module init time.
+///
+/// `NoDataFoundError` / `TimeoutError` are registered as assignment
+/// aliases: the canonical `NotFoundError` / `DeadlineExceededError` type
+/// objects are added under both names so the alias shares identity with
+/// its target and an existing `except` clause on the legacy name keeps
+/// catching the dispatched canonical class.
 pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ThetaDataError", py.get_type::<ThetaDataError>())?;
     m.add("AuthenticationError", py.get_type::<AuthenticationError>())?;
@@ -86,13 +132,53 @@ pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<
         py.get_type::<InvalidCredentialsError>(),
     )?;
     m.add("SubscriptionError", py.get_type::<SubscriptionError>())?;
-    m.add("RateLimitError", py.get_type::<RateLimitError>())?;
+    let rate_limit_type = py.get_type::<RateLimitError>();
+    // Seat a class-level `retry_after` default so the attribute is
+    // present (as `None`) on every `RateLimitError` even before the
+    // dispatch sets a per-instance value from a server `RetryInfo` hint.
+    rate_limit_type.setattr("retry_after", py.None())?;
+    m.add("RateLimitError", rate_limit_type)?;
+    m.add(
+        "InvalidParameterError",
+        py.get_type::<InvalidParameterError>(),
+    )?;
     m.add("SchemaMismatchError", py.get_type::<SchemaMismatchError>())?;
     m.add("NetworkError", py.get_type::<NetworkError>())?;
-    m.add("TimeoutError", py.get_type::<TimeoutError>())?;
-    m.add("NoDataFoundError", py.get_type::<NoDataFoundError>())?;
+    m.add("UnavailableError", py.get_type::<UnavailableError>())?;
+    m.add(
+        "DeadlineExceededError",
+        py.get_type::<DeadlineExceededError>(),
+    )?;
+    m.add("NotFoundError", py.get_type::<NotFoundError>())?;
     m.add("StreamError", py.get_type::<StreamError>())?;
+    // Back-compatibility aliases: same type object under the legacy name.
+    m.add("NoDataFoundError", py.get_type::<NotFoundError>())?;
+    m.add("TimeoutError", py.get_type::<DeadlineExceededError>())?;
     Ok(())
+}
+
+/// Build a `RateLimitError` whose `retry_after` attribute carries the
+/// server-supplied back-off (float seconds) when the upstream attached a
+/// `google.rpc.RetryInfo` detail, or `None` otherwise.
+///
+/// The attribute is always present so callers can read
+/// `err.retry_after` unconditionally; it is `None` when no hint was
+/// supplied. `Python::attach` acquires the interpreter lock only to seat
+/// the attribute and is a no-op when the caller already holds it.
+fn rate_limit_err(e: &thetadatadx::Error) -> PyErr {
+    let retry_after_secs = e.retry_after().map(|d| d.as_secs_f64());
+    let err = RateLimitError::new_err(e.to_string());
+    Python::attach(|py| {
+        // Surfacing the back-off is best-effort metadata. Setting an
+        // attribute on a pyo3 exception instance does not fail in
+        // practice; if it ever did, the typed class is still correct, so
+        // the result is intentionally discarded rather than masking the
+        // rate-limit error with a setattr failure. `setattr` returns the
+        // error by value without touching the interpreter error state,
+        // so discarding it leaves no error set.
+        let _ = err.value(py).setattr("retry_after", retry_after_secs);
+    });
+    err
 }
 
 /// Map a `thetadatadx::Error` into the closest Python exception class.
@@ -108,32 +194,41 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         thetadatadx::Error::Auth { kind, .. } => match kind {
             AuthErrorKind::InvalidCredentials => InvalidCredentialsError::new_err(e.to_string()),
             AuthErrorKind::NetworkError => NetworkError::new_err(e.to_string()),
-            AuthErrorKind::Timeout => TimeoutError::new_err(e.to_string()),
+            AuthErrorKind::Timeout => DeadlineExceededError::new_err(e.to_string()),
             AuthErrorKind::ServerError => AuthenticationError::new_err(e.to_string()),
             // Future `AuthErrorKind` variants land on the parent family.
             _ => AuthenticationError::new_err(e.to_string()),
         },
         thetadatadx::Error::Grpc { kind, .. } => match kind {
             GrpcStatusKind::PermissionDenied => SubscriptionError::new_err(e.to_string()),
-            GrpcStatusKind::ResourceExhausted => RateLimitError::new_err(e.to_string()),
-            GrpcStatusKind::NotFound => NoDataFoundError::new_err(e.to_string()),
-            GrpcStatusKind::DeadlineExceeded => TimeoutError::new_err(e.to_string()),
+            GrpcStatusKind::ResourceExhausted => rate_limit_err(&e),
+            GrpcStatusKind::NotFound => NotFoundError::new_err(e.to_string()),
+            GrpcStatusKind::DeadlineExceeded => DeadlineExceededError::new_err(e.to_string()),
             GrpcStatusKind::Unauthenticated => AuthenticationError::new_err(e.to_string()),
-            GrpcStatusKind::Unavailable => NetworkError::new_err(e.to_string()),
+            GrpcStatusKind::Unavailable => UnavailableError::new_err(e.to_string()),
             _ => ThetaDataError::new_err(e.to_string()),
         },
-        thetadatadx::Error::NoData => NoDataFoundError::new_err(e.to_string()),
-        thetadatadx::Error::Timeout { .. } => TimeoutError::new_err(e.to_string()),
+        thetadatadx::Error::NoData => NotFoundError::new_err(e.to_string()),
+        thetadatadx::Error::Timeout { .. } => DeadlineExceededError::new_err(e.to_string()),
         thetadatadx::Error::Transport { .. } => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Io(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Http(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Decode { .. } => SchemaMismatchError::new_err(e.to_string()),
         thetadatadx::Error::Decompress { .. } => SchemaMismatchError::new_err(e.to_string()),
-        thetadatadx::Error::Config { .. } => ThetaDataError::new_err(e.to_string()),
+        // User-input validation failures route to the dedicated
+        // invalid-parameter class; environmental config faults
+        // (`Io` / `TomlParse` / `Internal`) stay on the root class.
+        thetadatadx::Error::Config { kind, .. } => {
+            if kind.is_invalid_parameter() {
+                InvalidParameterError::new_err(e.to_string())
+            } else {
+                ThetaDataError::new_err(e.to_string())
+            }
+        }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
-            FpssErrorKind::TooManyRequests => RateLimitError::new_err(e.to_string()),
-            FpssErrorKind::Timeout => TimeoutError::new_err(e.to_string()),
+            FpssErrorKind::TooManyRequests => rate_limit_err(&e),
+            FpssErrorKind::Timeout => DeadlineExceededError::new_err(e.to_string()),
             FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => {
                 NetworkError::new_err(e.to_string())
             }
@@ -197,14 +292,14 @@ mod tests {
     }
 
     #[test]
-    fn auth_timeout_maps_to_timeout_error() {
+    fn auth_timeout_maps_to_deadline_exceeded_error() {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Auth {
                 kind: AuthErrorKind::Timeout,
                 message: "auth timed out".into(),
             });
-            assert_exception_class(py, &err, "TimeoutError");
+            assert_exception_class(py, &err, "DeadlineExceededError");
         });
     }
 
@@ -235,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn grpc_not_found_maps_to_no_data_found() {
+    fn grpc_not_found_maps_to_not_found() {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Grpc {
@@ -243,25 +338,73 @@ mod tests {
                 message: "no rows".into(),
                 retry_after: None,
             });
-            assert_exception_class(py, &err, "NoDataFoundError");
+            assert_exception_class(py, &err, "NotFoundError");
         });
     }
 
     #[test]
-    fn nodata_error_maps_to_no_data_found() {
+    fn grpc_unavailable_maps_to_unavailable() {
+        Python::initialize();
+        Python::attach(|py| {
+            let err = to_py_err(thetadatadx::Error::Grpc {
+                kind: GrpcStatusKind::Unavailable,
+                message: "backend down".into(),
+                retry_after: None,
+            });
+            assert_exception_class(py, &err, "UnavailableError");
+        });
+    }
+
+    #[test]
+    fn nodata_error_maps_to_not_found() {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::NoData);
-            assert_exception_class(py, &err, "NoDataFoundError");
+            assert_exception_class(py, &err, "NotFoundError");
         });
     }
 
     #[test]
-    fn timeout_variant_maps_to_timeout_error() {
+    fn timeout_variant_maps_to_deadline_exceeded_error() {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Timeout { duration_ms: 500 });
-            assert_exception_class(py, &err, "TimeoutError");
+            assert_exception_class(py, &err, "DeadlineExceededError");
+        });
+    }
+
+    #[test]
+    fn rate_limit_carries_retry_after_attribute() {
+        Python::initialize();
+        Python::attach(|py| {
+            // With a RetryInfo hint: the attribute is the float seconds.
+            let err = to_py_err(thetadatadx::Error::Grpc {
+                kind: GrpcStatusKind::ResourceExhausted,
+                message: "429".into(),
+                retry_after: Some(std::time::Duration::from_millis(1500)),
+            });
+            assert_exception_class(py, &err, "RateLimitError");
+            let value = err.value(py);
+            let secs: Option<f64> = value
+                .getattr("retry_after")
+                .expect("retry_after attribute is present")
+                .extract()
+                .expect("retry_after is float | None");
+            assert_eq!(secs, Some(1.5));
+
+            // Without a hint: the attribute is present and None.
+            let err_none = to_py_err(thetadatadx::Error::Grpc {
+                kind: GrpcStatusKind::ResourceExhausted,
+                message: "429".into(),
+                retry_after: None,
+            });
+            let secs_none: Option<f64> = err_none
+                .value(py)
+                .getattr("retry_after")
+                .expect("retry_after attribute is present")
+                .extract()
+                .expect("retry_after is float | None");
+            assert_eq!(secs_none, None);
         });
     }
 
@@ -299,14 +442,42 @@ mod tests {
     }
 
     #[test]
-    fn config_error_maps_to_root_class() {
+    fn config_validation_failure_maps_to_invalid_parameter() {
+        // A rejected user parameter (bad value, out-of-range, missing
+        // field) routes to the dedicated invalid-parameter class.
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::config_invalid(
+            let invalid_value = to_py_err(thetadatadx::Error::config_invalid(
                 "mdds.uri",
                 "invalid URI",
             ));
-            assert_exception_class(py, &err, "ThetaDataError");
+            assert_exception_class(py, &invalid_value, "InvalidParameterError");
+
+            let out_of_range = to_py_err(thetadatadx::Error::config_out_of_range(
+                "fpss.timeout_ms",
+                0,
+                100,
+                60_000,
+            ));
+            assert_exception_class(py, &out_of_range, "InvalidParameterError");
+
+            let missing = to_py_err(thetadatadx::Error::config_missing("auth.email"));
+            assert_exception_class(py, &missing, "InvalidParameterError");
+        });
+    }
+
+    #[test]
+    fn config_environmental_fault_maps_to_root_class() {
+        // A non-input config fault (file I/O, TOML parse, internal
+        // invariant) is not a user-parameter error and stays on the
+        // root class.
+        Python::initialize();
+        Python::attach(|py| {
+            let io = to_py_err(thetadatadx::Error::config_io("file not found"));
+            assert_exception_class(py, &io, "ThetaDataError");
+
+            let toml = to_py_err(thetadatadx::Error::config_toml("expected `]`"));
+            assert_exception_class(py, &toml, "ThetaDataError");
         });
     }
 
@@ -327,10 +498,18 @@ mod tests {
                 ),
                 ("SubscriptionError", py.get_type::<SubscriptionError>()),
                 ("RateLimitError", py.get_type::<RateLimitError>()),
+                (
+                    "InvalidParameterError",
+                    py.get_type::<InvalidParameterError>(),
+                ),
                 ("SchemaMismatchError", py.get_type::<SchemaMismatchError>()),
                 ("NetworkError", py.get_type::<NetworkError>()),
-                ("TimeoutError", py.get_type::<TimeoutError>()),
-                ("NoDataFoundError", py.get_type::<NoDataFoundError>()),
+                ("UnavailableError", py.get_type::<UnavailableError>()),
+                (
+                    "DeadlineExceededError",
+                    py.get_type::<DeadlineExceededError>(),
+                ),
+                ("NotFoundError", py.get_type::<NotFoundError>()),
                 ("StreamError", py.get_type::<StreamError>()),
             ] {
                 let is_sub = cls_ty
@@ -359,6 +538,34 @@ mod tests {
                 is_sub,
                 "InvalidCredentialsError must inherit from AuthenticationError"
             );
+        });
+    }
+
+    #[test]
+    fn legacy_names_are_aliases_of_canonical_classes() {
+        // `register_exceptions` adds the canonical type object under the
+        // legacy name too, so the alias shares identity with its target.
+        // An existing `except thetadatadx.NoDataFoundError` clause then
+        // catches the dispatched `NotFoundError`.
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::new(py, "thetadatadx_alias_probe")
+                .expect("module construction succeeds with GIL held");
+            register_exceptions(py, &module).expect("registration succeeds");
+
+            for (legacy, canonical) in [
+                ("NoDataFoundError", "NotFoundError"),
+                ("TimeoutError", "DeadlineExceededError"),
+            ] {
+                let legacy_obj = module.getattr(legacy).expect("legacy name is registered");
+                let canonical_obj = module
+                    .getattr(canonical)
+                    .expect("canonical name is registered");
+                assert!(
+                    legacy_obj.is(&canonical_obj),
+                    "{legacy} must be the same object as {canonical}"
+                );
+            }
         });
     }
 }

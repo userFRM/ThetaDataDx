@@ -58,11 +58,16 @@ PUBLIC_CLASSES = [
     "InvalidCredentialsError",
     "SubscriptionError",
     "RateLimitError",
+    "InvalidParameterError",
     "SchemaMismatchError",
     "NetworkError",
-    "TimeoutError",
-    "NoDataFoundError",
+    "UnavailableError",
+    "DeadlineExceededError",
+    "NotFoundError",
     "StreamError",
+    # Back-compatibility aliases of the canonical classes above.
+    "NoDataFoundError",
+    "TimeoutError",
 ]
 
 PUBLIC_FUNCTIONS = [

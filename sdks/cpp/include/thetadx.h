@@ -750,6 +750,13 @@ void tdx_clear_error(void);
  *  `tdx_clear_error()`. */
 int32_t tdx_last_error_code(void);
 
+/** Server-supplied rate-limit back-off of the last FFI error on this
+ *  thread, in milliseconds, or `-1` when the error carries no
+ *  `RetryInfo` hint. Set only for a rate-limit error whose upstream
+ *  status attached the hint; every other error reads `-1`. The C++
+ *  `RateLimitError::retry_after()` surfaces this as a typed value. */
+int64_t tdx_last_error_retry_after_ms(void);
+
 /* Error-code discriminants returned by `tdx_last_error_code()`.
  * Kept in sync with the `TDX_ERR_*` constants in `ffi/src/error.rs`. */
 #define TDX_ERR_NONE 0
@@ -765,6 +772,7 @@ int32_t tdx_last_error_code(void);
 #define TDX_ERR_SCHEMA_MISMATCH 10
 #define TDX_ERR_STREAM 11
 #define TDX_ERR_CONFIG 12
+#define TDX_ERR_INVALID_PARAMETER 13
 
 /* ── Credentials ── */
 

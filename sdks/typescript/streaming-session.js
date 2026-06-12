@@ -33,7 +33,16 @@ const native = require('./index.js');
 // callers can write `catch (e) { if (e instanceof tdx.SubscriptionError)
 // { ... } }` rather than substring-matching the message.
 //
-// The hierarchy mirrors the Python `to_py_err` leaf set one-for-one.
+// The canonical leaf set (`NotFoundError`, `DeadlineExceededError`,
+// `UnavailableError`, `InvalidParameterError`, ...) is identical to the
+// Python, C++, and C ABI leaf sets, so a `catch` clause ports across
+// bindings by class name. Python additionally ships two back-compat
+// aliases (`NoDataFoundError` / `TimeoutError`) that do not exist here.
+//
+// A rate limit carrying a server back-off hint widens the prefix to
+// `[RateLimitError retry_after_ms=N] ...`; the interceptor parses the
+// hint off and seats it as a `retryAfter` (seconds) property on the
+// thrown `RateLimitError`.
 
 class ThetaDataError extends Error {
   constructor(message) {
@@ -63,6 +72,16 @@ class RateLimitError extends ThetaDataError {
   constructor(message) {
     super(message);
     this.name = 'RateLimitError';
+    // Server-supplied minimum back-off in seconds, parsed from the
+    // upstream `google.rpc.RetryInfo` hint, or `null` when none was
+    // supplied. Always present so callers can read it unconditionally.
+    this.retryAfter = null;
+  }
+}
+class InvalidParameterError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'InvalidParameterError';
   }
 }
 class NotFoundError extends ThetaDataError {
@@ -108,6 +127,7 @@ const CLASS_BY_NAME = {
   InvalidCredentialsError,
   SubscriptionError,
   RateLimitError,
+  InvalidParameterError,
   NotFoundError,
   DeadlineExceededError,
   UnavailableError,
@@ -116,7 +136,11 @@ const CLASS_BY_NAME = {
   StreamError,
 };
 
-const PREFIX_RE = /^\[([A-Za-z]+Error)\]\s*(.*)$/s;
+// `[ClassName] message` or `[ClassName retry_after_ms=N] message`. The
+// optional `retry_after_ms` group carries the rate-limit back-off hint
+// the Rust shim widens the prefix with; it is parsed off and surfaced
+// as `retryAfter` (seconds) on the thrown `RateLimitError`.
+const PREFIX_RE = /^\[([A-Za-z]+Error)(?:\s+retry_after_ms=(\d+))?\]\s*(.*)$/s;
 
 /**
  * Re-cast a napi-thrown `Error` as the matching typed subclass when
@@ -134,12 +158,17 @@ function rethrowTyped(err) {
   if (!match) {
     throw err;
   }
-  const [, className, payload] = match;
+  const [, className, retryAfterMs, payload] = match;
   const Cls = CLASS_BY_NAME[className];
   if (!Cls) {
     throw err;
   }
   const typed = new Cls(payload);
+  // Seat the rate-limit back-off (ms → seconds) when the prefix carried
+  // a `retry_after_ms` hint, so callers can read `err.retryAfter`.
+  if (retryAfterMs !== undefined && typed instanceof RateLimitError) {
+    typed.retryAfter = Number(retryAfterMs) / 1000;
+  }
   // Preserve the stack from the napi-thrown Error so the typed
   // re-throw still carries the original call site.
   typed.stack = err.stack;
@@ -303,6 +332,7 @@ module.exports = Object.assign({}, native, {
   InvalidCredentialsError,
   SubscriptionError,
   RateLimitError,
+  InvalidParameterError,
   NotFoundError,
   DeadlineExceededError,
   UnavailableError,

@@ -209,7 +209,13 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("                empty\n");
     out.push_str("            }\n");
     out.push_str("            Err(error) => {\n");
-    out.push_str("                set_error(&error.to_string());\n");
+    // Convert the endpoint error into the core `Error` (preserving the
+    // gRPC variant + its `retry_after` hint for server failures and
+    // classifying bad params as invalid-parameter) and route through
+    // `set_error_from` so the typed discriminant and the back-off hint
+    // reach the C ABI; the C++ wrapper reads both to pick the right
+    // exception leaf and seat `retry_after`.
+    out.push_str("                set_error_from(&thetadatadx::Error::from(error));\n");
     out.push_str("                empty\n");
     out.push_str("            }\n");
     out.push_str("        }\n");
