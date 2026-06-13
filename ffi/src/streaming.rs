@@ -462,7 +462,9 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
         // and is owned by this function; `tdx_unified_connect` borrows it
         // and we free it unconditionally below.
         let handle = unsafe { tdx_unified_connect(creds, config) };
-        // SAFETY: same fresh, unfreed handle from above.
+        // SAFETY: `creds` is the non-null handle checked above;
+        // `tdx_unified_connect` only borrowed it, so this scope still owns
+        // it and frees it exactly once.
         unsafe { crate::auth::tdx_credentials_free(creds) };
         handle
     })
@@ -1446,7 +1448,9 @@ pub unsafe extern "C" fn tdx_fpss_connect_from_file(
         // and is owned by this function; `tdx_fpss_connect` clones what it
         // needs and we free it unconditionally below.
         let handle = unsafe { tdx_fpss_connect(creds, config) };
-        // SAFETY: same fresh, unfreed handle from above.
+        // SAFETY: `creds` is the non-null handle checked above;
+        // `tdx_fpss_connect` cloned what it needed, so this scope still owns
+        // it and frees it exactly once.
         unsafe { crate::auth::tdx_credentials_free(creds) };
         handle
     })
