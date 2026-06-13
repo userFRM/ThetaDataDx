@@ -141,7 +141,7 @@ with tdx.streaming(on_event) as session:
     time.sleep(60)   # park the main thread while events flow into on_event
 ```
 
-Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribe_many`. Every subscription is the same typed value, so quotes, trades, and open interest across contracts mix freely in one list:
+Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribe_many`. Every subscription is the same typed value, so quotes, trades, open interest, and market value across contracts mix freely in one list:
 
 ```python
 from thetadatadx import Contract, SecType
@@ -151,7 +151,7 @@ option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
 
 with tdx.streaming(on_event) as session:
     session.subscribe(stock.quote())
-    session.subscribe_many([option.quote(), option.trade(), option.open_interest()])
+    session.subscribe_many([option.quote(), option.trade(), option.open_interest(), option.market_value()])
 ```
 
 The option constructor is `Contract.option(symbol, *, expiration, strike, right)` — the leg parameters are keyword-only, so the call site always reads `expiration=…, strike=…, right=…` and never depends on argument order. Pair it with `Contract.stock(symbol)` for equities.

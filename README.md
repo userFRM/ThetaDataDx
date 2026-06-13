@@ -97,7 +97,7 @@ def on_event(event):
 spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
 
 with tdx.streaming(on_event) as session:
-    session.subscribe_many([spy_call.quote(), spy_call.trade()])
+    session.subscribe_many([spy_call.quote(), spy_call.trade(), spy_call.market_value()])
     time.sleep(60)   # park the main thread while events flow into on_event
 ```
 
