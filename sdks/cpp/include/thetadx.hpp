@@ -1269,6 +1269,13 @@ public:
      *  failure. */
     static MddsClient connect(const Credentials& creds, const Config& config);
 
+    /** Connect a historical (MDDS) client, loading credentials from a file
+     *  (line 1 = email, line 2 = password). One-call equivalent of
+     *  `Credentials::from_file(path)` followed by `connect`, defaulting to
+     *  the production configuration. Throws on failure or an unreadable
+     *  credentials file. */
+    static MddsClient from_file(const std::string& path, const Config& config = Config::production());
+
     #include "historical.hpp.inc"
 
 private:
@@ -1704,6 +1711,20 @@ public:
     /// Connect a unified client. Throws on auth / handshake failure.
     static ThetaDataDxClient connect(const Credentials& creds, const Config& config) {
         TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
+        if (h == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        return ThetaDataDxClient(h);
+    }
+
+    /// Connect a unified client, loading credentials from a file (line 1 =
+    /// email, line 2 = password). One-call equivalent of
+    /// `Credentials::from_file(path)` followed by `connect`, defaulting to
+    /// the production configuration. Throws on auth / handshake failure or
+    /// an unreadable credentials file.
+    static ThetaDataDxClient from_file(const std::string& path,
+                                       const Config& config = Config::production()) {
+        TdxUnified* h = tdx_unified_connect_from_file(path.c_str(), config.get());
         if (h == nullptr) {
             detail::throw_last_ffi_error();
         }

@@ -434,6 +434,40 @@ pub unsafe extern "C" fn tdx_unified_connect(
     })
 }
 
+/// Connect a unified client, loading credentials from a file
+/// (line 1 = email, line 2 = password) instead of a credentials handle.
+///
+/// One-call equivalent of `tdx_credentials_from_file` followed by
+/// `tdx_unified_connect`: the credentials are opened from `path`,
+/// consumed for the connect, and freed internally. The returned handle
+/// and its ownership / free convention are identical to
+/// `tdx_unified_connect` (free with `tdx_unified_free`).
+///
+/// Returns null on argument validation or connection/auth failure
+/// (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_connect_from_file(
+    path: *const c_char,
+    config: *const TdxConfig,
+) -> *mut TdxUnified {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: `path` is a NUL-terminated C string valid for the call;
+        // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
+        // `tdx_last_error()` on failure.
+        let creds = unsafe { crate::auth::tdx_credentials_from_file(path) };
+        if creds.is_null() {
+            return ptr::null_mut();
+        }
+        // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
+        // and is owned by this function; `tdx_unified_connect` borrows it
+        // and we free it unconditionally below.
+        let handle = unsafe { tdx_unified_connect(creds, config) };
+        // SAFETY: same fresh, unfreed handle from above.
+        unsafe { crate::auth::tdx_credentials_free(creds) };
+        handle
+    })
+}
+
 /// Register a queued FPSS callback on the unified client and start streaming.
 ///
 /// `callback` is invoked from the LMAX event-dispatch consumer thread for
@@ -1380,6 +1414,41 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Mutex::new(FfpssDispatcherSession::Idle),
         }))
+    })
+}
+
+/// Allocate an FPSS handle, loading credentials from a file
+/// (line 1 = email, line 2 = password) instead of a credentials handle.
+///
+/// One-call equivalent of `tdx_credentials_from_file` followed by
+/// `tdx_fpss_connect`: the credentials are opened from `path`, consumed
+/// for the connect, and freed internally. As with `tdx_fpss_connect`
+/// this does NOT open the FPSS TLS connection — connection is deferred
+/// until `tdx_fpss_set_callback`. The returned handle and its ownership
+/// / free convention are identical to `tdx_fpss_connect` (free with
+/// `tdx_fpss_free`).
+///
+/// Returns null on argument validation failure (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_connect_from_file(
+    path: *const c_char,
+    config: *const TdxConfig,
+) -> *mut TdxFpssHandle {
+    ffi_boundary!(std::ptr::null_mut(), {
+        // SAFETY: `path` is a NUL-terminated C string valid for the call;
+        // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
+        // `tdx_last_error()` on failure.
+        let creds = unsafe { crate::auth::tdx_credentials_from_file(path) };
+        if creds.is_null() {
+            return std::ptr::null_mut();
+        }
+        // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
+        // and is owned by this function; `tdx_fpss_connect` clones what it
+        // needs and we free it unconditionally below.
+        let handle = unsafe { tdx_fpss_connect(creds, config) };
+        // SAFETY: same fresh, unfreed handle from above.
+        unsafe { crate::auth::tdx_credentials_free(creds) };
+        handle
     })
 }
 

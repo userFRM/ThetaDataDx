@@ -1934,3 +1934,49 @@ python = true
 typescript = true
 cpp = true
 ffi = true
+
+# ─── Client construction-from-file convenience ([[from_file]]) ────────
+#
+# Every standalone client class exposes a one-call file-construction
+# convenience: load credentials from a two-line file (line 1 = email,
+# line 2 = password) and connect, defaulting to the production
+# configuration. It composes `Credentials::from_file(path)` with the
+# class's `connect`, named per language idiom:
+#
+#   python      — `<Class>.from_file(path, config=None)` staticmethod on
+#                 the pyclass.
+#   typescript  — `<Class>.connectFromFile(path, config?)` napi factory.
+#   cpp         — `<Class>::from_file(path, config = Config::production())`
+#                 static member on the C++ wrapper.
+#   ffi         — the `tdx_<stem>_connect_from_file(path, config)`
+#                 extern "C" symbol (`unified` / `mdds_client` / `fpss`).
+#
+# The construction entry point is not a data method the `[[method]]`
+# rows cover, and its spelling differs per binding, so without this
+# family a binding could grow `from_file` on one client and silently
+# omit it on another. The collector set is reconciled against these
+# rows in both directions: a declared row that does not match the
+# binding state fails, and a client that exposes file-construction on
+# any binding without a row fails. `name` is the cross-binding client
+# class identifier (the same name used by the `[[class]]` rows).
+
+[[from_file]]
+name = "ThetaDataDxClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[from_file]]
+name = "MddsClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[from_file]]
+name = "FpssClient"
+python = true
+typescript = true
+cpp = true
+ffi = true

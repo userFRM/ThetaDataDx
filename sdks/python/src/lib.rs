@@ -1251,6 +1251,32 @@ impl ThetaDataDxClient {
         })
     }
 
+    /// Convenience constructor: `ThetaDataDxClient.from_file("creds.txt")`.
+    /// Loads credentials from a two-line file and connects with the
+    /// supplied `config`, defaulting to `Config.production()`.
+    ///
+    /// The `config` kwarg is optional. The historical behaviour
+    /// (no kwarg = production endpoint) is preserved; tests and
+    /// dev / stage environments reach a single-arg constructor shape
+    /// via `ThetaDataDxClient.from_file("creds.txt", config=Config.dev())`.
+    /// Parity with `AsyncThetaDataDxClient.from_file()`,
+    /// `MddsClient.from_file()`, and `FpssClient.from_file()` — every
+    /// Python client exposes the same one-call file-construction shape.
+    #[staticmethod]
+    #[pyo3(signature = (path, config=None))]
+    fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
+        let creds = Credentials::from_file(path)?;
+        let owned_default;
+        let cfg = match config {
+            Some(c) => c,
+            None => {
+                owned_default = Config::production();
+                &owned_default
+            }
+        };
+        Self::new(py, &creds, cfg)
+    }
+
     // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
     // Every historical endpoint returns `Py<<TickName>List>` (or
     // `Py<StringList>` for list endpoints); chain `.to_polars()` /

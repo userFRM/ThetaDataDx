@@ -616,6 +616,11 @@ class ThetaDataDxClient:
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None: ...
+    @staticmethod
+    def from_file(
+        path: str,
+        config: Optional[Config] = None,
+    ) -> ThetaDataDxClient: ...
 
     # Streaming lifecycle.
     def start_streaming(self, callback: EventCallback) -> None: ...

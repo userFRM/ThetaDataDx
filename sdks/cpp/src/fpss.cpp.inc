@@ -19,3 +19,7 @@ FpssClient::FpssClient(const Credentials& creds, const Config& config) {
     handle_.reset(h);
 }
 
+FpssClient FpssClient::from_file(const std::string& path, const Config& config) {
+    return FpssClient(Credentials::from_file(path), config);
+}
+

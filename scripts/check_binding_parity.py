@@ -2251,6 +2251,198 @@ def _check_historical_streaming_rows(
     return errors
 
 
+# ─── Client construction-from-file surface ([[from_file]]) ────────────
+#
+# Every standalone client class exposes a one-call file-construction
+# convenience that loads credentials from a two-line file and connects.
+# The entry point is not a data method the `[[method]]` rows cover, and
+# its spelling differs per binding (`from_file` on Python / C++,
+# `connectFromFile` on TypeScript, `tdx_<stem>_connect_from_file` on the
+# C ABI), so a single `[[method]]` row cannot express it. These
+# collectors harvest each binding's file-construction surface so the
+# `[[from_file]]` rows can pin the cross-binding roster.
+#
+# `name` is the cross-binding client class identifier. The C ABI symbol
+# stem differs from the class name (`tdx_unified_connect_from_file` for
+# `ThetaDataDxClient`, `tdx_mdds_client_connect_from_file` for
+# `MddsClient`, `tdx_fpss_connect_from_file` for `FpssClient`); the stem
+# table below bridges the two.
+#
+# The family governs exactly the standalone clients that connect to the
+# servers via a `tdx_<stem>_connect_from_file` C ABI symbol. It does NOT
+# govern `Credentials.from_file` (a credentials factory that returns a
+# `Credentials`, not a connected client, surfaced over the distinct
+# `tdx_credentials_from_file` symbol) nor the Python-only
+# `AsyncThetaDataDxClient.from_file` (no C ABI / managed-binding twin —
+# its presence is tracked by the `AsyncThetaDataDxClient` `[[class]]`
+# row). Scoping the collectors to the governed roster keeps those
+# unrelated `from_file` entry points out of this family while still
+# tripping on a new governed client that forgets a row.
+
+
+# Parity class name → C ABI symbol stem for the
+# `tdx_<stem>_connect_from_file` extern "C" symbol. The keys are the
+# governed client roster: every class this family tracks, and the only
+# classes the collectors below consider.
+FROM_FILE_FFI_STEMS: dict[str, str] = {
+    "ThetaDataDxClient": "unified",
+    "MddsClient": "mdds_client",
+    "FpssClient": "fpss",
+}
+
+# The governed client roster (the C++ class spelling of each, so the
+# C++ collector can match the harvested class name before folding it
+# back to the cross-binding identifier).
+_FROM_FILE_GOVERNED: frozenset[str] = frozenset(FROM_FILE_FFI_STEMS)
+
+
+def _collect_python_from_file_classes(py_methods: dict[str, set[str]]) -> set[str]:
+    """Governed client classes whose Python pyclass exposes a `from_file`
+    staticmethod.
+
+    Reuses the already-collected `{pyclass: {method, ...}}` map; a
+    governed class carrying `from_file` exposes the file-construction
+    convenience. Scoped to `_FROM_FILE_GOVERNED` so the credentials
+    factory (`Credentials.from_file`) and the Python-only async twin are
+    not mistaken for governed clients.
+    """
+    return {
+        cls
+        for cls, methods in py_methods.items()
+        if cls in _FROM_FILE_GOVERNED and "from_file" in methods
+    }
+
+
+def _collect_typescript_from_file_classes(ts_methods: dict[str, set[str]]) -> set[str]:
+    """Governed client classes whose TypeScript napi class exposes a
+    `connectFromFile` factory.
+
+    Reuses the already-collected `{class: {method, ...}}` map; the napi
+    factory's `js_name` is the camelCase `connectFromFile`. Scoped to the
+    governed roster (the `Credentials.fromFile` factory is excluded).
+    """
+    return {
+        cls
+        for cls, methods in ts_methods.items()
+        if cls in _FROM_FILE_GOVERNED and "connectFromFile" in methods
+    }
+
+
+def _collect_cpp_from_file_classes(cpp_methods: dict[str, set[str]]) -> set[str]:
+    """Governed client classes whose C++ wrapper exposes a `from_file`
+    static member.
+
+    Reuses the already-collected `{class: {method, ...}}` map (which
+    inlines the generator-emitted `*.inc` member declarations), folds the
+    C++ alias names back to the cross-binding class identifier, and scopes
+    to the governed roster so `Credentials::from_file` is not counted.
+    """
+    reverse_alias = {v: k for k, v in CPP_ALIASES.items()}
+    out: set[str] = set()
+    for cls, methods in cpp_methods.items():
+        if "from_file" in methods:
+            canonical = reverse_alias.get(cls, cls)
+            if canonical in _FROM_FILE_GOVERNED:
+                out.add(canonical)
+    return out
+
+
+def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
+    """C ABI symbol stems whose `tdx_<stem>_connect_from_file` extern "C"
+    symbol exists in `ffi/src/`.
+
+    Returns the bare stems (`unified` / `mdds_client` / `fpss`); the
+    checker maps each parity class name to its stem via
+    `FROM_FILE_FFI_STEMS`.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    fn_re = re.compile(r"\bfn\s+tdx_(\w+)_connect_from_file\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            out.add(m.group(1))
+    return out
+
+
+def _check_from_file_rows(
+    rows: list[dict[str, Any]],
+    py_from_file: set[str],
+    ts_from_file: set[str],
+    cpp_from_file: set[str],
+    ffi_stems: set[str],
+) -> list[str]:
+    """Per-client-class cross-binding gate for `[[from_file]]` rows.
+
+    Each row declares a client class `name` plus the expected
+    file-construction presence in Python / TypeScript / C++ / the C ABI.
+    The checker verifies the actual binding state against the declared
+    state and returns a list of mismatch strings (empty when every row
+    matches).
+
+    Beyond the per-row check, the collected sets are reconciled against
+    the union of declared row names: a client that exposes
+    file-construction on ANY binding but has no row at all trips the
+    gate, so a newly-added `from_file` cannot slip in untracked.
+    """
+    errors: list[str] = []
+    declared_names = {row.get("name") for row in rows if row.get("name")}
+    for row in rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[from_file]] row missing `name`: {row!r}")
+            continue
+        stem = FROM_FILE_FFI_STEMS.get(name)
+        if stem is None:
+            errors.append(
+                f"  [[from_file]] row `{name}` has no C ABI stem mapping; "
+                f"add it to FROM_FILE_FFI_STEMS."
+            )
+            continue
+        ffi_present = stem in ffi_stems
+        for lang, actual, hint in (
+            ("python", name in py_from_file, f"`from_file` staticmethod on the `{name}` pyclass"),
+            (
+                "typescript",
+                name in ts_from_file,
+                f"`connectFromFile` napi factory on the `{name}` class",
+            ),
+            ("cpp", name in cpp_from_file, f"`from_file(` static member on the `{name}` C++ class"),
+            ("ffi", ffi_present, f"`tdx_{stem}_connect_from_file` extern \"C\" symbol"),
+        ):
+            declared = row.get(lang, False)
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+    # Reverse-direction orphan check: any client exposing file
+    # construction on a binding but lacking a row is undocumented drift.
+    ffi_classes = {
+        cls for cls, stem in FROM_FILE_FFI_STEMS.items() if stem in ffi_stems
+    }
+    seen = py_from_file | ts_from_file | cpp_from_file | ffi_classes
+    for client in sorted(seen - declared_names):
+        on = sorted(
+            lang
+            for lang, s in (
+                ("python", py_from_file),
+                ("typescript", ts_from_file),
+                ("cpp", cpp_from_file),
+                ("ffi", ffi_classes),
+            )
+            if client in s
+        )
+        errors.append(
+            f"  {client}: exposes file construction on {on} but has no "
+            f"[[from_file]] row. Add one declaring its per-binding "
+            f"presence so the surface stays tracked."
+        )
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
@@ -2496,6 +2688,7 @@ def main(argv: list[str] | None = None) -> int:
     historical_streaming_rows: list[dict[str, Any]] = data.get(
         "historical_streaming", []
     )
+    from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -2591,6 +2784,19 @@ def main(argv: list[str] | None = None) -> int:
     ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
     historical_streaming_errors = _check_historical_streaming_rows(
         historical_streaming_rows, py_stream, ts_stream, cpp_stream, ffi_stream
+    )
+
+    # Client construction-from-file surface ([[from_file]] rows) — the
+    # one-call `from_file` / `connectFromFile` / `tdx_*_connect_from_file`
+    # convenience per standalone client class. Its spelling differs per
+    # binding, so it cannot ride a `[[method]]` row; this family pins it
+    # across Python / TypeScript / C++ / the C ABI.
+    py_from_file = _collect_python_from_file_classes(py_class_methods)
+    ts_from_file = _collect_typescript_from_file_classes(ts_class_methods)
+    cpp_from_file = _collect_cpp_from_file_classes(cpp_class_methods)
+    ffi_from_file_stems = _collect_ffi_from_file_stems(FFI_SRC)
+    from_file_errors = _check_from_file_rows(
+        from_file_rows, py_from_file, ts_from_file, cpp_from_file, ffi_from_file_stems
     )
 
     # Public-surface vocabulary: no public client identifier may embed
@@ -2763,6 +2969,17 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if from_file_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(from_file_errors)} "
+            f"client construction-from-file mismatch(es) (per-client "
+            f"`[[from_file]]` granularity):"
+        )
+        for e in from_file_errors:
+            print(e)
+        print()
+
     if surface_vocab_errors:
         had_errors = True
         print(
@@ -2838,12 +3055,14 @@ def main(argv: list[str] | None = None) -> int:
     n_value_fields = len(value_field_rows)
     n_utilities = len(utility_rows)
     n_hist_stream = len(historical_streaming_rows)
+    n_from_file = len(from_file_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
         f"{n_methods} method rows + {n_value_fields} value-field rows + "
         f"{n_utilities} utility rows + "
         f"{n_hist_stream} historical-streaming rows + "
+        f"{n_from_file} from-file rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -3595,6 +3814,114 @@ def _run_selftest() -> int:
     _case("hist-stream positive — TS-first ship state is silent", _case_hist_stream_ts_only_state_is_silent)
     _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
     _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
+
+    # ── Client construction-from-file surface selftests ───────────
+
+    def _case_from_file_positive_all_bound() -> None:
+        """A client exposing file construction on every declared binding
+        (with the idiomatic per-binding spelling) is silent."""
+        rows = [
+            {
+                "name": "MddsClient",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_from_file_rows(
+            rows,
+            {"MddsClient"},
+            {"MddsClient"},
+            {"MddsClient"},
+            {"mdds_client"},
+        )
+        assert errors == [], f"all-bound row must be silent; got {errors!r}"
+
+    def _case_from_file_missing_on_ffi_trips() -> None:
+        """Row claims the C ABI exposes file construction but the
+        `tdx_<stem>_connect_from_file` symbol is absent — trips."""
+        rows = [
+            {
+                "name": "FpssClient",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_from_file_rows(
+            rows,
+            {"FpssClient"},
+            {"FpssClient"},
+            {"FpssClient"},
+            set(),
+        )
+        assert any("ffi" in e and "missing" in e for e in errors), (
+            f"missing C ABI symbol must trip; got {errors!r}"
+        )
+
+    def _case_from_file_untracked_orphan_trips() -> None:
+        """A client exposing file construction on a binding with no row
+        at all trips the reverse-direction orphan check."""
+        errors = _check_from_file_rows(
+            [], {"ThetaDataDxClient"}, set(), set(), set()
+        )
+        assert any(
+            "ThetaDataDxClient" in e and "no [[from_file]] row" in e
+            for e in errors
+        ), f"untracked file-construction client must trip; got {errors!r}"
+
+    def _case_from_file_ffi_stem_maps_class_name() -> None:
+        """The FFI stem table bridges the class name to its C ABI symbol
+        stem: `ThetaDataDxClient` resolves via `unified`, not its own
+        name. A row declaring ffi=true is silent only when the matching
+        stem symbol exists."""
+        rows = [
+            {
+                "name": "ThetaDataDxClient",
+                "python": False,
+                "typescript": False,
+                "cpp": False,
+                "ffi": True,
+            }
+        ]
+        # The class name itself in the stem set must NOT satisfy the row;
+        # only the mapped `unified` stem does.
+        errors_wrong = _check_from_file_rows(
+            rows, set(), set(), set(), {"theta_data_dx_client"}
+        )
+        assert any("ffi" in e for e in errors_wrong), (
+            f"class-name stem must not satisfy the row; got {errors_wrong!r}"
+        )
+        errors_right = _check_from_file_rows(rows, set(), set(), set(), {"unified"})
+        assert errors_right == [], (
+            f"mapped `unified` stem must satisfy the row; got {errors_right!r}"
+        )
+
+    def _case_from_file_live_sources_clean() -> None:
+        """The shipped bindings expose `from_file` (idiomatic spelling) on
+        every client the live `[[from_file]]` rows declare."""
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        rows = data.get("from_file", [])
+        assert rows, "live parity.toml must declare [[from_file]] rows"
+        py_methods = _collect_python_class_methods(PY_SRC)
+        ts_methods = _collect_typescript_class_methods(TS_SRC)
+        cpp_methods = _collect_cpp_class_methods(CPP_HPP)
+        errors = _check_from_file_rows(
+            rows,
+            _collect_python_from_file_classes(py_methods),
+            _collect_typescript_from_file_classes(ts_methods),
+            _collect_cpp_from_file_classes(cpp_methods),
+            _collect_ffi_from_file_stems(FFI_SRC),
+        )
+        assert errors == [], f"live from_file sources must be clean; got {errors!r}"
+
+    _case("from-file positive — all four bindings construct", _case_from_file_positive_all_bound)
+    _case("from-file negative — missing C ABI symbol trips", _case_from_file_missing_on_ffi_trips)
+    _case("from-file negative — untracked client trips", _case_from_file_untracked_orphan_trips)
+    _case("from-file — FFI stem table maps class name", _case_from_file_ffi_stem_maps_class_name)
+    _case("from-file — live sources clean", _case_from_file_live_sources_clean)
 
     # ── Public-surface vocabulary guard selftests ──────────────────
 

@@ -3,8 +3,8 @@
 //! Reads `fpss_event_schema.toml` and emits:
 //!
 //! - `sdks/python/src/_generated/fpss_event_classes.rs` — `#[pyclass]` per Data variant
-//!   + the `fpss_event_to_typed` dispatcher (borrowed `&FpssEvent` →
-//!   pyclass, no intermediate) + `register_fpss_event_classes`.
+//!   plus the `fpss_event_to_typed` dispatcher (borrowed `&FpssEvent` →
+//!   pyclass, no intermediate) plus `register_fpss_event_classes`.
 //! - `sdks/typescript/src/_generated/fpss_event_classes.rs` — `#[napi(object)]` per
 //!   Data variant + a flat `FpssEvent` wrapper struct with optional typed
 //!   payload fields + a `buffered_event_to_typed` dispatcher that converts

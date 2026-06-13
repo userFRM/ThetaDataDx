@@ -661,6 +661,90 @@ def test_utility_roster_live_complete() -> None:
     assert errors == [], f"live utility roster must be complete; got {errors!r}"
 
 
+def test_from_file_parity_all_bound_passes() -> None:
+    rows = [
+        {
+            "name": "MddsClient",
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    errors = cbp._check_from_file_rows(
+        rows, {"MddsClient"}, {"MddsClient"}, {"MddsClient"}, {"mdds_client"}
+    )
+    assert errors == [], f"all-bound from_file row must be silent; got {errors!r}"
+
+
+def test_from_file_missing_on_ffi_trips() -> None:
+    rows = [
+        {
+            "name": "FpssClient",
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    errors = cbp._check_from_file_rows(
+        rows, {"FpssClient"}, {"FpssClient"}, {"FpssClient"}, set()
+    )
+    assert any("ffi" in e and "missing" in e for e in errors), (
+        f"missing C ABI from_file symbol must trip; got {errors!r}"
+    )
+
+
+def test_from_file_untracked_client_trips() -> None:
+    errors = cbp._check_from_file_rows(
+        [], {"ThetaDataDxClient"}, set(), set(), set()
+    )
+    assert any(
+        "ThetaDataDxClient" in e and "no [[from_file]] row" in e for e in errors
+    ), f"untracked file-construction client must trip; got {errors!r}"
+
+
+def test_from_file_ffi_stem_maps_class_name() -> None:
+    rows = [
+        {
+            "name": "ThetaDataDxClient",
+            "python": False,
+            "typescript": False,
+            "cpp": False,
+            "ffi": True,
+        }
+    ]
+    # The class name itself must not satisfy the row; only the mapped stem.
+    wrong = cbp._check_from_file_rows(rows, set(), set(), set(), {"theta_data_dx_client"})
+    assert any("ffi" in e for e in wrong), (
+        f"class-name stem must not satisfy the row; got {wrong!r}"
+    )
+    right = cbp._check_from_file_rows(rows, set(), set(), set(), {"unified"})
+    assert right == [], f"mapped `unified` stem must satisfy the row; got {right!r}"
+
+
+def test_from_file_parity_live_sources_clean() -> None:
+    """Every client the live `[[from_file]]` rows declare exposes the
+    idiomatic file-construction entry point on the claimed bindings.
+    """
+    import tomllib
+
+    data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    rows = data.get("from_file", [])
+    assert rows, "live parity.toml must declare [[from_file]] rows"
+    py_methods = cbp._collect_python_class_methods(cbp.PY_SRC)
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
+    errors = cbp._check_from_file_rows(
+        rows,
+        cbp._collect_python_from_file_classes(py_methods),
+        cbp._collect_typescript_from_file_classes(ts_methods),
+        cbp._collect_cpp_from_file_classes(cpp_methods),
+        cbp._collect_ffi_from_file_stems(cbp.FFI_SRC),
+    )
+    assert errors == [], f"live from_file sources must be clean; got {errors!r}"
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -688,6 +772,11 @@ def main() -> int:
     _check("setter-set missing-on-TS trips", test_setter_set_parity_missing_on_ts_trips)
     _check("setter-set exemption honoured", test_setter_set_parity_exemption_honoured)
     _check("setter-set live sources clean", test_setter_set_parity_live_sources_clean)
+    _check("from-file all-bound passes", test_from_file_parity_all_bound_passes)
+    _check("from-file missing-on-FFI trips", test_from_file_missing_on_ffi_trips)
+    _check("from-file untracked client trips", test_from_file_untracked_client_trips)
+    _check("from-file FFI stem maps class name", test_from_file_ffi_stem_maps_class_name)
+    _check("from-file live sources clean", test_from_file_parity_live_sources_clean)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")

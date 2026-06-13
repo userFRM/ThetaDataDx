@@ -24,3 +24,9 @@ MddsClient MddsClient::connect(const Credentials& creds, const Config& config) {
     return MddsClient(h);
 }
 
+MddsClient MddsClient::from_file(const std::string& path, const Config& config) {
+    auto h = tdx_mdds_client_connect_from_file(path.c_str(), config.get());
+    if (!h) detail::throw_last_ffi_error();
+    return MddsClient(h);
+}
+
