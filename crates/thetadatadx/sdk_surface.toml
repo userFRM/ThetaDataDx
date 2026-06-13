@@ -156,7 +156,7 @@ doc = "Compute all 23 Black-Scholes Greeks + IV in one call."
 cli_about = "Compute Black-Scholes Greeks (offline, no server needed)"
 mcp_description = "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera."
 cli_name = "greeks"
-targets = ["python", "cpp", "mcp", "cli"]
+targets = ["python", "typescript", "cpp", "mcp", "cli"]
 params = [
   { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
   { name = "strike", type = "f64", doc = "Strike price." },
@@ -174,7 +174,7 @@ doc = "Compute implied volatility via bisection."
 cli_about = "Compute implied volatility only (offline, no server needed)"
 mcp_description = "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error."
 cli_name = "iv"
-targets = ["python", "cpp", "mcp", "cli"]
+targets = ["python", "typescript", "cpp", "mcp", "cli"]
 params = [
   { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
   { name = "strike", type = "f64", doc = "Strike price." },

@@ -52,7 +52,7 @@ pub(crate) struct AllGreeks {
     #[pyo3(get)]
     pub epsilon: f64,
     #[pyo3(get)]
-    pub lambda: f64,
+    pub lambda_: f64,
 }
 
 #[pymethods]
@@ -101,7 +101,7 @@ fn all_greeks(
         dual_delta: g.dual_delta,
         dual_gamma: g.dual_gamma,
         epsilon: g.epsilon,
-        lambda: g.lambda,
+        lambda_: g.lambda,
     })
 }
 

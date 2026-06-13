@@ -251,6 +251,17 @@ include!("_generated/fpss_event_classes.rs");
 
 include!("_generated/buffered_event.rs");
 
+// ── Offline Greeks calculator free functions (generated from sdk_surface.toml) ──
+//
+// Emits the `AllGreeks` `#[napi(object)]` plus the `allGreeks(...)` /
+// `impliedVolatility(...)` napi free functions. They cross the napi
+// boundary into the same `thetadatadx::greeks::{all_greeks,
+// implied_volatility}` core the Python / C++ / C ABI calculators call,
+// so the Greek values are bit-identical across every binding. Change
+// `sdk_surface.toml` and regenerate, never hand-edit the generated file.
+
+include!("_generated/utility_functions.rs");
+
 // ── Unified ThetaDataDxClient client ──
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes

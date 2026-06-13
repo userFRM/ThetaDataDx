@@ -96,6 +96,7 @@ pub(super) enum UtilityKind {
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityTarget {
     Python,
+    Typescript,
     Cpp,
     Mcp,
     Cli,
@@ -367,7 +368,7 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         }
     }
 
-    use UtilityTarget::{Cli, Cpp, Mcp, Python};
+    use UtilityTarget::{Cli, Cpp, Mcp, Python, Typescript};
     let greeks_params = offline_greeks_param_layout();
     let (expected_name, allowed_targets, exact_targets, params): (
         &str,
@@ -379,13 +380,13 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         UtilityKind::Ping => ("ping", &[Mcp], true, &[]),
         UtilityKind::AllGreeks => (
             "all_greeks",
-            &[Python, Cpp, Mcp, Cli],
+            &[Python, Typescript, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),
         UtilityKind::ImpliedVolatility => (
             "implied_volatility",
-            &[Python, Cpp, Mcp, Cli],
+            &[Python, Typescript, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),

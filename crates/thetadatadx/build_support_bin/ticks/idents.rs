@@ -154,6 +154,18 @@ pub(crate) fn c_field_ident(field: &str) -> String {
     }
 }
 
+/// TypeScript / JavaScript spelling for a schema field name. Every
+/// generated TS surface renders a schema field as an object KEY (the
+/// `#[napi(object)]` struct member napi-rs lowers to a property), and
+/// object keys admit reserved words (`{ lambda: 1 }` and `obj.lambda`
+/// are both legal), so no escape is applied — the name passes through
+/// unchanged. The helper exists so every TS field emitter routes
+/// through the same policy point as the Python / Rust / C escapes,
+/// keeping the per-language identifier contract in one module.
+pub(crate) fn ts_field_ident(field: &str) -> String {
+    field.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,5 +189,13 @@ mod tests {
     fn c_escapes_its_keywords() {
         assert_eq!(c_field_ident("register"), "register_");
         assert_eq!(c_field_ident("vega"), "vega");
+    }
+
+    #[test]
+    fn ts_field_passes_through_unescaped() {
+        // Object keys admit reserved words; the field name is emitted verbatim.
+        assert_eq!(ts_field_ident("lambda"), "lambda");
+        assert_eq!(ts_field_ident("class"), "class");
+        assert_eq!(ts_field_ident("delta"), "delta");
     }
 }
