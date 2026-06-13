@@ -96,7 +96,7 @@ setTimeout(() => tdx.stopStreaming(), 60_000);
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::UnifiedClient::connect(creds, tdx::Config::production());
+    auto client = tdx::ThetaDataDxClient::connect(creds, tdx::Config::production());
 
     client.set_callback([](const tdx::FpssEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {

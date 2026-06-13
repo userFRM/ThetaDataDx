@@ -7,7 +7,7 @@ int main() {
         // Load credentials from creds.txt (line 1 = email, line 2 = password)
         auto creds = tdx::Credentials::from_file("creds.txt");
         auto config = tdx::Config::production();
-        auto client = tdx::Client::connect(creds, config);
+        auto client = tdx::MddsClient::connect(creds, config);
 
         // Fetch end-of-day data -- prices are already decoded to f64
         auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");

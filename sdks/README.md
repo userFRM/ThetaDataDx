@@ -140,7 +140,7 @@ make
 #include "thetadx.hpp"
 
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::MddsClient::connect(creds, tdx::Config::production());
 
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240315");
 ```
@@ -160,15 +160,15 @@ The library exposes opaque handle types and `extern "C"` functions:
 
 | Category | Functions |
 |---|---|
-| **Lifecycle** | `tdx_credentials_new`, `tdx_credentials_from_file`, `tdx_credentials_free` |
+| **Lifecycle** | `tdx_credentials_from_email`, `tdx_credentials_from_file`, `tdx_credentials_free` |
 | **Config** | `tdx_config_production`, `tdx_config_dev`, `tdx_config_free` |
-| **Client** | `tdx_client_connect`, `tdx_client_free` |
+| **MddsClient** | `tdx_mdds_client_connect`, `tdx_mdds_client_free` |
 | **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |
 | **Greeks** | `tdx_all_greeks`, `tdx_implied_volatility` |
 | **Standalone FPSS** | `tdx_fpss_connect`, `tdx_fpss_set_callback`, `tdx_fpss_subscribe`, `tdx_fpss_unsubscribe` (both polymorphic, take `TdxSubscriptionRequest`), `tdx_fpss_is_authenticated`, `tdx_fpss_active_subscriptions`, `tdx_fpss_reconnect`, `tdx_fpss_dropped_events`, `tdx_fpss_shutdown`, `tdx_fpss_await_drain`, `tdx_fpss_free` |
 | **Memory** | `tdx_*_array_free` (per tick type), `tdx_string_array_free`, `tdx_string_free`, `tdx_last_error` |
 
-All historical data endpoints (61 total) are accessed through `tdx_client_connect`. Streaming can be reached either through the unified handle (`TdxUnified`, one auth/session for historical + streaming) or the standalone FPSS handle (`TdxFpssHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`) that must be freed with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
+All historical data endpoints (61 total) are accessed through `tdx_mdds_client_connect`. Streaming can be reached either through the unified handle (`TdxUnified`, one auth/session for historical + streaming) or the standalone FPSS handle (`TdxFpssHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`) that must be freed with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
 
 ## Building All SDKs
 

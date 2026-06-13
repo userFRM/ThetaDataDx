@@ -28,7 +28,7 @@ set(THETADX_CPP_TEST_SOURCES
     lifecycle.cpp
     history.cpp
     fpss.cpp
-    unified_client.cpp
+    thetadatadx_client.cpp
     error_taxonomy.cpp
     # MDDS pool-sizing setters on tdx::Config.
     config_pool_sizing.cpp

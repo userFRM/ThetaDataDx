@@ -192,7 +192,6 @@ def collect_cpp_classes(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 CPP_ALIASES: dict[str, str] = {
-    "ThetaDataDxClient": "UnifiedClient",
     "FlatFilesNamespace": "FlatFiles",
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
@@ -205,8 +204,8 @@ def _cpp_class_for(class_name: str) -> str:
     """Resolve a parity-toml `class` field to its C++ class symbol.
 
     Honors `CPP_ALIASES` so a row carrying the Python/TS canonical
-    name (`ThetaDataDxClient`) routes to the corresponding C++ class
-    body (`UnifiedClient`).
+    name (`Contract`) routes to the corresponding C++ class body
+    (`FluentContract`).
     """
     return CPP_ALIASES.get(class_name, class_name)
 
@@ -999,7 +998,7 @@ def _check_method_rows(
 
         # C++: `<snake>(` member declaration inside the matching
         # class body in `thetadx.hpp`. C++ alias names route through
-        # `CPP_ALIASES` (`ThetaDataDxClient` -> `UnifiedClient`).
+        # `CPP_ALIASES` (`Contract` -> `FluentContract`).
         declared_cpp = row.get("cpp", False)
         cpp_class = _cpp_class_for(class_name)
         actual_cpp = snake in cpp_methods.get(cpp_class, set())
@@ -1251,7 +1250,7 @@ def _endpoint_method_to_snake(name: str) -> str:
 #     napi class (generated into
 #     `sdks/typescript/src/_generated/historical_methods.rs`).
 #   * C ABI: a `tdx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
-#   * C++: an `<endpoint>_stream` member on the `UnifiedClient` wrapper
+#   * C++: an `<endpoint>_stream` member on the `ThetaDataDxClient` wrapper
 #     (`thetadx.hpp` + its `.inc` fragments).
 #
 # These methods live on per-endpoint builders / as endpoint-named
@@ -1346,20 +1345,17 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `UnifiedClient` wrapper exposes
-    an `<endpoint>_stream` member.
+    """Snake_case endpoint names whose C++ `ThetaDataDxClient` wrapper
+    exposes an `<endpoint>_stream` member.
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. The
-    historical endpoints live on the `UnifiedClient` class body in
-    `thetadx.hpp` (the C++ name the `ThetaDataDxClient` parity rows alias
-    to). A member whose snake_case name ends in `_stream` is a
+    historical endpoints live on the `ThetaDataDxClient` class body in
+    `thetadx.hpp`. A member whose snake_case name ends in `_stream` is a
     server-stream terminal; strip the suffix to recover the endpoint
     name.
     """
     out: set[str] = set()
-    methods = cpp_methods.get("UnifiedClient", set()) | cpp_methods.get(
-        "ThetaDataDxClient", set()
-    )
+    methods = cpp_methods.get("ThetaDataDxClient", set())
     for method in methods:
         if method.endswith("_stream") and len(method) > len("_stream"):
             out.add(method[: -len("_stream")])
@@ -1398,7 +1394,7 @@ def _check_historical_streaming_rows(
         for lang, actual_set, hint in (
             ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
             ("typescript", ts_stream, f"`{camel}Stream` on the `ThetaDataDxClient` napi class"),
-            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `UnifiedClient` body"),
+            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `ThetaDataDxClient` body"),
             ("ffi", ffi_stream, f"`tdx_{name}_stream` extern \"C\" symbol"),
         ):
             declared = row.get(lang, False)
@@ -2241,7 +2237,7 @@ def _run_selftest() -> int:
         ]
         py_methods = {"ThetaDataDxClient": {"panic_count"}}
         ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], f"method positive case must be silent; got {errors!r}"
 
@@ -2258,7 +2254,7 @@ def _run_selftest() -> int:
         ]
         py_methods: dict[str, set[str]] = {"ThetaDataDxClient": set()}
         ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert any("python" in e and "missing" in e for e in errors), (
             f"missing Python method must trip the gate; got {errors!r}"
@@ -2277,31 +2273,31 @@ def _run_selftest() -> int:
         ]
         py_methods = {"ThetaDataDxClient": {"active_full_subscriptions"}}
         ts_methods: dict[str, set[str]] = {}
-        cpp_methods = {"UnifiedClient": {"active_full_subscriptions"}}
+        cpp_methods = {"ThetaDataDxClient": {"active_full_subscriptions"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert any("typescript" in e and "missing" in e for e in errors), (
             f"missing TS method must trip the gate; got {errors!r}"
         )
 
     def _case_method_cpp_alias_resolves() -> None:
-        """C++ alias (`ThetaDataDxClient` -> `UnifiedClient`) is honoured."""
+        """C++ alias (`Contract` -> `FluentContract`) is honoured."""
         rows = [
             {
-                "class": "ThetaDataDxClient",
-                "name": "awaitDrain",
+                "class": "Contract",
+                "name": "quote",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_methods = {"ThetaDataDxClient": {"await_drain"}}
-        ts_methods = {"ThetaDataDxClient": {"awaitDrain"}}
-        # The row says `ThetaDataDxClient` but the C++ class is named
-        # `UnifiedClient` — the alias table must route the lookup.
-        cpp_methods = {"UnifiedClient": {"await_drain"}}
+        py_methods = {"Contract": {"quote"}}
+        ts_methods = {"Contract": {"quote"}}
+        # The row says `Contract` but the C++ class is named
+        # `FluentContract` — the alias table must route the lookup.
+        cpp_methods = {"FluentContract": {"quote"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
-            f"C++ alias must resolve to UnifiedClient; got {errors!r}"
+            f"C++ alias must resolve to FluentContract; got {errors!r}"
         )
 
     def _case_method_unexpected_extra() -> None:
@@ -2317,7 +2313,7 @@ def _run_selftest() -> int:
         ]
         py_methods = {"ThetaDataDxClient": {"panic_count"}}
         ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         # All three columns are stale — every binding now exposes the
         # method but the row still says `false`.
@@ -2367,7 +2363,7 @@ def _run_selftest() -> int:
     _case("method positive — declared and present on all three bindings", _case_method_positive_all_three)
     _case("method negative — declared Python but missing in source", _case_method_python_missing)
     _case("method negative — declared TS but missing js_name", _case_method_typescript_missing)
-    _case("method positive — C++ alias routes ThetaDataDxClient -> UnifiedClient", _case_method_cpp_alias_resolves)
+    _case("method positive — C++ alias routes Contract -> FluentContract", _case_method_cpp_alias_resolves)
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)

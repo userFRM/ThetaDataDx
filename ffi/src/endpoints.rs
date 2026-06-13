@@ -16,14 +16,14 @@ use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{
     insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
-    TdxCalendarDayArray, TdxClient, TdxEodTickArray, TdxGreeksAllTickArray, TdxGreeksEodTickArray,
+    TdxCalendarDayArray, TdxEodTickArray, TdxGreeksAllTickArray, TdxGreeksEodTickArray,
     TdxGreeksFirstOrderTickArray, TdxGreeksSecondOrderTickArray, TdxGreeksThirdOrderTickArray,
     TdxIndexPriceAtTimeTickArray, TdxInterestRateTickArray, TdxIvTickArray,
-    TdxMarketValueTickArray, TdxOhlcTickArray, TdxOpenInterestTickArray, TdxOptionContractArray,
-    TdxPriceTickArray, TdxQuoteTickArray, TdxStringArray, TdxTradeGreeksAllTickArray,
-    TdxTradeGreeksFirstOrderTickArray, TdxTradeGreeksImpliedVolatilityTickArray,
-    TdxTradeGreeksSecondOrderTickArray, TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray,
-    TdxTradeTickArray,
+    TdxMarketValueTickArray, TdxMddsClient, TdxOhlcTickArray, TdxOpenInterestTickArray,
+    TdxOptionContractArray, TdxPriceTickArray, TdxQuoteTickArray, TdxStringArray,
+    TdxTradeGreeksAllTickArray, TdxTradeGreeksFirstOrderTickArray,
+    TdxTradeGreeksImpliedVolatilityTickArray, TdxTradeGreeksSecondOrderTickArray,
+    TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray, TdxTradeTickArray,
 };
 
 // ── Historical server-stream callback C ABI ──

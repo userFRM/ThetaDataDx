@@ -12,7 +12,7 @@
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_eod_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn tdx_stock_history_eod_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_ohlc_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_trade_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn tdx_stock_history_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_trade_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -294,7 +294,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_at_time_trade_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_at_time_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_eod_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -501,7 +501,7 @@ pub unsafe extern "C" fn tdx_option_history_eod_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_ohlc_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -563,7 +563,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -625,7 +625,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -687,7 +687,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -749,7 +749,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_open_interest_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -811,7 +811,7 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_eod_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -880,7 +880,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_all_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -942,7 +942,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1004,7 +1004,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_first_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1066,7 +1066,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1128,7 +1128,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_second_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1252,7 +1252,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_third_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1314,7 +1314,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1376,7 +1376,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1438,7 +1438,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1500,7 +1500,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_stre
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_at_time_trade_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1576,7 +1576,7 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_at_time_quote_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1652,7 +1652,7 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_eod_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -1714,7 +1714,7 @@ pub unsafe extern "C" fn tdx_index_history_eod_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_ohlc_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -1776,7 +1776,7 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_price_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -1831,7 +1831,7 @@ pub unsafe extern "C" fn tdx_index_history_price_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_at_time_price_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -1900,7 +1900,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_interest_rate_history_eod_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -1962,7 +1962,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_stream(
 /// clean drain, -1 on error (inspect `tdx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_ohlc_range_stream(
-    client: *const TdxClient,
+    client: *const TdxMddsClient,
     symbol: *const c_char
 ,
     start_date: *const c_char

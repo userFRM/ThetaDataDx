@@ -178,7 +178,7 @@ TEST_CASE("forced Unauthenticated from a real RPC surfaces as AuthenticationErro
                                               "not-a-real-password");
     auto config = tdx::Config::production();
     try {
-        (void)tdx::Client::connect(bogus, config);
+        (void)tdx::MddsClient::connect(bogus, config);
         FAIL("bogus credentials must surface an error");
     } catch (const tdx::AuthenticationError&) {
         // expected — auth failed before any data round-trip

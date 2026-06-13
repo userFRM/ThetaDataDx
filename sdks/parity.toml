@@ -29,7 +29,7 @@ cpp = true
 name = "ThetaDataDxClient"
 python = true
 typescript = true
-cpp = true          # exposed as `tdx::Client` + `tdx::UnifiedClient`
+cpp = true          # exposed as `tdx::ThetaDataDxClient` (unified); `tdx::MddsClient` is the historical-only sibling
 
 [[class]]
 name = "AsyncThetaDataDxClient"
@@ -47,7 +47,7 @@ cpp = true
 name = "MddsClient"
 python = true
 typescript = true   # standalone historical-only napi class; generated historical surface, no streaming methods
-cpp = false         # C++ uses `tdx::Client` for the MDDS-only role; no dedicated `MddsClient` symbol
+cpp = true          # standalone historical-only client: `tdx::MddsClient`
 
 [[class]]
 name = "StreamingSession"
@@ -750,7 +750,7 @@ ffi = true
 #   class       — the canonical class name (Python pyclass / TS napi
 #                 class / C++ class). For C++ alias names see
 #                 `scripts/check_binding_parity.py::CPP_ALIASES`
-#                 (`ThetaDataDxClient` -> `UnifiedClient`).
+#                 (e.g. `Contract` -> `FluentContract`).
 #   name        — the canonical method name in camelCase. The parity
 #                 checker derives the snake_case form for Python +
 #                 C++ matching and uses the camelCase form to match
@@ -796,7 +796,7 @@ class = "ThetaDataDxClient"
 name = "shutdown"
 python = true
 typescript = true
-cpp = false  # C++ frees through the RAII destructor on `UnifiedClient`
+cpp = false  # C++ frees through the RAII destructor on `ThetaDataDxClient`
 
 [[method]]
 class = "ThetaDataDxClient"
@@ -1526,7 +1526,7 @@ typescript = "Option<BigInt>"
 #   typescript  — `<endpoint>Stream(...args, options, callback)` on the
 #                 `ThetaDataDxClient` napi class.
 #   cpp         — `<endpoint>_stream(...args, callback, options)` on the
-#                 C++ `UnifiedClient` wrapper.
+#                 C++ `ThetaDataDxClient` wrapper.
 #   ffi         — the `tdx_<endpoint>_stream(...)` extern "C" symbol.
 #
 # These terminals live on per-endpoint builders / as endpoint-named

@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     try {
         auto creds = tdx::Credentials::from_file(creds_path);
         auto config = tdx::Config::production();
-        auto client = tdx::UnifiedClient::connect(creds, config);
+        auto client = tdx::ThetaDataDxClient::connect(creds, config);
 
         std::cout << "streaming option_history_trade " << symbol << " expiration=" << expiration
                   << " date=" << date << " (all strikes)\n";
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 
         // ── Buffered pull (ground truth) ──
         const auto t2 = std::chrono::steady_clock::now();
-        tdx::Client hist = tdx::Client::connect(creds, config);
+        tdx::MddsClient hist = tdx::MddsClient::connect(creds, config);
         std::vector<tdx::TradeTick> buffered = hist.option_history_trade(
             symbol, expiration, date, tdx::EndpointRequestOptions{}.with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();

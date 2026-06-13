@@ -55,12 +55,12 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
     REQUIRE(config.derive_ohlcvc() == true);
 }
 
-TEST_CASE("Client::connect succeeds against the production server", "[lifecycle][live]") {
+TEST_CASE("MddsClient::connect succeeds against the production server", "[lifecycle][live]") {
     const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADX_LIVE_CREDS not set");
     }
     auto creds = tdx::Credentials::from_file(creds_path);
     auto config = tdx::Config::production();
-    REQUIRE_NOTHROW(tdx::Client::connect(creds, config));
+    REQUIRE_NOTHROW(tdx::MddsClient::connect(creds, config));
 }

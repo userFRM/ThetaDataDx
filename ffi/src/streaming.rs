@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::error::{set_error, set_error_from};
 use crate::runtime;
-use crate::types::{TdxClient, TdxConfig, TdxCredentials};
+use crate::types::{TdxConfig, TdxCredentials, TdxMddsClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 // ── Callback C ABI types ──
@@ -410,7 +410,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_from_email / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
@@ -963,20 +963,20 @@ pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
 
 /// Borrow the historical client from a unified handle.
 ///
-/// Returns a `*const TdxClient` that can be passed to all `tdx_stock_*`,
+/// Returns a `*const TdxMddsClient` that can be passed to all `tdx_stock_*`,
 /// `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, and `tdx_interest_rate_*`
-/// functions. This avoids a second `tdx_client_connect()` call and reuses the
-/// same authenticated session.
+/// functions. This avoids a second `tdx_mdds_client_connect()` call and reuses
+/// the same authenticated session.
 ///
-/// The returned pointer is **NOT owned** -- do NOT call `tdx_client_free` on it.
-/// It is valid as long as the `TdxUnified` handle is alive.
+/// The returned pointer is **NOT owned** -- do NOT call `tdx_mdds_client_free`
+/// on it. It is valid as long as the `TdxUnified` handle is alive.
 ///
 /// # Safety
 ///
-/// This cast is sound because `TdxClient` is `#[repr(transparent)]` over
+/// This cast is sound because `TdxMddsClient` is `#[repr(transparent)]` over
 /// `MddsClient`, and `ThetaDataDxClient` Derefs to `&MddsClient`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxClient {
+pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxMddsClient {
     ffi_boundary!(std::ptr::null(), {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -984,9 +984,9 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        // TdxClient is #[repr(transparent)] over MddsClient, so this cast is safe.
+        // TdxMddsClient is #[repr(transparent)] over MddsClient, so this cast is safe.
         let mdds_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
-        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(mdds_ref).cast::<TdxClient>()
+        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(mdds_ref).cast::<TdxMddsClient>()
     })
 }
 
@@ -1357,7 +1357,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_from_email / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
