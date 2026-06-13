@@ -612,10 +612,12 @@ public:
         tdx_config_set_reconnect_wait_ms(handle_.get(), ms);
     }
 
-    /** Current reconnect wait_ms (default 2_000). Returns -1 if the
-     *  config handle is null (matches the C ABI sentinel). */
-    int32_t get_reconnect_wait_ms(uint64_t* out_ms) const {
-        return tdx_config_get_reconnect_wait_ms(handle_.get(), out_ms);
+    /** Current reconnect wait_ms (default 2_000). Returns the default on
+     *  a null config handle. */
+    uint64_t get_reconnect_wait_ms() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_wait_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the reconnect delay (ms) honoured for `TooManyRequests`
@@ -625,23 +627,31 @@ public:
     }
 
     /** Current reconnect wait_rate_limited_ms (default 130_000). */
-    int32_t get_reconnect_wait_rate_limited_ms(uint64_t* out_ms) const {
-        return tdx_config_get_reconnect_wait_rate_limited_ms(handle_.get(), out_ms);
+    uint64_t get_reconnect_wait_rate_limited_ms() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_wait_rate_limited_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Current reconnect policy selector: 0=Auto, 1=Manual, 2=Custom. */
-    int32_t get_reconnect_policy(int32_t* out_policy) const {
-        return tdx_config_get_reconnect_policy(handle_.get(), out_policy);
+    int32_t get_reconnect_policy() const {
+        int32_t out{};
+        tdx_config_get_reconnect_policy(handle_.get(), &out);
+        return out;
     }
 
     /** Current generic-transient reconnect attempt budget (default 30). */
-    int32_t get_reconnect_max_attempts(uint32_t* out) const {
-        return tdx_config_get_reconnect_max_attempts(handle_.get(), out);
+    uint32_t get_reconnect_max_attempts() const {
+        uint32_t out{};
+        tdx_config_get_reconnect_max_attempts(handle_.get(), &out);
+        return out;
     }
 
     /** Current rate-limited reconnect attempt budget (default 100). */
-    int32_t get_reconnect_max_rate_limited_attempts(uint32_t* out) const {
-        return tdx_config_get_reconnect_max_rate_limited_attempts(handle_.get(), out);
+    uint32_t get_reconnect_max_rate_limited_attempts() const {
+        uint32_t out{};
+        tdx_config_get_reconnect_max_rate_limited_attempts(handle_.get(), &out);
+        return out;
     }
 
     /** Set the ServerRestarting reconnect attempt budget. Default 60. */
@@ -650,13 +660,17 @@ public:
     }
 
     /** Current ServerRestarting reconnect attempt budget (default 60). */
-    int32_t get_reconnect_max_server_restart_attempts(uint32_t* out) const {
-        return tdx_config_get_reconnect_max_server_restart_attempts(handle_.get(), out);
+    uint32_t get_reconnect_max_server_restart_attempts() const {
+        uint32_t out{};
+        tdx_config_get_reconnect_max_server_restart_attempts(handle_.get(), &out);
+        return out;
     }
 
     /** Current stable-window reset interval in seconds (default 60). */
-    int32_t get_reconnect_stable_window_secs(uint64_t* out) const {
-        return tdx_config_get_reconnect_stable_window_secs(handle_.get(), out);
+    uint64_t get_reconnect_stable_window_secs() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_stable_window_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Set the wall-clock reconnect envelope (seconds) for the
@@ -668,8 +682,10 @@ public:
 
     /** Current wall-clock reconnect envelope in seconds (default 300;
      *  0 = disabled). */
-    int32_t get_reconnect_max_elapsed_secs(uint64_t* out) const {
-        return tdx_config_get_reconnect_max_elapsed_secs(handle_.get(), out);
+    uint64_t get_reconnect_max_elapsed_secs() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_max_elapsed_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Set the cap (ms) on the exponential generic-transient reconnect
@@ -679,8 +695,10 @@ public:
     }
 
     /** Current reconnect wait_max_ms (default 30_000). */
-    int32_t get_reconnect_wait_max_ms(uint64_t* out_ms) const {
-        return tdx_config_get_reconnect_wait_max_ms(handle_.get(), out_ms);
+    uint64_t get_reconnect_wait_max_ms() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_wait_max_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the flat reconnect cadence (ms) for ServerRestarting
@@ -690,8 +708,10 @@ public:
     }
 
     /** Current reconnect wait_server_restart_ms (default 5_000). */
-    int32_t get_reconnect_wait_server_restart_ms(uint64_t* out_ms) const {
-        return tdx_config_get_reconnect_wait_server_restart_ms(handle_.get(), out_ms);
+    uint64_t get_reconnect_wait_server_restart_ms() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_wait_server_restart_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
@@ -706,8 +726,10 @@ public:
     }
 
     /** Current reconnect jitter mode (same encoding as the setter). */
-    int32_t get_reconnect_jitter(int32_t* out_mode) const {
-        return tdx_config_get_reconnect_jitter(handle_.get(), out_mode);
+    int32_t get_reconnect_jitter() const {
+        int32_t out{};
+        tdx_config_get_reconnect_jitter(handle_.get(), &out);
+        return out;
     }
 
     /** Set the subscription-replay burst size used after an
@@ -717,8 +739,10 @@ public:
     }
 
     /** Current replay_burst_size (default 50). */
-    int32_t get_reconnect_replay_burst_size(uint32_t* out) const {
-        return tdx_config_get_reconnect_replay_burst_size(handle_.get(), out);
+    uint32_t get_reconnect_replay_burst_size() const {
+        uint32_t out{};
+        tdx_config_get_reconnect_replay_burst_size(handle_.get(), &out);
+        return out;
     }
 
     /** Set the pause (ms) between subscription-replay bursts. 0
@@ -728,8 +752,10 @@ public:
     }
 
     /** Current replay_pace_ms (default 5). */
-    int32_t get_reconnect_replay_pace_ms(uint64_t* out_ms) const {
-        return tdx_config_get_reconnect_replay_pace_ms(handle_.get(), out_ms);
+    uint64_t get_reconnect_replay_pace_ms() const {
+        uint64_t out{};
+        tdx_config_get_reconnect_replay_pace_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Install a custom reconnect policy driven by a C callback.
@@ -749,8 +775,10 @@ public:
     }
 
     /** Current fpss timeout_ms (default 3_000). */
-    int32_t get_fpss_timeout_ms(uint64_t* out_ms) const {
-        return tdx_config_get_fpss_timeout_ms(handle_.get(), out_ms);
+    uint64_t get_fpss_timeout_ms() const {
+        uint64_t out{};
+        tdx_config_get_fpss_timeout_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the per-server connect timeout (ms) for the streaming
@@ -761,8 +789,10 @@ public:
     }
 
     /** Current fpss connect_timeout_ms (default 2_000). */
-    int32_t get_fpss_connect_timeout_ms(uint64_t* out_ms) const {
-        return tdx_config_get_fpss_connect_timeout_ms(handle_.get(), out_ms);
+    uint64_t get_fpss_connect_timeout_ms() const {
+        uint64_t out{};
+        tdx_config_get_fpss_connect_timeout_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the FPSS heartbeat ping interval (ms). Default 250;
@@ -772,8 +802,10 @@ public:
     }
 
     /** Current fpss ping_interval_ms (default 250). */
-    int32_t get_fpss_ping_interval_ms(uint64_t* out_ms) const {
-        return tdx_config_get_fpss_ping_interval_ms(handle_.get(), out_ms);
+    uint64_t get_fpss_ping_interval_ms() const {
+        uint64_t out{};
+        tdx_config_get_fpss_ping_interval_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the per-iteration blocking-read slice (ms) for the
@@ -783,8 +815,10 @@ public:
     }
 
     /** Current fpss io_read_slice_ms (default 25). */
-    int32_t get_fpss_io_read_slice_ms(uint64_t* out_ms) const {
-        return tdx_config_get_fpss_io_read_slice_ms(handle_.get(), out_ms);
+    uint64_t get_fpss_io_read_slice_ms() const {
+        uint64_t out{};
+        tdx_config_get_fpss_io_read_slice_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the last-frame watchdog (ms); 0 disables. Default 30_000. */
@@ -793,8 +827,10 @@ public:
     }
 
     /** Current fpss data_watchdog_ms (default 30_000; 0 = disabled). */
-    int32_t get_fpss_data_watchdog_ms(uint64_t* out_ms) const {
-        return tdx_config_get_fpss_data_watchdog_ms(handle_.get(), out_ms);
+    uint64_t get_fpss_data_watchdog_ms() const {
+        uint64_t out{};
+        tdx_config_get_fpss_data_watchdog_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Set the TCP keepalive idle time (seconds). Default 5; validated
@@ -804,8 +840,10 @@ public:
     }
 
     /** Current fpss keepalive_idle_secs (default 5). */
-    int32_t get_fpss_keepalive_idle_secs(uint64_t* out) const {
-        return tdx_config_get_fpss_keepalive_idle_secs(handle_.get(), out);
+    uint64_t get_fpss_keepalive_idle_secs() const {
+        uint64_t out{};
+        tdx_config_get_fpss_keepalive_idle_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Set the TCP keepalive probe interval (seconds). Default 2;
@@ -815,8 +853,10 @@ public:
     }
 
     /** Current fpss keepalive_interval_secs (default 2). */
-    int32_t get_fpss_keepalive_interval_secs(uint64_t* out) const {
-        return tdx_config_get_fpss_keepalive_interval_secs(handle_.get(), out);
+    uint64_t get_fpss_keepalive_interval_secs() const {
+        uint64_t out{};
+        tdx_config_get_fpss_keepalive_interval_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Set the TCP keepalive probe count before the kernel declares
@@ -826,8 +866,10 @@ public:
     }
 
     /** Current fpss keepalive_retries (default 2). */
-    int32_t get_fpss_keepalive_retries(uint32_t* out) const {
-        return tdx_config_get_fpss_keepalive_retries(handle_.get(), out);
+    uint32_t get_fpss_keepalive_retries() const {
+        uint32_t out{};
+        tdx_config_get_fpss_keepalive_retries(handle_.get(), &out);
+        return out;
     }
 
     /** Set the FPSS event ring size (slots). Must be a power of two
@@ -838,8 +880,10 @@ public:
     }
 
     /** Current fpss ring_size (default 131_072). */
-    int32_t get_fpss_ring_size(size_t* out) const {
-        return tdx_config_get_fpss_ring_size(handle_.get(), out);
+    size_t get_fpss_ring_size() const {
+        size_t out{};
+        tdx_config_get_fpss_ring_size(handle_.get(), &out);
+        return out;
     }
 
     /** Set the FPSS host-selection policy: 0=Shuffled (default),
@@ -855,8 +899,10 @@ public:
 
     /** Current FPSS host-selection policy (same encoding as the
      *  setter). */
-    int32_t get_fpss_host_selection(int32_t* out_policy) const {
-        return tdx_config_get_fpss_host_selection(handle_.get(), out_policy);
+    int32_t get_fpss_host_selection() const {
+        int32_t out{};
+        tdx_config_get_fpss_host_selection(handle_.get(), &out);
+        return out;
     }
 
     /** Set the FPSS host-shuffle seed using the (has_value, seed)
@@ -866,10 +912,14 @@ public:
         return tdx_config_set_fpss_host_shuffle_seed_explicit(handle_.get(), has_value, seed);
     }
 
-    /** Read the FPSS host-shuffle seed back. *out_has_value=false
-     *  encodes the per-client-entropy sentinel. */
-    int32_t get_fpss_host_shuffle_seed(bool* out_has_value, uint64_t* out_seed) const {
-        return tdx_config_get_fpss_host_shuffle_seed(handle_.get(), out_has_value, out_seed);
+    /** Read the FPSS host-shuffle seed back. Returns @c std::nullopt for
+     *  the per-client-entropy sentinel (no pinned seed); returns the
+     *  wrapped seed when the shuffled order is deterministic. */
+    std::optional<uint64_t> get_fpss_host_shuffle_seed() const {
+        bool has_value = false;
+        uint64_t seed = 0;
+        tdx_config_get_fpss_host_shuffle_seed(handle_.get(), &has_value, &seed);
+        return has_value ? std::optional<uint64_t>{seed} : std::nullopt;
     }
 
     /** Set the wall-clock envelope (seconds) for one
@@ -879,8 +929,10 @@ public:
     }
 
     /** Current retry max_elapsed in seconds (default 300; 0 = disabled). */
-    int32_t get_retry_max_elapsed_secs(uint64_t* out_secs) const {
-        return tdx_config_get_retry_max_elapsed_secs(handle_.get(), out_secs);
+    uint64_t get_retry_max_elapsed_secs() const {
+        uint64_t out{};
+        tdx_config_get_retry_max_elapsed_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Toggle AWS-style full jitter on the flatfile retry ladder.
@@ -890,8 +942,10 @@ public:
     }
 
     /** Current flatfiles jitter setting (default true). */
-    int32_t get_flatfiles_jitter(bool* out_jitter) const {
-        return tdx_config_get_flatfiles_jitter(handle_.get(), out_jitter);
+    bool get_flatfiles_jitter() const {
+        bool out{};
+        tdx_config_get_flatfiles_jitter(handle_.get(), &out);
+        return out;
     }
 
 
@@ -902,10 +956,13 @@ public:
         return tdx_config_set_worker_threads_explicit(handle_.get(), has_value, n);
     }
 
-    /** Read worker_threads back. *out_has_value=false encodes the None
-     *  (auto-size) sentinel. */
-    int32_t get_worker_threads(bool* out_has_value, size_t* out_n) const {
-        return tdx_config_get_worker_threads(handle_.get(), out_has_value, out_n);
+    /** Read worker_threads back. Returns @c std::nullopt for the None
+     *  (auto-size) sentinel; returns the wrapped count when pinned. */
+    std::optional<size_t> get_worker_threads() const {
+        bool has_value = false;
+        size_t n = 0;
+        tdx_config_get_worker_threads(handle_.get(), &has_value, &n);
+        return has_value ? std::optional<size_t>{n} : std::nullopt;
     }
 
     // ── RetryPolicy field setters/getters ──
@@ -914,32 +971,40 @@ public:
     void set_retry_initial_delay_ms(uint64_t ms) {
         tdx_config_set_retry_initial_delay_ms(handle_.get(), ms);
     }
-    int32_t get_retry_initial_delay_ms(uint64_t* out_ms) const {
-        return tdx_config_get_retry_initial_delay_ms(handle_.get(), out_ms);
+    uint64_t get_retry_initial_delay_ms() const {
+        uint64_t out{};
+        tdx_config_get_retry_initial_delay_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Upper-bound backoff delay (ms). Default 30_000 (30 s). */
     void set_retry_max_delay_ms(uint64_t ms) {
         tdx_config_set_retry_max_delay_ms(handle_.get(), ms);
     }
-    int32_t get_retry_max_delay_ms(uint64_t* out_ms) const {
-        return tdx_config_get_retry_max_delay_ms(handle_.get(), out_ms);
+    uint64_t get_retry_max_delay_ms() const {
+        uint64_t out{};
+        tdx_config_get_retry_max_delay_ms(handle_.get(), &out);
+        return out;
     }
 
     /** Total attempt budget. 1 disables retry. Default 5. */
     void set_retry_max_attempts(uint32_t n) {
         tdx_config_set_retry_max_attempts(handle_.get(), n);
     }
-    int32_t get_retry_max_attempts(uint32_t* out_n) const {
-        return tdx_config_get_retry_max_attempts(handle_.get(), out_n);
+    uint32_t get_retry_max_attempts() const {
+        uint32_t out{};
+        tdx_config_get_retry_max_attempts(handle_.get(), &out);
+        return out;
     }
 
     /** AWS-style full jitter toggle. Default true. */
     void set_retry_jitter(bool jitter) {
         tdx_config_set_retry_jitter(handle_.get(), jitter);
     }
-    int32_t get_retry_jitter(bool* out_jitter) const {
-        return tdx_config_get_retry_jitter(handle_.get(), out_jitter);
+    bool get_retry_jitter() const {
+        bool out{};
+        tdx_config_get_retry_jitter(handle_.get(), &out);
+        return out;
     }
 
     // ── FlatFilesConfig field setters/getters ──
@@ -949,8 +1014,10 @@ public:
     void set_flatfiles_max_attempts(uint32_t n) {
         tdx_config_set_flatfiles_max_attempts(handle_.get(), n);
     }
-    int32_t get_flatfiles_max_attempts(uint32_t* out_n) const {
-        return tdx_config_get_flatfiles_max_attempts(handle_.get(), out_n);
+    uint32_t get_flatfiles_max_attempts() const {
+        uint32_t out{};
+        tdx_config_get_flatfiles_max_attempts(handle_.get(), &out);
+        return out;
     }
 
     /** Initial backoff delay (seconds). Doubles per attempt up to
@@ -958,8 +1025,10 @@ public:
     void set_flatfiles_initial_backoff_secs(uint64_t secs) {
         tdx_config_set_flatfiles_initial_backoff_secs(handle_.get(), secs);
     }
-    int32_t get_flatfiles_initial_backoff_secs(uint64_t* out_secs) const {
-        return tdx_config_get_flatfiles_initial_backoff_secs(handle_.get(), out_secs);
+    uint64_t get_flatfiles_initial_backoff_secs() const {
+        uint64_t out{};
+        tdx_config_get_flatfiles_initial_backoff_secs(handle_.get(), &out);
+        return out;
     }
 
     /** Upper-bound backoff delay (seconds). Default 4. Must be >=
@@ -967,8 +1036,10 @@ public:
     void set_flatfiles_max_backoff_secs(uint64_t secs) {
         tdx_config_set_flatfiles_max_backoff_secs(handle_.get(), secs);
     }
-    int32_t get_flatfiles_max_backoff_secs(uint64_t* out_secs) const {
-        return tdx_config_get_flatfiles_max_backoff_secs(handle_.get(), out_secs);
+    uint64_t get_flatfiles_max_backoff_secs() const {
+        uint64_t out{};
+        tdx_config_get_flatfiles_max_backoff_secs(handle_.get(), &out);
+        return out;
     }
 
     // ── AuthConfig field setters/getters ──
@@ -1067,22 +1138,54 @@ public:
      *  @c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
      *  (Batched) on a null handle (matching the C ABI's `-1` failure
      *  mapping at the boundary). */
-    int flush_mode() const {
+    int get_flush_mode() const {
         int32_t mode = 0;
         tdx_config_get_flush_mode(handle_.get(), &mode);
         return mode;
     }
 
     /** Set whether to derive OHLCVC bars locally from trades. */
-    void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
+    void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled); }
 
     /** Read the current OHLCVC-derivation flag. Returns `false` on a
      *  null handle (matching the C ABI's `-1` failure mapping at the
      *  boundary). */
-    bool derive_ohlcvc() const {
+    bool get_derive_ohlcvc() const {
         bool enabled = false;
         tdx_config_get_derive_ohlcvc(handle_.get(), &enabled);
         return enabled;
+    }
+
+    // ── MDDS endpoint ──
+
+    /** Set the historical (MDDS) gRPC host. Defaults to the upstream
+     *  production endpoint; redirect the historical channel at a known
+     *  host for testing. Throws a @c tdx::ThetaDataError leaf if the FFI
+     *  rejects the value (null handle or non-UTF-8 input). */
+    void set_mdds_host(const std::string& host) {
+        if (tdx_config_set_mdds_host(handle_.get(), host.c_str()) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Current historical (MDDS) gRPC host. Returns an empty string if
+     *  the FFI getter returns null (null handle or interior-NUL value). */
+    std::string get_mdds_host() const {
+        detail::FfiString s(tdx_config_get_mdds_host(handle_.get()));
+        return s.str();
+    }
+
+    /** Set the historical (MDDS) gRPC port. Companion to
+     *  @c set_mdds_host. */
+    void set_mdds_port(std::uint16_t port) {
+        tdx_config_set_mdds_port(handle_.get(), port);
+    }
+
+    /** Current historical (MDDS) gRPC port. Returns 0 on a null handle. */
+    std::uint16_t get_mdds_port() const {
+        std::uint16_t port = 0;
+        tdx_config_get_mdds_port(handle_.get(), &port);
+        return port;
     }
 
     // ── MDDS pool sizing ──
@@ -1105,7 +1208,7 @@ public:
      * or `0` on a null handle (matching the C ABI's `-1` failure
      * mapping at the boundary).
      */
-    std::uint32_t concurrent_requests() const {
+    std::uint32_t get_concurrent_requests() const {
         std::uint32_t n = 0;
         tdx_config_get_concurrent_requests(handle_.get(), &n);
         return n;
@@ -1131,7 +1234,7 @@ public:
      * Returns the configured byte count, or `0` on a null handle
      * (matching the C ABI's `-1` failure mapping at the boundary).
      */
-    std::size_t warn_on_buffered_threshold_bytes() const {
+    std::size_t get_warn_on_buffered_threshold_bytes() const {
         std::size_t n = 0;
         tdx_config_get_warn_on_buffered_threshold_bytes(handle_.get(), &n);
         return n;
@@ -1564,8 +1667,9 @@ struct UnifiedDeleter {
 /// Full-stream subscription descriptor returned by
 /// `ThetaDataDxClient::active_full_subscriptions`. `sec_type` carries the
 /// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
-/// full-stream subscription is bound to; `kind` is the subscription
-/// kind (`"Trade"` / `"OpenInterest"` / `"Quote"`).
+/// full-stream subscription is bound to; `kind` is the snake_case
+/// full-stream kind label (`"full_trades"` / `"full_open_interest"`),
+/// matching the Python / TypeScript `Subscription.kind` accessor.
 struct FullSubscription {
     std::string kind;
     std::string sec_type;
@@ -1946,15 +2050,43 @@ public:
     const std::string& sec_type() const noexcept { return sec_type_; }
     bool is_option() const noexcept { return is_option_; }
 
+    /// Stable snake_case wire-kind label, identical to the Python /
+    /// TypeScript `Subscription.kind` accessor and the C ABI
+    /// active-subscription `kind` field. Per-contract subscriptions
+    /// return `"quote"` / `"trade"` / `"open_interest"` /
+    /// `"market_value"`; full-stream subscriptions carry the `full_`
+    /// prefix (`"full_trades"` / `"full_open_interest"`) so a full-stream
+    /// open-interest subscription never reads the same as a per-contract
+    /// one.
+    std::string kind_string() const {
+        if (scope_ == Scope::Full) {
+            switch (kind_) {
+                case Kind::Trade:        return "full_trades";
+                case Kind::OpenInterest: return "full_open_interest";
+                case Kind::Quote:        return "full_quote";
+                case Kind::MarketValue:  return "full_market_value";
+            }
+            return "full_quote";
+        }
+        switch (kind_) {
+            case Kind::Quote:        return "quote";
+            case Kind::Trade:        return "trade";
+            case Kind::OpenInterest: return "open_interest";
+            case Kind::MarketValue:  return "market_value";
+        }
+        return "quote";
+    }
+
 private:
     friend class FluentContract;
     friend class FluentSecType;
 
-    static FluentSubscription per_contract_stock(std::string symbol, Kind k) {
+    static FluentSubscription per_contract_stock(std::string symbol, std::string sec_type, Kind k) {
         FluentSubscription s;
         s.scope_ = Scope::Contract;
         s.kind_ = k;
         s.symbol_ = std::move(symbol);
+        s.sec_type_ = std::move(sec_type);
         s.is_option_ = false;
         return s;
     }
@@ -2012,13 +2144,15 @@ class FluentContract {
 public:
     /// Construct a stock contract.
     static FluentContract stock(std::string symbol) {
-        return FluentContract{std::move(symbol), false, "", "", ""};
+        return FluentContract{std::move(symbol), "STOCK", false, "", "", ""};
     }
     /// Construct an index contract. Routes through the stock-shape
     /// wire encoder; the C ABI layer treats them identically (no
-    /// per-index subscribe call exists today).
+    /// per-index subscribe call exists today). The security type is
+    /// retained for rendering so an index contract reads `"INDEX"`
+    /// rather than `"STOCK"`.
     static FluentContract index(std::string symbol) {
-        return FluentContract{std::move(symbol), false, "", "", ""};
+        return FluentContract{std::move(symbol), "INDEX", false, "", "", ""};
     }
     /// Construct an option contract. The expiration / strike / right
     /// travel in a single `OptionLeg` with named members —
@@ -2028,62 +2162,51 @@ public:
     /// silently. `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"`
     /// (case-insensitive).
     static FluentContract option(std::string symbol, OptionLeg leg) {
-        return FluentContract{std::move(symbol), true, std::move(leg.expiration),
+        return FluentContract{std::move(symbol), "OPTION", true, std::move(leg.expiration),
                               std::move(leg.strike), std::move(leg.right)};
     }
 
     FluentSubscription quote() const {
-        if (is_option_) {
-            return FluentSubscription::per_contract_option(
-                symbol_, expiration_, strike_, right_,
-                FluentSubscription::Kind::Quote);
-        }
-        return FluentSubscription::per_contract_stock(
-            symbol_, FluentSubscription::Kind::Quote);
+        return make_subscription(FluentSubscription::Kind::Quote);
     }
     FluentSubscription trade() const {
-        if (is_option_) {
-            return FluentSubscription::per_contract_option(
-                symbol_, expiration_, strike_, right_,
-                FluentSubscription::Kind::Trade);
-        }
-        return FluentSubscription::per_contract_stock(
-            symbol_, FluentSubscription::Kind::Trade);
+        return make_subscription(FluentSubscription::Kind::Trade);
     }
     FluentSubscription open_interest() const {
-        if (is_option_) {
-            return FluentSubscription::per_contract_option(
-                symbol_, expiration_, strike_, right_,
-                FluentSubscription::Kind::OpenInterest);
-        }
-        return FluentSubscription::per_contract_stock(
-            symbol_, FluentSubscription::Kind::OpenInterest);
+        return make_subscription(FluentSubscription::Kind::OpenInterest);
     }
     /// Per-contract market-value subscription.
     FluentSubscription market_value() const {
-        if (is_option_) {
-            return FluentSubscription::per_contract_option(
-                symbol_, expiration_, strike_, right_,
-                FluentSubscription::Kind::MarketValue);
-        }
-        return FluentSubscription::per_contract_stock(
-            symbol_, FluentSubscription::Kind::MarketValue);
+        return make_subscription(FluentSubscription::Kind::MarketValue);
     }
 
     const std::string& symbol() const noexcept { return symbol_; }
     bool is_option() const noexcept { return is_option_; }
+    /// Security type as a symbolic name (`"STOCK"` / `"INDEX"` /
+    /// `"OPTION"`), retained so renderings distinguish an index contract
+    /// from a stock one.
+    const std::string& sec_type() const noexcept { return sec_type_; }
     const std::string& expiration() const noexcept { return expiration_; }
     const std::string& strike() const noexcept { return strike_; }
     const std::string& right() const noexcept { return right_; }
 
 private:
-    FluentContract(std::string symbol, bool is_option,
+    FluentContract(std::string symbol, std::string sec_type, bool is_option,
                    std::string expiration, std::string strike, std::string right)
-        : symbol_(std::move(symbol)), is_option_(is_option),
-          expiration_(std::move(expiration)), strike_(std::move(strike)),
-          right_(std::move(right)) {}
+        : symbol_(std::move(symbol)), sec_type_(std::move(sec_type)),
+          is_option_(is_option), expiration_(std::move(expiration)),
+          strike_(std::move(strike)), right_(std::move(right)) {}
+
+    FluentSubscription make_subscription(FluentSubscription::Kind k) const {
+        if (is_option_) {
+            return FluentSubscription::per_contract_option(
+                symbol_, expiration_, strike_, right_, k);
+        }
+        return FluentSubscription::per_contract_stock(symbol_, sec_type_, k);
+    }
 
     std::string symbol_;
+    std::string sec_type_;
     bool is_option_;
     std::string expiration_;
     std::string strike_;
@@ -2096,6 +2219,7 @@ public:
     static FluentSecType stock()  { return FluentSecType{"STOCK"}; }
     static FluentSecType option() { return FluentSecType{"OPTION"}; }
     static FluentSecType index()  { return FluentSecType{"INDEX"}; }
+    static FluentSecType rate()   { return FluentSecType{"RATE"}; }
 
     FluentSubscription full_trades() const {
         return FluentSubscription::full_stream(sec_type_,
@@ -2136,7 +2260,7 @@ inline std::ostream& operator<<(std::ostream& os, const FluentContract& contract
         os << " OPTION " << contract.expiration() << ' ' << contract.right() << ' '
            << contract.strike();
     } else {
-        os << " STOCK";
+        os << ' ' << contract.sec_type();
     }
     return os;
 }
@@ -2162,7 +2286,7 @@ inline std::ostream& operator<<(std::ostream& os, const FluentSubscription& sub)
     if (sub.is_option()) {
         os << " OPTION " << sub.expiration() << ' ' << sub.right() << ' ' << sub.strike();
     } else {
-        os << " STOCK";
+        os << ' ' << sub.sec_type();
     }
     return os << ')';
 }

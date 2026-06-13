@@ -21,14 +21,9 @@
 TEST_CASE("Config exposes FlatFilesConfig production defaults",
           "[config][flatfiles][offline]") {
     auto cfg = tdx::Config::production();
-    std::uint32_t n = 0;
-    std::uint64_t secs = 0;
-    REQUIRE(cfg.get_flatfiles_max_attempts(&n) == 0);
-    REQUIRE(n == 10u);
-    REQUIRE(cfg.get_flatfiles_initial_backoff_secs(&secs) == 0);
-    REQUIRE(secs == 1u);
-    REQUIRE(cfg.get_flatfiles_max_backoff_secs(&secs) == 0);
-    REQUIRE(secs == 30u);
+    REQUIRE(cfg.get_flatfiles_max_attempts() == 10u);
+    REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 1u);
+    REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 30u);
 }
 
 TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
@@ -36,9 +31,7 @@ TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
     auto cfg = tdx::Config::production();
     for (std::uint32_t n : {0u, 1u, 3u, 5u, 10u, 100u, 1000u}) {
         REQUIRE_NOTHROW(cfg.set_flatfiles_max_attempts(n));
-        std::uint32_t got = 0;
-        REQUIRE(cfg.get_flatfiles_max_attempts(&got) == 0);
-        REQUIRE(got == n);
+        REQUIRE(cfg.get_flatfiles_max_attempts() == n);
     }
 }
 
@@ -50,9 +43,7 @@ TEST_CASE("Config::set_flatfiles_initial_backoff_secs round-trips via getter",
                                std::uint64_t{60}, std::uint64_t{3600},
                                std::uint64_t{86'400}}) {
         REQUIRE_NOTHROW(cfg.set_flatfiles_initial_backoff_secs(secs));
-        std::uint64_t got = 0;
-        REQUIRE(cfg.get_flatfiles_initial_backoff_secs(&got) == 0);
-        REQUIRE(got == secs);
+        REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == secs);
     }
 }
 
@@ -63,9 +54,7 @@ TEST_CASE("Config::set_flatfiles_max_backoff_secs round-trips via getter",
                                std::uint64_t{4}, std::uint64_t{60},
                                std::uint64_t{3600}, std::uint64_t{86'400}}) {
         REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(secs));
-        std::uint64_t got = 0;
-        REQUIRE(cfg.get_flatfiles_max_backoff_secs(&got) == 0);
-        REQUIRE(got == secs);
+        REQUIRE(cfg.get_flatfiles_max_backoff_secs() == secs);
     }
 }
 
@@ -79,12 +68,7 @@ TEST_CASE("FlatFiles setters compose with pool-sizing setters",
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(12));
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
 
-    std::uint32_t n = 0;
-    std::uint64_t secs = 0;
-    REQUIRE(cfg.get_flatfiles_max_attempts(&n) == 0);
-    REQUIRE(n == 7u);
-    REQUIRE(cfg.get_flatfiles_initial_backoff_secs(&secs) == 0);
-    REQUIRE(secs == 3u);
-    REQUIRE(cfg.get_flatfiles_max_backoff_secs(&secs) == 0);
-    REQUIRE(secs == 12u);
+    REQUIRE(cfg.get_flatfiles_max_attempts() == 7u);
+    REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 3u);
+    REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 12u);
 }

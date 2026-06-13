@@ -59,6 +59,46 @@ impl SubscriptionKind {
             Self::MarketValue => StreamMsgType::RemoveMarketValue,
         }
     }
+
+    /// Stable snake_case wire-kind label for a per-contract subscription,
+    /// identical across every binding.
+    ///
+    /// This is the single source of the per-contract subscription-kind
+    /// string the C ABI (`tdx_unified_active_subscriptions`), the C++
+    /// `FluentSubscription::kind_string`, and the Python / TypeScript
+    /// `Subscription.kind` accessors all surface. Returning a fixed label
+    /// here keeps the bindings from drifting onto the enum's `Debug`
+    /// spelling, which is PascalCase and would diverge per language.
+    #[must_use]
+    pub fn kind_str(self) -> &'static str {
+        match self {
+            Self::Quote => "quote",
+            Self::Trade => "trade",
+            Self::OpenInterest => "open_interest",
+            Self::MarketValue => "market_value",
+        }
+    }
+
+    /// Stable snake_case label for this kind when carried as a
+    /// *full-stream* subscription, or `None` if the kind has no
+    /// full-stream form on the FPSS wire.
+    ///
+    /// Full-stream snapshots
+    /// ([`crate::ThetaDataDxClient::active_full_subscriptions`]) store the
+    /// kind as a [`SubscriptionKind`], but the cross-binding label carries
+    /// the `full_` prefix so a full-stream open-interest row never reads
+    /// the same as a per-contract one. Only `Trade` and `OpenInterest`
+    /// have a full-stream broadcast; `Quote` and `MarketValue` are
+    /// per-contract only and return `None` (the binding drops the row),
+    /// matching the Python / TypeScript projections.
+    #[must_use]
+    pub fn full_kind_str(self) -> Option<&'static str> {
+        match self {
+            Self::Trade => Some("full_trades"),
+            Self::OpenInterest => Some("full_open_interest"),
+            Self::Quote | Self::MarketValue => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +121,26 @@ pub enum FullSubscriptionKind {
     Trades,
     /// Full-stream open-interest subscription.
     OpenInterest,
+}
+
+impl FullSubscriptionKind {
+    /// Stable snake_case wire-kind label, identical across every binding.
+    ///
+    /// Full-stream kinds carry the `full_` prefix
+    /// (`full_trades` / `full_open_interest`) so a full-stream
+    /// open-interest subscription never renders the same label as a
+    /// per-contract one (both would be the bare enum `Debug` spelling
+    /// `OpenInterest` otherwise). The C ABI
+    /// (`tdx_unified_active_full_subscriptions`), the C++
+    /// `FluentSubscription::kind_string`, and the Python / TypeScript
+    /// `Subscription.kind` accessors all read this label.
+    #[must_use]
+    pub fn kind_str(self) -> &'static str {
+        match self {
+            Self::Trades => "full_trades",
+            Self::OpenInterest => "full_open_interest",
+        }
+    }
 }
 
 /// Typed, fluent market-data subscription.
@@ -293,6 +353,45 @@ mod tests {
     }
 
     // ---- Fluent Subscription tests ----------------------------------
+
+    #[test]
+    fn subscription_kind_str_is_snake_case() {
+        assert_eq!(SubscriptionKind::Quote.kind_str(), "quote");
+        assert_eq!(SubscriptionKind::Trade.kind_str(), "trade");
+        assert_eq!(SubscriptionKind::OpenInterest.kind_str(), "open_interest");
+        assert_eq!(SubscriptionKind::MarketValue.kind_str(), "market_value");
+    }
+
+    #[test]
+    fn subscription_kind_full_str_prefixes_and_filters() {
+        assert_eq!(SubscriptionKind::Trade.full_kind_str(), Some("full_trades"));
+        assert_eq!(
+            SubscriptionKind::OpenInterest.full_kind_str(),
+            Some("full_open_interest")
+        );
+        // Quote / MarketValue have no full-stream form on the wire.
+        assert_eq!(SubscriptionKind::Quote.full_kind_str(), None);
+        assert_eq!(SubscriptionKind::MarketValue.full_kind_str(), None);
+    }
+
+    #[test]
+    fn full_subscription_kind_str_is_prefixed() {
+        assert_eq!(FullSubscriptionKind::Trades.kind_str(), "full_trades");
+        assert_eq!(
+            FullSubscriptionKind::OpenInterest.kind_str(),
+            "full_open_interest"
+        );
+    }
+
+    #[test]
+    fn full_open_interest_never_collides_with_per_contract() {
+        // The collision the snake_case labels exist to prevent: a
+        // per-contract OI and a full-stream OI must read differently.
+        assert_ne!(
+            SubscriptionKind::OpenInterest.kind_str(),
+            FullSubscriptionKind::OpenInterest.kind_str()
+        );
+    }
 
     #[test]
     fn contract_quote_returns_per_contract_subscription() {

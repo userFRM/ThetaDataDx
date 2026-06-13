@@ -45,14 +45,14 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
     auto config = tdx::Config::production();
 
     config.set_flush_mode(1);
-    REQUIRE(config.flush_mode() == 1);
+    REQUIRE(config.get_flush_mode() == 1);
     config.set_flush_mode(0);
-    REQUIRE(config.flush_mode() == 0);
+    REQUIRE(config.get_flush_mode() == 0);
 
     config.set_derive_ohlcvc(false);
-    REQUIRE(config.derive_ohlcvc() == false);
+    REQUIRE(config.get_derive_ohlcvc() == false);
     config.set_derive_ohlcvc(true);
-    REQUIRE(config.derive_ohlcvc() == true);
+    REQUIRE(config.get_derive_ohlcvc() == true);
 }
 
 TEST_CASE("MddsClient::connect succeeds against the production server", "[lifecycle][live]") {

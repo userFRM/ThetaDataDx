@@ -1644,13 +1644,13 @@ pub unsafe extern "C" fn tdx_config_get_retry_jitter(
 
 /// Set FPSS OHLCVC derivation on a config handle.
 ///
-/// - `enabled = 1` (default): derive OHLCVC bars locally from trade events
-/// - `enabled = 0`: only emit server-sent OHLCVC frames (lower overhead)
+/// - `enabled = true` (default): derive OHLCVC bars locally from trade events
+/// - `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: i32) {
+pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: bool) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.derive_ohlcvc = enabled != 0;
+        config.inner.fpss.derive_ohlcvc = enabled;
     })
 }
 
@@ -2009,6 +2009,107 @@ pub unsafe extern "C" fn tdx_config_get_metrics_port(
     })
 }
 
+// ── MDDS endpoint ──────────────────────────────────────────────────
+//
+// The historical (MDDS) gRPC host / port advanced overrides. Both
+// default to the upstream production endpoint; point them at a known
+// host to redirect the historical channel (e.g. a refused endpoint in
+// structural tests that prove the streaming-only surface never opens
+// it). The host crosses the ABI as a `*const c_char` (validated non-null
+// + UTF-8); the port is a bare `u16`.
+
+/// Set the historical (MDDS) gRPC host on a config handle.
+///
+/// `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+/// Returns `0` on success, `-1` if `config` is null or `host` is
+/// null / not valid UTF-8 (the diagnostic is written to thread-local
+/// storage retrievable via `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_mdds_host(
+    config: *mut TdxConfig,
+    host: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let host = match unsafe { cstr_to_str(host) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("mdds_host is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("mdds_host is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by tdx_config_* and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.host = host.to_string();
+        0
+    })
+}
+
+/// Read the current historical (MDDS) gRPC host.
+///
+/// On success, returns a heap-owned NUL-terminated C string the caller
+/// MUST release with `tdx_string_free`. Returns null if `config` is
+/// null or the stored value contains an interior NUL (the diagnostic is
+/// written to `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_mdds_host(config: *const TdxConfig) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.mdds.host.as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("mdds_host contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Set the historical (MDDS) gRPC port on a config handle.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_mdds_port(config: *mut TdxConfig, port: u16) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.mdds.port = port;
+    })
+}
+
+/// Read the configured historical (MDDS) gRPC port. Writes the value
+/// into `*out_port`. Returns `0` on success, `-1` if either pointer is
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_mdds_port(
+    config: *const TdxConfig,
+    out_port: *mut u16,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_port.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+        unsafe {
+            *out_port = config.inner.mdds.port;
+        }
+        0
+    })
+}
+
 // ── MDDS pool sizing ───────────────────────────────────────────────
 
 /// Set the number of concurrent in-flight gRPC requests on a config
@@ -2211,11 +2312,11 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
-            let mut enabled = false;
-            super::tdx_config_set_derive_ohlcvc(cfg, 0);
+            let mut enabled = true;
+            super::tdx_config_set_derive_ohlcvc(cfg, false);
             assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
             assert!(!enabled);
-            super::tdx_config_set_derive_ohlcvc(cfg, 1);
+            super::tdx_config_set_derive_ohlcvc(cfg, true);
             assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
             assert!(enabled);
             // Null-pointer guard on the getter returns -1.
