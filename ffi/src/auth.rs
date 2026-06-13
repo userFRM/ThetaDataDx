@@ -2232,6 +2232,40 @@ pub unsafe extern "C" fn tdx_mdds_client_connect(
     })
 }
 
+/// Connect a historical (MDDS) client, loading credentials from a file
+/// (line 1 = email, line 2 = password) instead of a credentials handle.
+///
+/// One-call equivalent of `tdx_credentials_from_file` followed by
+/// `tdx_mdds_client_connect`: the credentials are opened from `path`,
+/// consumed for the connect, and freed internally. The returned handle
+/// and its ownership / free convention are identical to
+/// `tdx_mdds_client_connect` (free with `tdx_mdds_client_free`).
+///
+/// Returns null on argument validation or connection/auth failure
+/// (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_mdds_client_connect_from_file(
+    path: *const c_char,
+    config: *const TdxConfig,
+) -> *mut TdxMddsClient {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: `path` is a NUL-terminated C string valid for the call;
+        // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
+        // `tdx_last_error()` on failure.
+        let creds = unsafe { tdx_credentials_from_file(path) };
+        if creds.is_null() {
+            return ptr::null_mut();
+        }
+        // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
+        // and is owned by this function; `tdx_mdds_client_connect` borrows
+        // it and we free it unconditionally below.
+        let client = unsafe { tdx_mdds_client_connect(creds, config) };
+        // SAFETY: same fresh, unfreed handle from above.
+        unsafe { tdx_credentials_free(creds) };
+        client
+    })
+}
+
 /// Free a historical (MDDS) client handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_mdds_client_free(client: *mut TdxMddsClient) {

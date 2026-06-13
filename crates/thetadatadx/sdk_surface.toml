@@ -88,6 +88,13 @@ params = [
 ]
 
 [[methods]]
+name = "from_file"
+kind = "fpss_connect_from_file"
+doc = "Connect to FPSS streaming servers, loading credentials from a file (line 1 = email, line 2 = password), defaulting to the production configuration. Throws on failure."
+targets = ["cpp_fpss"]
+params = [{ name = "path", type = "string", doc = "Path to the credentials file." }]
+
+[[methods]]
 name = "credentials_from_file"
 kind = "credentials_from_file"
 doc = "Load credentials from a file. Throws on failure."
@@ -134,6 +141,13 @@ params = [
   { name = "creds", type = "credentials_ref", doc = "Credentials handle." },
   { name = "config", type = "config_ref", doc = "Configuration handle." },
 ]
+
+[[methods]]
+name = "mdds_client_from_file"
+kind = "client_connect_from_file"
+doc = "Connect the historical (MDDS) client, loading credentials from a file. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the credentials file." }]
 
 [[utilities]]
 name = "auth"

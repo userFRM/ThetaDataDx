@@ -51,10 +51,12 @@ pub(super) enum MethodKind {
     AwaitDrain,
     IsAuthenticated,
     FpssConnect,
+    FpssConnectFromFile,
     CredentialsFromFile,
     CredentialsFromEmail,
     ConfigConstructor,
     ClientConnect,
+    ClientConnectFromFile,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -270,6 +272,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
                 ("config", ParamType::ConfigRef),
             ],
         ),
+        MethodKind::FpssConnectFromFile => (
+            Some("from_file"),
+            &[CPP],
+            true,
+            &[("path", ParamType::String)],
+        ),
         MethodKind::CredentialsFromFile => (
             Some("credentials_from_file"),
             &[LIFE],
@@ -317,6 +325,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
                 ("creds", ParamType::CredentialsRef),
                 ("config", ParamType::ConfigRef),
             ],
+        ),
+        MethodKind::ClientConnectFromFile => (
+            Some("mdds_client_from_file"),
+            &[LIFE],
+            true,
+            &[("path", ParamType::String)],
         ),
     };
     let (expected_name, allowed_targets, exact_targets, params) = shape;

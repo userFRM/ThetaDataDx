@@ -1510,6 +1510,12 @@ int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config,
  *  connection/auth failure. */
 TdxMddsClient* tdx_mdds_client_connect(const TdxCredentials* creds, const TdxConfig* config);
 
+/** Connect a historical (MDDS) client, loading credentials from a file
+ *  (line 1 = email, line 2 = password). One-call equivalent of
+ *  tdx_credentials_from_file + tdx_mdds_client_connect. Free with
+ *  tdx_mdds_client_free. Returns NULL on argument or connection/auth failure. */
+TdxMddsClient* tdx_mdds_client_connect_from_file(const char* path, const TdxConfig* config);
+
 /** Free a historical (MDDS) client handle. */
 void tdx_mdds_client_free(TdxMddsClient* client);
 
@@ -1665,6 +1671,12 @@ bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollar
 /** Connect to the real-time streaming servers. Returns NULL on failure. */
 TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
 
+/** Connect to the real-time streaming servers, loading credentials from a file
+ *  (line 1 = email, line 2 = password). One-call equivalent of
+ *  tdx_credentials_from_file + tdx_fpss_connect. Free with tdx_fpss_free.
+ *  Returns NULL on failure. */
+TdxFpssHandle* tdx_fpss_connect_from_file(const char* path, const TdxConfig* config);
+
 /** Polymorphic subscribe / unsubscribe — see TdxSubscriptionRequest below. */
 
 /** Check if authenticated. Returns 1 if true, 0 if false. */
@@ -1816,6 +1828,12 @@ void tdx_fpss_free(TdxFpssHandle* h);
 /** Connect to ThetaData (historical only -- real-time streaming is NOT started).
  *  Returns NULL on connection/auth failure (check tdx_last_error()). */
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
+
+/** Connect a unified client, loading credentials from a file (line 1 = email,
+ *  line 2 = password). One-call equivalent of tdx_credentials_from_file +
+ *  tdx_unified_connect. Free with tdx_unified_free. Returns NULL on argument
+ *  or connection/auth failure (check tdx_last_error()). */
+TdxUnified* tdx_unified_connect_from_file(const char* path, const TdxConfig* config);
 
 /** Register a streaming callback and start streaming on the unified client.
  *

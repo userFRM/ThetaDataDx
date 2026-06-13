@@ -66,6 +66,11 @@ fn cpp_fpss_decl(method: &MethodSpec) -> String {
         MethodKind::FpssConnect => {
             out.push_str("    FpssClient(const Credentials& creds, const Config& config);\n");
         }
+        MethodKind::FpssConnectFromFile => {
+            out.push_str(
+                "    static FpssClient from_file(const std::string& path, const Config& config = Config::production());\n",
+            );
+        }
         MethodKind::StockContractCall | MethodKind::FullCall => {
             writeln!(
                 out,
@@ -103,6 +108,9 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
     match method.kind {
         MethodKind::FpssConnect => {
             include_str!("templates/cpp/fpss_connect_def.cpp.tmpl").to_string()
+        }
+        MethodKind::FpssConnectFromFile => {
+            include_str!("templates/cpp/fpss_connect_from_file_def.cpp.tmpl").to_string()
         }
         MethodKind::StockContractCall | MethodKind::FullCall => format!(
             "int FpssClient::{}({} {}) {{ return tdx_fpss_{}(handle_.get(), {}.c_str()); }}\n",
@@ -202,6 +210,9 @@ fn cpp_lifecycle_def(method: &MethodSpec) -> String {
         }
         MethodKind::ClientConnect => {
             include_str!("templates/cpp/client_connect_def.cpp.tmpl").to_string()
+        }
+        MethodKind::ClientConnectFromFile => {
+            include_str!("templates/cpp/client_connect_from_file_def.cpp.tmpl").to_string()
         }
         other => panic!("unsupported C++ lifecycle kind: {other:?}"),
     }
