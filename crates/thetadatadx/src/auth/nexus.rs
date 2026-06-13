@@ -238,6 +238,37 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     authenticate_at(NEXUS_AUTH_URL, creds).await
 }
 
+/// Build the rustls config for the auth HTTP client with an explicit ring
+/// provider so the handshake needs no process-global default.
+///
+/// reqwest is pinned with `rustls-no-provider`, so it has no provider baked in
+/// and would otherwise read `CryptoProvider::get_default()` — panicking when no
+/// global default is installed. Building the config here and handing it to
+/// reqwest via `use_preconfigured_tls` mirrors reqwest's own default path
+/// (ring provider + platform-verifier trust roots) without depending on global
+/// state. ALPN is set explicitly because a preconfigured config bypasses
+/// reqwest's ALPN defaulting; `h2` + `http/1.1` matches reqwest's auto mode.
+fn auth_tls_config() -> Result<rustls::ClientConfig, Error> {
+    let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+    let verifier = std::sync::Arc::new(
+        rustls_platform_verifier::Verifier::new(provider.clone()).map_err(|e| Error::Auth {
+            kind: crate::error::AuthErrorKind::NetworkError,
+            message: format!("failed to build TLS trust verifier: {e}"),
+        })?,
+    );
+    let mut config = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| Error::Auth {
+            kind: crate::error::AuthErrorKind::NetworkError,
+            message: format!("failed to build TLS config: {e}"),
+        })?
+        .dangerous()
+        .with_custom_certificate_verifier(verifier)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    Ok(config)
+}
+
 /// Authenticate against the Nexus API and return the session info.
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
@@ -259,6 +290,7 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
     let auth_start = std::time::Instant::now();
 
     let client = reqwest::Client::builder()
+        .use_preconfigured_tls(auth_tls_config()?)
         .timeout(Duration::from_secs(10))
         .connect_timeout(Duration::from_secs(5))
         .build()

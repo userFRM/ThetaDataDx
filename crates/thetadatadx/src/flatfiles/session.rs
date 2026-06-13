@@ -45,10 +45,14 @@ pub(crate) struct MddsHost<'a> {
 
 /// Open a TLS connection to a single MDDS host with SPKI pinning.
 pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStream>, Error> {
-    let cfg = ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(MddsSpkiVerifier::new())
-        .with_no_client_auth();
+    // Build the config with an explicit ring provider so the handshake needs
+    // no process-global default. ring is the sole provider in the dep graph.
+    let cfg =
+        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()?
+            .dangerous()
+            .with_custom_certificate_verifier(MddsSpkiVerifier::new())
+            .with_no_client_auth();
     let connector = TlsConnector::from(Arc::new(cfg));
     let server_name: ServerName<'static> =
         ServerName::try_from(target.host.to_string()).map_err(|e| {

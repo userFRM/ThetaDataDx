@@ -260,12 +260,16 @@ pub(crate) fn connect_to_servers(
 /// expiry problem into an open **MITM + credential harvest** hole -- the
 /// very next frame after the handshake contains the user's email + password),
 /// we pin on the leaf's SPKI. See [`super::pinning`] for the full rationale.
-fn tls_client_config() -> Arc<ClientConfig> {
-    let config = ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(PinnedVerifier::new())
-        .with_no_client_auth();
-    Arc::new(config)
+fn tls_client_config() -> Result<Arc<ClientConfig>, crate::error::Error> {
+    // Build the config with an explicit ring provider so the handshake needs
+    // no process-global default. ring is the sole provider in the dep graph.
+    let config =
+        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()?
+            .dangerous()
+            .with_custom_certificate_verifier(PinnedVerifier::new())
+            .with_no_client_auth();
+    Ok(Arc::new(config))
 }
 
 /// Arm `SO_KEEPALIVE` on the freshly-connected socket.
@@ -353,7 +357,7 @@ fn try_connect(
             message: format!("invalid TLS server name '{host}': {e}"),
         })?;
 
-    let tls_conn = ClientConnection::new(tls_client_config(), server_name).map_err(|e| {
+    let tls_conn = ClientConnection::new(tls_client_config()?, server_name).map_err(|e| {
         crate::error::Error::Fpss {
             kind: crate::error::FpssErrorKind::ConnectionRefused,
             message: format!("TLS setup for {addr} failed: {e}"),
