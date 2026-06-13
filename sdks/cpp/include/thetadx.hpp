@@ -26,8 +26,54 @@
 #include <vector>
 #include <utility>
 #include <stdexcept>
+#include <type_traits>
+
+#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
+#include <span>
+#endif
 
 namespace tdx {
+
+// ── Chunk view for the server-stream callbacks ──
+//
+// `Span<const Tick>` is the borrowed, contiguous view the `_stream` methods
+// hand each decoded chunk through. Under C++20 it is exactly `std::span`; on
+// a C++17 toolchain (the SDK's baseline standard) it degrades to a minimal
+// pointer + length view with the same `data()` / `size()` / iteration surface,
+// so streaming callers compile unchanged on either standard. The view never
+// owns the rows — they belong to the decoder and are freed before the next
+// chunk, so a caller that needs rows beyond the callback must copy them out.
+#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
+template <typename T>
+using Span = std::span<T>;
+#else
+template <typename T>
+class Span {
+public:
+    using element_type = T;
+    using value_type = std::remove_cv_t<T>;
+    using size_type = std::size_t;
+    using pointer = T*;
+    using reference = T&;
+    using iterator = T*;
+    using const_iterator = const T*;
+
+    constexpr Span() noexcept : data_(nullptr), size_(0) {}
+    constexpr Span(T* data, std::size_t size) noexcept : data_(data), size_(size) {}
+
+    constexpr T* data() const noexcept { return data_; }
+    constexpr std::size_t size() const noexcept { return size_; }
+    constexpr bool empty() const noexcept { return size_ == 0; }
+
+    constexpr T& operator[](std::size_t i) const noexcept { return data_[i]; }
+    constexpr T* begin() const noexcept { return data_; }
+    constexpr T* end() const noexcept { return data_ + size_; }
+
+private:
+    T* data_;
+    std::size_t size_;
+};
+#endif
 
 // ── Tick types (re-exported from thetadx.h for C++ convenience) ──
 // These are typedef aliases to the C types defined in thetadx.h.
@@ -1551,6 +1597,15 @@ public:
     /// underlying C ABI handle, so the lifetime of the returned
     /// `FlatFiles` value is bounded by `*this`.
     FlatFiles flat_files() const { return FlatFiles(handle_.get()); }
+
+    // Generated server-stream historical methods (`<endpoint>_stream`). Each
+    // drains a large historical result chunk-by-chunk through a
+    // `std::function<void(Span<const Tick>)>` handler, bounding peak memory to
+    // a single chunk. They borrow the historical client from this unified
+    // handle (`tdx_unified_historical`), so they share the authenticated
+    // session — no second connection. Included here so the declarations extend
+    // the `UnifiedClient` body and count toward the cross-binding parity gate.
+    #include "historical_stream.hpp.inc"
 
     /// Polymorphic subscribe — primary fluent entry point. Defined
     /// inline below the fluent class declarations.

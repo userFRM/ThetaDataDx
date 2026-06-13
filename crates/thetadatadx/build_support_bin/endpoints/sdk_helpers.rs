@@ -147,25 +147,13 @@ pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<Gen
 /// no `<T>List` wrapper, no `run_blocking` signal-check ticker, bounded
 /// `tokio::time::timeout` instead.
 ///
-/// Classification lives in `endpoint_surface.toml`:
-///   * `subcategory = "snapshot"` — stock/option/index snapshot variants.
-///   * `subcategory = "snapshot_greeks"` — option_snapshot_greeks_*.
-///   * `category = "calendar"` + `kind = "parsed"` — calendar_* endpoints
-///     (the TOML groups both `calendar_status` and `calendar_query` under
-///     the `calendar` category; both fit the ≤1-row lookup shape).
-///
-/// No hand-curated allowlist. Adding a new snapshot / calendar endpoint to
-/// the TOML with the right template automatically opts it into the fast
-/// path on the next generator run.
-pub(super) fn is_snapshot_endpoint(endpoint: &GeneratedEndpoint) -> bool {
-    if endpoint.kind != "parsed" {
-        return false;
-    }
-    matches!(
-        endpoint.subcategory.as_str(),
-        "snapshot" | "snapshot_greeks"
-    ) || endpoint.category == "calendar"
-}
+/// Re-exports the shared SSOT predicate (`helpers::is_snapshot_endpoint`) so
+/// the Python / docs emitters classify snapshots identically — a single
+/// definition keyed off `endpoint_surface.toml` structure, never a
+/// hand-curated allowlist. The streaming emitters import the streaming
+/// predicates (`endpoint_streams`, `endpoint_streams_repr_c_ticks`) straight
+/// from `helpers`.
+pub(super) use super::helpers::is_snapshot_endpoint;
 
 // ───────────────────────── Docstring composition ───────────────────────────
 

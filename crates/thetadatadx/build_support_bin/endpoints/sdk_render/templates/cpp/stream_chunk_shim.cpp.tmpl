@@ -1,0 +1,16 @@
+    // Shared `extern "C"` trampoline the C ABI invokes once per streamed
+    // chunk. `ctx` is the address of the erased
+    // `std::function<void(const void*, size_t)>` the calling `_stream`
+    // method staged on its stack; it reinterprets the chunk pointer as the
+    // endpoint's tick type and forwards the span to the user handler. The
+    // erased function outlives every invocation because the C ABI blocks
+    // until the stream drains. Exceptions are swallowed: a throw must never
+    // unwind across the C ABI into Rust (same contract as `callback_shim`).
+    static void stream_chunk_shim(const void* rows, std::size_t len, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const void*, std::size_t)>*>(ctx);
+        if (fn == nullptr) return;
+        try {
+            (*fn)(rows, len);
+        } catch (...) {
+        }
+    }

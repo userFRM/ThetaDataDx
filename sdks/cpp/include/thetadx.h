@@ -1478,6 +1478,24 @@ void tdx_string_free(char* s);
 /* Generated option-aware endpoint declarations. */
 #include "endpoint_with_options.h.inc"
 
+/** User callback signature for the tdx_<endpoint>_stream server-stream entry
+ *  points. Invoked once per decoded chunk drained from a historical result.
+ *
+ *  `rows` points at the first element of a contiguous run of `len` tick
+ *  structs -- the SAME layout the matching tdx_<endpoint>_with_options array
+ *  returns (e.g. a tdx_option_history_trade_stream chunk is `len` x
+ *  TdxTradeTick). Cast `rows` to that tick pointer type before indexing. The
+ *  pointer is valid only for the duration of the call -- copy any rows the
+ *  caller wants to outlive the callback. An empty result drains as zero
+ *  invocations (a null `rows` with `len == 0` is never delivered).
+ *
+ *  `ctx` is the opaque pointer registered alongside the callback; it is passed
+ *  back unchanged on every invocation. */
+typedef void (*TdxTickChunkCallback)(const void* rows, size_t len, void* ctx);
+
+/* Generated server-stream endpoint declarations. */
+#include "historical_stream.h.inc"
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Greeks (standalone)                                                   */
 /* ═══════════════════════════════════════════════════════════════════════ */
