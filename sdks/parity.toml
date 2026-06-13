@@ -46,8 +46,8 @@ cpp = true
 [[class]]
 name = "MddsClient"
 python = true
-typescript = false  # not yet ported — issue #545 follow-up
-cpp = false         # not yet ported — issue #545 follow-up
+typescript = true   # standalone historical-only napi class; generated historical surface, no streaming methods
+cpp = false         # C++ uses `tdx::Client` for the MDDS-only role; no dedicated `MddsClient` symbol
 
 [[class]]
 name = "StreamingSession"

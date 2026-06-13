@@ -51,10 +51,11 @@ describe('endpoint options objects', () => {
 });
 
 describe('historical methods resolve off the execution thread', () => {
-  // The 61 data-fetch methods declared on ThetaDataDxClient. Each runs
-  // the network round-trip on a worker and resolves a Promise, so a
-  // fetch never holds the Node event loop. Element types are unchanged
-  // — only the surrounding shape becomes a Promise.
+  // The 61 buffered data-fetch methods declared on ThetaDataDxClient.
+  // Each runs the network round-trip on a worker and resolves a Promise
+  // with the full typed row array, so a fetch never holds the Node event
+  // loop. Element types are unchanged — only the surrounding shape
+  // becomes a Promise.
   //
   // Pulled from the single client interface block so streaming lifecycle
   // declarations elsewhere in the file (awaitDrain etc.) cannot dilute
@@ -67,13 +68,19 @@ describe('historical methods resolve off the execution thread', () => {
 
   // Every endpoint method names a return type; collect each declared
   // `methodName(...): <ret>` whose name matches the data-fetch families.
+  // The `<endpoint>Stream(...)` server-stream companions share the same
+  // name families (`stockHistoryEODStream` etc.) but are a distinct
+  // surface: they pump chunks into a callback and resolve `Promise<void>`
+  // rather than returning the buffered row array. They are excluded here
+  // so this block pins the buffered-fetch contract; their shape is
+  // covered by the bare-Array assertion below.
   const familyRe =
     /^\s+((?:stock|option|index)History\w*|\w*Snapshot\w*|\w*AtTime\w*|\w*List\w*|calendar\w*|interestRate\w*)\(/;
   const methodLines = body
     .split('\n')
-    .filter((line) => familyRe.test(line));
+    .filter((line) => familyRe.test(line) && !/Stream\(/.test(line));
 
-  it('every data-fetch method is present (61 of them)', () => {
+  it('every buffered data-fetch method is present (61 of them)', () => {
     // Pin the count so a generator change that drops a method, or leaks
     // a streaming lifecycle method into the data-fetch families, is
     // caught here rather than silently shrinking the async surface.
