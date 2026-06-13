@@ -1225,8 +1225,7 @@ int32_t tdx_config_get_fpss_host_selection(const TdxConfig* config, int32_t* out
  * under the FixedOrder policy. Returns 0 on success, -1 if config is
  * null.
  */
-int32_t tdx_config_set_fpss_host_shuffle_seed_explicit(TdxConfig* config, bool has_value,
-                                                       uint64_t seed);
+int32_t tdx_config_set_fpss_host_shuffle_seed(TdxConfig* config, bool has_value, uint64_t seed);
 
 /**
  * Read the current FPSS host-shuffle seed. *out_has_value=false
@@ -1267,7 +1266,7 @@ int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitte
  *
  * Returns 0 on success, -1 if `config` is NULL.
  */
-int32_t tdx_config_set_worker_threads_explicit(TdxConfig* config, bool has_value, size_t n);
+int32_t tdx_config_set_worker_threads(TdxConfig* config, bool has_value, size_t n);
 
 /**
  * Read the current async worker-thread count. Same widened

@@ -211,7 +211,7 @@ cpp = true
 #
 # Per-field access on the legacy `FlatFilesConfig` sub-config. Bound on
 # every binding: Python via `Config.flatfiles_*` setters/getters,
-# TypeScript via `Config.setFlatFiles*`, C++ via
+# TypeScript via `Config.setFlatfiles*`, C++ via
 # `tdx::Config::set_flatfiles_*` (which forwards to the FFI
 # `tdx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
 # two `Duration` fields cross the binding boundary as `u64` seconds
@@ -354,11 +354,10 @@ cpp = true
 # Async worker-thread sub-config knob honoured by embedded bindings
 # that own their runtime (FFI / Python / napi). The public setter is
 # `worker_threads` on every binding (Python `Config.worker_threads`,
-# TypeScript `Config.setWorkerThreadsExplicit` / `workerThreads`, C++
-# `set_worker_threads_explicit`, FFI
-# `tdx_config_set_worker_threads_explicit`). The row name carries the
-# public concept; the internal storage field maps to it through the
-# rename table in `check_binding_parity.py`. The widened
+# TypeScript `Config.setWorkerThreads` / `workerThreads`, C++
+# `set_worker_threads`, FFI `tdx_config_set_worker_threads`). The row
+# name carries the public concept; the internal storage field maps to
+# it through the rename table in `check_binding_parity.py`. The widened
 # `(has_value, n)` ABI shape on the C surface lets the `Some(0)`
 # sentinel survive the C boundary.
 
@@ -474,24 +473,24 @@ cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTim
 # Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`):
 # point the historical channel at a known host (e.g. a refused endpoint
 # in structural tests that prove the streaming surface never opens it).
-# MDDS is a vendor protocol name, kept verbatim. Exposed on Python
-# (`Config.mdds_host` / `.mdds_port`) and C++ (`set_mdds_host` /
+# MDDS is a vendor protocol name, kept verbatim. Exposed on every
+# binding: Python (`Config.mdds_host` / `.mdds_port`), TypeScript
+# (`Config.setMddsHost` / `.setMddsPort`), and C++ (`set_mdds_host` /
 # `set_mdds_port` over the FFI `tdx_config_set_mdds_host` /
-# `tdx_config_set_mdds_port`). TypeScript does not carry these advanced
-# knobs. The dotted rows below capture the partial-binding state via the
-# `setter = "..."` override.
+# `tdx_config_set_mdds_port`). The dotted rows below capture the
+# binding state via the `setter = "..."` override.
 
 [[class]]
 name = "MddsConfig.host"
 python = true       # `Config.mdds_host` advanced override
-typescript = false  # advanced historical-endpoint knob not exposed on the napi Config
+typescript = true   # `Config.setMddsHost` / `mddsHost` napi setter+getter
 cpp = true          # `Config::set_mdds_host` over `tdx_config_set_mdds_host`
 setter = "mdds_host"
 
 [[class]]
 name = "MddsConfig.port"
 python = true       # `Config.mdds_port` advanced override
-typescript = false  # advanced historical-endpoint knob not exposed on the napi Config
+typescript = true   # `Config.setMddsPort` / `mddsPort` napi setter+getter
 cpp = true          # `Config::set_mdds_port` over `tdx_config_set_mdds_port`
 setter = "mdds_port"
 
@@ -1145,14 +1144,17 @@ python = true
 typescript = true
 cpp = true
 
-# The `deriveOhlcvc` / `concurrentRequests` readback getters are exposed
-# on every binding: Python (`Config.derive_ohlcvc` / `.concurrent_requests`
-# properties), TypeScript (`Config.deriveOhlcvc` / `.concurrentRequests`
-# getters), C++ (`Config::get_derive_ohlcvc()` / `::get_concurrent_requests()`
-# over the FFI `tdx_config_get_derive_ohlcvc` / `_concurrent_requests`
-# symbols). C++ readback getters carry a uniform `get_` prefix; the
-# parity gate accepts that per-language convention. The matching setters
-# are tracked by the dotted `[[class]]` rows `FpssConfig.derive_ohlcvc` /
+# The `flushMode` / `deriveOhlcvc` / `concurrentRequests` readback
+# getters are exposed on every binding: Python (`Config.flush_mode` /
+# `.derive_ohlcvc` / `.concurrent_requests` properties), TypeScript
+# (`Config.flushMode` / `.deriveOhlcvc` / `.concurrentRequests`
+# getters), C++ (`Config::get_flush_mode()` etc. over the FFI
+# `tdx_config_get_*` symbols). Both the Python `#[getter]` accessors and
+# the C++ readback getters carry a uniform `get_` Rust/C++ fn prefix
+# (pyo3 strips it so the Python property name stays bare); the parity
+# gate accepts that per-language convention against the bare row. The
+# matching setters are tracked by the dotted `[[class]]` rows
+# `FpssConfig.flush_mode` / `FpssConfig.derive_ohlcvc` /
 # `MddsConfig.concurrent_requests`.
 [[method]]
 class = "Config"

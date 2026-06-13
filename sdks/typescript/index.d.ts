@@ -5,9 +5,9 @@
  *
  * Build a config via one of the three static factories
  * ([`Config::production`] / [`Config::dev`] / [`Config::stage`]), tune
- * it with the setters below, then pass it to
- * `ThetaDataDxClient.connectWithConfig` /
- * `ThetaDataDxClient.connectFromFileWithConfig`.
+ * it with the setters below, then pass it as the optional second
+ * argument to `ThetaDataDxClient.connect(creds, config)` /
+ * `ThetaDataDxClient.connectFromFile(path, config)`.
  *
  * Mutating methods follow JS convention and
  * return `void` (chain by calling `cfg.method(...)` then passing
@@ -288,9 +288,9 @@ export declare class Config {
    * Default `true`; `false` gives the deterministic schedule,
    * useful for tests that assert exact timings.
    */
-  setFlatFilesJitter(jitter: boolean): void
+  setFlatfilesJitter(jitter: boolean): void
   /** Current `flatfiles.jitter` value (default `true`). */
-  get flatFilesJitter(): boolean
+  get flatfilesJitter(): boolean
   /**
    * Set the async worker-thread count for embedded runtimes.
    * `hasValue=false` defers to the default sizing; `hasValue=true`
@@ -298,7 +298,7 @@ export declare class Config {
    * sentinel, matching the widened-`Option` setter shape across the
    * binding matrix).
    */
-  setWorkerThreadsExplicit(hasValue: boolean, n: number): void
+  setWorkerThreads(hasValue: boolean, n: number): void
   /**
    * Current `workerThreads` setting as `{ hasValue, n }`.
    * `hasValue=false` encodes the `None` (auto) sentinel.
@@ -342,33 +342,33 @@ export declare class Config {
    * permit retries up to `maxAttempts - 1` after the initial call.
    * Default `3`. Validated to the range `[1, 10]` at connect time.
    */
-  setFlatFilesMaxAttempts(n: number): void
+  setFlatfilesMaxAttempts(n: number): void
   /** Current `flatfiles.max_attempts` value. */
-  get flatFilesMaxAttempts(): number
+  get flatfilesMaxAttempts(): number
   /**
    * Set the initial backoff delay (seconds) for the flatfile
    * driver retry loop. Doubles per attempt up to
-   * `flatFilesMaxBackoffSecs`. Default `1n`.
+   * `flatfilesMaxBackoffSecs`. Default `1n`.
    *
    * Accepts a `bigint` for parity with the Python / C++ / FFI
    * surface (`u64`).
    */
-  setFlatFilesInitialBackoffSecs(secs: bigint): void
+  setFlatfilesInitialBackoffSecs(secs: bigint): void
   /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
-  get flatFilesInitialBackoffSecs(): bigint
+  get flatfilesInitialBackoffSecs(): bigint
   /**
    * Set the upper-bound backoff delay (seconds) for the flatfile
    * driver retry loop. The doubling schedule never exceeds this
    * value regardless of attempt number. Default `4n`. Must be
-   * greater than or equal to `flatFilesInitialBackoffSecs`
+   * greater than or equal to `flatfilesInitialBackoffSecs`
    * (rejected at connect-time validate otherwise).
    *
    * Accepts a `bigint` for parity with the Python / C++ / FFI
    * surface (`u64`).
    */
-  setFlatFilesMaxBackoffSecs(secs: bigint): void
+  setFlatfilesMaxBackoffSecs(secs: bigint): void
   /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
-  get flatFilesMaxBackoffSecs(): bigint
+  get flatfilesMaxBackoffSecs(): bigint
   /**
    * Set the Nexus auth URL. Default matches the upstream
    * production endpoint; override to redirect at a staging
@@ -385,6 +385,18 @@ export declare class Config {
   setClientType(clientType: string): void
   /** Current `auth.client_type` value. */
   get clientType(): string
+  /** Override the historical gRPC host. Companion to `setMddsPort`. */
+  setMddsHost(host: string): void
+  /** Current historical gRPC host. */
+  get mddsHost(): string
+  /**
+   * Override the historical gRPC port. Companion to `setMddsHost` —
+   * same test-only rationale. Rejects values outside the `u16` range
+   * (`0..=65535`).
+   */
+  setMddsPort(port: number): void
+  /** Current historical gRPC port. */
+  get mddsPort(): number
   /**
    * Set the Prometheus exporter port. Pass `null` or `undefined`
    * to leave the exporter disabled (the `None` default); pass a
@@ -2717,6 +2729,25 @@ export declare class Util {
   static isHalted(code: number): boolean
   static exchangeName(code: number): string
   static exchangeSymbol(code: number): string
+  /**
+   * Vendor vocabulary text for a calendar-day `status` code (`0` ->
+   * `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
+   * `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside
+   * the table. Mirrors the C++ `tdx::calendar_status_name` and the C
+   * ABI `tdx_calendar_status_name`.
+   */
+  static calendarStatusName(code: number): string
+  /**
+   * Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
+   * into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
+   * Usable with any `(date, *_ms_of_day)` pair on the tick structs.
+   * Returns `null` when `date` is absent (`0`) or either input is out
+   * of domain — the same `std::nullopt` contract the C++
+   * `tdx::timestamp_ms` returns (the C ABI `tdx_timestamp_ms` encodes
+   * that absence as the `-1` sentinel). BigInt matches the
+   * `*TimestampMs` tick accessors so the epoch domain is uniform.
+   */
+  static timestampMs(date: number, msOfDay: number): bigint | null
   /**
    * Convert a signed wire-encoded trade-sequence value to its unsigned
    * monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.

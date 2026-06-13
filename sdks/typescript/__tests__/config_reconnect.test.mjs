@@ -155,7 +155,7 @@ describe('Config.setReconnectWaitMs / setReconnectWaitRateLimitedMs', () => {
   });
 });
 
-describe('Config.setWorkerThreadsExplicit', () => {
+describe('Config.setWorkerThreads', () => {
   it('default workerThreads is the None (auto) sentinel', () => {
     const cfg = Config.production();
     const got = cfg.workerThreads;
@@ -166,13 +166,13 @@ describe('Config.setWorkerThreadsExplicit', () => {
   it('round-trip preserves Some(0) and explicit pinned counts', () => {
     const cfg = Config.production();
     for (const n of [0, 1, 2, 4, 8, 16, 64]) {
-      cfg.setWorkerThreadsExplicit(true, n);
+      cfg.setWorkerThreads(true, n);
       const got = cfg.workerThreads;
       assert.equal(got.hasValue, true);
       assert.equal(got.n, n);
     }
     // Reset to None.
-    cfg.setWorkerThreadsExplicit(false, 999);
+    cfg.setWorkerThreads(false, 999);
     const got = cfg.workerThreads;
     assert.equal(got.hasValue, false);
     assert.equal(got.n, 0);

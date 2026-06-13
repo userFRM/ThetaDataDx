@@ -47,6 +47,28 @@ describe('Util cross-language helpers (#424)', () => {
     }
   });
 
+  it('exposes calendarStatusName and timestampMs with the cross-binding sentinels', () => {
+    // Calendar status — vocabulary from the C ABI tdx_calendar_status_name
+    // / the core CalendarStatus enum. Out-of-table codes return "UNKNOWN".
+    assert.equal(mod.Util.calendarStatusName(0), 'open');
+    assert.equal(mod.Util.calendarStatusName(1), 'early_close');
+    assert.equal(mod.Util.calendarStatusName(2), 'full_close');
+    assert.equal(mod.Util.calendarStatusName(3), 'weekend');
+    assert.equal(mod.Util.calendarStatusName(99), 'UNKNOWN');
+    assert.equal(mod.Util.calendarStatusName(-1), 'UNKNOWN');
+
+    // timestamp_ms combines an Eastern-Time YYYYMMDD date + ms-of-day
+    // into epoch ms as a BigInt. 2024-01-02 09:30 ET = 14:30 UTC.
+    const epoch = mod.Util.timestampMs(20240102, 34200000);
+    assert.equal(typeof epoch, 'bigint');
+    assert.equal(epoch, 1704205800000n);
+
+    // Out-of-domain inputs return null (the std::nullopt contract the
+    // C++ tdx::timestamp_ms shares), never a coerced sentinel value.
+    assert.equal(mod.Util.timestampMs(0, 0), null);
+    assert.equal(mod.Util.timestampMs(20240102, -1), null);
+  });
+
   it('rejects BigInt inputs outside the wire range instead of silent coercion', () => {
     // i32::MAX + 1 — out of wire range.
     assert.throws(

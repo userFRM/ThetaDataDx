@@ -1225,7 +1225,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_host_selection(
 /// Ignored under the `FixedOrder` host-selection policy. Returns `0`
 /// on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed_explicit(
+pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed(
     config: *mut TdxConfig,
     has_value: bool,
     seed: u64,
@@ -1243,7 +1243,7 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed_explicit(
 }
 
 /// Read the current FPSS host-shuffle seed. Same `(has_value, seed)`
-/// ABI as `tdx_config_set_fpss_host_shuffle_seed_explicit`:
+/// ABI as `tdx_config_set_fpss_host_shuffle_seed`:
 ///
 /// * `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
 /// * `*out_has_value = true` → `Some(*out_seed)`.
@@ -1443,7 +1443,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_worker_threads_explicit(
+pub unsafe extern "C" fn tdx_config_set_worker_threads(
     config: *mut TdxConfig,
     has_value: bool,
     n: usize,
@@ -2644,7 +2644,7 @@ mod runtime_setter_tests {
     //! do.
 
     #[test]
-    fn worker_threads_explicit_round_trips_via_getter() {
+    fn worker_threads_round_trips_via_getter() {
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
@@ -2660,7 +2660,7 @@ mod runtime_setter_tests {
 
             // Explicit values round-trip including the Some(0) sentinel.
             for n in [0usize, 1, 2, 4, 8, 16, 32, 64] {
-                let rc = super::tdx_config_set_worker_threads_explicit(cfg, true, n);
+                let rc = super::tdx_config_set_worker_threads(cfg, true, n);
                 assert_eq!(rc, 0);
                 assert_eq!((*cfg).inner.runtime.tokio_worker_threads, Some(n));
                 assert_eq!(
@@ -2672,7 +2672,7 @@ mod runtime_setter_tests {
             }
 
             // Reset to None.
-            let rc = super::tdx_config_set_worker_threads_explicit(cfg, false, 999);
+            let rc = super::tdx_config_set_worker_threads(cfg, false, 999);
             assert_eq!(rc, 0);
             assert_eq!((*cfg).inner.runtime.tokio_worker_threads, None);
             super::tdx_config_free(cfg);
@@ -2684,7 +2684,7 @@ mod runtime_setter_tests {
         // SAFETY: passing null to tdx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
-            let rc = super::tdx_config_set_worker_threads_explicit(std::ptr::null_mut(), true, 4);
+            let rc = super::tdx_config_set_worker_threads(std::ptr::null_mut(), true, 4);
             assert_eq!(rc, -1);
             let mut got_has = false;
             let mut got_n: usize = 0;
@@ -3453,7 +3453,7 @@ mod resilience_knob_tests {
             );
             assert_eq!(seed, 0);
             assert_eq!(
-                super::tdx_config_set_fpss_host_shuffle_seed_explicit(cfg, true, 42),
+                super::tdx_config_set_fpss_host_shuffle_seed(cfg, true, 42),
                 0
             );
             assert_eq!(
@@ -3463,7 +3463,7 @@ mod resilience_knob_tests {
             assert!(has_value);
             assert_eq!(seed, 42);
             assert_eq!(
-                super::tdx_config_set_fpss_host_shuffle_seed_explicit(cfg, false, 0),
+                super::tdx_config_set_fpss_host_shuffle_seed(cfg, false, 0),
                 0
             );
             assert_eq!(

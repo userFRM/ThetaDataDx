@@ -121,9 +121,9 @@ test("retry envelope defaults and round-trip", () => {
 
 test("flatfiles budget defaults and jitter round-trip", () => {
   const cfg = Config.production();
-  assert.equal(cfg.flatFilesMaxAttempts, 10);
-  assert.equal(cfg.flatFilesMaxBackoffSecs, 30n);
-  assert.equal(cfg.flatFilesJitter, true);
-  cfg.setFlatFilesJitter(false);
-  assert.equal(cfg.flatFilesJitter, false);
+  assert.equal(cfg.flatfilesMaxAttempts, 10);
+  assert.equal(cfg.flatfilesMaxBackoffSecs, 30n);
+  assert.equal(cfg.flatfilesJitter, true);
+  cfg.setFlatfilesJitter(false);
+  assert.equal(cfg.flatfilesJitter, false);
 });

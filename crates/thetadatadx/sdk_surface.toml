@@ -17,7 +17,7 @@ version = 2
 [[methods]]
 name = "start_streaming"
 kind = "start_streaming"
-doc = "Start FPSS streaming. Events are buffered; poll with next_event()."
+doc = "Start FPSS streaming and register a callback for incoming events. Each typed FPSS event is delivered to the callback off the network thread; the binding owns the dispatcher and the callback runs under a panic boundary."
 targets = ["python_unified", "typescript_napi"]
 
 [[methods]]

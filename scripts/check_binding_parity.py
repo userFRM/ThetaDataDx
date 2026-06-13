@@ -460,18 +460,12 @@ def _normalize_setter(name: str) -> str:
 # Each entry maps the canonical (normalized) setter name to a written
 # reason. This is the documented per-language-idiom carve-out the gate
 # tolerates — every entry is a reviewed decision, not a silencer.
-SETTER_PARITY_EXEMPT: dict[str, str] = {
-    "mdds_host": (
-        "advanced MDDS endpoint override, Python-only by design "
-        "(structural tests point the historical channel at a refused "
-        "endpoint); mdds is a vendor protocol name, kept verbatim"
-    ),
-    "mdds_port": (
-        "advanced MDDS endpoint override, Python-only by design "
-        "(companion to mdds_host); mdds is a vendor protocol name, "
-        "kept verbatim"
-    ),
-}
+#
+# Empty today: the `mdds_host` / `mdds_port` advanced endpoint overrides
+# are now bound on every binding (Python / TypeScript / C++ / the C
+# ABI), so no carve-out is required. Add an entry here only when a
+# setter is intentionally exposed on a strict subset of bindings.
+SETTER_PARITY_EXEMPT: dict[str, str] = {}
 
 
 def _check_setter_set_parity(
@@ -968,15 +962,22 @@ def _check_method_rows(
             continue
         snake = _camel_to_snake(camel)
 
-        # Python: snake_case method declared on the pyclass.
+        # Python: snake_case method declared on the pyclass. A `#[getter]`
+        # readback accessor carries a `get_` prefix on its Rust fn name
+        # (`fn get_flush_mode`) while pyo3 strips the prefix so the Python
+        # property name stays bare (`config.flush_mode`); accept the
+        # `get_`-prefixed fn name against the bare row, exactly as the C++
+        # branch below accepts `get_<snake>`.
+        py_class_methods = py_methods.get(class_name, set())
         declared_py = row.get("python", False)
-        actual_py = snake in py_methods.get(class_name, set())
+        actual_py = snake in py_class_methods or f"get_{snake}" in py_class_methods
         if declared_py != actual_py:
             verb = "missing" if declared_py and not actual_py else "unexpected"
             errors.append(
                 f"  {class_name}.{camel}.python: declared={declared_py}, "
                 f"actual={actual_py} ({verb} -- expected `fn {snake}` "
-                f"inside `impl {class_name}` on the Python pyclass)"
+                f"or `fn get_{snake}` inside `impl {class_name}` on the "
+                f"Python pyclass)"
             )
 
         # TypeScript: napi-attributed method declared inside the
@@ -2327,6 +2328,32 @@ def _run_selftest() -> int:
             f"C++ `get_`-prefixed getter must satisfy a bare row; got {errors!r}"
         )
 
+    def _case_method_python_get_prefix_resolves() -> None:
+        """Python `#[getter] fn get_<x>` satisfies a bare getter row.
+
+        pyo3 strips the `get_` prefix so the Python property name stays
+        bare (`config.flush_mode`), but the Rust fn name the collector
+        harvests carries the prefix. The gate must accept `get_flush_mode`
+        against the bare `flushMode` row, exactly as it does for C++.
+        """
+        rows = [
+            {
+                "class": "Config",
+                "name": "flushMode",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        # Python exposes the readback getter as `fn get_flush_mode`.
+        py_methods = {"Config": {"get_flush_mode"}}
+        ts_methods = {"Config": {"flushMode"}}
+        cpp_methods = {"Config": {"get_flush_mode"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"Python `get_`-prefixed getter must satisfy a bare row; got {errors!r}"
+        )
+
     def _case_method_unexpected_extra() -> None:
         """Declared `false` but method exists on the source — trips."""
         rows = [
@@ -2392,6 +2419,7 @@ def _run_selftest() -> int:
     _case("method negative — declared TS but missing js_name", _case_method_typescript_missing)
     _case("method positive — C++ alias routes Contract -> FluentContract", _case_method_cpp_alias_resolves)
     _case("method positive — C++ `get_` prefix satisfies a bare getter row", _case_method_cpp_get_prefix_resolves)
+    _case("method positive — Python `get_` prefix satisfies a bare getter row", _case_method_python_get_prefix_resolves)
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)

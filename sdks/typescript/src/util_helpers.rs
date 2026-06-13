@@ -8,6 +8,8 @@
 //! Util.conditionName(0);          // "REGULAR"
 //! Util.exchangeName(3);           // "NewYorkStockExchange"
 //! Util.exchangeSymbol(3);         // "NYSE"
+//! Util.calendarStatusName(1);     // "early_close"
+//! Util.timestampMs(20240102, 34200000);  // epoch ms BigInt, or null
 //! Util.sequenceSignedToUnsigned(BigInt(-1));
 //! ```
 //!
@@ -71,6 +73,31 @@ impl Util {
     #[napi(js_name = "exchangeSymbol")]
     pub fn exchange_symbol(code: i32) -> String {
         thetadatadx::utils::exchange::exchange_symbol(code).to_string()
+    }
+
+    /// Vendor vocabulary text for a calendar-day `status` code (`0` ->
+    /// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
+    /// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside
+    /// the table. Mirrors the C++ `tdx::calendar_status_name` and the C
+    /// ABI `tdx_calendar_status_name`.
+    #[napi(js_name = "calendarStatusName")]
+    pub fn calendar_status_name(code: i32) -> String {
+        thetadatadx::CalendarStatus::from_code(code)
+            .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str)
+            .to_string()
+    }
+
+    /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
+    /// into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
+    /// Usable with any `(date, *_ms_of_day)` pair on the tick structs.
+    /// Returns `null` when `date` is absent (`0`) or either input is out
+    /// of domain — the same `std::nullopt` contract the C++
+    /// `tdx::timestamp_ms` returns (the C ABI `tdx_timestamp_ms` encodes
+    /// that absence as the `-1` sentinel). BigInt matches the
+    /// `*TimestampMs` tick accessors so the epoch domain is uniform.
+    #[napi(js_name = "timestampMs")]
+    pub fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<BigInt> {
+        thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).map(BigInt::from)
     }
 
     /// Convert a signed wire-encoded trade-sequence value to its unsigned

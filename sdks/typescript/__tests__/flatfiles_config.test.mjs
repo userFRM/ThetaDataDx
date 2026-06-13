@@ -1,7 +1,7 @@
 // FlatFilesConfig setters on `Config` — TypeScript binding parity
 // with Python / C++ / FFI. Pins the JS surface contract for
-// `setFlatFilesMaxAttempts`, `setFlatFilesInitialBackoffSecs`, and
-// `setFlatFilesMaxBackoffSecs`.
+// `setFlatfilesMaxAttempts`, `setFlatfilesInitialBackoffSecs`, and
+// `setFlatfilesMaxBackoffSecs`.
 //
 // The Rust core enforces the `[1, 10]` range on `max_attempts` and
 // the `max_backoff >= initial_backoff` invariant at
@@ -24,55 +24,55 @@ const { Config } = mod;
 describe('Config.flatFiles* — defaults mirror FlatFilesConfig::production_defaults', () => {
   it('expose the three FlatFilesConfig field defaults', () => {
     const cfg = Config.production();
-    assert.equal(cfg.flatFilesMaxAttempts, 10);
-    assert.equal(cfg.flatFilesInitialBackoffSecs, 1n);
-    assert.equal(cfg.flatFilesMaxBackoffSecs, 30n);
+    assert.equal(cfg.flatfilesMaxAttempts, 10);
+    assert.equal(cfg.flatfilesInitialBackoffSecs, 1n);
+    assert.equal(cfg.flatfilesMaxBackoffSecs, 30n);
   });
 });
 
-describe('Config.setFlatFilesMaxAttempts', () => {
+describe('Config.setFlatfilesMaxAttempts', () => {
   it('round-trips through the setter across the documented u32 range', () => {
     const cfg = Config.production();
     for (const n of [0, 1, 3, 5, 10, 100, 1_000]) {
-      cfg.setFlatFilesMaxAttempts(n);
-      assert.equal(cfg.flatFilesMaxAttempts, n);
+      cfg.setFlatfilesMaxAttempts(n);
+      assert.equal(cfg.flatfilesMaxAttempts, n);
     }
   });
 });
 
-describe('Config.setFlatFilesInitialBackoffSecs', () => {
+describe('Config.setFlatfilesInitialBackoffSecs', () => {
   it('round-trips through the setter across the documented u64 range', () => {
     const cfg = Config.production();
     for (const secs of [0n, 1n, 2n, 4n, 10n, 60n, 3_600n, 86_400n]) {
-      cfg.setFlatFilesInitialBackoffSecs(secs);
-      assert.equal(cfg.flatFilesInitialBackoffSecs, secs);
+      cfg.setFlatfilesInitialBackoffSecs(secs);
+      assert.equal(cfg.flatfilesInitialBackoffSecs, secs);
     }
   });
 
   it('rejects BigInt magnitudes above u64::MAX', () => {
     const cfg = Config.production();
     assert.throws(
-      () => cfg.setFlatFilesInitialBackoffSecs(1n << 65n),
-      /setFlatFilesInitialBackoffSecs/,
+      () => cfg.setFlatfilesInitialBackoffSecs(1n << 65n),
+      /setFlatfilesInitialBackoffSecs/,
       'magnitude above u64::MAX must be rejected at the boundary',
     );
   });
 });
 
-describe('Config.setFlatFilesMaxBackoffSecs', () => {
+describe('Config.setFlatfilesMaxBackoffSecs', () => {
   it('round-trips through the setter across the documented u64 range', () => {
     const cfg = Config.production();
     for (const secs of [0n, 1n, 4n, 10n, 60n, 3_600n, 86_400n]) {
-      cfg.setFlatFilesMaxBackoffSecs(secs);
-      assert.equal(cfg.flatFilesMaxBackoffSecs, secs);
+      cfg.setFlatfilesMaxBackoffSecs(secs);
+      assert.equal(cfg.flatfilesMaxBackoffSecs, secs);
     }
   });
 
   it('rejects BigInt magnitudes above u64::MAX', () => {
     const cfg = Config.production();
     assert.throws(
-      () => cfg.setFlatFilesMaxBackoffSecs(1n << 65n),
-      /setFlatFilesMaxBackoffSecs/,
+      () => cfg.setFlatfilesMaxBackoffSecs(1n << 65n),
+      /setFlatfilesMaxBackoffSecs/,
       'magnitude above u64::MAX must be rejected at the boundary',
     );
   });
@@ -81,13 +81,13 @@ describe('Config.setFlatFilesMaxBackoffSecs', () => {
 describe('FlatFiles setter state survives interleaved pool-sizing calls', () => {
   it('FlatFiles setter mutations land independently of pool-sizing mutations', () => {
     const cfg = Config.production();
-    cfg.setFlatFilesMaxAttempts(7);
-    cfg.setFlatFilesInitialBackoffSecs(3n);
-    cfg.setFlatFilesMaxBackoffSecs(12n);
+    cfg.setFlatfilesMaxAttempts(7);
+    cfg.setFlatfilesInitialBackoffSecs(3n);
+    cfg.setFlatfilesMaxBackoffSecs(12n);
     cfg.setConcurrentRequests(4);
-    assert.equal(cfg.flatFilesMaxAttempts, 7);
-    assert.equal(cfg.flatFilesInitialBackoffSecs, 3n);
-    assert.equal(cfg.flatFilesMaxBackoffSecs, 12n);
+    assert.equal(cfg.flatfilesMaxAttempts, 7);
+    assert.equal(cfg.flatfilesInitialBackoffSecs, 3n);
+    assert.equal(cfg.flatfilesMaxBackoffSecs, 12n);
     assert.equal(cfg.concurrentRequests, 4);
   });
 });
