@@ -140,6 +140,14 @@ sha2 = "0.11.0"
 # `query` enables `RequestBuilder::query` for URL parameter encoding.
 reqwest = { version = "0.13.3", features = ["json", "query", "rustls-no-provider"], default-features = false }
 
+# Trust-root verifier for the auth HTTP client. `rustls-no-provider` leaves
+# reqwest without a baked provider, so its TLS config is built explicitly with
+# the ring provider and this platform verifier (the same trust mechanism reqwest
+# would otherwise pick up) and handed to reqwest via `use_preconfigured_tls`.
+# Already in the graph transitively through reqwest; declared directly so the
+# auth client needs no process-global default.
+rustls-platform-verifier = "0.6.2"
+
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
 # Cryptographically random bytes for scratch-file disambiguation and ephemeral

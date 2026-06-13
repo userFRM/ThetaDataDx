@@ -495,9 +495,14 @@ fn build_rustls_config() -> Result<Arc<rustls::ClientConfig>, Error> {
     for cert in webpki_roots::TLS_SERVER_ROOTS.iter().cloned() {
         root_store.roots.push(cert);
     }
-    let mut config = rustls::ClientConfig::builder()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
+    // Build the config with an explicit ring provider so the handshake needs
+    // no process-global default. ring is the sole provider in the dep graph.
+    let mut config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_root_certificates(root_store)
+    .with_no_client_auth();
     config.alpn_protocols = vec![b"h2".to_vec()];
     Ok(Arc::new(config))
 }
