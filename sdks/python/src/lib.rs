@@ -1759,7 +1759,7 @@ fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
 /// happens in compiled Rust — Python is just the interface.
 ///
 /// `gil_used = false` opts the module into PEP 703 free-threaded
-/// interpreters (`python3.13t`, `python3.14t`). Without this attribute
+/// interpreters (`python3.14t`). Without this attribute
 /// the free-threaded build automatically re-enables the GIL on the
 /// first import of this module — which would defeat the entire purpose
 /// of shipping nogil wheels. Every `#[pyclass]` carries either

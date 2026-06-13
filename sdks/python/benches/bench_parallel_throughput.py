@@ -3,9 +3,9 @@
 Measures historical-endpoint throughput while a CPU-bound Python thread
 hammers the interpreter. Under the GIL the CPU thread time-slices with
 the dispatcher thread, so the historical thread sees ~half the
-throughput. Under free-threaded Python (`python3.13t`, `python3.14t`)
-the two threads run on separate cores in parallel and the historical
-thread sees near-baseline throughput.
+throughput. Under free-threaded Python (`python3.14t`) the two threads
+run on separate cores in parallel and the historical thread sees
+near-baseline throughput.
 
 The bench does not need live FPSS credentials. It exercises a pure-Rust
 fast path that already drops the GIL via `Python::detach(|| ...)` in
@@ -15,11 +15,11 @@ reveals whether the SDK actually releases the GIL on the hot path.
 
 Run on both interpreters and compare::
 
-    python3.13   benches/bench_parallel_throughput.py
-    python3.13t  benches/bench_parallel_throughput.py
+    python3.14   benches/bench_parallel_throughput.py
+    python3.14t  benches/bench_parallel_throughput.py
 
 The healthy SDK shows `overhead < 1.5x` on both. Higher overhead on
-3.13 with a held GIL (or a regression) makes the contention thread
+3.14 with a held GIL (or a regression) makes the contention thread
 starve the dispatcher.
 
 Output format is line-delimited JSON so CI can parse without a second

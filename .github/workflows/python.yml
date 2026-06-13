@@ -36,18 +36,18 @@ jobs:
           - os: windows-latest
             python: "3.12"
             label: windows py3.12
-          # PEP 703 free-threaded build. PyO3 0.28 emits a per-version
-          # wheel (`cp313-cp313t-*`) rather than an `abi3` wheel because
-          # the free-threaded ABI is not compatible with the stable ABI
+          # PEP 703 free-threaded build. PyO3 emits a per-version wheel
+          # (`cp314-cp314t-*`) rather than an `abi3` wheel because the
+          # free-threaded ABI is not compatible with the stable ABI
           # surface — the wheel tag is intentionally narrower than the
           # baseline matrix. The `gil_used = false` attribute on the
           # `#[pymodule]` keeps the GIL disabled after import; without
           # it the free-threaded interpreter auto-re-enables the GIL
           # on first import of an extension module and defeats the
-          # entire purpose of shipping nogil wheels.
-          - os: ubuntu-latest
-            python: "3.13t"
-            label: ubuntu py3.13t (nogil)
+          # entire purpose of shipping nogil wheels. The free-threaded
+          # floor is CPython 3.14: PyO3 does not support the
+          # free-threaded build of CPython below 3.14, so 3.13t carries
+          # no nogil wheel.
           - os: ubuntu-latest
             python: "3.14t"
             label: ubuntu py3.14t (nogil)
@@ -58,10 +58,9 @@ jobs:
           components: clippy
       - uses: actions/setup-python@v6
         with:
-          # The free-threaded interpreter (`3.13t`, `3.14t`) is a
-          # PEP 703 build. `actions/setup-python@v6` honours the `t`
-          # suffix and provisions the `python3.13t` / `python3.14t`
-          # binary the matching wheel needs.
+          # The free-threaded interpreter (`3.14t`) is a PEP 703 build.
+          # `actions/setup-python@v6` honours the `t` suffix and
+          # provisions the `python3.14t` binary the matching wheel needs.
           python-version: ${{ matrix.python }}
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       # `too_many_arguments` is allow-listed because every offender is a
@@ -106,12 +105,12 @@ jobs:
             chmod 0755 /usr/local/bin/protoc
             protoc --version
       # PEP 703 free-threaded wheel — `--interpreter ${{ matrix.python }}`
-      # (e.g. `python3.13t`) tells maturin to emit a `cp313-cp313t-*`
+      # (e.g. `python3.14t`) tells maturin to emit a `cp314-cp314t-*`
       # tagged wheel rather than the `abi3` one. The `gil_used = false`
       # attribute on `#[pymodule]` keeps the GIL disabled after import
       # on the matching interpreter. Built on `ubuntu-latest` host (not
       # the manylinux2014 image) because the freethreaded interpreter
-      # ships in CPython 3.13+, which post-dates the CentOS 7 glibc
+      # ships in CPython 3.14+, which post-dates the CentOS 7 glibc
       # floor — the manylinux floor for nogil wheels lifts to 2.28
       # (manylinux_2_28) automatically.
       - name: Build wheel (Linux freethreaded)
@@ -257,7 +256,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.13t", "3.14t"]
+        python: ["3.14t"]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -307,9 +306,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           # The abi3 wheel is the one tagged with the host Python the
-          # build job ran on (`3.12`). The freethreaded wheels carry
-          # separate matrix entries (`3.13t`, `3.14t`) and are not part
-          # of the abi3 compatibility surface.
+          # build job ran on (`3.12`). The freethreaded wheel carries
+          # its own matrix entry (`3.14t`) and is not part of the abi3
+          # compatibility surface.
           name: wheel-${{ runner.os }}-3.12
           path: dist/
       - shell: bash
@@ -331,7 +330,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.13t", "3.14t"]
+        python: ["3.14t"]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
