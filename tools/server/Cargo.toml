@@ -56,7 +56,7 @@ time = "0.3"
 serde_urlencoded = "0.7.1"
 clap = { version = "4.6.1", features = ["derive"] }
 # Cryptographically random bytes for the shutdown token.
-rand = "0.9"
+rand = "0.10"
 
 # `Zeroizing<String>` scrubs the CLI password from the process's memory
 # image as soon as it drops. Without this, `/proc/<pid>/mem` (or a core
