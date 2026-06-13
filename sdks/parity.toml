@@ -742,6 +742,152 @@ typescript = true
 cpp = true
 ffi = true
 
+# Conditions / exchange / calendar / sequence lookups. Exposed as the
+# `thetadatadx.util` submodule (Python), the `Util` namespace class
+# (TypeScript: `Util.conditionName(...)`), the `tdx::util` namespace plus
+# the `tdx::calendar_status_name` / `tdx::timestamp_ms` free functions
+# (C++), and bare `tdx_*` symbols (the C ABI). The four predicate helpers
+# carry a disambiguating prefix on the C ABI symbol (`tdx_condition_is_cancel`
+# vs the bare `is_cancel` the managed bindings expose, so the quote-condition
+# predicate of the same shape stays distinct); the `ffi_name` field records
+# the bare C-symbol name for those rows. All present on every binding.
+
+[[utility]]
+name = "condition_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "condition_description"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_cancel"
+ffi_name = "condition_is_cancel"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "updates_volume"
+ffi_name = "condition_updates_volume"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "quote_condition_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "quote_condition_description"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_firm"
+ffi_name = "quote_condition_is_firm"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_halted"
+ffi_name = "quote_condition_is_halted"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "exchange_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "exchange_symbol"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "calendar_status_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "timestamp_ms"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "sequence_signed_to_unsigned"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "sequence_unsigned_to_signed"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+# Intentionally binding-specific utilities (asserted asymmetric on
+# purpose). `split_date_range` chunks a date span into trading-calendar
+# windows ahead of a historical query — a Python ergonomic helper the
+# other bindings do not surface. `contract_strike_dollars` and
+# `greeks_result_free` are C-ABI memory-management / value-folding
+# helpers the managed bindings (Python / TypeScript / C++) have no
+# analogue for: they fold the strike presence flag and free the
+# heap-allocated greeks result the C caller owns, which the managed
+# runtimes handle through native field access and garbage collection.
+
+[[utility]]
+name = "split_date_range"
+binding_specific = "Python date-range chunking ergonomic; the other bindings drive the historical client directly."
+python = true
+typescript = false
+cpp = false
+ffi = false
+
+[[utility]]
+name = "contract_strike_dollars"
+binding_specific = "C-ABI strike presence-flag folding; managed bindings read the dollar field directly."
+python = false
+typescript = false
+cpp = false
+ffi = true
+
+[[utility]]
+name = "greeks_result_free"
+binding_specific = "C-ABI heap-result deallocation; managed bindings free the greeks result through their runtime."
+python = false
+typescript = false
+cpp = false
+ffi = true
+
 
 # ─── Method-level parity matrix ────────────────────────────────────────
 #

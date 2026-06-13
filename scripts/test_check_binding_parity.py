@@ -415,6 +415,252 @@ def test_setter_set_parity_live_sources_clean() -> None:
     assert errors == [], f"live setter-set parity must be clean; got {errors!r}"
 
 
+# ─── Config getter-SET parity (read side of the knob roster) ───────
+
+
+def test_getter_set_parity_normalizes_and_matches() -> None:
+    """Per-binding idioms fold; equal getter sets are silent."""
+    py = {"reconnect_wait_ms", "worker_threads"}
+    ts = {"reconnect_wait_ms", "worker_threads_explicit"}
+    cpp = {"reconnect_wait_ms", "worker_threads_explicit"}
+    ffi = {"reconnect_wait_ms", "worker_threads_explicit"}
+    errors = cbp._check_getter_set_parity(py, ts, cpp, ffi, exempt={})
+    assert errors == [], f"normalized-equal getter sets must be silent; got {errors!r}"
+
+
+def test_getter_set_parity_missing_on_ffi_trips() -> None:
+    """A read-back getter bound on Python/TS/C++ but absent from the C
+    ABI trips — the read-side missing-binding defect class.
+    """
+    errors = cbp._check_getter_set_parity(
+        {"fpss_ring_size"}, {"fpss_ring_size"}, {"fpss_ring_size"}, set(), exempt={}
+    )
+    assert any("fpss_ring_size" in e and "ffi" in e for e in errors), (
+        f"getter missing on FFI must trip; got {errors!r}"
+    )
+
+
+def test_getter_set_parity_live_sources_clean() -> None:
+    """The live Config getter roster is symmetric across all four
+    bindings: every read-back accessor present in one is present in all.
+    """
+    py = cbp._collect_python_getters(cbp.PY_SRC)
+    ts = cbp._collect_typescript_getters(cbp.TS_SRC)
+    cpp = cbp._collect_cpp_getters(cbp.CPP_HPP)
+    ffi = cbp._collect_ffi_getters(cbp.FFI_SRC)
+    errors = cbp._check_getter_set_parity(py, ts, cpp, ffi)
+    assert errors == [], f"live getter-set parity must be clean; got {errors!r}"
+
+
+def test_getter_collectors_scope_to_config() -> None:
+    """The getter collectors harvest only `impl Config` bodies, so a
+    getter on an unrelated pyclass is not swept into the knob roster.
+    """
+    text = (
+        "#[pymethods]\nimpl Config {\n    #[getter] fn get_fpss_ring_size(&self) -> usize { 0 }\n}\n"
+        "#[pymethods]\nimpl QuoteTick {\n    #[getter] fn bid_price(&self) -> f64 { 0.0 }\n}\n"
+    )
+    bodies = cbp._iter_impl_config_bodies(text)
+    assert len(bodies) == 1, f"only the Config impl body must be picked; got {bodies!r}"
+    assert "get_fpss_ring_size" in bodies[0] and "bid_price" not in bodies[0]
+
+
+# ─── Subscription-kind label parity ────────────────────────────────
+
+
+def test_subscription_kind_parity_positive() -> None:
+    full = set(cbp.CANONICAL_SUBSCRIPTION_KINDS)
+    errors = cbp._check_subscription_kind_parity(full, full, full, full, full)
+    assert errors == [], f"all-canonical kind sets must be silent; got {errors!r}"
+
+
+def test_subscription_kind_missing_label_trips() -> None:
+    full = set(cbp.CANONICAL_SUBSCRIPTION_KINDS)
+    errors = cbp._check_subscription_kind_parity(
+        full, full, full, full - {"market_value"}, full
+    )
+    assert any("cpp" in e and "missing" in e for e in errors), (
+        f"a dropped kind label must trip; got {errors!r}"
+    )
+
+
+def test_subscription_kind_fictitious_label_trips() -> None:
+    """The C++ `full_quote` / `full_market_value` defect class: a
+    full-stream kind that does not exist on the wire trips.
+    """
+    full = set(cbp.CANONICAL_SUBSCRIPTION_KINDS)
+    errors = cbp._check_subscription_kind_parity(
+        full, full, full, full | {"full_quote"}, full
+    )
+    assert any("cpp" in e and "non-canonical" in e for e in errors), (
+        f"a fictitious kind label must trip; got {errors!r}"
+    )
+
+
+def test_subscription_kind_live_sources_clean() -> None:
+    """Every live binding emits exactly the canonical kind roster."""
+    errors = cbp._check_subscription_kind_parity(
+        cbp._collect_rust_subscription_kinds(cbp.SUBSCRIPTION_RS),
+        cbp._collect_binding_subscription_kinds(cbp.PY_FLUENT_RS),
+        cbp._collect_binding_subscription_kinds(cbp.TS_FLUENT_RS),
+        cbp._collect_cpp_subscription_kinds(cbp.CPP_HPP),
+        cbp._collect_ffi_subscription_kinds(cbp.CPP_H),
+    )
+    assert errors == [], f"live subscription-kind parity must be clean; got {errors!r}"
+
+
+# ─── Error-leaf mapping parity ─────────────────────────────────────
+
+
+def test_error_leaf_parity_positive() -> None:
+    leaves = set(cbp.CANONICAL_ERROR_LEAVES)
+    codes = dict(cbp.CANONICAL_ERROR_CODES)
+    errors = cbp._check_error_leaf_parity(
+        leaves, leaves, leaves, codes, set(codes), codes
+    )
+    assert errors == [], f"symmetric error mapping must be silent; got {errors!r}"
+
+
+def test_error_leaf_missing_on_python_trips() -> None:
+    """A leaf invisible on Python (the missing-`ConfigError` /
+    `FlatFilesUnavailable`-routed-nowhere defect class) trips.
+    """
+    leaves = set(cbp.CANONICAL_ERROR_LEAVES)
+    codes = dict(cbp.CANONICAL_ERROR_CODES)
+    errors = cbp._check_error_leaf_parity(
+        leaves - {"ConfigError"}, leaves, leaves, codes, set(codes), codes
+    )
+    assert any("python" in e and "ConfigError" in e for e in errors), (
+        f"a leaf missing on Python must trip; got {errors!r}"
+    )
+
+
+def test_error_leaf_code_renumber_trips() -> None:
+    leaves = set(cbp.CANONICAL_ERROR_LEAVES)
+    codes = dict(cbp.CANONICAL_ERROR_CODES)
+    bad = dict(codes)
+    bad["TDX_ERR_STREAM"] = 99
+    errors = cbp._check_error_leaf_parity(
+        leaves, leaves, leaves, bad, set(codes), bad
+    )
+    assert any("ffi" in e and "TDX_ERR_STREAM" in e for e in errors), (
+        f"a renumbered FFI code must trip; got {errors!r}"
+    )
+
+
+def test_error_leaf_header_drift_trips() -> None:
+    """A C ABI header `#define` disagreeing with the FFI Rust constant
+    (invisible to `cargo build`) trips.
+    """
+    leaves = set(cbp.CANONICAL_ERROR_LEAVES)
+    codes = dict(cbp.CANONICAL_ERROR_CODES)
+    header = dict(codes)
+    header["TDX_ERR_CONFIG"] = 42
+    errors = cbp._check_error_leaf_parity(
+        leaves, leaves, leaves, codes, set(codes), header
+    )
+    assert any("cpp header" in e and "TDX_ERR_CONFIG" in e for e in errors), (
+        f"a C-header code drift must trip; got {errors!r}"
+    )
+
+
+def test_error_leaf_live_sources_symmetric() -> None:
+    """The live error mapping is symmetric across all four bindings."""
+    errors = cbp._check_error_leaf_parity(
+        cbp._collect_python_error_leaves(cbp.PY_ERRORS_RS),
+        cbp._collect_typescript_error_leaves(cbp.TS_LIB_RS),
+        cbp._collect_cpp_error_leaves(cbp.CPP_HPP),
+        cbp._collect_ffi_error_codes(cbp.FFI_ERROR_RS),
+        cbp._collect_ffi_error_codes_dispatched(cbp.FFI_ERROR_RS),
+        cbp._collect_cpp_error_codes(cbp.CPP_H),
+    )
+    assert errors == [], f"live error-leaf parity must be symmetric; got {errors!r}"
+
+
+# ─── Utility-roster parity ─────────────────────────────────────────
+
+
+def test_utility_ffi_name_override_resolves() -> None:
+    """A row whose C ABI symbol carries a disambiguating prefix resolves
+    through `ffi_name`.
+    """
+    rows = [
+        {
+            "name": "is_cancel",
+            "ffi_name": "condition_is_cancel",
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    errors = cbp._check_utility_rows(
+        rows, {"is_cancel"}, {"is_cancel"}, {"is_cancel"}, {"condition_is_cancel"}
+    )
+    assert errors == [], f"ffi_name override must resolve; got {errors!r}"
+
+
+def test_utility_binding_specific_asserts_booleans() -> None:
+    """A `binding_specific` row still asserts the declared per-binding
+    presence — a Python-only util appearing on TS trips.
+    """
+    rows = [
+        {
+            "name": "split_date_range",
+            "binding_specific": "Python-only",
+            "python": True,
+            "typescript": False,
+            "cpp": False,
+            "ffi": False,
+        }
+    ]
+    ok = cbp._check_utility_rows(rows, {"split_date_range"}, set(), set(), set())
+    assert ok == [], f"correct binding-specific state must be silent; got {ok!r}"
+    drift = cbp._check_utility_rows(
+        rows, {"split_date_range"}, {"split_date_range"}, set(), set()
+    )
+    assert any("split_date_range" in e and "typescript" in e for e in drift), (
+        f"a binding-specific util appearing elsewhere must trip; got {drift!r}"
+    )
+
+
+def test_utility_roster_orphan_trips() -> None:
+    rows = [{"name": "all_greeks"}]
+    errors = cbp._check_utility_roster_complete(
+        rows, {"all_greeks", "calendar_status_name"}, {"all_greeks"}
+    )
+    assert any("calendar_status_name" in e for e in errors), (
+        f"an untracked utility must trip; got {errors!r}"
+    )
+
+
+def test_ts_utility_surface_filters_internal() -> None:
+    surface = cbp._ts_utility_surface(
+        {"all_greeks", "quote_tick_to_arrow_ipc", "bigint_to_i32"},
+        {"Util": {"conditionName", "isCancel"}},
+    )
+    assert {"all_greeks", "condition_name", "is_cancel"} <= surface
+    assert "quote_tick_to_arrow_ipc" not in surface
+    assert "bigint_to_i32" not in surface
+
+
+def test_utility_roster_live_complete() -> None:
+    """Every standalone utility on the live Python / TypeScript surfaces
+    is named by a `[[utility]]` row.
+    """
+    import tomllib
+
+    data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    rows = data.get("utility", [])
+    py = cbp._collect_python_utility_functions(cbp.PY_SRC)
+    ts = cbp._ts_utility_surface(
+        cbp._collect_typescript_utility_functions(cbp.TS_SRC),
+        cbp._collect_typescript_class_methods(cbp.TS_SRC),
+    )
+    errors = cbp._check_utility_roster_complete(rows, py, ts)
+    assert errors == [], f"live utility roster must be complete; got {errors!r}"
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
