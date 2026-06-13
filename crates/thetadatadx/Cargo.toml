@@ -145,7 +145,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 # Cryptographically random bytes for scratch-file disambiguation and ephemeral
 # tokens, plus the seeded shuffle / jitter sampling in `crate::backoff`
 # and the FPSS host-ordering layer.
-rand = "0.9"
+rand = "0.10"
 # Per-socket TCP keepalive schedule on the FPSS connection (idle /
 # interval / probe-count). `std::net::TcpStream` exposes no keepalive
 # setter; `SockRef::from(&tcp)` borrows the fd without taking ownership.
@@ -183,11 +183,11 @@ disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build DataFrame from Series.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels.
-polars = { version = "0.53", optional = true, default-features = false }
+polars = { version = "0.54.4", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only.
-arrow-array = { version = "58.1.0", optional = true }
-arrow-schema = { version = "58.1.0", optional = true }
+arrow-array = { version = "59.0.0", optional = true }
+arrow-schema = { version = "59.0.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output.
 serde_json = "1.0.137"
 # SIMD JSON parser/serializer backing the canonical JSON helpers in the
@@ -225,7 +225,7 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 # Used by integration tests for scratch-path disambiguation (same dep as
 # the library's `[dependencies]` entry; listed explicitly so test binaries
 # resolve it without relying on the lib's transitive graph).
-rand = "0.9"
+rand = "0.10"
 criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench.
 futures = "0.3"

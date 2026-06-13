@@ -48,7 +48,7 @@ pyo3-async-runtimes = { version = "=0.28.0", features = ["tokio-runtime"] }
 #      `arrow::pyarrow::{IntoPyArrow, PyArrowType}` is all we need.
 #   3. Zero-copy to pyarrow via the Arrow C Data Interface, identical
 #      semantics to pyo3-arrow.
-arrow = { version = "58.1.0", features = ["pyarrow"] }
+arrow = { version = "59.0.0", features = ["pyarrow"] }
 
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }

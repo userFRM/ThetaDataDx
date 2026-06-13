@@ -64,7 +64,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode};
 use prost::Message;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;

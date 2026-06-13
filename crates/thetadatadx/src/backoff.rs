@@ -22,7 +22,7 @@
 
 use std::time::Duration;
 
-use rand::Rng;
+use rand::RngExt;
 
 /// Jitter strategy applied to a computed backoff delay.
 ///
