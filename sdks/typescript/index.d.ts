@@ -530,6 +530,203 @@ export declare class FlatFilesNamespace {
 }
 
 /**
+ * Standalone FPSS-only streaming client.
+ *
+ * Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus HTTP
+ * authentication. Use when a parallel MDDS process is already running in
+ * the same environment and you need to stream FPSS without the bundled
+ * [`crate::ThetaDataDxClient`] taking over the Nexus session at connect
+ * time.
+ *
+ * ```js
+ * const { FpssClient, Config, Contract } = require("@thetadatadx/sdk");
+ * const fpss = FpssClient.connectFromFile("creds.txt");
+ * fpss.startStreaming((event) => console.log(event.kind, event));
+ * fpss.subscribe(Contract.stock("AAPL").quote());
+ * // ... events arrive on the Node main thread ...
+ * fpss.stopStreaming();
+ * ```
+ */
+export declare class FpssClient {
+  /**
+   * Allocate a standalone FPSS handle against the production endpoint.
+   * Streaming only — opens no MDDS channel and issues no Nexus request.
+   * The FPSS TLS connection opens on the first `startStreaming` call.
+   */
+  static connect(email: string, password: string): FpssClient
+  /**
+   * Allocate a standalone FPSS handle with a credentials file (line 1 =
+   * email, line 2 = password) against the production endpoint.
+   */
+  static connectFromFile(path: string): FpssClient
+  /**
+   * Allocate a standalone FPSS handle against an explicit [`Config`]
+   * (`dev` / `stage` / `production`, plus any tuned FPSS / reconnect
+   * setters). Use `connect` for the production-default endpoint.
+   *
+   * The config is snapshot at construction time: the `Config` handle may
+   * be reused or mutated afterward without affecting this client.
+   */
+  static connectWithConfig(email: string, password: string, config: Config): FpssClient
+  /**
+   * Allocate a standalone FPSS handle with a credentials file against an
+   * explicit [`Config`]. Use `connectFromFile` for the
+   * production-default endpoint.
+   *
+   * The config is snapshot at construction time.
+   */
+  static connectFromFileWithConfig(path: string, config: Config): FpssClient
+  /**
+   * Start FPSS streaming and register a JS callback for incoming events.
+   *
+   * Opens the FPSS TLS connection and starts the background dispatcher.
+   * The dispatcher converts every typed FPSS event and routes it through
+   * a napi-rs `ThreadsafeFunction` to the Node main thread, where
+   * `callback(event)` runs. The FPSS TLS reader thread itself never
+   * touches V8: events cross the streaming ring first, with the consumer
+   * thread invoking the callback under `catch_unwind`.
+   *
+   * Backpressure: a slow callback fills the streaming ring and overflow
+   * events are dropped, observable via `droppedEventCount()`. The FPSS
+   * TLS reader is never blocked — vendor disconnects on slow consumers
+   * cannot happen on this path.
+   */
+  startStreaming(callback: TsfnCallback): void
+  /**
+   * Whether the FPSS TLS connection is currently open. Returns `false`
+   * when the dispatcher thread has panicked — no events are arriving
+   * even though the TLS slot is still populated.
+   */
+  isStreaming(): boolean
+  /**
+   * Whether the FPSS session is currently authenticated. Distinct from
+   * `isStreaming()`: the TLS slot can hold a client whose authenticated
+   * flag has flipped to `false` after a server disconnect, before the
+   * application has issued `reconnect()`. A panicked dispatcher also
+   * folds back to `false` here.
+   */
+  isAuthenticated(): boolean
+  /**
+   * Polymorphic subscribe — primary fluent entry point. Accepts the
+   * `Subscription` value returned by `Contract.quote()` /
+   * `Contract.trade()` / `Contract.openInterest()` (per-contract scope)
+   * or by `SecType.option().fullTrades()` /
+   * `SecType.option().fullOpenInterest()` (full-stream scope).
+   */
+  subscribe(sub: Subscription): void
+  /**
+   * Bulk-subscribe an array of `Subscription` values. Stops at the first
+   * error and returns it; previously-installed subscriptions are NOT
+   * rolled back.
+   */
+  subscribeMany(subs: Array<Subscription>): void
+  /** Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`. */
+  unsubscribe(sub: Subscription): void
+  /** Bulk-unsubscribe an array of `Subscription` values. */
+  unsubscribeMany(subs: Array<Subscription>): void
+  /**
+   * Snapshot of per-contract subscriptions on the live session as an
+   * array of `{ kind, contract }` objects (matching the unified
+   * client's `activeSubscriptions()` projection). Empty array when
+   * streaming has not started.
+   */
+  activeSubscriptions(): any
+  /**
+   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
+   * `full_trades`). Each entry has the same `{ kind, contract }` shape
+   * as the unified client's `activeFullSubscriptions()`, where `kind` is
+   * `"full_trades"` / `"full_open_interest"` and `contract` carries the
+   * wire-level security type. Quote is never a valid full-stream kind,
+   * so any such row is dropped. Empty array when streaming has not
+   * started.
+   */
+  activeFullSubscriptions(): any
+  /**
+   * Cumulative count of FPSS events the TLS reader could not publish into
+   * the event ring because the consumer fell behind. Snapshot the value
+   * BEFORE `reconnect()` if you need to accumulate drops across session
+   * boundaries — `reconnect` rebuilds the inner client and the counter
+   * resets. Returned as `bigint` for the full `u64` range.
+   */
+  droppedEventCount(): bigint
+  /**
+   * Point-in-time count of events published into the ring but not yet
+   * drained into your callback — the in-flight depth between the I/O
+   * thread and the dispatcher. The leading back-pressure signal: rises
+   * before `droppedEventCount()` moves. Returns `0n` when no session is
+   * live.
+   */
+  ringOccupancy(): bigint
+  /**
+   * Configured capacity of the event ring in slots (a power of two) —
+   * the fixed denominator for `ringOccupancy()`. Returns `0n` when no
+   * session is live.
+   */
+  ringCapacity(): bigint
+  /**
+   * Cumulative count of user-callback panics caught by the
+   * per-invocation `catch_unwind` boundary. A panic is caught, recorded
+   * here, and does not stop event delivery. Returned as `bigint` for the
+   * full `u64` range.
+   */
+  panicCount(): bigint
+  /**
+   * Milliseconds since the most recent inbound streaming frame of any
+   * kind (data tick, heartbeat, control), or `null` when no session is
+   * live or no frame has been received yet. The operator-facing
+   * staleness clock.
+   */
+  millisSinceLastEvent(): bigint | null
+  /**
+   * UNIX-nanosecond receive timestamp of the most recent inbound
+   * streaming frame of any kind. Returns `0n` when no session is live or
+   * no frame has been received yet.
+   */
+  lastEventReceivedAtUnixNanos(): bigint
+  /**
+   * Address (`host:port`) of the streaming server the current session is
+   * connected to, following the session across auto-reconnects. `null`
+   * when no session is live.
+   */
+  lastConnectedAddr(): string | null
+  /**
+   * Stop streaming and clear the registered callback. Same
+   * explicit-handoff semantics as the unified client: to resume after
+   * this returns, call `startStreaming(callback)` again with a freshly
+   * bound function; `reconnect()` throws because no callback is held.
+   *
+   * Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
+   */
+  stopStreaming(): void
+  /**
+   * Alias for `stopStreaming`. Mirrors the unified client's split surface
+   * where `shutdown` is documented as the terminal stop — on the
+   * standalone client both names are equivalent.
+   */
+  shutdown(): void
+  /**
+   * Re-open the FPSS connection and re-register the previously installed
+   * callback. Requires a prior `startStreaming(callback)`; throws
+   * otherwise.
+   *
+   * Saves the active per-contract and full-stream subscriptions against
+   * the old session, opens a fresh FPSS connection under the previously
+   * installed callback, and re-applies the saved subscriptions through
+   * the core's paced replay engine. Per-subscription failures surface as
+   * a single error naming every contract that did not re-subscribe — the
+   * streaming session itself is already up at that point.
+   */
+  reconnect(): void
+  /**
+   * Block until every superseded streaming session's event-ring consumer
+   * has finished firing the registered callback. Resolves `true` once
+   * all retired generations have drained, `false` on timeout. Polls at
+   * 1 ms cadence on a worker so the Node event loop stays free.
+   */
+  awaitDrain(timeoutMs: number): Promise<boolean>
+}
+
+/**
  * Standalone MDDS-only historical client.
  *
  * Opens ONLY the MDDS channel and the Nexus authentication flow —

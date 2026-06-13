@@ -1,0 +1,128 @@
+// Standalone `FpssClient` structural contract (offline — no connect).
+//
+// `FpssClient` is the streaming-only napi handle over
+// `thetadatadx::fpss::FpssClient`: the FPSS TLS transport with no MDDS /
+// Nexus historical surface. It mirrors the Python `FpssClient`
+// (`sdks/python/src/fpss_client.rs`), the C++ `tdx::FpssClient`, and the
+// C ABI `tdx_fpss_*` entry points. These assertions pin the split
+// structurally against `index.d.ts` and the loaded addon so a change that
+// drops the streaming surface — or leaks a historical method onto it —
+// fails here without live credentials.
+
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dts = readFileSync(resolve(__dirname, '..', 'index.d.ts'), 'utf8');
+
+let mod;
+try {
+  mod = await import('../index.js');
+} catch {
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
+}
+
+const fpssBlock = dts.match(/export declare class FpssClient \{[\s\S]*?\n\}/);
+
+function methodNames(block) {
+  return new Set(
+    block
+      .split('\n')
+      .map((line) => line.match(/^\s+(?:static\s+)?([a-z][a-zA-Z0-9]*)\(/))
+      .filter(Boolean)
+      .map((m) => m[1])
+  );
+}
+
+describe('FpssClient native addon surface', () => {
+  it('exports the FpssClient class with all four connect factories', () => {
+    assert.ok(mod.FpssClient, 'FpssClient should be exported');
+    for (const factory of [
+      'connect',
+      'connectFromFile',
+      'connectWithConfig',
+      'connectFromFileWithConfig',
+    ]) {
+      assert.equal(
+        typeof mod.FpssClient[factory],
+        'function',
+        `FpssClient.${factory} should be a static factory`
+      );
+    }
+  });
+
+  it('declares the FpssClient class in index.d.ts', () => {
+    assert.ok(fpssBlock, 'FpssClient class missing from index.d.ts');
+  });
+});
+
+describe('FpssClient carries the full streaming surface', () => {
+  // The streaming, subscription, lifecycle, and ring-telemetry surface
+  // that the Python `FpssClient` exposes (the parity rows flipped to
+  // `typescript = true` in sdks/parity.toml). Pin the whole set so a
+  // regression that drops any one of them fails here.
+  const STREAMING_SURFACE = [
+    'startStreaming',
+    'stopStreaming',
+    'shutdown',
+    'reconnect',
+    'isStreaming',
+    'isAuthenticated',
+    'awaitDrain',
+    'subscribe',
+    'subscribeMany',
+    'unsubscribe',
+    'unsubscribeMany',
+    'activeSubscriptions',
+    'activeFullSubscriptions',
+    'droppedEventCount',
+    'ringOccupancy',
+    'ringCapacity',
+    'panicCount',
+    'millisSinceLastEvent',
+    'lastEventReceivedAtUnixNanos',
+    'lastConnectedAddr',
+  ];
+
+  it('declares every streaming / lifecycle / telemetry method', () => {
+    const methods = methodNames(fpssBlock[0]);
+    for (const expected of STREAMING_SURFACE) {
+      assert.ok(
+        methods.has(expected),
+        `FpssClient must expose ${expected}`
+      );
+    }
+  });
+
+  it('awaitDrain is async (Promise<boolean>), the rest are sync', () => {
+    assert.match(
+      fpssBlock[0],
+      /awaitDrain\(timeoutMs: number\): Promise<boolean>/,
+      'awaitDrain must resolve Promise<boolean> so it does not block the event loop'
+    );
+  });
+});
+
+describe('FpssClient never exposes the MDDS / historical surface', () => {
+  // FPSS-only: no historical / list / snapshot / at-time / calendar
+  // method may appear. An FPSS client that surfaced these would imply an
+  // MDDS channel it never opens. This is the inverse of the MddsClient
+  // FPSS-free guard — together they pin the two standalone surfaces apart.
+  it('declares no historical data-fetch families', () => {
+    const familyRe =
+      /^\s+(?:static\s+)?((?:stock|option|index)History\w*|\w*Snapshot\w*|\w*AtTime\w*|calendarOnDate|calendarYear|interestRateHistory\w*|listRoots|optionListContracts)\(/;
+    const leaked = fpssBlock[0]
+      .split('\n')
+      .filter((line) => familyRe.test(line))
+      .map((l) => l.trim());
+    assert.deepEqual(
+      leaked,
+      [],
+      `FpssClient must not expose historical methods; found: ${leaked.join(', ')}`
+    );
+  });
+});
