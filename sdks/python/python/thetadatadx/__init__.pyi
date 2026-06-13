@@ -221,6 +221,7 @@ class Contract:
     def quote(self) -> Subscription: ...
     def trade(self) -> Subscription: ...
     def open_interest(self) -> Subscription: ...
+    def market_value(self) -> Subscription: ...
 
     def __repr__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -276,7 +277,7 @@ class Subscription:
 
     @property
     def kind(self) -> str: ...
-    """`"quote"` / `"trade"` / `"open_interest"` / `"full_trades"` / `"full_open_interest"`."""
+    """`"quote"` / `"trade"` / `"open_interest"` / `"market_value"` / `"full_trades"` / `"full_open_interest"`."""
 
     @property
     def is_full(self) -> bool: ...
@@ -658,12 +659,42 @@ class ThetaDataDxClient:
         session across auto-reconnects."""
         ...
 
+    # Session identity + subscription tier.
+    def session_uuid(self) -> str:
+        """Server-assigned session UUID for the live streaming connection."""
+        ...
+    def subscription_info(self) -> List[Tuple[str, str]]:
+        """Subscription-tier snapshot captured at authentication time.
+
+        One ``(asset_class, tier)`` tuple per asset class the Nexus auth
+        payload carries, in stable declaration order: ``stock`` /
+        ``options`` / ``indices`` / ``interest_rate``.
+        """
+        ...
+
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
 
-    # FLATFILES namespace getter.
+    # FLATFILES namespace getter + direct-to-disk helper.
     @property
     def flat_files(self) -> FlatFilesNamespace: ...
+    def flatfile_to_path(
+        self,
+        sec_type: str,
+        req_type: str,
+        date: str,
+        path: str,
+        format: Optional[str] = None,
+    ) -> str:
+        """Pull a flat-file blob and write it to ``path`` without decoding
+        rows.
+
+        ``sec_type`` / ``req_type`` accept the same strings as
+        ``flat_files.request(...)``; ``format`` is ``"csv"`` (default) or
+        ``"jsonl"``. Returns the final on-disk path (extension
+        auto-appended if absent).
+        """
+        ...
 
     def __repr__(self) -> str: ...
 
