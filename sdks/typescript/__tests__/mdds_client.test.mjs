@@ -45,14 +45,9 @@ function methodNames(block) {
 }
 
 describe('MddsClient native addon surface', () => {
-  it('exports the MddsClient class with all four connect factories', () => {
+  it('exports the MddsClient class with the creds-first connect factories', () => {
     assert.ok(mod.MddsClient, 'MddsClient should be exported');
-    for (const factory of [
-      'connect',
-      'connectFromFile',
-      'connectWithConfig',
-      'connectFromFileWithConfig',
-    ]) {
+    for (const factory of ['connect', 'connectFromFile']) {
       assert.equal(
         typeof mod.MddsClient[factory],
         'function',

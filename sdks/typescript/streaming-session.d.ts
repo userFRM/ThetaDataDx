@@ -56,6 +56,7 @@ export class UnavailableError extends ThetaDataError {}
 export class NetworkError extends ThetaDataError {}
 export class SchemaMismatchError extends ThetaDataError {}
 export class StreamError extends ThetaDataError {}
+export class ConfigError extends ThetaDataError {}
 
 /** Callback signature mirrored from the napi-generated
  * `startStreaming(callback)` declaration in `index.d.ts`. */

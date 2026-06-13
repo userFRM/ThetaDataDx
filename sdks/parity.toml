@@ -15,7 +15,7 @@
 [[class]]
 name = "Credentials"
 python = true
-typescript = false  # JS takes credentials as constructor args, not a class
+typescript = true   # `Credentials` napi class: `new Credentials(email, password)` / `Credentials.fromFile(path)`, passed to `connect(creds, config?)`
 cpp = true
 
 [[class]]
@@ -197,6 +197,12 @@ cpp = true
 
 [[class]]
 name = "StreamError"
+python = true
+typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+cpp = true
+
+[[class]]
+name = "ConfigError"
 python = true
 typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
 cpp = true
@@ -1088,7 +1094,7 @@ cpp = true
 class = "Credentials"
 name = "fromFile"
 python = true
-typescript = false
+typescript = true   # `Credentials.fromFile(path)` napi factory
 cpp = true
 
 [[method]]

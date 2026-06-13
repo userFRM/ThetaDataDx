@@ -61,6 +61,73 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
     napi::Error::from_reason(format!("[InvalidParameterError] {message}"))
 }
 
+// ── Credentials ──
+//
+// A first-class credentials handle mirroring the Python `Credentials`
+// pyclass (`sdks/python/src/lib.rs`), the C++ `tdx::Credentials`, and the
+// C ABI `TdxCredentials` handle. Every binding builds credentials the
+// same way — `new Credentials(email, password)` or
+// `Credentials.fromFile(path)` — then hands the handle to `connect`, so
+// the connect surface is `connect(creds, config?)` across the board
+// rather than each binding spreading raw `email`/`password` strings.
+
+/// ThetaData login credentials.
+///
+/// Build from an email + password pair (`new Credentials(email,
+/// password)`) or load from a credentials file (`Credentials.fromFile`,
+/// line 1 = email, line 2 = password), then pass the handle to a client
+/// `connect(creds, config?)`. Mirrors the Python `Credentials` and the
+/// C++ `tdx::Credentials`.
+///
+/// ```js
+/// const { Credentials, ThetaDataDxClient } = require("@thetadatadx/sdk");
+/// const creds = Credentials.fromFile("creds.txt");
+/// const tdx = ThetaDataDxClient.connect(creds);
+/// ```
+#[napi]
+#[derive(Clone)]
+pub struct Credentials {
+    pub(crate) inner: auth::Credentials,
+}
+
+#[napi]
+impl Credentials {
+    /// Create credentials from an email and password.
+    #[napi(constructor)]
+    pub fn new(email: String, password: String) -> Credentials {
+        Credentials {
+            inner: auth::Credentials::new(email, password),
+        }
+    }
+
+    /// Load credentials from a file (line 1 = email, line 2 = password).
+    #[napi(factory, js_name = "fromFile")]
+    pub fn from_file(path: String) -> napi::Result<Credentials> {
+        let inner = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+        Ok(Credentials { inner })
+    }
+
+    /// Redacted string form — never exposes the email or password. Matches
+    /// the redacted `Debug` impl on the Rust `auth::Credentials` and the
+    /// Python `Credentials.__repr__`.
+    #[napi(js_name = "toString")]
+    pub fn to_string_js(&self) -> String {
+        "Credentials(email=<redacted>)".to_string()
+    }
+}
+
+/// Snapshot an optional [`Config`] handle into an owned [`DirectConfig`],
+/// falling back to the production default when none is supplied. The
+/// snapshot decouples the client from later mutations of the `Config`
+/// handle, matching the connect-time snapshot semantics every binding
+/// shares.
+pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectConfig {
+    match config {
+        Some(c) => c.snapshot(),
+        None => config::DirectConfig::production(),
+    }
+}
+
 /// Validate a JavaScript `timeoutMs` deadline and convert it to the
 /// integer millisecond domain the Python, C++, and C ABI bindings take.
 ///
@@ -160,13 +227,13 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             "SchemaMismatchError"
         }
         // User-input validation failures route to the dedicated
-        // invalid-parameter class; environmental config faults stay on
-        // the root class.
+        // invalid-parameter class; environmental config faults route to
+        // the dedicated `ConfigError` class.
         thetadatadx::Error::Config { kind, .. } => {
             if kind.is_invalid_parameter() {
                 "InvalidParameterError"
             } else {
-                "ThetaDataError"
+                "ConfigError"
             }
         }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
@@ -175,6 +242,13 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => "NetworkError",
             _ => "StreamError",
         },
+        // FlatFiles availability + partial-reconnect failures are
+        // streaming-surface faults; pin them to `StreamError` so a
+        // `catch (e instanceof StreamError)` clause behaves identically
+        // to the C++ and C ABI mapping (both route these to the stream
+        // discriminant).
+        thetadatadx::Error::FlatFilesUnavailable(_)
+        | thetadatadx::Error::PartialReconnect { .. } => "StreamError",
         _ => "ThetaDataError",
     }
 }
@@ -312,60 +386,30 @@ pub struct ThetaDataDxClient {
 impl ThetaDataDxClient {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
-    /// Connect to ThetaData. Historical (MDDS/gRPC) only; call startStreaming()
-    /// to begin FPSS real-time data.
-    #[napi(factory)]
-    pub fn connect(email: String, password: String) -> napi::Result<ThetaDataDxClient> {
-        let creds = auth::Credentials::new(email, password);
-        let config = config::DirectConfig::production();
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, config,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
-            tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
-        })
-    }
-
-    /// Connect with a credentials file (line 1 = email, line 2 = password).
-    #[napi(factory)]
-    pub fn connect_from_file(path: String) -> napi::Result<ThetaDataDxClient> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let config = config::DirectConfig::production();
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, config,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
-            tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
-        })
-    }
-
-    /// Connect to ThetaData against an explicit [`Config`] (`dev` /
-    /// `stage` / `production`, plus any tuned setters). Historical
-    /// (MDDS/gRPC) only; call startStreaming() to begin FPSS real-time
-    /// data. Use `connect` for the production-default endpoint.
+    /// Connect to ThetaData with a [`Credentials`] handle. Pass an
+    /// optional [`Config`] (`dev` / `stage` / `production`, plus any
+    /// tuned setters) to override the production-default endpoint.
+    /// Historical (MDDS/gRPC) only; call startStreaming() to begin FPSS
+    /// real-time data.
     ///
-    /// The config is snapshot at connect time: the `Config` handle may
-    /// be reused or mutated afterward without affecting this client.
+    /// The config is snapshot at connect time: the `Config` handle may be
+    /// reused or mutated afterward without affecting this client.
+    ///
+    /// ```js
+    /// const creds = Credentials.fromFile("creds.txt");
+    /// const tdx = ThetaDataDxClient.connect(creds);
+    /// ```
     #[napi(factory)]
-    pub fn connect_with_config(
-        email: String,
-        password: String,
-        config: &Config,
+    pub fn connect(
+        creds: &Credentials,
+        config: Option<&Config>,
     ) -> napi::Result<ThetaDataDxClient> {
-        let creds = auth::Credentials::new(email, password);
-        let cfg = config.snapshot();
+        let cfg = config_or_production(config);
         let tdx = runtime()
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, cfg,
+                &creds.inner,
+                cfg,
             ))
             .map_err(to_napi_err)?;
         Ok(ThetaDataDxClient {
@@ -375,19 +419,16 @@ impl ThetaDataDxClient {
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 =
-    /// password) against an explicit [`Config`] (`dev` / `stage` /
-    /// `production`, plus any tuned setters). Use `connectFromFile` for
-    /// the production-default endpoint.
-    ///
-    /// The config is snapshot at connect time: the `Config` handle may
-    /// be reused or mutated afterward without affecting this client.
-    #[napi(factory)]
-    pub fn connect_from_file_with_config(
+    /// password). Convenience wrapper over `Credentials.fromFile` +
+    /// `connect`. Pass an optional [`Config`] to override the
+    /// production-default endpoint.
+    #[napi(factory, js_name = "connectFromFile")]
+    pub fn connect_from_file(
         path: String,
-        config: &Config,
+        config: Option<&Config>,
     ) -> napi::Result<ThetaDataDxClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let cfg = config.snapshot();
+        let cfg = config_or_production(config);
         let tdx = runtime()
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
@@ -596,74 +637,35 @@ impl MddsClient {
     // opens MDDS + Nexus and never opens FPSS until a streaming method is
     // called, which this class does not surface.
 
-    /// Connect to ThetaData and open the MDDS channel. Historical
-    /// (MDDS/gRPC) only — this client never opens the FPSS streaming
-    /// transport. Use [`FpssClient`] for real-time data.
+    /// Connect to ThetaData with a [`Credentials`] handle and open the
+    /// MDDS channel. Historical (MDDS/gRPC) only — this client never
+    /// opens the FPSS streaming transport. Pass an optional [`Config`] to
+    /// override the production-default endpoint. Use [`FpssClient`] for
+    /// real-time data.
+    ///
+    /// The config is snapshot at connect time: the `Config` handle may be
+    /// reused or mutated afterward without affecting this client.
     #[napi(factory)]
-    pub fn connect(email: String, password: String) -> napi::Result<MddsClient> {
-        let creds = auth::Credentials::new(email, password);
-        let config = config::DirectConfig::production();
+    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<MddsClient> {
+        let cfg = config_or_production(config);
         let tdx = runtime()
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, config,
+                &creds.inner,
+                cfg,
             ))
             .map_err(to_napi_err)?;
         Ok(MddsClient { tdx: Arc::new(tdx) })
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 =
-    /// password). Historical (MDDS/gRPC) only.
-    #[napi(factory)]
-    pub fn connect_from_file(path: String) -> napi::Result<MddsClient> {
+    /// password). Convenience wrapper over `Credentials.fromFile` +
+    /// `connect`. Historical (MDDS/gRPC) only. Pass an optional
+    /// [`Config`] to override the production-default endpoint.
+    #[napi(factory, js_name = "connectFromFile")]
+    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<MddsClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let config = config::DirectConfig::production();
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, config,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(MddsClient { tdx: Arc::new(tdx) })
-    }
-
-    /// Connect to ThetaData against an explicit [`Config`] (`dev` /
-    /// `stage` / `production`, plus any tuned setters). Historical
-    /// (MDDS/gRPC) only. Use `connect` for the production-default
-    /// endpoint.
-    ///
-    /// The config is snapshot at connect time: the `Config` handle may
-    /// be reused or mutated afterward without affecting this client.
-    #[napi(factory)]
-    pub fn connect_with_config(
-        email: String,
-        password: String,
-        config: &Config,
-    ) -> napi::Result<MddsClient> {
-        let creds = auth::Credentials::new(email, password);
-        let cfg = config.snapshot();
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, cfg,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(MddsClient { tdx: Arc::new(tdx) })
-    }
-
-    /// Connect with a credentials file (line 1 = email, line 2 =
-    /// password) against an explicit [`Config`]. Historical (MDDS/gRPC)
-    /// only. Use `connectFromFile` for the production-default endpoint.
-    ///
-    /// The config is snapshot at connect time: the `Config` handle may
-    /// be reused or mutated afterward without affecting this client.
-    #[napi(factory)]
-    pub fn connect_from_file_with_config(
-        path: String,
-        config: &Config,
-    ) -> napi::Result<MddsClient> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let cfg = config.snapshot();
+        let cfg = config_or_production(config);
         let tdx = runtime()
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge

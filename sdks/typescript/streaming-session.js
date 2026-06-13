@@ -120,6 +120,12 @@ class StreamError extends ThetaDataError {
     this.name = 'StreamError';
   }
 }
+class ConfigError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
 
 const CLASS_BY_NAME = {
   ThetaDataError,
@@ -134,6 +140,7 @@ const CLASS_BY_NAME = {
   NetworkError,
   SchemaMismatchError,
   StreamError,
+  ConfigError,
 };
 
 // `[ClassName] message` or `[ClassName retry_after_ms=N] message`. The
@@ -449,4 +456,5 @@ module.exports = Object.assign({}, native, exportedClasses, exportedFreeFns, {
   NetworkError,
   SchemaMismatchError,
   StreamError,
+  ConfigError,
 });
