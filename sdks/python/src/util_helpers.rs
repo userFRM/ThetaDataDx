@@ -8,6 +8,8 @@
 //! util.condition_name(0)            # "REGULAR"
 //! util.exchange_name(3)             # "NewYorkStockExchange"
 //! util.exchange_symbol(3)           # "NYSE"
+//! util.calendar_status_name(1)      # "early_close"
+//! util.timestamp_ms(20240102, 34200000)  # epoch ms, or None if out of domain
 //! util.sequence_signed_to_unsigned(-1)
 //! ```
 //!
@@ -60,6 +62,28 @@ fn is_halted(code: i32) -> bool {
 #[pyfunction]
 fn exchange_name(code: i32) -> &'static str {
     thetadatadx::utils::exchange::exchange_name(code)
+}
+
+/// Vendor vocabulary text for a calendar-day `status` code (`0` ->
+/// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
+/// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside the
+/// table. Mirrors the C++ `tdx::calendar_status_name` and the C ABI
+/// `tdx_calendar_status_name`.
+#[pyfunction]
+fn calendar_status_name(code: i32) -> &'static str {
+    thetadatadx::CalendarStatus::from_code(code)
+        .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str)
+}
+
+/// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
+/// Unix epoch milliseconds (UTC, DST-aware). Usable with any
+/// `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when
+/// `date` is absent (`0`) or either input is out of domain — the same
+/// `std::nullopt` contract the C++ `tdx::timestamp_ms` returns (the C
+/// ABI `tdx_timestamp_ms` encodes that absence as the `-1` sentinel).
+#[pyfunction]
+fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<i64> {
+    thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)
 }
 
 #[pyfunction]
@@ -130,6 +154,8 @@ pub(crate) fn register(parent: &Bound<'_, PyModule>) -> PyResult<()> {
     util.add_function(wrap_pyfunction!(is_halted, &util)?)?;
     util.add_function(wrap_pyfunction!(exchange_name, &util)?)?;
     util.add_function(wrap_pyfunction!(exchange_symbol, &util)?)?;
+    util.add_function(wrap_pyfunction!(calendar_status_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(timestamp_ms, &util)?)?;
     util.add_function(wrap_pyfunction!(sequence_signed_to_unsigned, &util)?)?;
     util.add_function(wrap_pyfunction!(sequence_unsigned_to_signed, &util)?)?;
 

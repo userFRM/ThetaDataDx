@@ -921,8 +921,8 @@ public:
     /** Set the FPSS host-shuffle seed using the (has_value, seed)
      *  shape. has_value=false derives a fresh per-client seed;
      *  has_value=true makes the shuffled order deterministic. */
-    int32_t set_fpss_host_shuffle_seed_explicit(bool has_value, uint64_t seed) {
-        return tdx_config_set_fpss_host_shuffle_seed_explicit(handle_.get(), has_value, seed);
+    int32_t set_fpss_host_shuffle_seed(bool has_value, uint64_t seed) {
+        return tdx_config_set_fpss_host_shuffle_seed(handle_.get(), has_value, seed);
     }
 
     /** Read the FPSS host-shuffle seed back. Returns @c std::nullopt for
@@ -965,8 +965,8 @@ public:
     /** Set the async worker-thread count using the (has_value, n) shape
      *  that preserves Some(0) across the C boundary. has_value=false
      *  defers to the default sizing. */
-    int32_t set_worker_threads_explicit(bool has_value, size_t n) {
-        return tdx_config_set_worker_threads_explicit(handle_.get(), has_value, n);
+    int32_t set_worker_threads(bool has_value, size_t n) {
+        return tdx_config_set_worker_threads(handle_.get(), has_value, n);
     }
 
     /** Read worker_threads back. Returns @c std::nullopt for the None

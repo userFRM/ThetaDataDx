@@ -1001,8 +1001,8 @@ impl Config {
     /// Toggle AWS-style full jitter on the flatfile retry ladder.
     /// Default `true`; `false` gives the deterministic schedule,
     /// useful for tests that assert exact timings.
-    #[napi(js_name = "setFlatFilesJitter")]
-    pub fn set_flat_files_jitter(&self, jitter: bool) -> napi::Result<()> {
+    #[napi(js_name = "setFlatfilesJitter")]
+    pub fn set_flatfiles_jitter(&self, jitter: bool) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
@@ -1012,8 +1012,8 @@ impl Config {
     }
 
     /// Current `flatfiles.jitter` value (default `true`).
-    #[napi(getter, js_name = "flatFilesJitter")]
-    pub fn flat_files_jitter(&self) -> napi::Result<bool> {
+    #[napi(getter, js_name = "flatfilesJitter")]
+    pub fn flatfiles_jitter(&self) -> napi::Result<bool> {
         let guard = self
             .inner
             .lock()
@@ -1026,8 +1026,8 @@ impl Config {
     /// pins worker count to `n` (with `n=0` preserved as the `Some(0)`
     /// sentinel, matching the widened-`Option` setter shape across the
     /// binding matrix).
-    #[napi(js_name = "setWorkerThreadsExplicit")]
-    pub fn set_worker_threads_explicit(&self, has_value: bool, n: u32) -> napi::Result<()> {
+    #[napi(js_name = "setWorkerThreads")]
+    pub fn set_worker_threads(&self, has_value: bool, n: u32) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
@@ -1173,8 +1173,8 @@ impl Config {
     /// loop. `1` disables retry (single call only); higher values
     /// permit retries up to `maxAttempts - 1` after the initial call.
     /// Default `3`. Validated to the range `[1, 10]` at connect time.
-    #[napi(js_name = "setFlatFilesMaxAttempts")]
-    pub fn set_flat_files_max_attempts(&self, n: u32) -> napi::Result<()> {
+    #[napi(js_name = "setFlatfilesMaxAttempts")]
+    pub fn set_flatfiles_max_attempts(&self, n: u32) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
@@ -1184,8 +1184,8 @@ impl Config {
     }
 
     /// Current `flatfiles.max_attempts` value.
-    #[napi(getter, js_name = "flatFilesMaxAttempts")]
-    pub fn flat_files_max_attempts(&self) -> napi::Result<u32> {
+    #[napi(getter, js_name = "flatfilesMaxAttempts")]
+    pub fn flatfiles_max_attempts(&self) -> napi::Result<u32> {
         let guard = self
             .inner
             .lock()
@@ -1195,19 +1195,19 @@ impl Config {
 
     /// Set the initial backoff delay (seconds) for the flatfile
     /// driver retry loop. Doubles per attempt up to
-    /// `flatFilesMaxBackoffSecs`. Default `1n`.
+    /// `flatfilesMaxBackoffSecs`. Default `1n`.
     ///
     /// Accepts a `bigint` for parity with the Python / C++ / FFI
     /// surface (`u64`).
-    #[napi(js_name = "setFlatFilesInitialBackoffSecs")]
-    pub fn set_flat_files_initial_backoff_secs(
+    #[napi(js_name = "setFlatfilesInitialBackoffSecs")]
+    pub fn set_flatfiles_initial_backoff_secs(
         &self,
         secs: napi::bindgen_prelude::BigInt,
     ) -> napi::Result<()> {
         let (_signed, value, lossless) = secs.get_u64();
         if !lossless {
             return Err(napi::Error::from_reason(
-                "setFlatFilesInitialBackoffSecs: BigInt magnitude must fit in u64",
+                "setFlatfilesInitialBackoffSecs: BigInt magnitude must fit in u64",
             ));
         }
         let mut guard = self
@@ -1219,8 +1219,8 @@ impl Config {
     }
 
     /// Current `flatfiles.initial_backoff` value (seconds, returned as BigInt).
-    #[napi(getter, js_name = "flatFilesInitialBackoffSecs")]
-    pub fn flat_files_initial_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    #[napi(getter, js_name = "flatfilesInitialBackoffSecs")]
+    pub fn flatfiles_initial_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
@@ -1233,20 +1233,20 @@ impl Config {
     /// Set the upper-bound backoff delay (seconds) for the flatfile
     /// driver retry loop. The doubling schedule never exceeds this
     /// value regardless of attempt number. Default `4n`. Must be
-    /// greater than or equal to `flatFilesInitialBackoffSecs`
+    /// greater than or equal to `flatfilesInitialBackoffSecs`
     /// (rejected at connect-time validate otherwise).
     ///
     /// Accepts a `bigint` for parity with the Python / C++ / FFI
     /// surface (`u64`).
-    #[napi(js_name = "setFlatFilesMaxBackoffSecs")]
-    pub fn set_flat_files_max_backoff_secs(
+    #[napi(js_name = "setFlatfilesMaxBackoffSecs")]
+    pub fn set_flatfiles_max_backoff_secs(
         &self,
         secs: napi::bindgen_prelude::BigInt,
     ) -> napi::Result<()> {
         let (_signed, value, lossless) = secs.get_u64();
         if !lossless {
             return Err(napi::Error::from_reason(
-                "setFlatFilesMaxBackoffSecs: BigInt magnitude must fit in u64",
+                "setFlatfilesMaxBackoffSecs: BigInt magnitude must fit in u64",
             ));
         }
         let mut guard = self
@@ -1258,8 +1258,8 @@ impl Config {
     }
 
     /// Current `flatfiles.max_backoff` value (seconds, returned as BigInt).
-    #[napi(getter, js_name = "flatFilesMaxBackoffSecs")]
-    pub fn flat_files_max_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    #[napi(getter, js_name = "flatfilesMaxBackoffSecs")]
+    pub fn flatfiles_max_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
@@ -1315,6 +1315,66 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard.auth.client_type.clone())
+    }
+
+    // ── MddsConfig advanced endpoint overrides ────────────────────
+    //
+    // `mdds_host` / `mdds_port` point the historical gRPC channel at an
+    // explicit endpoint. Used by structural tests that need to aim the
+    // historical channel at a known-refused endpoint to prove the
+    // streaming-only surface never opens it; production code paths keep
+    // the `Config.production()` default. Mirrors the Python
+    // `Config.mdds_host` / `.mdds_port`, the C++ `set_mdds_host` /
+    // `set_mdds_port`, and the C ABI `tdx_config_set_mdds_host` /
+    // `tdx_config_set_mdds_port`.
+
+    /// Override the historical gRPC host. Companion to `setMddsPort`.
+    #[napi(js_name = "setMddsHost")]
+    pub fn set_mdds_host(&self, host: String) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.host = host;
+        Ok(())
+    }
+
+    /// Current historical gRPC host.
+    #[napi(getter, js_name = "mddsHost")]
+    pub fn mdds_host(&self) -> napi::Result<String> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.mdds.host.clone())
+    }
+
+    /// Override the historical gRPC port. Companion to `setMddsHost` —
+    /// same test-only rationale. Rejects values outside the `u16` range
+    /// (`0..=65535`).
+    #[napi(js_name = "setMddsPort")]
+    pub fn set_mdds_port(&self, port: u32) -> napi::Result<()> {
+        let resolved = u16::try_from(port).map_err(|_| {
+            crate::invalid_parameter_err(format!(
+                "setMddsPort: port must be in the u16 range 0..=65535; got {port}"
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.port = resolved;
+        Ok(())
+    }
+
+    /// Current historical gRPC port.
+    #[napi(getter, js_name = "mddsPort")]
+    pub fn mdds_port(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::from(guard.mdds.port))
     }
 
     // ── MetricsConfig field setter/getter ─────────────────────────
