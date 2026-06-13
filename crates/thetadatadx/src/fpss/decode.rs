@@ -585,12 +585,19 @@ pub fn decode_frame(
                         return (Some(FpssEventInternal::Unparseable), None);
                     };
                     FPSS_OHLCVC_EVENTS.increment(1);
+                    // Cumulative volume (buf[5]) and trade count (buf[6]) are
+                    // unsigned 32-bit wire fields. Widen through `u32` so a
+                    // value above `i32::MAX` (a normal full-session volume on
+                    // a liquid symbol) lands as a positive `i64` instead of
+                    // being sign-extended into a negative number.
+                    let volume = i64::from(buf[5] as u32);
+                    let count = i64::from(buf[6] as u32);
                     let acc = delta_state
                         .ohlcvc
                         .entry(contract_id)
                         .or_insert_with(OhlcvcAccumulator::new);
                     acc.init_from_server(
-                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
+                        buf[0], buf[1], buf[2], buf[3], buf[4], volume, count, buf[7], buf[8],
                     );
                     (
                         Some(FpssEventInternal::Data(FpssData::Ohlcvc {
@@ -600,8 +607,8 @@ pub fn decode_frame(
                             high: h,
                             low: l,
                             close: c,
-                            volume: i64::from(buf[5]),
-                            count: i64::from(buf[6]),
+                            volume,
+                            count,
                             date: buf[8],
                             received_at_ns,
                         })),
@@ -1628,6 +1635,63 @@ mod tests {
                 .unwrap_or(false),
             "invalid-price_type OHLCVC frame must not seed the accumulator"
         );
+    }
+
+    #[test]
+    fn decode_frame_ohlcvc_volume_count_are_unsigned() {
+        // Cumulative volume and trade count are unsigned 32-bit wire fields.
+        // A full-session volume on a liquid symbol routinely exceeds
+        // `i32::MAX`; on the wire that arrives as a 32-bit word whose top
+        // bit is set. Feeding the signed-i32 bit patterns `-2_069_356_102`
+        // (== `2_225_611_194_u32`) for volume and `-2_008_126_979`
+        // (== `2_286_840_317_u32`) for count must decode to the positive
+        // cumulative values, not sign-extended negatives.
+        //
+        // 9-field OHLCVC layout (server-seeded bar):
+        //   [contract_id, ms_of_day, open, high, low, close, volume,
+        //    count, price_type, date]
+        let fit_payload = encode_fit_row(&[
+            600,
+            34_200_000,
+            15_025,
+            15_100,
+            14_950,
+            15_080,
+            -2_069_356_102, // volume wire word (== 2_225_611_194_u32)
+            -2_008_126_979, // count wire word  (== 2_286_840_317_u32)
+            8,
+            20_250_428,
+        ]);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(600, Arc::new(Contract::stock("QQQ")));
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::Ohlcvc,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        assert!(secondary.is_none());
+        match primary {
+            Some(FpssEventInternal::Data(FpssData::Ohlcvc { volume, count, .. })) => {
+                assert_eq!(volume, 2_225_611_194_i64, "volume must decode as unsigned");
+                assert_eq!(count, 2_286_840_317_i64, "count must decode as unsigned");
+            }
+            other => panic!("expected decoded Ohlcvc, got {other:?}"),
+        }
+        // The accumulator the server bar seeds must hold the same positive
+        // values, so a subsequent trade advances from the correct base.
+        let acc = delta_state
+            .ohlcvc
+            .get(&600)
+            .expect("server OHLCVC frame must seed the accumulator");
+        assert_eq!(acc.volume, 2_225_611_194_i64);
+        assert_eq!(acc.count, 2_286_840_317_i64);
     }
 
     // -----------------------------------------------------------------------
