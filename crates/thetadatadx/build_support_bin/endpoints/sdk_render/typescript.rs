@@ -21,14 +21,26 @@
 //! parameter. `timeoutMs` rides in the same object: when set, the call is
 //! given a deadline; on expiry the Promise rejects and the underlying
 //! request is cancelled. The `ThetaDataDxClient` handle remains usable.
+//!
+//! Every history endpoint that returns a typed row collection also gets a
+//! `<endpoint>Stream(...args, options, callback)` server-stream companion
+//! (the TypeScript surface of the Python builders' `.stream(handler)`).
+//! Instead of buffering the whole response, it pumps each decoded gRPC
+//! chunk to `callback(chunk: Tick[])` through a napi-rs
+//! `ThreadsafeFunction`, so peak memory tracks one chunk rather than the
+//! full result — the path the `Config.setWarnOnBufferedThresholdBytes`
+//! warning points oversized buffered pulls at. The coverage set mirrors
+//! the Python streaming builders exactly (non-snapshot, non-FPSS-kind
+//! endpoints that decode to a row collection); snapshot endpoints and the
+//! flat `StringList` list endpoints have no stream companion.
 
 use std::fmt::Write as _;
 
 use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint};
 use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{
-    builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
-    to_camel_case, to_go_exported_name, ts_class_name, ts_class_vec_converter,
+    builder_params, is_snapshot_endpoint, is_time_arg, method_params, render_rust_doc_block,
+    sdk_method_arg_name, to_camel_case, to_go_exported_name, ts_class_name, ts_class_vec_converter,
 };
 
 pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
@@ -52,9 +64,32 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
     {
         out.push_str(&render_typescript_endpoint_method(endpoint));
         out.push('\n');
+        // Server-stream terminal companion. Emitted for every endpoint
+        // that gets `.stream(handler)` / `.stream_async(handler)` on the
+        // Python parsed builders (see `python.rs::write_sync_stream_terminal`):
+        // a non-snapshot, non-streaming-kind history endpoint that returns a
+        // typed row collection. Snapshot endpoints (≤10 rows) and the
+        // `StringList` list endpoints (which return bare strings, not a tick
+        // collection) are excluded — streaming a handful of rows or a flat
+        // string list buys nothing over the buffered method.
+        if endpoint_streams(endpoint) {
+            out.push_str(&render_typescript_endpoint_stream_method(endpoint));
+            out.push('\n');
+        }
     }
     out.push_str("}\n");
     out
+}
+
+/// True when an endpoint gets the `<endpoint>Stream(callback)` server-stream
+/// terminal. Mirrors the Python parsed-builder predicate
+/// (`!is_snapshot && !is_streaming_kind`) and additionally excludes the
+/// `StringList` list endpoints — those return a flat `string[]`, not a typed
+/// row collection, so the row-chunk callback shape does not apply.
+fn endpoint_streams(endpoint: &GeneratedEndpoint) -> bool {
+    !is_snapshot_endpoint(endpoint)
+        && !is_streaming_endpoint(endpoint)
+        && endpoint.return_type != "StringList"
 }
 
 /// `stock_history_eod` -> `StockHistoryEodOptions`.
@@ -321,6 +356,204 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         ts_class_vec_converter(&endpoint.return_type)
     )
     .unwrap();
+    out.push_str("    }\n");
+    out
+}
+
+/// Emit the `<endpoint>Stream(...callback)` server-stream terminal — the
+/// TypeScript companion to the Python parsed builder's `.stream(handler)`.
+///
+/// The method takes the endpoint's required positional parameters, then the
+/// same trailing `Options` object the buffered method takes (so `timeoutMs`
+/// and every optional builder param ride along identically), and finally a
+/// JS `callback`. Each decoded gRPC chunk is converted to the typed row
+/// array (`Tick[]`) and delivered to `callback` through a napi-rs
+/// `ThreadsafeFunction`, which routes the call onto the Node main thread —
+/// the only thread allowed to execute V8. The decoder-owned chunk is dropped
+/// the moment the converter returns, so peak memory tracks one chunk, never
+/// the full response: the memory-bounded path the `Config` doc points
+/// buffered callers at.
+///
+/// The callback is the LAST positional argument (after the options object)
+/// rather than riding inside the options object: a `ThreadsafeFunction`
+/// cannot be a `#[napi(object)]` field, and a trailing function argument is
+/// the JavaScript idiom for a stream sink. `callback(chunk: Tick[]) => void`
+/// is invoked once per gRPC chunk; a slow callback applies bounded
+/// back-pressure (`Blocking` call mode) rather than dropping rows.
+fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> String {
+    let method_params = method_params(endpoint);
+    let builder_params = builder_params(endpoint);
+    let camel_name = to_camel_case(&endpoint.name);
+    let stream_camel = format!("{camel_name}Stream");
+    let struct_name = options_struct_name(endpoint);
+    let tick_class = ts_class_name(&endpoint.return_type);
+    let vec_converter = ts_class_vec_converter(&endpoint.return_type);
+    let mut out = String::new();
+
+    let doc = format!(
+        "Stream `{name}` rows into `callback` without materialising the full \
+         response in memory. `callback(chunk: {tick}[]) => void` is invoked once \
+         per server chunk; the chunk is freed before the next is fetched, so peak \
+         memory tracks a single chunk rather than the whole result. This is the \
+         memory-bounded companion to [`ThetaDataDxClient::{camel}`] — prefer it \
+         for multi-day or full-universe pulls. The returned Promise resolves when \
+         the stream drains and rejects (typed like the buffered method) on a wire \
+         or decode error. Cancelling the Promise drops the in-flight request. \
+         `options` carries the same optional builder parameters and `timeoutMs` \
+         as the buffered method; the `callback` is the trailing argument.",
+        name = endpoint.name,
+        tick = tick_class,
+        camel = camel_name,
+    );
+    out.push_str(&render_rust_doc_block("    ", &doc));
+    writeln!(out, "    #[napi(js_name = \"{stream_camel}\")]").unwrap();
+    writeln!(out, "    pub async fn {name}_stream(", name = endpoint.name).unwrap();
+    out.push_str("        &self,\n");
+    for param in &method_params {
+        writeln!(
+            out,
+            "        {}: {},",
+            sdk_method_arg_name(param),
+            ts_napi_arg_type(param)
+        )
+        .unwrap();
+    }
+    writeln!(out, "        options: Option<{struct_name}>,").unwrap();
+    // `ErrorStrategy::Fatal` (the `false` const generic): the chunk array is
+    // passed to `call` directly, not as a `Result`, and a JS-callback throw
+    // surfaces through Node's own `uncaughtException` — matching the FPSS
+    // streaming callback contract on this same client.
+    writeln!(
+        out,
+        "        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<{tick_class}>, (), Vec<{tick_class}>, napi::Status, false>,"
+    )
+    .unwrap();
+    out.push_str("    ) -> napi::Result<()> {\n");
+
+    out.push_str("        let options = options.unwrap_or_default();\n");
+    out.push_str("        let timeout_ms = match options.timeout_ms {\n");
+    out.push_str("            Some(ms) => Some(validate_timeout_ms(ms)?),\n");
+    out.push_str("            None => None,\n");
+    out.push_str("        };\n");
+    out.push_str("        let tdx = self.tdx.clone();\n");
+
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
+    if has_symbols {
+        out.push_str("        let symbols = normalize_symbols(symbols);\n");
+    }
+    for param in &method_params {
+        let arg_name = sdk_method_arg_name(param);
+        match param.param_type.as_str() {
+            "Date" | "Expiration" => {
+                writeln!(out, "        let {arg_name} = normalize_date({arg_name});").unwrap();
+            }
+            _ if is_time_arg(param) => {
+                writeln!(out, "        let {arg_name} = normalize_time({arg_name});").unwrap();
+            }
+            _ => {}
+        }
+    }
+    for param in &builder_params {
+        match param.param_type.as_str() {
+            "Date" | "Expiration" => {
+                writeln!(
+                    out,
+                    "        let {} = normalize_optional_date(options.{});",
+                    param.name, param.name
+                )
+                .unwrap();
+            }
+            _ if is_time_arg(param) => {
+                writeln!(
+                    out,
+                    "        let {} = normalize_optional_time(options.{});",
+                    param.name, param.name
+                )
+                .unwrap();
+            }
+            _ => {
+                writeln!(out, "        let {} = options.{};", param.name, param.name).unwrap();
+            }
+        }
+    }
+
+    // Bind the callback behind an `Arc`: the `FnMut(&[Tick]) + Send` chunk
+    // closure the core `request.stream` takes captures the handle, and
+    // `ThreadsafeFunction` is `Send + Sync` but does not implement `Clone`
+    // in napi-rs 3.x — the outer `Arc` is the canonical share path (same as
+    // the FPSS `startStreaming` registration on this client).
+    out.push_str("        let callback = std::sync::Arc::new(callback);\n");
+
+    let positional_args = method_params
+        .iter()
+        .map(|param| {
+            if param.param_type == "Symbols" {
+                "&refs".into()
+            } else if matches!(param.param_type.as_str(), "Date" | "Expiration")
+                || is_time_arg(param)
+            {
+                format!("{}.as_str()", sdk_method_arg_name(param))
+            } else {
+                format!("&{}", sdk_method_arg_name(param))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // The builder + the gRPC server-stream run on `runtime()` (the reactor
+    // that owns the connection's sockets), spawned off the V8 thread exactly
+    // like the buffered method, so the Node event loop stays free for the
+    // whole drain.
+    out.push_str("        spawn_endpoint_task(async move {\n");
+    if has_symbols {
+        out.push_str(
+            "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
+        );
+    }
+    writeln!(
+        out,
+        "            let mut request = tdx.{}({});",
+        endpoint.name, positional_args
+    )
+    .unwrap();
+    for param in &builder_params {
+        writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
+        let setter_arg = match param.param_type.as_str() {
+            "Int" | "Float" | "Bool" => "value".to_string(),
+            _ => "value.as_str()".to_string(),
+        };
+        writeln!(
+            out,
+            "                request = request.{}({});",
+            param.name, setter_arg
+        )
+        .unwrap();
+        out.push_str("            }\n");
+    }
+    out.push_str("            if let Some(ms) = timeout_ms {\n");
+    out.push_str(
+        "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
+    );
+    out.push_str("            }\n");
+    // Per-chunk: convert the decoder-owned `&[Tick]` to the typed napi row
+    // array and hand it to the `ThreadsafeFunction`. `Blocking` applies
+    // bounded back-pressure when the tsfn queue is full (a stalled Node
+    // event loop) instead of silently dropping rows; the converted `Vec`
+    // and the wire chunk are both dropped before the next chunk is fetched.
+    out.push_str("            request\n");
+    out.push_str("                .stream(|chunk| {\n");
+    writeln!(
+        out,
+        "                    let rows = {vec_converter}(chunk);"
+    )
+    .unwrap();
+    out.push_str("                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);\n");
+    out.push_str("                })\n");
+    out.push_str("                .await\n");
+    out.push_str("        })\n");
+    out.push_str("        .await\n");
     out.push_str("    }\n");
     out
 }

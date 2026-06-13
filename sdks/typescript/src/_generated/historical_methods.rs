@@ -1727,6 +1727,40 @@ impl ThetaDataDxClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryEOD`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryEODStream")]
+    pub async fn stock_history_eod_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = eod_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch intraday OHLC bars for a stock on a single date.
     ///
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
@@ -1787,6 +1821,62 @@ impl ThetaDataDxClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryOHLC`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryOHLCStream")]
+    pub async fn stock_history_ohlc_stream(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_ohlc(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = ohlc_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch all trades for a stock on a given date.
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
@@ -1839,6 +1929,58 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryTrade`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryTradeStream")]
+    pub async fn stock_history_trade_stream(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_trade(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -1902,6 +2044,62 @@ impl ThetaDataDxClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryQuoteStream")]
+    pub async fn stock_history_quote_stream(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_quote(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
@@ -1961,6 +2159,62 @@ impl ThetaDataDxClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryTradeQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryTradeQuoteStream")]
+    pub async fn stock_history_trade_quote_stream(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_trade_quote(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch the trade at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -2006,6 +2260,46 @@ impl ThetaDataDxClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockAtTimeTrade`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockAtTimeTradeStream")]
+    pub async fn stock_at_time_trade_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeTradeOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch the quote at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -2049,6 +2343,46 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockAtTimeQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockAtTimeQuoteStream")]
+    pub async fn stock_at_time_quote_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// List all available option underlying symbols.
@@ -2213,6 +2547,43 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(option_contracts_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionListContracts`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionListContractsStream")]
+    pub async fn option_list_contracts_stream(
+        &self,
+        request_type: String,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionListContractsOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OptionContract>, (), Vec<OptionContract>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let max_dte = options.max_dte;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_list_contracts(&request_type, &symbol, date.as_str());
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = option_contracts_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -2944,6 +3315,58 @@ impl ThetaDataDxClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryEOD`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryEODStream")]
+    pub async fn option_history_eod_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = eod_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch intraday OHLC bars for an option contract.
     ///
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
@@ -3015,6 +3438,72 @@ impl ThetaDataDxClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryOHLC`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryOHLCStream")]
+    pub async fn option_history_ohlc_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOHLCOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = ohlc_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch all trades for an option contract on a given date.
     ///
     /// - Returns every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
@@ -3084,6 +3573,72 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTrade`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeStream")]
+    pub async fn option_history_trade_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -3159,6 +3714,76 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryQuoteStream")]
+    pub async fn option_history_quote_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -3237,6 +3862,76 @@ impl ThetaDataDxClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeQuoteStream")]
+    pub async fn option_history_trade_quote_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch open interest history for an option contract.
     ///
     /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
@@ -3295,6 +3990,64 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(open_interest_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryOpenInterest`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryOpenInterestStream")]
+    pub async fn option_history_open_interest_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOpenInterestOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = open_interest_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -3372,6 +4125,78 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksEOD`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksEODStream")]
+    pub async fn option_history_greeks_eod_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = greeks_eod_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -3464,6 +4289,88 @@ impl ThetaDataDxClient {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksAll`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksAllStream")]
+    pub async fn option_history_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = greeks_all_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -3551,6 +4458,88 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeGreeksAll`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeGreeksAllStream")]
+    pub async fn option_history_trade_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_greeks_all_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -3643,6 +4632,88 @@ impl ThetaDataDxClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksFirstOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksFirstOrderStream")]
+    pub async fn option_history_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = greeks_first_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -3730,6 +4801,88 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeGreeksFirstOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeGreeksFirstOrderStream")]
+    pub async fn option_history_trade_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -3822,6 +4975,88 @@ impl ThetaDataDxClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksSecondOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksSecondOrderStream")]
+    pub async fn option_history_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = greeks_second_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -3909,6 +5144,88 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeGreeksSecondOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeGreeksSecondOrderStream")]
+    pub async fn option_history_trade_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -4001,6 +5318,88 @@ impl ThetaDataDxClient {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksThirdOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksThirdOrderStream")]
+    pub async fn option_history_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = greeks_third_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -4088,6 +5487,88 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeGreeksThirdOrder`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeGreeksThirdOrderStream")]
+    pub async fn option_history_trade_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -4179,6 +5660,88 @@ impl ThetaDataDxClient {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: IvTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryGreeksImpliedVolatility`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryGreeksImpliedVolatilityStream")]
+    pub async fn option_history_greeks_implied_volatility_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IvTick>, (), Vec<IvTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = iv_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch implied volatility on each trade for an option contract.
     ///
     /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
@@ -4267,6 +5830,88 @@ impl ThetaDataDxClient {
         Ok(trade_greeks_implied_volatility_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionHistoryTradeGreeksImpliedVolatility`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityStream")]
+    pub async fn option_history_trade_greeks_implied_volatility_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksImpliedVolatilityTick>, (), Vec<TradeGreeksImpliedVolatilityTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch the trade at a specific time of day across a date range for an option.
     ///
     /// - Returns the last trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
@@ -4324,6 +5969,60 @@ impl ThetaDataDxClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionAtTimeTrade`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionAtTimeTradeStream")]
+    pub async fn option_at_time_trade_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeTradeOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = trade_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch the quote at a specific time of day across a date range for an option.
     ///
     /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
@@ -4377,6 +6076,60 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::optionAtTimeQuote`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionAtTimeQuoteStream")]
+    pub async fn option_at_time_quote_stream(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = options.max_dte;
+        let strike_range = options.strike_range;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = quote_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// List all available index symbols.
@@ -4565,6 +6318,40 @@ impl ThetaDataDxClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::indexHistoryEOD`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexHistoryEODStream")]
+    pub async fn index_history_eod_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = eod_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch intraday OHLC bars for an index.
     ///
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
@@ -4612,6 +6399,52 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::indexHistoryOHLC`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexHistoryOHLCStream")]
+    pub async fn index_history_ohlc_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryOHLCOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = ohlc_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Fetch intraday price history for an index.
@@ -4670,6 +6503,58 @@ impl ThetaDataDxClient {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(chunk: PriceTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::indexHistoryPrice`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexHistoryPriceStream")]
+    pub async fn index_history_price_stream(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryPriceOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<PriceTick>, (), Vec<PriceTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.index_history_price(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = price_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch the index price at a specific time of day across a date range.
     ///
     /// - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
@@ -4701,6 +6586,42 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(index_price_at_time_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(chunk: IndexPriceAtTimeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::indexAtTimePrice`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexAtTimePriceStream")]
+    pub async fn index_at_time_price_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexAtTimePriceOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IndexPriceAtTimeTick>, (), Vec<IndexPriceAtTimeTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = index_price_at_time_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
     /// Check whether the market is open today.
@@ -4823,6 +6744,40 @@ impl ThetaDataDxClient {
         Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
+    /// Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: InterestRateTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::interestRateHistoryEOD`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "interestRateHistoryEODStream")]
+    pub async fn interest_rate_history_eod_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<InterestRateHistoryEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<InterestRateTick>, (), Vec<InterestRateTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = interest_rate_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
+    }
+
     /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     ///
     /// Defaults (upstream):
@@ -4871,6 +6826,56 @@ impl ThetaDataDxClient {
         })
         .await?;
         Ok(ohlc_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to [`ThetaDataDxClient::stockHistoryOHLCRange`] — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockHistoryOHLCRangeStream")]
+    pub async fn stock_history_ohlc_range_stream(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCRangeOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let tdx = self.tdx.clone();
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let callback = std::sync::Arc::new(callback);
+        spawn_endpoint_task(async move {
+            let mut request = tdx.stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request
+                .stream(|chunk| {
+                    let rows = ohlc_ticks_to_class_vec(chunk);
+                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+                .await
+        })
+        .await
     }
 
 }
