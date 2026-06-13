@@ -2259,7 +2259,7 @@ inline std::string exchange_symbol(int32_t code) {
 }
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
-/// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+/// monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
 /// `signed_value` must lie in the i32 wire range
 /// (`-2'147'483'648 ..= 2'147'483'647`); a value outside that domain
 /// throws @c tdx::InvalidParameterError rather than being silently
@@ -2274,7 +2274,7 @@ inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its
-/// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+/// signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
 /// `unsigned_value` must lie in the unsigned wire range
 /// (`0 ..= 2^32 - 1`); a value above that domain throws
 /// @c tdx::InvalidParameterError rather than being silently
@@ -2361,7 +2361,7 @@ inline std::string_view sec_type_name(int32_t sec_type) noexcept {
 }
 
 /// Disconnect reason name (`"TooManyRequests"`, `"InvalidCredentials"`,
-/// ...). Mirrors `tdbe::types::enums::RemoveReason::as_str()` on the
+/// ...). Mirrors `thetadatadx::RemoveReason::as_str()` on the
 /// Rust core and the Python / TypeScript `reason_name` field surface.
 /// Returns `"Unspecified"` for unrecognised discriminants so callers
 /// stay total.

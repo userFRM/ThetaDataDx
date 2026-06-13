@@ -985,7 +985,7 @@ def implied_volatility(
 class AllGreeks:
     """All 23 Black-Scholes Greeks plus IV returned by ``all_greeks(...)``.
 
-    Field order mirrors ``tdbe::greeks::GreeksResult`` (the Rust
+    Field order mirrors ``thetadatadx::GreeksResult`` (the Rust
     single-source-of-truth the binding wraps): the model value and IV
     pair first, then first-, second-, and third-order Greeks, then the
     ``d1`` / ``d2`` auxiliaries. Every attribute is a plain ``float``.
