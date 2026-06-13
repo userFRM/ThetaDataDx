@@ -70,41 +70,57 @@ impl ThetaDataDxClient {
         // `catch_unwind`, so the core counter is only bumped here.
         let panic_recorder = Arc::clone(&self.tdx);
 
+        // GIL once per batch, not per event. `start_streaming_scoped`
+        // brackets each consumer batch drain in the `Python::attach`
+        // scope below, so the GIL is acquired once and held across every
+        // event in the batch, then released across the idle inter-batch
+        // wait. The per-event `Python::attach` is then the cheap
+        // reentrant fast path (the GIL is already held by the scope), not
+        // a full acquire-from-detached every event — which is what lifts
+        // sustained drain throughput. The no-GIL discipline holds: the
+        // lock never spans the blocking wait.
+        //
+        // The consumer is not the FPSS TLS reader thread; a slow Python
+        // callback at most fills the streaming ring and bumps
+        // `dropped_event_count()`, it cannot back-pressure the TLS reader
+        // and trigger a vendor-side disconnect. The core SDK wraps the
+        // user callback in `catch_unwind`, so a Rust panic is counted on
+        // `panic_count()` and written to `sys.stderr` via
+        // `PyErr::write_unraisable` rather than killing the consumer.
+        // Python exceptions raised by the callback are caught via `call1`
+        // returning `Err` and are also counted on `panic_count()` via
+        // `panic_recorder.record_panic()` below.
         self.tdx
-            .start_streaming(move |event: &fpss::FpssEvent| {
-                // Acquire the GIL on the dispatcher thread
-                // to call into Python. The consumer is not the FPSS TLS
-                // reader thread; a slow Python callback at most fills
-                // the streaming ring and bumps `dropped_event_count()`,
-                // it cannot back-pressure the TLS reader and trigger a
-                // vendor-side disconnect. The core SDK wraps the user
-                // callback in `catch_unwind`, so a Rust panic is
-                // counted on `panic_count()` and written to
-                // `sys.stderr` via `PyErr::write_unraisable` rather
-                // than killing the consumer. Python exceptions raised by
-                // the callback are caught via `call1` returning `Err`
-                // and are also counted on `panic_count()` via
-                // `panic_recorder.record_panic()` below.
-                Python::attach(|py| {
-                    let buffered = fpss_event_to_buffered(event);
-                    let typed = match buffered_event_to_typed(py, &buffered) {
-                        Ok(obj) => obj,
-                        Err(err) => {
-                            // Don't propagate from the dispatcher
-                            // thread — there's no Python frame to
-                            // raise into. Surface via the standard
-                            // PyErr -> sys.stderr writer so logging
-                            // pipelines and Jupyter both see it.
+            .start_streaming_scoped(
+                move |event: &fpss::FpssEvent| {
+                    Python::attach(|py| {
+                        // Convert the borrowed `&FpssEvent` straight to its
+                        // typed pyclass — no owned intermediate. The
+                        // contract is stored inline on the event; the
+                        // nested `ContractRef` Python object is built only
+                        // if the callback reads `event.contract`. `call1`
+                        // with a 1-tuple takes pyo3's vectorcall fast path
+                        // (no heap argument tuple).
+                        let typed = match fpss_event_to_typed(py, event) {
+                            Ok(obj) => obj,
+                            Err(err) => {
+                                // Don't propagate from the dispatcher
+                                // thread — there's no Python frame to
+                                // raise into. Surface via the standard
+                                // PyErr -> sys.stderr writer so logging
+                                // pipelines and Jupyter both see it.
+                                err.write_unraisable(py, None);
+                                return;
+                            }
+                        };
+                        if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            return;
+                            panic_recorder.record_panic();
                         }
-                    };
-                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
-                        err.write_unraisable(py, None);
-                        panic_recorder.record_panic();
-                    }
-                });
-            })
+                    });
+                },
+                |drain| Python::attach(|_py| drain()),
+            )
             .map_err(to_py_err)?;
 
         // The dispatcher closure already captured a clone of
@@ -181,23 +197,33 @@ impl ThetaDataDxClient {
         let dispatch_cb = Arc::clone(&callback_arc);
         let panic_recorder = Arc::clone(&self.tdx);
 
+        // GIL once per batch, not per event — see `start_streaming`. The
+        // scope holds the GIL across each batch drain and releases it
+        // across the idle wait; the per-event `Python::attach` is the
+        // cheap reentrant fast path.
         self.tdx
-            .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                Python::attach(|py| {
-                    let buffered = fpss_event_to_buffered(event);
-                    let typed = match buffered_event_to_typed(py, &buffered) {
-                        Ok(obj) => obj,
-                        Err(err) => {
+            .reconnect_streaming_scoped(
+                move |event: &fpss::FpssEvent| {
+                    Python::attach(|py| {
+                        // Borrowed `&FpssEvent` → typed pyclass in one
+                        // pass; contract stored inline, ContractRef built
+                        // only on `event.contract` access. `call1` with a
+                        // 1-tuple uses pyo3's vectorcall fast path.
+                        let typed = match fpss_event_to_typed(py, event) {
+                            Ok(obj) => obj,
+                            Err(err) => {
+                                err.write_unraisable(py, None);
+                                return;
+                            }
+                        };
+                        if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            return;
+                            panic_recorder.record_panic();
                         }
-                    };
-                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
-                        err.write_unraisable(py, None);
-                        panic_recorder.record_panic();
-                    }
-                });
-            })
+                    });
+                },
+                |drain| Python::attach(|_py| drain()),
+            )
             .map_err(to_py_err)?;
 
         // Replace the stored callable with a freshly owned handle so

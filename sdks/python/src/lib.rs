@@ -1150,17 +1150,6 @@ include!("_generated/utility_functions.rs");
 
 // ── FPSS streaming client ──
 
-// ── BufferedEvent + converter (generated from fpss_event_schema.toml) ──
-//
-// Flat owned form of `fpss::FpssEvent`, materialised inside the
-// dispatcher's drain-thread closure before we acquire the GIL and
-// build the typed pyclass. Cheaper than calling
-// `buffered_event_to_typed` directly on a borrowed `&FpssEvent`
-// because the typed-pyclass conversion takes owned strings/bytes.
-// Generator output is identical to the TypeScript SDK copy;
-// `fpss_event_schema.toml` is the single source of truth.
-include!("_generated/buffered_event.rs");
-
 // ── Unified ThetaDataDxClient client ──
 
 /// Unified ThetaData client — single connection for both historical and streaming.
@@ -1645,8 +1634,9 @@ impl AsyncThetaDataDxClient {
 
 // ── Typed-pyclass FPSS event path ─────────────────────────────────────────
 //
-// All FPSS `#[pyclass]` definitions and the `BufferedEvent` → typed
-// dispatch live in a generated file whose SSOT is
+// All FPSS `#[pyclass]` definitions and the `fpss_event_to_typed`
+// dispatcher (borrowed `&FpssEvent` → pyclass, single pass, no
+// intermediate) live in a generated file whose SSOT is
 // `crates/thetadatadx/fpss_event_schema.toml`. The generator is
 // `crates/thetadatadx/build_support/fpss_events/`; regenerate via
 // `cargo run --bin generate_sdk_surfaces --features config-file -- --write`.

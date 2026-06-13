@@ -3,7 +3,8 @@
 //! Reads `fpss_event_schema.toml` and emits:
 //!
 //! - `sdks/python/src/_generated/fpss_event_classes.rs` — `#[pyclass]` per Data variant
-//!   + `buffered_event_to_typed` dispatcher + `register_fpss_event_classes`.
+//!   + the `fpss_event_to_typed` dispatcher (borrowed `&FpssEvent` →
+//!   pyclass, no intermediate) + `register_fpss_event_classes`.
 //! - `sdks/typescript/src/_generated/fpss_event_classes.rs` — `#[napi(object)]` per
 //!   Data variant + a flat `FpssEvent` wrapper struct with optional typed
 //!   payload fields + a `buffered_event_to_typed` dispatcher that converts
@@ -22,8 +23,9 @@
 //! * [`schema`] — TOML-backed data types + `Schema` loader.
 //! * [`common`] — shared helpers (case conversion, option detection,
 //!   per-language Rust type mapping).
-//! * [`buffered`] — SSOT `BufferedEvent` enum emitted into both Python and
-//!   TypeScript SDK crates.
+//! * [`buffered`] — `BufferedEvent` enum + `fpss_event_to_buffered`
+//!   converter emitted into the TypeScript SDK crate (the napi dispatcher
+//!   consumes the buffered form; the Python dispatcher converts directly).
 //! * [`python`] / [`typescript`] — per-SDK typed event classes + dispatcher.
 //! * [`ffi_rust`] — `#[repr(C)]` structs + converter for the Rust FFI crate.
 //! * [`ffi_c`] — C mirror header `#include`'d from the C++ SDK.
@@ -77,10 +79,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
     // dispatcher which knows the napi/pyclass surface.
     let buffered = buffered::render_buffered_event_file(&schema);
     Ok(vec![
-        GeneratedSourceFile {
-            relative_path: "sdks/python/src/_generated/buffered_event.rs",
-            contents: buffered.clone(),
-        },
+        // TypeScript keeps the shared `BufferedEvent` intermediate: its
+        // typed dispatcher takes owned values out of an mpsc-crossed
+        // buffered form. The Python SDK converts the borrowed
+        // `&FpssEvent` directly to the pyclass (see `python.rs`), so it
+        // carries no `BufferedEvent` copy.
         GeneratedSourceFile {
             relative_path: "sdks/typescript/src/_generated/buffered_event.rs",
             contents: buffered,

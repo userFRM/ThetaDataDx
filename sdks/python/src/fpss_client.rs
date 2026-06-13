@@ -43,10 +43,9 @@ use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
 use thetadatadx::fpss::{self, FpssClient as RustFpssClient};
 use thetadatadx::DispatcherSession as PyFpssDispatcherSession;
 
-use crate::buffered_event_to_typed;
 use crate::errors::to_py_err;
 use crate::fluent::{self, PySubscription};
-use crate::fpss_event_to_buffered;
+use crate::fpss_event_to_typed;
 use crate::streaming_session::{StreamableHandle, StreamingSession};
 use crate::{Config, Credentials};
 
@@ -360,11 +359,26 @@ impl FpssClient {
                 // (the same channel Python uses for `__del__` errors).
                 // `panic_recorder.record_panic()` ensures the counter is
                 // also bumped for Python exceptions.
+                //
+                // GIL once per batch, not per event: `for_each_scoped`
+                // brackets each batch drain in the `Python::attach` scope
+                // below, so the GIL is acquired once and held across every
+                // event in the batch, then released across the idle
+                // inter-batch wait. The per-event `Python::attach` inside
+                // `dispatch_one` is then the cheap reentrant fast path
+                // (the GIL is already held by the scope), not a full
+                // acquire-from-detached. This holds the no-GIL discipline:
+                // the lock never spans the blocking wait.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    dispatcher_client.for_each(|event| {
+                    let dispatch_one = |event: &fpss::FpssEvent| {
                         Python::attach(|py| {
-                            let buffered = fpss_event_to_buffered(event);
-                            let typed = match buffered_event_to_typed(py, &buffered) {
+                            // Borrowed `&FpssEvent` → typed pyclass in one
+                            // pass; the contract is stored inline, so the
+                            // nested `ContractRef` Python object is built
+                            // only when the callback reads `event.contract`.
+                            // `call1` with a 1-tuple takes pyo3's
+                            // vectorcall fast path (no heap argument tuple).
+                            let typed = match fpss_event_to_typed(py, event) {
                                 Ok(obj) => obj,
                                 Err(err) => {
                                     err.write_unraisable(py, None);
@@ -376,7 +390,9 @@ impl FpssClient {
                                 panic_recorder.record_panic();
                             }
                         });
-                    });
+                    };
+                    dispatcher_client
+                        .for_each_scoped(dispatch_one, |drain| Python::attach(|_py| drain()));
                 }));
                 if outcome.is_err() {
                     tracing::error!(

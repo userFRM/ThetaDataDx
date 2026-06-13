@@ -1764,11 +1764,49 @@ impl FpssClient {
     /// Returns once [`Self::shutdown`] (or dropping the [`FpssClient`])
     /// has fired AND every event already published into the ring has
     /// been delivered.
-    pub fn for_each(&self, mut on_event: impl FnMut(&FpssEvent)) {
+    pub fn for_each(&self, on_event: impl FnMut(&FpssEvent)) {
+        // Identity batch scope: each batch drain runs directly, with no
+        // wrapping. The inter-batch wait is the same three-phase strategy
+        // `for_each_scoped` applies.
+        self.for_each_scoped(on_event, |drain| drain());
+    }
+
+    /// Block the calling thread draining events through `on_event`, with
+    /// each batch drain wrapped in a caller-supplied `scope`.
+    ///
+    /// Identical to [`Self::for_each`] except the work of draining one
+    /// batch — every per-event `on_event` call for the events available
+    /// at that instant — is executed inside `scope`, while the inter-batch
+    /// wait on a momentarily empty ring runs OUTSIDE it. This lets a
+    /// consumer acquire a resource once per batch rather than once per
+    /// event without changing the one-call-per-event delivery contract:
+    /// `on_event` still fires exactly once per event.
+    ///
+    /// The canonical use is a language binding that must hold an
+    /// interpreter lock (e.g. the CPython GIL) to call into user code.
+    /// Wrapping each batch drain in the lock amortises its acquisition
+    /// across every event in the batch; keeping the wait outside the
+    /// scope means the lock is released whenever the ring is idle, so a
+    /// blocking wait never holds it.
+    ///
+    /// `scope` receives a `FnMut() -> PollOutcome` that drains one batch
+    /// and returns its outcome; `scope` must call it exactly once and
+    /// return its result. The loop terminates on
+    /// [`PollOutcome::Shutdown`], identical to [`Self::for_each`].
+    pub fn for_each_scoped<S>(&self, mut on_event: impl FnMut(&FpssEvent), mut scope: S)
+    where
+        S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
+    {
         let waiter = ring::AdaptiveWaitStrategy::fpss_default();
         loop {
-            match self.poll_batch(&mut on_event) {
+            // Drain one batch inside the caller's scope. `on_event` fires
+            // once per event, exactly as in `for_each`; the scope only
+            // brackets the batch, it does not change delivery cardinality.
+            let outcome = scope(&mut || self.poll_batch(&mut on_event));
+            match outcome {
                 PollOutcome::Shutdown => return,
+                // Empty ring — wait OUTSIDE the scope so a held resource
+                // (e.g. the GIL) is released across the idle wait.
                 PollOutcome::Drained(0) => {
                     waiter.wait_for(0);
                 }

@@ -18,23 +18,33 @@
         let dispatch_cb = Arc::clone(&callback_arc);
         let panic_recorder = Arc::clone(&self.tdx);
 
+        // GIL once per batch, not per event — see `start_streaming`. The
+        // scope holds the GIL across each batch drain and releases it
+        // across the idle wait; the per-event `Python::attach` is the
+        // cheap reentrant fast path.
         self.tdx
-            .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                Python::attach(|py| {
-                    let buffered = fpss_event_to_buffered(event);
-                    let typed = match buffered_event_to_typed(py, &buffered) {
-                        Ok(obj) => obj,
-                        Err(err) => {
+            .reconnect_streaming_scoped(
+                move |event: &fpss::FpssEvent| {
+                    Python::attach(|py| {
+                        // Borrowed `&FpssEvent` → typed pyclass in one
+                        // pass; contract stored inline, ContractRef built
+                        // only on `event.contract` access. `call1` with a
+                        // 1-tuple uses pyo3's vectorcall fast path.
+                        let typed = match fpss_event_to_typed(py, event) {
+                            Ok(obj) => obj,
+                            Err(err) => {
+                                err.write_unraisable(py, None);
+                                return;
+                            }
+                        };
+                        if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            return;
+                            panic_recorder.record_panic();
                         }
-                    };
-                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
-                        err.write_unraisable(py, None);
-                        panic_recorder.record_panic();
-                    }
-                });
-            })
+                    });
+                },
+                |drain| Python::attach(|_py| drain()),
+            )
             .map_err(to_py_err)?;
 
         // Replace the stored callable with a freshly owned handle so
