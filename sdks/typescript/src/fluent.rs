@@ -265,8 +265,9 @@ pub struct Subscription {
 
 #[napi]
 impl Subscription {
-    /// One of `"quote"`, `"trade"`, `"open_interest"`, `"full_trades"`,
-    /// `"full_open_interest"` — the wire-level kind.
+    /// One of `"quote"`, `"trade"`, `"open_interest"`,
+    /// `"market_value"`, `"full_trades"`, `"full_open_interest"` — the
+    /// wire-level kind.
     #[napi(getter)]
     pub fn kind(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -275,6 +276,7 @@ impl Subscription {
                 SubscriptionKind::Quote => "quote",
                 SubscriptionKind::Trade => "trade",
                 SubscriptionKind::OpenInterest => "open_interest",
+                SubscriptionKind::MarketValue => "market_value",
                 _ => "unknown",
             },
             protocol::Subscription::Full { kind, .. } => match kind {

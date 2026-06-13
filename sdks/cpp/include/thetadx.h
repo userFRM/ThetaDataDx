@@ -1423,11 +1423,24 @@ int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value
 int tdx_config_set_flush_mode(TdxConfig* config, int mode);
 
 /**
+ * Read the current streaming flush mode. Same encoding as
+ * tdx_config_set_flush_mode: writes 0 (Batched) or 1 (Immediate) into
+ * *out_mode. Returns 0 on success, -1 if either pointer is null.
+ */
+int32_t tdx_config_get_flush_mode(const TdxConfig* config, int32_t* out_mode);
+
+/**
  * Set streaming OHLCVC derivation on a config handle.
  *   enabled=1 (default): derive OHLCVC bars locally from trade events.
  *   enabled=0: only emit server-sent OHLCVC frames (lower overhead).
  */
 void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
+
+/**
+ * Read the current OHLCVC-derivation flag. Writes true/false into
+ * *out_enabled. Returns 0 on success, -1 if either pointer is null.
+ */
+int32_t tdx_config_get_derive_ohlcvc(const TdxConfig* config, bool* out_enabled);
 
 /* ── Decode pool sizing ── */
 
@@ -1440,6 +1453,13 @@ void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
  *     with a `tracing::warn!` if exceeded.
  */
 void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
+
+/**
+ * Read the current concurrent in-flight gRPC request count. Writes the
+ * value into *out_n (0 = auto-detect from the tier). Returns 0 on
+ * success, -1 if either pointer is null.
+ */
+int32_t tdx_config_get_concurrent_requests(const TdxConfig* config, uint32_t* out_n);
 
 /**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.

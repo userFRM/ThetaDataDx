@@ -1063,8 +1063,27 @@ public:
         }
     }
 
+    /** Read the current FPSS flush mode. Same encoding as
+     *  @c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
+     *  (Batched) on a null handle (matching the C ABI's `-1` failure
+     *  mapping at the boundary). */
+    int flush_mode() const {
+        int32_t mode = 0;
+        tdx_config_get_flush_mode(handle_.get(), &mode);
+        return mode;
+    }
+
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
+
+    /** Read the current OHLCVC-derivation flag. Returns `false` on a
+     *  null handle (matching the C ABI's `-1` failure mapping at the
+     *  boundary). */
+    bool derive_ohlcvc() const {
+        bool enabled = false;
+        tdx_config_get_derive_ohlcvc(handle_.get(), &enabled);
+        return enabled;
+    }
 
     // ── MDDS pool sizing ──
 
@@ -1077,6 +1096,19 @@ public:
      */
     void set_concurrent_requests(std::uint32_t n) {
         tdx_config_set_concurrent_requests(handle_.get(), n);
+    }
+
+    /**
+     * Read the current concurrent in-flight gRPC request count.
+     *
+     * Returns the configured value (`0` = auto-detect from the tier),
+     * or `0` on a null handle (matching the C ABI's `-1` failure
+     * mapping at the boundary).
+     */
+    std::uint32_t concurrent_requests() const {
+        std::uint32_t n = 0;
+        tdx_config_get_concurrent_requests(handle_.get(), &n);
+        return n;
     }
 
     /**
@@ -1154,6 +1186,7 @@ using FpssPing = TdxFpssPing;
 using FpssReconnected = TdxFpssReconnected;
 using FpssReconnectedServer = TdxFpssReconnectedServer;
 using FpssReconnecting = TdxFpssReconnecting;
+using FpssReconnectsExhausted = TdxFpssReconnectsExhausted;
 using FpssReqResponse = TdxFpssReqResponse;
 using FpssRestart = TdxFpssRestart;
 using FpssServerError = TdxFpssServerError;

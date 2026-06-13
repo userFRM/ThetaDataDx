@@ -1137,7 +1137,28 @@ class = "Config"
 name = "flushMode"
 python = true
 typescript = true
-cpp = false  # follow-up — mirror getter in sdks/cpp/include/thetadx.hpp
+cpp = true
+
+# The `deriveOhlcvc` / `concurrentRequests` readback getters are exposed
+# on every binding: Python (`Config.derive_ohlcvc` / `.concurrent_requests`
+# properties), TypeScript (`Config.deriveOhlcvc` / `.concurrentRequests`
+# getters), C++ (`Config::derive_ohlcvc()` / `::concurrent_requests()`
+# over the FFI `tdx_config_get_derive_ohlcvc` / `_concurrent_requests`
+# symbols). The matching setters are tracked by the dotted `[[class]]`
+# rows `FpssConfig.derive_ohlcvc` / `MddsConfig.concurrent_requests`.
+[[method]]
+class = "Config"
+name = "deriveOhlcvc"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "concurrentRequests"
+python = true
+typescript = true
+cpp = true
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a

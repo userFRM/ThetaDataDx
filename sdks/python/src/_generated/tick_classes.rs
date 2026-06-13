@@ -1779,7 +1779,25 @@ impl CalendarDayList {
         format!("CalendarDayList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<CalendarDay> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, CalendarDayList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -1788,14 +1806,15 @@ impl CalendarDayList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            CalendarDay {
+        let obj =             CalendarDay {
                 date: t.date,
                 is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status.as_str().to_string(),
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<CalendarDayListIter>> {
@@ -1948,7 +1967,25 @@ impl EodTickList {
         format!("EodTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<EodTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, EodTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -1957,7 +1994,7 @@ impl EodTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            EodTick {
+        let obj =             EodTick {
                 created_ms_of_day: t.created_ms_of_day,
                 last_trade_ms_of_day: t.last_trade_ms_of_day,
                 open: t.open,
@@ -1979,7 +2016,8 @@ impl EodTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<EodTickListIter>> {
@@ -2173,7 +2211,25 @@ impl GreeksAllTickList {
         format!("GreeksAllTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<GreeksAllTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, GreeksAllTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -2182,7 +2238,7 @@ impl GreeksAllTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            GreeksAllTick {
+        let obj =             GreeksAllTick {
                 ms_of_day: t.ms_of_day,
                 bid: t.bid,
                 ask: t.ask,
@@ -2215,7 +2271,8 @@ impl GreeksAllTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksAllTickListIter>> {
@@ -2443,7 +2500,25 @@ impl GreeksEodTickList {
         format!("GreeksEodTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<GreeksEodTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, GreeksEodTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -2452,7 +2527,7 @@ impl GreeksEodTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            GreeksEodTick {
+        let obj =             GreeksEodTick {
                 ms_of_day: t.ms_of_day,
                 open: t.open,
                 high: t.high,
@@ -2497,7 +2572,8 @@ impl GreeksEodTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksEodTickListIter>> {
@@ -2723,7 +2799,25 @@ impl GreeksFirstOrderTickList {
         format!("GreeksFirstOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<GreeksFirstOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, GreeksFirstOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -2732,7 +2826,7 @@ impl GreeksFirstOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            GreeksFirstOrderTick {
+        let obj =             GreeksFirstOrderTick {
                 ms_of_day: t.ms_of_day,
                 bid: t.bid,
                 ask: t.ask,
@@ -2751,7 +2845,8 @@ impl GreeksFirstOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickListIter>> {
@@ -2924,7 +3019,25 @@ impl GreeksSecondOrderTickList {
         format!("GreeksSecondOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<GreeksSecondOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, GreeksSecondOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -2933,7 +3046,7 @@ impl GreeksSecondOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            GreeksSecondOrderTick {
+        let obj =             GreeksSecondOrderTick {
                 ms_of_day: t.ms_of_day,
                 bid: t.bid,
                 ask: t.ask,
@@ -2951,7 +3064,8 @@ impl GreeksSecondOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickListIter>> {
@@ -3121,7 +3235,25 @@ impl GreeksThirdOrderTickList {
         format!("GreeksThirdOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<GreeksThirdOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, GreeksThirdOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3130,7 +3262,7 @@ impl GreeksThirdOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            GreeksThirdOrderTick {
+        let obj =             GreeksThirdOrderTick {
                 ms_of_day: t.ms_of_day,
                 bid: t.bid,
                 ask: t.ask,
@@ -3147,7 +3279,8 @@ impl GreeksThirdOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickListIter>> {
@@ -3311,7 +3444,25 @@ impl IndexPriceAtTimeTickList {
         format!("IndexPriceAtTimeTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<IndexPriceAtTimeTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, IndexPriceAtTimeTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3320,7 +3471,7 @@ impl IndexPriceAtTimeTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            IndexPriceAtTimeTick {
+        let obj =             IndexPriceAtTimeTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -3333,7 +3484,8 @@ impl IndexPriceAtTimeTickList {
                 price: t.price,
                 date: t.date,
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<IndexPriceAtTimeTickListIter>> {
@@ -3480,7 +3632,25 @@ impl InterestRateTickList {
         format!("InterestRateTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<InterestRateTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, InterestRateTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3489,11 +3659,12 @@ impl InterestRateTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            InterestRateTick {
+        let obj =             InterestRateTick {
                 date: t.date,
                 rate: t.rate,
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<InterestRateTickListIter>> {
@@ -3634,7 +3805,25 @@ impl IvTickList {
         format!("IvTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<IvTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, IvTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3643,7 +3832,7 @@ impl IvTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            IvTick {
+        let obj =             IvTick {
                 ms_of_day: t.ms_of_day,
                 bid: t.bid,
                 bid_implied_volatility: t.bid_implied_volatility,
@@ -3659,7 +3848,8 @@ impl IvTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<IvTickListIter>> {
@@ -3818,7 +4008,25 @@ impl MarketValueTickList {
         format!("MarketValueTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<MarketValueTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, MarketValueTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3827,7 +4035,7 @@ impl MarketValueTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            MarketValueTick {
+        let obj =             MarketValueTick {
                 ms_of_day: t.ms_of_day,
                 market_bid: t.market_bid,
                 market_ask: t.market_ask,
@@ -3837,7 +4045,8 @@ impl MarketValueTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<MarketValueTickListIter>> {
@@ -3988,7 +4197,25 @@ impl OhlcTickList {
         format!("OhlcTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<OhlcTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, OhlcTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -3997,7 +4224,7 @@ impl OhlcTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            OhlcTick {
+        let obj =             OhlcTick {
                 ms_of_day: t.ms_of_day,
                 open: t.open,
                 high: t.high,
@@ -4011,7 +4238,8 @@ impl OhlcTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<OhlcTickListIter>> {
@@ -4164,7 +4392,25 @@ impl OpenInterestTickList {
         format!("OpenInterestTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<OpenInterestTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, OpenInterestTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -4173,7 +4419,7 @@ impl OpenInterestTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            OpenInterestTick {
+        let obj =             OpenInterestTick {
                 ms_of_day: t.ms_of_day,
                 open_interest: t.open_interest,
                 date: t.date,
@@ -4181,7 +4427,8 @@ impl OpenInterestTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<OpenInterestTickListIter>> {
@@ -4320,7 +4567,25 @@ impl OptionContractList {
         format!("OptionContractList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<OptionContract> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize].clone());
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize].clone());
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, OptionContractList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -4329,13 +4594,14 @@ impl OptionContractList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            OptionContract {
+        let obj =             OptionContract {
                 symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
                 right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<OptionContractListIter>> {
@@ -4469,7 +4735,25 @@ impl PriceTickList {
         format!("PriceTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<PriceTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, PriceTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -4478,12 +4762,13 @@ impl PriceTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            PriceTick {
+        let obj =             PriceTick {
                 ms_of_day: t.ms_of_day,
                 price: t.price,
                 date: t.date,
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<PriceTickListIter>> {
@@ -4626,7 +4911,25 @@ impl QuoteTickList {
         format!("QuoteTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<QuoteTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, QuoteTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -4635,7 +4938,7 @@ impl QuoteTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            QuoteTick {
+        let obj =             QuoteTick {
                 ms_of_day: t.ms_of_day,
                 bid_size: t.bid_size,
                 bid_exchange: t.bid_exchange,
@@ -4651,7 +4954,8 @@ impl QuoteTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<QuoteTickListIter>> {
@@ -4840,7 +5144,25 @@ impl TradeGreeksAllTickList {
         format!("TradeGreeksAllTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeGreeksAllTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeGreeksAllTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -4849,7 +5171,7 @@ impl TradeGreeksAllTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeGreeksAllTick {
+        let obj =             TradeGreeksAllTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -4889,7 +5211,8 @@ impl TradeGreeksAllTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeGreeksAllTickListIter>> {
@@ -5112,7 +5435,25 @@ impl TradeGreeksFirstOrderTickList {
         format!("TradeGreeksFirstOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeGreeksFirstOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeGreeksFirstOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -5121,7 +5462,7 @@ impl TradeGreeksFirstOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeGreeksFirstOrderTick {
+        let obj =             TradeGreeksFirstOrderTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -5147,7 +5488,8 @@ impl TradeGreeksFirstOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeGreeksFirstOrderTickListIter>> {
@@ -5336,7 +5678,25 @@ impl TradeGreeksImpliedVolatilityTickList {
         format!("TradeGreeksImpliedVolatilityTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeGreeksImpliedVolatilityTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeGreeksImpliedVolatilityTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -5345,7 +5705,7 @@ impl TradeGreeksImpliedVolatilityTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeGreeksImpliedVolatilityTick {
+        let obj =             TradeGreeksImpliedVolatilityTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -5365,7 +5725,8 @@ impl TradeGreeksImpliedVolatilityTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeGreeksImpliedVolatilityTickListIter>> {
@@ -5547,7 +5908,25 @@ impl TradeGreeksSecondOrderTickList {
         format!("TradeGreeksSecondOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeGreeksSecondOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeGreeksSecondOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -5556,7 +5935,7 @@ impl TradeGreeksSecondOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeGreeksSecondOrderTick {
+        let obj =             TradeGreeksSecondOrderTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -5581,7 +5960,8 @@ impl TradeGreeksSecondOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeGreeksSecondOrderTickListIter>> {
@@ -5772,7 +6152,25 @@ impl TradeGreeksThirdOrderTickList {
         format!("TradeGreeksThirdOrderTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeGreeksThirdOrderTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeGreeksThirdOrderTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -5781,7 +6179,7 @@ impl TradeGreeksThirdOrderTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeGreeksThirdOrderTick {
+        let obj =             TradeGreeksThirdOrderTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -5805,7 +6203,8 @@ impl TradeGreeksThirdOrderTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeGreeksThirdOrderTickListIter>> {
@@ -5999,7 +6398,25 @@ impl TradeQuoteTickList {
         format!("TradeQuoteTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeQuoteTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeQuoteTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -6008,7 +6425,7 @@ impl TradeQuoteTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeQuoteTick {
+        let obj =             TradeQuoteTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -6037,7 +6454,8 @@ impl TradeQuoteTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeQuoteTickListIter>> {
@@ -6232,7 +6650,25 @@ impl TradeTickList {
         format!("TradeTickList({} rows)", self.inner.len())
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<TradeTick> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize]);
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, TradeTickList::new(rows))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -6241,7 +6677,7 @@ impl TradeTickList {
             )));
         }
         let t = &self.inner[resolved as usize];
-        Ok(            TradeTick {
+        let obj =             TradeTick {
                 ms_of_day: t.ms_of_day,
                 sequence: t.sequence,
                 ext_condition1: t.ext_condition1,
@@ -6261,7 +6697,8 @@ impl TradeTickList {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
-        )
+        ;
+        Ok(Py::new(py, obj)?.into_any())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TradeTickListIter>> {
@@ -7248,7 +7685,25 @@ impl StringList {
         format!("StringList({} rows, column={:?})", self.inner.len(), self.column_name)
     }
 
-    fn __getitem__(&self, idx: isize) -> PyResult<String> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let mut i = indices.start;
+            if indices.step > 0 {
+                while i < indices.stop {
+                    rows.push(self.inner[i as usize].clone());
+                    i += indices.step;
+                }
+            } else {
+                while i > indices.stop {
+                    rows.push(self.inner[i as usize].clone());
+                    i += indices.step;
+                }
+            }
+            return Ok(Py::new(py, StringList::new(rows, &self.column_name))?.into_any());
+        }
+        let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
         let resolved = if idx < 0 { idx + len } else { idx };
         if resolved < 0 || resolved >= len {
@@ -7256,7 +7711,7 @@ impl StringList {
                 "StringList index {} out of range (len={})", idx, self.inner.len()
             )));
         }
-        Ok(self.inner[resolved as usize].clone())
+        Ok(pyo3::types::PyString::new(py, &self.inner[resolved as usize]).into_any().unbind())
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<StringListIter>> {

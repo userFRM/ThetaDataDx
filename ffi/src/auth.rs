@@ -177,6 +177,35 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
     })
 }
 
+/// Read the configured FPSS flush mode. Same encoding as
+/// `tdx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
+/// (`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_flush_mode(
+    config: *const TdxConfig,
+    out_mode: *mut i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_mode.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match config.inner.fpss.flush_mode {
+            thetadatadx::FpssFlushMode::Batched => 0,
+            thetadatadx::FpssFlushMode::Immediate => 1,
+            _ => 0,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out_mode = value;
+        }
+        0
+    })
+}
+
 /// Set FPSS reconnect policy on a config handle.
 ///
 /// - `policy = 0`: Auto (default) -- auto-reconnect with split per-class
@@ -1627,6 +1656,29 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
     })
 }
 
+/// Read the configured FPSS OHLCVC-derivation flag. Writes `true` /
+/// `false` into `*out_enabled`. Returns `0` on success, `-1` if either
+/// pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_derive_ohlcvc(
+    config: *const TdxConfig,
+    out_enabled: *mut bool,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_enabled.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+        unsafe {
+            *out_enabled = config.inner.fpss.derive_ohlcvc;
+        }
+        0
+    })
+}
+
 // ── FlatFilesConfig ────────────────────────────────────────────────
 //
 // Per-field setters/getters on `DirectConfig.flatfiles` mirror the
@@ -1975,6 +2027,31 @@ pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConf
     })
 }
 
+/// Read the configured concurrent in-flight gRPC request count. Writes
+/// the value into `*out_n` (`0` = auto-detect from the subscription
+/// tier). A stored value above `u32::MAX` saturates to `u32::MAX`.
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_concurrent_requests(
+    config: *const TdxConfig,
+    out_n: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = u32::try_from(config.inner.mdds.concurrent_requests).unwrap_or(u32::MAX);
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+        unsafe {
+            *out_n = value;
+        }
+        0
+    })
+}
+
 /// Set the `warn_on_buffered_threshold_bytes` ceiling on a config
 /// handle. Streaming endpoints log a `tracing::warn!` when a
 /// pre-stream-API caller receives a buffered response whose decoded
@@ -2080,10 +2157,73 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
+            let mut current: u32 = 99;
             super::tdx_config_set_concurrent_requests(cfg, 8);
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
+            assert_eq!(
+                super::tdx_config_get_concurrent_requests(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 8);
             super::tdx_config_set_concurrent_requests(cfg, 0);
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 0);
+            assert_eq!(
+                super::tdx_config_get_concurrent_requests(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 0);
+            // Null-pointer guard on the getter returns -1.
+            assert_eq!(
+                super::tdx_config_get_concurrent_requests(std::ptr::null(), &mut current),
+                -1
+            );
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flush_mode_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut mode: i32 = -1;
+            // Default is Batched (0).
+            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(mode, 0);
+            assert_eq!(super::tdx_config_set_flush_mode(cfg, 1), 0);
+            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(mode, 1);
+            assert_eq!(super::tdx_config_set_flush_mode(cfg, 0), 0);
+            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(mode, 0);
+            // Null-pointer guard on the getter returns -1.
+            assert_eq!(
+                super::tdx_config_get_flush_mode(std::ptr::null(), &mut mode),
+                -1
+            );
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn derive_ohlcvc_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut enabled = false;
+            super::tdx_config_set_derive_ohlcvc(cfg, 0);
+            assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
+            assert!(!enabled);
+            super::tdx_config_set_derive_ohlcvc(cfg, 1);
+            assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
+            assert!(enabled);
+            // Null-pointer guard on the getter returns -1.
+            assert_eq!(
+                super::tdx_config_get_derive_ohlcvc(std::ptr::null(), &mut enabled),
+                -1
+            );
             super::tdx_config_free(cfg);
         }
     }
