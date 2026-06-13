@@ -121,14 +121,24 @@ fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
 /// are in wire-integer price units; the result is reassembled to dollars
 /// at the typed boundary like every other price field, so it matches the
 /// terminal's market value to the cent.
+//
+// The ±1 nudges saturate at the `i32` bounds. On a well-formed quote the
+// operands are real wire prices nowhere near `i32::MAX` / `i32::MIN`, so
+// saturation never engages. It exists only to keep the decoder total over
+// the full `i32` domain: a malformed or adversarial frame can decode to a
+// degenerate `i32::MAX` / `i32::MIN` bid/ask, and the decoder must not panic
+// on arbitrary wire bytes. Clamping a degenerate price by one unit is the
+// correct floor/ceiling for a price nudge — the alternative (plain `+ 1`)
+// panics in debug and wraps a degenerate max price to a degenerate min price
+// in release, which is strictly worse.
 #[inline]
 fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (i32, i32) {
     let market_ask = if ask_size > bid_size {
-        ask + 1
+        ask.saturating_add(1)
     } else if ask <= 2 {
         ask
     } else {
-        ask - 1
+        ask.saturating_sub(1)
     };
 
     let market_bid = if bid == ask {
@@ -139,16 +149,19 @@ fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (
         if bid <= 1 {
             bid
         } else {
-            bid - 1
+            bid.saturating_sub(1)
         }
     } else if bid == 0 {
         0
     } else if bid < market_ask {
         // Compare and clamp against the already-derived `market_ask`, not
         // the raw ask, so the result agrees with the terminal.
-        (market_ask - 1).max(0).min(bid + 1)
+        market_ask
+            .saturating_sub(1)
+            .max(0)
+            .min(bid.saturating_add(1))
     } else {
-        bid + 1
+        bid.saturating_add(1)
     };
 
     (market_bid, market_ask)
@@ -1762,6 +1775,56 @@ mod tests {
         let (mb, ma) = calculate_market_value(1, 30, 1, 9);
         assert_eq!(ma, 31);
         assert_eq!(mb, 1);
+    }
+
+    /// A malformed or adversarial frame can decode to a degenerate
+    /// `i32::MAX` / `i32::MIN` bid/ask. The ±1 nudges must saturate at the
+    /// `i32` bounds rather than overflow — the decoder must not panic on
+    /// arbitrary wire bytes. This pins the saturation on every branch that
+    /// nudges by ±1, at both extremes and across the size-imbalance and
+    /// equality paths.
+    #[test]
+    fn calculate_market_value_saturates_at_i32_extremes() {
+        // ask_size > bid_size, ask == i32::MAX → `ask + 1` would overflow.
+        // market_ask saturates to i32::MAX; bid != ask so the ask-heavy
+        // bid branch decrements bid (15_000 - 1).
+        let (mb, ma) = calculate_market_value(15_000, i32::MAX, 0, 1);
+        assert_eq!(ma, i32::MAX);
+        assert_eq!(mb, 14_999);
+
+        // Balanced sizes, ask == i32::MIN (≤ 2) → ask cell unchanged; bid == 0
+        // short-circuits market_bid to 0.
+        let (mb, ma) = calculate_market_value(0, i32::MIN, 10, 10);
+        assert_eq!(ma, i32::MIN);
+        assert_eq!(mb, 0);
+
+        // Balanced sizes, ask large (> 2) → `ask - 1`; bid == i32::MAX is not
+        // < market_ask, so the final branch nudges `bid + 1` — saturates.
+        let (mb, ma) = calculate_market_value(i32::MAX, i32::MAX - 1, 10, 10);
+        assert_eq!(ma, i32::MAX - 2);
+        assert_eq!(mb, i32::MAX);
+
+        // Balanced sizes, bid == i32::MIN < market_ask → the clamp branch:
+        // `(market_ask - 1).max(0).min(bid + 1)`. The `.max(0)` floors only
+        // `market_ask - 1` (99 - 1 = 98); the `.min(bid + 1)` then takes the
+        // saturating `bid + 1` (i32::MIN + 1), which is the smaller operand.
+        let (mb, ma) = calculate_market_value(i32::MIN, 100, 10, 10);
+        assert_eq!(ma, 99);
+        assert_eq!(mb, i32::MIN + 1);
+
+        // ask_size > bid_size with both bid and ask at i32::MIN. bid == ask
+        // short-circuits market_bid to market_ask, which saturates on
+        // `ask + 1` (i32::MIN + 1, no overflow) — exercises the equality path
+        // at the low extreme.
+        let (mb, ma) = calculate_market_value(i32::MIN, i32::MIN, 0, 1);
+        assert_eq!(ma, i32::MIN + 1);
+        assert_eq!(mb, i32::MIN + 1);
+
+        // The midpoint of any saturated pair must itself stay in range.
+        let mid = market_value_midpoint(i32::MAX, i32::MAX);
+        assert_eq!(mid, i32::MAX);
+        let mid = market_value_midpoint(i32::MIN, i32::MIN);
+        assert_eq!(mid, i32::MIN);
     }
 
     /// Drive the full `decode_frame` pipeline with a synthetic FIT

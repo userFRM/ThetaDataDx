@@ -103,6 +103,10 @@ fn frame_strategy() -> impl Strategy<Value = Vec<u8>> {
         StreamMsgType::Trade as u8,
         StreamMsgType::OpenInterest as u8,
         StreamMsgType::Ohlcvc as u8,
+        // MarketValue runs a derived bid/ask calculation over the decoded
+        // quote cells; a degenerate frame can drive those cells to the i32
+        // bounds, so the arm must be reached to guard its arithmetic.
+        StreamMsgType::MarketValue as u8,
         StreamMsgType::Start as u8,
         StreamMsgType::Stop as u8,
         // Plus an unknown opcode so the unknown-frame skip path is
