@@ -57,8 +57,8 @@ use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
 use crate::config::{
-    FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
-    RATE_LIMITED_JITTER_WINDOW,
+    FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass, ReconnectAttemptLimits,
+    ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
 };
 use crate::error::Error;
 
@@ -151,10 +151,12 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Mirrors [`crate::config::ReconnectConfig::replay_pace_ms`].
     pub replay_pace_ms: u64,
     pub creds: Credentials,
-    /// Host list in per-client selection order (see
-    /// [`connection::order_hosts`]). The reconnect path additionally
-    /// promotes the last successfully-connected address to the front.
+    /// Declared FPSS host list. Reconnect re-applies the configured
+    /// selection policy to this list, optionally pinning the last
+    /// stable host first.
     pub hosts: Vec<(String, u16)>,
+    pub host_selection: HostSelectionPolicy,
+    pub host_shuffle_seed: u64,
     pub active_subs: ActiveSubs,
     pub active_full_subs: ActiveFullSubs,
     pub dropped: Arc<AtomicU64>,
@@ -175,8 +177,7 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub last_event_at_ns: Arc<AtomicI64>,
     /// Address of the server this session is currently connected to.
     /// Updated after every successful (re)connect + login; read by
-    /// `last_connected_addr()` on the owning client and used by the
-    /// reconnect path to try the last-good host first.
+    /// `last_connected_addr()` on the owning client.
     pub connected_addr: Arc<Mutex<String>>,
     /// Shared monotonic request-id counter. The auto-reconnect path
     /// allocates fresh `req_id` values from this counter for each
@@ -187,6 +188,12 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Widened to `AtomicI64`; the wire boundary clamps to a positive
     /// `i32` via [`super::wire_req_id`].
     pub next_req_id: Arc<AtomicI64>,
+}
+
+fn host_index(hosts: &[(String, u16)], addr: &str) -> Option<usize> {
+    hosts
+        .iter()
+        .position(|(host, port)| format!("{host}:{port}") == addr)
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -216,6 +223,8 @@ where
         replay_pace_ms,
         creds,
         hosts,
+        host_selection,
+        host_shuffle_seed,
         active_subs,
         active_full_subs,
         dropped,
@@ -333,6 +342,14 @@ where
     // `io_read_slice` long, plus scheduling), so the deadline now
     // holds regardless of the configured slice size.
     let read_timeout_ms_total = u64::try_from(read_timeout.as_millis()).unwrap_or(u64::MAX);
+    let mut current_host = host_index(
+        &hosts,
+        &connected_addr
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone(),
+    );
+    let mut last_known_good_host = None;
 
     'session: loop {
         // Session-local liveness clock: starts at session entry so a
@@ -603,7 +620,9 @@ where
                 // session that ran cleanly for >= `stable_window`
                 // before this drop earns a fresh budget across all
                 // classes.
-                reconnect_state.maybe_reset_after_stable(limits);
+                if reconnect_state.maybe_reset_after_stable(limits) {
+                    last_known_good_host = current_host;
+                }
                 let attempt = reconnect_state.record(class);
                 let budget = limits.budget_for(class);
                 // Two stop conditions, whichever trips first: the
@@ -758,25 +777,20 @@ where
         }
 
         // --- Attempt new TLS connection and re-authenticate ---
-        // Try the last successfully-connected address first: after a
-        // brief blip on a healthy host, the host that was just working
-        // is the best first guess, and skipping straight back to
-        // list-front would burn a connect timeout against a host that
-        // may still be down. The remaining hosts follow in the
-        // client's selection order.
+        // Pin the most recent host that survived the stable window,
+        // then re-apply the configured policy to the remaining hosts.
+        // Cold connects and unstable sessions stay pure-policy.
         let new_stream = {
-            let last_good = connected_addr
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
-            let mut ordered: Vec<(&str, u16)> = Vec::with_capacity(hosts.len());
-            for (h, p) in &hosts {
-                if format!("{h}:{p}") == last_good {
-                    ordered.insert(0, (h.as_str(), *p));
-                } else {
-                    ordered.push((h.as_str(), *p));
-                }
-            }
+            let ordered_hosts = connection::order_hosts(
+                &hosts,
+                host_selection,
+                host_shuffle_seed,
+                last_known_good_host,
+            );
+            let ordered: Vec<(&str, u16)> = ordered_hosts
+                .iter()
+                .map(|(host, port)| (host.as_str(), *port))
+                .collect();
             connection::connect_to_servers(&ordered, connect_timeout, read_timeout, keepalive)
         };
 
@@ -889,7 +903,8 @@ where
         // the owning client reflects the live session.
         *connected_addr
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = new_addr;
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = new_addr.clone();
+        current_host = host_index(&hosts, &new_addr);
 
         // Set the short I/O read timeout on the new stream so the io
         // loop can drain commands between reads. Matches the
@@ -1268,12 +1283,14 @@ impl ReconnectCounters {
     /// Decide whether the connection that just disconnected ran long
     /// enough to be considered "stable" — if so, reset all counters
     /// before scheduling the next attempt.
-    fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) {
+    fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) -> bool {
         if let Some(t) = self.last_data_at {
             if t.elapsed() >= limits.stable_window {
                 self.reset_counters();
+                return true;
             }
         }
+        false
     }
 
     /// Wall-clock time since the first attempt of the current
@@ -1421,19 +1438,19 @@ mod tests {
         counters.record(ReconnectAttemptClass::RateLimited);
         counters.record(ReconnectAttemptClass::ServerRestart);
         // No data received yet → no reset.
-        counters.maybe_reset_after_stable(&limits);
+        assert!(!counters.maybe_reset_after_stable(&limits));
         assert_eq!(counters.transient, 2);
         assert_eq!(counters.rate_limited, 1);
         assert_eq!(counters.server_restart, 1);
 
         counters.note_data_received();
         // Data received but not long enough → still no reset.
-        counters.maybe_reset_after_stable(&limits);
+        assert!(!counters.maybe_reset_after_stable(&limits));
         assert_eq!(counters.transient, 2);
         assert_eq!(counters.rate_limited, 1);
 
         std::thread::sleep(Duration::from_millis(8));
-        counters.maybe_reset_after_stable(&limits);
+        assert!(counters.maybe_reset_after_stable(&limits));
         assert_eq!(counters.transient, 0, "stable-window elapsed → reset");
         assert_eq!(counters.rate_limited, 0);
         assert_eq!(counters.server_restart, 0);
