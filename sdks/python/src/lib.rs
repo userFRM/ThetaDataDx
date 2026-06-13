@@ -1688,8 +1688,8 @@ include!("_generated/decode_bench.rs");
 //   Vec<tick::T>     -- Rust-side (historical endpoints)
 //     -> `<TickName>List` (decoder-owned Vec, no copy)
 //     -> RecordBatch  -- schema-generated arrow builders
-//     -> arrow_pyarrow::Table
-//     -> pyarrow.Table (Arrow C Data Interface, zero-copy buffers)
+//     -> FFI_ArrowArrayStream  -- Arrow C Stream Interface export
+//     -> pyarrow.Table (imported via RecordBatchReader._import_from_c, zero-copy buffers)
 //     -> pandas.DataFrame | polars.DataFrame | user code
 
 /// pyarrow.Table -> pandas.DataFrame. pandas 2.x is required for the

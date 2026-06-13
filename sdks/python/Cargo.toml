@@ -30,25 +30,30 @@ prost = "=0.14.4"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.12 upward.
-pyo3 = { version = "=0.28.3", features = ["abi3-py312", "multiple-pymethods"] }
+pyo3 = { version = "=0.29.0", features = ["abi3-py312", "multiple-pymethods"] }
 
 # Bridge between pyo3 and tokio so generated `*_async` methods return real
 # awaitables backed by the shared runtime singleton (no second runtime is
-# spun up per call). Pin to the matching release for pyo3 0.28.
-pyo3-async-runtimes = { version = "=0.28.0", features = ["tokio-runtime"] }
+# spun up per call). Pin to the matching release for pyo3 0.29.
+pyo3-async-runtimes = { version = "=0.29.0", features = ["tokio-runtime"] }
 
-# Apache Arrow columnar pipeline for the DataFrame adapter. We pick the
-# upstream `arrow` crate with the `pyarrow` feature over the third-party
-# `pyo3-arrow` because:
-#   1. Arrow Apache owns the pyo3 compat matrix — version bumps ship
-#      together (arrow 58 <-> pyo3 0.28), so we stay on the canonical
-#      upgrade path.
-#   2. Single dep, fewer surfaces to audit. `arrow::array::*`,
-#      `arrow::datatypes::*`, `arrow::record_batch::RecordBatch`,
-#      `arrow::pyarrow::{IntoPyArrow, PyArrowType}` is all we need.
-#   3. Zero-copy to pyarrow via the Arrow C Data Interface, identical
-#      semantics to pyo3-arrow.
-arrow = { version = "59.0.0", features = ["pyarrow"] }
+# Apache Arrow columnar pipeline for the DataFrame adapter. We enable the
+# `ffi` feature (the Arrow C Data / Stream Interface) rather than the
+# `pyarrow` feature, and drive the pyarrow handoff ourselves in
+# `record_batch_to_pyarrow_table`:
+#   1. The `pyarrow` feature pulls `arrow-pyarrow`, which carries its own
+#      pinned `pyo3` dependency. Exporting through the version-neutral C
+#      Stream Interface instead keeps this crate's `pyo3` line independent
+#      of arrow's bundled pin, so the two upgrade on separate cadences.
+#   2. Single feature, fewer surfaces to audit. `arrow::array::*`,
+#      `arrow::datatypes::*`, `arrow::record_batch::{RecordBatch,
+#      RecordBatchIterator}`, and `arrow::ffi_stream::FFI_ArrowArrayStream`
+#      are all we need.
+#   3. Zero-copy to pyarrow: the batch is handed over as an
+#      `FFI_ArrowArrayStream` pointer and imported via
+#      `pyarrow.RecordBatchReader._import_from_c`, which aliases the
+#      underlying buffers in place.
+arrow = { version = "59.0.0", features = ["ffi"] }
 
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
