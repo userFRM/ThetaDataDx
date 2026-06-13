@@ -108,6 +108,62 @@ pub(super) fn is_streaming_endpoint(endpoint: &GeneratedEndpoint) -> bool {
     endpoint.kind == "stream"
 }
 
+/// True for the snapshot / calendar endpoints that resolve to at most one
+/// row per request.
+///
+/// Classification is structural, not a hand-curated allowlist:
+///   * `subcategory = "snapshot"` — stock / option / index snapshot variants.
+///   * `subcategory = "snapshot_greeks"` — `option_snapshot_greeks_*`.
+///   * `category = "calendar"` — the calendar endpoints (both `calendar_status`
+///     and `calendar_query` group under the `calendar` category).
+///
+/// These return a bounded handful of rows, so the chunk-callback streaming
+/// shape does not apply: a snapshot has nothing to drain incrementally.
+pub(super) fn is_snapshot_endpoint(endpoint: &GeneratedEndpoint) -> bool {
+    if endpoint.kind != "parsed" {
+        return false;
+    }
+    matches!(
+        endpoint.subcategory.as_str(),
+        "snapshot" | "snapshot_greeks"
+    ) || endpoint.category == "calendar"
+}
+
+/// True when an endpoint gets a server-stream terminal (`request.stream`
+/// surfaced per binding).
+///
+/// SSOT for the predicate the managed bindings (Python / TypeScript) share:
+/// the bounded snapshot / calendar endpoints are excluded (nothing to drain),
+/// the `stream`-kind FPSS-shaped endpoints are excluded (they are real-time
+/// subscriptions, not a single large result), and the flat `StringList` list
+/// endpoints are excluded (they return a flat `Vec<String>`, not a typed row
+/// collection, so the row-chunk callback shape does not fit). Everything
+/// else — the multi-day / full-universe history pulls — streams.
+pub(super) fn endpoint_streams(endpoint: &GeneratedEndpoint) -> bool {
+    !is_snapshot_endpoint(endpoint)
+        && !is_streaming_endpoint(endpoint)
+        && endpoint.return_type != "StringList"
+}
+
+/// True when an endpoint gets a server-stream terminal on the C ABI and the
+/// C++ wrapper.
+///
+/// Narrows [`endpoint_streams`] by the constraint the zero-copy chunk
+/// callback imposes: the per-chunk pointer is the SAME flat `#[repr(C)]` tick
+/// the buffered tick array exposes, so the C side reinterprets it with no
+/// re-marshaling. `OptionContracts` is the lone streaming return type whose
+/// core row carries an owned `String` (the contract symbol) — its FFI
+/// representation (`TdxOptionContract`, a `*const c_char` symbol) is a
+/// distinct layout the buffered path marshals row-by-row. That per-row
+/// `CString` allocation is exactly the heap traffic the streaming path exists
+/// to avoid, and it has no stable lifetime inside a borrowed-slice callback,
+/// so the contract-discovery endpoint keeps its buffered C-ABI form only. The
+/// managed bindings (Python / TypeScript) marshal per row in GC'd memory and
+/// stream it regardless.
+pub(super) fn endpoint_streams_repr_c_ticks(endpoint: &GeneratedEndpoint) -> bool {
+    endpoint_streams(endpoint) && endpoint.return_type != "OptionContracts"
+}
+
 pub(super) fn is_method_call_param(param: &GeneratedParam) -> bool {
     param.binding == "method"
 }

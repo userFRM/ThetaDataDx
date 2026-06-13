@@ -1,0 +1,21 @@
+/// Dispatch a validated endpoint call into the generated SDK adapter set,
+/// draining the response chunk-by-chunk instead of buffering it.
+///
+/// The build script emits one match arm per streaming endpoint from the
+/// shared endpoint metadata, mirroring [`invoke_generated_endpoint`]'s typed
+/// builder construction so the buffered and streaming paths stay aligned. The
+/// per-chunk slice is type-erased to `(*const c_void, usize)` so this one
+/// signature serves every tick shape; the caller reconstructs the typed
+/// pointer (the same `#[repr(C)]` tick the buffered array exposes).
+///
+/// `handler` is invoked once per decoded gRPC chunk on the dispatching task.
+/// The slice it receives is valid only for the duration of the call — the
+/// chunk is freed before the next is fetched, bounding peak memory to a
+/// single chunk regardless of the full result size.
+pub async fn invoke_generated_endpoint_stream(
+    client: &crate::mdds::MddsClient,
+    name: &str,
+    args: &EndpointArgs,
+    mut handler: impl FnMut(*const core::ffi::c_void, usize) + Send,
+) -> Result<(), EndpointError> {
+    match name {

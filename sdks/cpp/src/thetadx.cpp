@@ -41,6 +41,12 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
 #include "historical.cpp.inc"
 
 // ═══════════════════════════════════════════════════════════════
+//  Historical server-stream endpoints (generated)
+// ═══════════════════════════════════════════════════════════════
+
+#include "historical_stream.cpp.inc"
+
+// ═══════════════════════════════════════════════════════════════
 //  FPSS (streaming) — typed #[repr(C)] events (generated)
 // ═══════════════════════════════════════════════════════════════
 

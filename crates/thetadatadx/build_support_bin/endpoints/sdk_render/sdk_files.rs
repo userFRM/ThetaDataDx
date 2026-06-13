@@ -84,8 +84,16 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi::render_ffi_with_options(&parsed.endpoints),
         },
         GeneratedSourceFile {
+            relative_path: "ffi/src/endpoint_stream.rs",
+            contents: ffi::render_ffi_stream_endpoints(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_request_options.h.inc",
             contents: ffi::render_c_endpoint_request_options(&builder_params),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/historical_stream.h.inc",
+            contents: ffi::render_c_stream_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_options.hpp.inc",
@@ -96,12 +104,20 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_cpp_historical_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/historical_stream.hpp.inc",
+            contents: cpp::render_cpp_stream_decls(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_with_options.h.inc",
             contents: cpp::render_c_endpoint_with_options_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/src/historical.cpp.inc",
             contents: cpp::render_cpp_historical_defs(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/src/historical_stream.cpp.inc",
+            contents: cpp::render_cpp_stream_defs(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "sdks/python/src/_generated/historical_methods.rs",

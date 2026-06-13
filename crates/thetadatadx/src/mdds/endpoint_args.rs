@@ -530,6 +530,45 @@ pub async fn invoke_endpoint(
     }
 }
 
+/// Transport-neutral endpoint dispatch that drains the response
+/// chunk-by-chunk instead of buffering the full `EndpointOutput`.
+///
+/// The streaming sibling of [`invoke_endpoint`]: same registry-driven
+/// dispatch, same typed builder construction and `EndpointArgs`-sourced
+/// optional setters, but the response is delivered through `handler` one
+/// decoded gRPC chunk at a time so peak memory tracks a single chunk rather
+/// than the whole result. `handler` receives each chunk as a type-erased
+/// `(*const c_void, usize)` pointing at a contiguous run of the endpoint's
+/// `#[repr(C)]` tick — the boundary the FFI layer rebuilds the typed pointer
+/// from without re-marshaling.
+///
+/// `args.timeout_ms()` wraps the entire drain in [`tokio::time::timeout`]
+/// exactly as the buffered path does: on expiry the future is dropped, its
+/// locals (`_permit`, `tonic::Streaming`) drop with it, the in-flight gRPC
+/// stream is cancelled, and the call returns
+/// `EndpointError::Server(Error::Timeout { duration_ms })`. The handler is
+/// guaranteed not to be invoked again once the deadline fires.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
+pub async fn invoke_endpoint_stream(
+    client: &crate::mdds::MddsClient,
+    name: &str,
+    args: &EndpointArgs,
+    handler: impl FnMut(*const core::ffi::c_void, usize) + Send,
+) -> Result<(), EndpointError> {
+    let dispatch = invoke_generated_endpoint_stream(client, name, args, handler);
+    match args.timeout_ms() {
+        None => dispatch.await,
+        Some(ms) => {
+            match tokio::time::timeout(std::time::Duration::from_millis(ms), dispatch).await {
+                Ok(inner) => inner,
+                Err(_) => Err(EndpointError::Server(Error::Timeout { duration_ms: ms })),
+            }
+        }
+    }
+}
+
 /// Parse a raw string value according to registry metadata into a typed endpoint arg.
 ///
 /// Only present when the `__internal` feature is enabled.
@@ -581,6 +620,12 @@ use crate::mdds::validate::{
 // `EndpointArgs`, `EndpointOutput`, and `EndpointError` — all gated above.
 #[cfg(feature = "__internal")]
 include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
+
+// Generated streaming dispatch (invoke_generated_endpoint_stream + match
+// arms). Same gating rationale as the buffered dispatch above — the arms
+// reference `EndpointArgs` and `EndpointError`.
+#[cfg(feature = "__internal")]
+include!(concat!(env!("OUT_DIR"), "/endpoint_stream_generated.rs"));
 
 #[cfg(all(test, feature = "__internal"))]
 mod tests {

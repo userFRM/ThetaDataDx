@@ -36,11 +36,11 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint};
+use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming_endpoint};
 use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{
-    builder_params, is_snapshot_endpoint, is_time_arg, method_params, render_rust_doc_block,
-    sdk_method_arg_name, to_camel_case, to_go_exported_name, ts_class_name, ts_class_vec_converter,
+    builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
+    to_camel_case, to_go_exported_name, ts_class_name, ts_class_vec_converter,
 };
 
 pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
@@ -79,17 +79,6 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
     }
     out.push_str("}\n");
     out
-}
-
-/// True when an endpoint gets the `<endpoint>Stream(callback)` server-stream
-/// terminal. Mirrors the Python parsed-builder predicate
-/// (`!is_snapshot && !is_streaming_kind`) and additionally excludes the
-/// `StringList` list endpoints — those return a flat `string[]`, not a typed
-/// row collection, so the row-chunk callback shape does not apply.
-fn endpoint_streams(endpoint: &GeneratedEndpoint) -> bool {
-    !is_snapshot_endpoint(endpoint)
-        && !is_streaming_endpoint(endpoint)
-        && endpoint.return_type != "StringList"
 }
 
 /// `stock_history_eod` -> `StockHistoryEodOptions`.
