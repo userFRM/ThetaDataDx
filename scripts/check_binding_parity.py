@@ -1210,6 +1210,227 @@ def _check_utility_rows(
     return errors
 
 
+# ─── Historical server-stream surface discovery ─────────────────────
+#
+# The endpoint codegen casts an endpoint's snake_case name to PascalCase
+# / camelCase with INITIALISM awareness: the segments `eod` / `ohlc` /
+# `iv` / `dte` / `nbbo` render as all-caps (`EOD`, `OHLC`, ...) in the
+# TypeScript `js_name` (`stockHistoryEODStream`) but as title-case in the
+# Python builder struct (`StockHistoryEodBuilder`). A naive
+# `camelCase → snake_case` inverse would split `EOD` into `e_o_d`. The
+# helper below collapses any run of consecutive uppercase letters into a
+# single segment, so both `stockHistoryEOD` and `StockHistoryEod` invert
+# to the canonical `stock_history_eod` row name.
+
+
+def _endpoint_method_to_snake(name: str) -> str:
+    """Invert an endpoint method / builder stem to its snake_case name,
+    collapsing initialism runs (`EOD`, `OHLC`) into one segment.
+
+    `stockHistoryEOD` -> `stock_history_eod`;
+    `StockHistoryEod` -> `stock_history_eod`;
+    `optionHistoryTradeGreeksImpliedVolatility` ->
+    `option_history_trade_greeks_implied_volatility`.
+    """
+    # Boundary BEFORE an uppercase run that is followed by a lowercase
+    # (start of a new title-case word): `...EODStream` keeps `EOD`
+    # together but splits before `Stream`'s `S...tream`.
+    s = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name)
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s)
+    return s.lower()
+
+#
+# The buffered historical endpoints have a server-stream companion on
+# every binding — the `.stream(handler)` core primitive surfaced as a
+# per-binding terminal:
+#
+#   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
+#     pyclass (generated into
+#     `sdks/python/src/_generated/historical_methods.rs`).
+#   * TypeScript: a `<endpoint>Stream` method on the `ThetaDataDxClient`
+#     napi class (generated into
+#     `sdks/typescript/src/_generated/historical_methods.rs`).
+#   * C ABI: a `tdx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
+#   * C++: an `<endpoint>_stream` member on the `UnifiedClient` wrapper
+#     (`thetadx.hpp` + its `.inc` fragments).
+#
+# These methods live on per-endpoint builders / as endpoint-named
+# methods, NOT on a class the `[[method]]` rows already cover, so without
+# this dedicated family a binding could ship streaming on some endpoints
+# and silently omit it on others (or on a whole binding) with no checker
+# noticing — the exact gap the cross-binding contract exists to close.
+# Each `[[historical_streaming]]` row pins one endpoint's streaming
+# presence across the four bindings.
+
+
+def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
+    exposes a `fn stream` terminal.
+
+    Walks every `impl <Name>Builder { ... }` block and records the
+    builder's endpoint name (the CamelCase struct stem, lowered to
+    snake_case) when the body declares `fn stream(`. The async companion
+    `fn stream_async` rides on the same builder, so the sync terminal is
+    the canonical presence signal.
+    """
+    out: set[str] = set()
+    if not py_src.is_dir():
+        return out
+    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            stem = header.group(1)
+            body_start = header.end()
+            depth = 1
+            i = body_start
+            while i < len(text) and depth > 0:
+                c = text[i]
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                i += 1
+            body = text[body_start : i - 1]
+            if re.search(r"\bfn\s+stream\s*\(", body):
+                out.add(_endpoint_method_to_snake(stem))
+    return out
+
+
+def _collect_typescript_streaming_endpoints(
+    ts_methods: dict[str, set[str]],
+) -> set[str]:
+    """Snake_case endpoint names whose `ThetaDataDxClient` napi class
+    exposes a `<endpoint>Stream` method.
+
+    Reuses the already-collected `{class: {method, ...}}` map. A method
+    whose camelCase name ends in `Stream` is a historical server-stream
+    terminal; strip the suffix and lower to snake_case to recover the
+    endpoint name. The FPSS lifecycle methods (`startStreaming` /
+    `stopStreaming` / `isStreaming`) do NOT end in the bare `Stream`
+    token preceded by an endpoint stem — they are excluded because
+    stripping `Stream` would leave `starting` / `stopping` / `is`, none
+    of which name an endpoint (and they are tracked by their own
+    `[[method]]` rows regardless).
+    """
+    out: set[str] = set()
+    methods = ts_methods.get("ThetaDataDxClient", set())
+    lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
+    for method in methods:
+        if method in lifecycle:
+            continue
+        if method.endswith("Stream") and len(method) > len("Stream"):
+            stem = method[: -len("Stream")]
+            out.add(_endpoint_method_to_snake(stem))
+    return out
+
+
+def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose `tdx_<endpoint>_stream` extern "C"
+    symbol exists in `ffi/src/`.
+
+    The FPSS `tdx_unified_*` / `tdx_fpss_*` callback symbols never match
+    the `tdx_<name>_stream` shape (their stems are `unified` / `fpss`
+    and they end in `set_callback` / `reconnect` / `shutdown`, not
+    `_stream`), so they are not mistaken for a historical endpoint.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    fn_re = re.compile(r"\bfn\s+tdx_(\w+)_stream\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            out.add(m.group(1))
+    return out
+
+
+def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
+    """Snake_case endpoint names whose C++ `UnifiedClient` wrapper exposes
+    an `<endpoint>_stream` member.
+
+    Reuses the already-collected C++ `{class: {method, ...}}` map. The
+    historical endpoints live on the `UnifiedClient` class body in
+    `thetadx.hpp` (the C++ name the `ThetaDataDxClient` parity rows alias
+    to). A member whose snake_case name ends in `_stream` is a
+    server-stream terminal; strip the suffix to recover the endpoint
+    name.
+    """
+    out: set[str] = set()
+    methods = cpp_methods.get("UnifiedClient", set()) | cpp_methods.get(
+        "ThetaDataDxClient", set()
+    )
+    for method in methods:
+        if method.endswith("_stream") and len(method) > len("_stream"):
+            out.add(method[: -len("_stream")])
+    return out
+
+
+def _check_historical_streaming_rows(
+    rows: list[dict[str, Any]],
+    py_stream: set[str],
+    ts_stream: set[str],
+    cpp_stream: set[str],
+    ffi_stream: set[str],
+) -> list[str]:
+    """Per-endpoint cross-binding gate for `[[historical_streaming]]` rows.
+
+    Each row declares a snake_case endpoint `name` plus the expected
+    server-stream presence in Python / TypeScript / C++ / the C ABI. The
+    checker compares the declared state against the actual binding state
+    and returns a list of mismatch strings (empty when every row
+    matches).
+
+    Beyond the per-row check, the collected sets are reconciled against
+    the union of declared row names: an endpoint that streams on ANY
+    binding but has no row at all trips the gate, so a newly-streamed
+    endpoint cannot slip in untracked.
+    """
+    errors: list[str] = []
+    declared_names = {row.get("name") for row in rows if row.get("name")}
+    for row in rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[historical_streaming]] row missing `name`: {row!r}")
+            continue
+        camel = _snake_to_camel(name)
+        pascal = camel[:1].upper() + camel[1:] if camel else camel
+        for lang, actual_set, hint in (
+            ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
+            ("typescript", ts_stream, f"`{camel}Stream` on the `ThetaDataDxClient` napi class"),
+            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `UnifiedClient` body"),
+            ("ffi", ffi_stream, f"`tdx_{name}_stream` extern \"C\" symbol"),
+        ):
+            declared = row.get(lang, False)
+            actual = name in actual_set
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+    # Reverse-direction orphan check: any endpoint that streams on a
+    # binding but has no row is undocumented drift.
+    seen = py_stream | ts_stream | cpp_stream | ffi_stream
+    for endpoint in sorted(seen - declared_names):
+        on = sorted(
+            lang
+            for lang, s in (
+                ("python", py_stream),
+                ("typescript", ts_stream),
+                ("cpp", cpp_stream),
+                ("ffi", ffi_stream),
+            )
+            if endpoint in s
+        )
+        errors.append(
+            f"  {endpoint}: streams on {on} but has no "
+            f"[[historical_streaming]] row. Add one declaring its "
+            f"per-binding presence so the surface stays tracked."
+        )
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
@@ -1452,6 +1673,9 @@ def main(argv: list[str] | None = None) -> int:
     method_rows: list[dict[str, Any]] = data.get("method", [])
     value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
     utility_rows: list[dict[str, Any]] = data.get("utility", [])
+    historical_streaming_rows: list[dict[str, Any]] = data.get(
+        "historical_streaming", []
+    )
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -1521,6 +1745,19 @@ def main(argv: list[str] | None = None) -> int:
     ffi_utils = _collect_ffi_utility_functions(FFI_SRC)
     utility_errors = _check_utility_rows(
         utility_rows, py_utils, ts_utils, cpp_utils, ffi_utils
+    )
+
+    # Historical server-stream surface ([[historical_streaming]] rows) —
+    # the `.stream(handler)` / `<endpoint>Stream` / `tdx_<endpoint>_stream`
+    # terminal per endpoint. These live on per-endpoint builders or as
+    # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
+    # so they would otherwise drift silently across bindings.
+    py_stream = _collect_python_streaming_endpoints(PY_SRC)
+    ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
+    cpp_stream = _collect_cpp_streaming_endpoints(cpp_class_methods)
+    ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
+    historical_streaming_errors = _check_historical_streaming_rows(
+        historical_streaming_rows, py_stream, ts_stream, cpp_stream, ffi_stream
     )
 
     # Public-surface vocabulary: no public client identifier may embed
@@ -1622,6 +1859,17 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if historical_streaming_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(historical_streaming_errors)} "
+            f"historical-streaming mismatch(es) (per-endpoint "
+            f"`[[historical_streaming]]` granularity):"
+        )
+        for e in historical_streaming_errors:
+            print(e)
+        print()
+
     if surface_vocab_errors:
         had_errors = True
         print(
@@ -1666,11 +1914,13 @@ def main(argv: list[str] | None = None) -> int:
     n_methods = len(method_rows)
     n_value_fields = len(value_field_rows)
     n_utilities = len(utility_rows)
+    n_hist_stream = len(historical_streaming_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
         f"{n_methods} method rows + {n_value_fields} value-field rows + "
         f"{n_utilities} utility rows + "
+        f"{n_hist_stream} historical-streaming rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -2281,6 +2531,93 @@ def _run_selftest() -> int:
     _case("utility negative — unexpected C++ decl trips", _case_utility_negative_unexpected)
     _case("utility — TS collector skips impl methods", _case_utility_ts_free_fn_collector_skips_methods)
     _case("utility — FFI collector strips tdx_ prefix", _case_utility_ffi_collector_strips_prefix)
+
+    # ── Historical server-stream surface selftests ────────────────
+
+    def _case_hist_stream_positive_all_bound() -> None:
+        """An endpoint streaming on every declared binding is silent."""
+        rows = [
+            {
+                "name": "option_history_trade",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        s = {"option_history_trade"}
+        errors = _check_historical_streaming_rows(rows, s, s, s, s)
+        assert errors == [], f"all-bound row must be silent; got {errors!r}"
+
+    def _case_hist_stream_missing_on_cpp_trips() -> None:
+        """Row claims C++ streams but the C++ member is absent — trips."""
+        rows = [
+            {
+                "name": "option_history_trade",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        bound = {"option_history_trade"}
+        errors = _check_historical_streaming_rows(
+            rows, bound, bound, set(), bound
+        )
+        assert any("cpp" in e and "missing" in e for e in errors), (
+            f"missing C++ stream member must trip; got {errors!r}"
+        )
+
+    def _case_hist_stream_ts_only_state_is_silent() -> None:
+        """The TS-first ship state (py+ts true, cpp+ffi false) is silent
+        when Python + TS stream and C++ + FFI do not — the intended
+        intermediate parity the matrix tracks.
+        """
+        rows = [
+            {
+                "name": "option_history_trade",
+                "python": True,
+                "typescript": True,
+                "cpp": False,
+                "ffi": False,
+            }
+        ]
+        bound = {"option_history_trade"}
+        errors = _check_historical_streaming_rows(
+            rows, bound, bound, set(), set()
+        )
+        assert errors == [], f"TS-first state must be silent; got {errors!r}"
+
+    def _case_hist_stream_untracked_orphan_trips() -> None:
+        """An endpoint streaming on a binding with no row at all trips
+        the reverse-direction orphan check.
+        """
+        errors = _check_historical_streaming_rows(
+            [], set(), {"option_history_trade"}, set(), set()
+        )
+        assert any(
+            "option_history_trade" in e and "no [[historical_streaming]] row" in e
+            for e in errors
+        ), f"untracked streaming endpoint must trip; got {errors!r}"
+
+    def _case_hist_stream_initialism_inverse() -> None:
+        """`stockHistoryEODStream` (TS) and `StockHistoryEod` (Python
+        builder stem) both invert to the canonical `stock_history_eod`,
+        so the two collectors agree on the row name.
+        """
+        assert _endpoint_method_to_snake("stockHistoryEOD") == "stock_history_eod"
+        assert _endpoint_method_to_snake("StockHistoryEod") == "stock_history_eod"
+        assert (
+            _endpoint_method_to_snake("optionHistoryGreeksImpliedVolatility")
+            == "option_history_greeks_implied_volatility"
+        )
+        assert _endpoint_method_to_snake("stockHistoryOHLCRange") == "stock_history_ohlc_range"
+
+    _case("hist-stream positive — all four bindings stream", _case_hist_stream_positive_all_bound)
+    _case("hist-stream negative — missing C++ member trips", _case_hist_stream_missing_on_cpp_trips)
+    _case("hist-stream positive — TS-first ship state is silent", _case_hist_stream_ts_only_state_is_silent)
+    _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
+    _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
 
     # ── Public-surface vocabulary guard selftests ──────────────────
 

@@ -1490,3 +1490,262 @@ typescript = "Option<BigInt>"
 # guard a regression. They are free functions, not methods on a tracked
 # class, so they are not expressible as `[[method]]` / `[[value_field]]`
 # rows — this note records the contract the drift gates enforce.
+
+
+# ─── Historical server-stream surface ([[historical_streaming]]) ──────
+#
+# Every buffered historical endpoint has a server-stream companion: the
+# core `request.stream(handler)` primitive surfaced as a per-binding
+# terminal that pumps each decoded gRPC chunk through a callback with
+# memory bounded to a single chunk, never the full result. The terminal
+# is named per language idiom:
+#
+#   python      — `.stream(handler)` + `.stream_async(handler)` on the
+#                 `<Endpoint>Builder` pyclass.
+#   typescript  — `<endpoint>Stream(...args, options, callback)` on the
+#                 `ThetaDataDxClient` napi class.
+#   cpp         — `<endpoint>_stream(...args, callback, options)` on the
+#                 C++ `UnifiedClient` wrapper.
+#   ffi         — the `tdx_<endpoint>_stream(...)` extern "C" symbol.
+#
+# These terminals live on per-endpoint builders / as endpoint-named
+# methods, NOT on a class the `[[method]]` rows cover, so without this
+# family a binding could ship streaming on some endpoints and silently
+# omit it on others (or on a whole binding) with no checker noticing.
+# The collector set is reconciled against these rows in both directions:
+# a declared row that does not match the binding state fails, and an
+# endpoint that streams on any binding without a row fails. `name` is the
+# canonical snake_case endpoint name (initialisms collapse: the codegen
+# emits `stockHistoryEODStream` in TS and `StockHistoryEodBuilder` in
+# Python, both tracked here as `stock_history_eod`).
+
+[[historical_streaming]]
+name = "index_at_time_price"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "index_history_eod"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "index_history_ohlc"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "index_history_price"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "interest_rate_history_eod"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_at_time_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_at_time_trade"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_eod"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_all"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_eod"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_first_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_implied_volatility"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_second_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_greeks_third_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_ohlc"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_open_interest"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_all"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_first_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_implied_volatility"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_second_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_third_order"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_history_trade_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "option_list_contracts"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_at_time_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_at_time_trade"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_eod"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_ohlc"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_ohlc_range"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_trade"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port
+
+[[historical_streaming]]
+name = "stock_history_trade_quote"
+python = true
+typescript = true
+cpp = false       # pending the C-ABI + C++ server-stream port
+ffi = false       # pending the C-ABI server-stream port

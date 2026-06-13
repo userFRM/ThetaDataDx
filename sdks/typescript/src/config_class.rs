@@ -132,11 +132,14 @@ impl Config {
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
     /// historical responses. Endpoints whose decoded total exceeds this
-    /// value emit a Rust-side `tracing::warn!` pointing the caller at
-    /// the `.stream()` surface; the data is still delivered. `0n`
-    /// disables the warning entirely. Default is `100n * 1024n * 1024n`
-    /// (100 MiB). Byte budgets can exceed `u32::MAX`, so the setter
-    /// takes a `BigInt` matching the underlying `usize` field.
+    /// value emit a Rust-side `tracing::warn!` pointing the caller at the
+    /// matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
+    /// which delivers the same rows chunk-by-chunk through a callback with
+    /// memory bounded to a single chunk; the buffered data is still
+    /// delivered. `0n` disables the warning entirely. Default is
+    /// `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed
+    /// `u32::MAX`, so the setter takes a `BigInt` matching the underlying
+    /// `usize` field.
     #[napi(js_name = "setWarnOnBufferedThresholdBytes")]
     pub fn set_warn_on_buffered_threshold_bytes(
         &self,
