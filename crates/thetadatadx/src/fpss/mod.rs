@@ -739,6 +739,8 @@ struct SpawnArgs<'a, P> {
     server_addr: String,
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
+    host_selection: HostSelectionPolicy,
+    host_shuffle_seed: u64,
     derive_ohlcvc: bool,
     flush_mode: FpssFlushMode,
     policy: ReconnectPolicy,
@@ -844,8 +846,7 @@ pub struct FpssClient {
     /// [`FpssClient::last_event_received_at_unix_nanos`].
     last_event_at_ns: Arc<AtomicI64>,
     /// Address of the live session's server. Updated by the I/O
-    /// thread after every successful reconnect; the reconnect path
-    /// also tries this address first.
+    /// thread after every successful reconnect.
     connected_addr: Arc<Mutex<String>>,
     /// Replay pacing snapshot for [`Self::restore_subscriptions`].
     /// Mirrors the builder's `replay_burst_size` / `replay_pace_ms`.
@@ -1013,12 +1014,11 @@ impl FpssClient {
                 i64::from(*crate::config::fpss_bounds::KEEPALIVE_RETRIES.end()),
             ));
         }
-        // Apply the host-selection policy once per client: the order
-        // produced here is the client's connect AND failover order for
-        // its whole lifetime (the reconnect path additionally promotes
-        // the last-good address to the front).
+        // Apply the host-selection policy once for the cold connect.
+        // Reconnects reuse the same seed, optionally pinning the last
+        // stable host ahead of a policy-ordered tail.
         let seed = host_shuffle_seed.unwrap_or_else(crate::backoff::entropy_u64);
-        let ordered_hosts = connection::order_hosts(hosts, host_selection, seed);
+        let ordered_hosts = connection::order_hosts(hosts, host_selection, seed, None);
         let keepalive = connection::TcpKeepaliveSpec {
             idle: Duration::from_secs(keepalive_idle_secs),
             interval: Duration::from_secs(keepalive_interval_secs),
@@ -1036,7 +1036,9 @@ impl FpssClient {
             creds,
             stream,
             server_addr,
-            hosts: &ordered_hosts,
+            hosts,
+            host_selection,
+            host_shuffle_seed: seed,
             ring_size,
             derive_ohlcvc,
             flush_mode,
@@ -1059,8 +1061,9 @@ impl FpssClient {
 
     /// Connect using a pre-established stream (for testing with mock sockets).
     ///
-    /// `hosts` is the full FPSS server list, needed for auto-reconnect to try
-    /// all servers. Pass an empty slice to disable reconnection to other servers.
+    /// `hosts` is the declared FPSS server list, needed for auto-reconnect to
+    /// re-apply the host-selection policy. Pass an empty slice to disable
+    /// reconnection to other servers.
     ///
     /// Returns the connected client with its internal poller bundled
     /// in; drain via [`Self::next_event`] / [`Self::poll_batch`] /
@@ -1073,6 +1076,8 @@ impl FpssClient {
             mut stream,
             server_addr,
             hosts,
+            host_selection,
+            host_shuffle_seed,
             ring_size,
             derive_ohlcvc,
             flush_mode,
@@ -1233,6 +1238,8 @@ impl FpssClient {
             server_addr,
             creds,
             hosts,
+            host_selection,
+            host_shuffle_seed,
             derive_ohlcvc,
             flush_mode,
             policy,
@@ -1284,6 +1291,8 @@ impl FpssClient {
             server_addr,
             creds,
             hosts,
+            host_selection,
+            host_shuffle_seed,
             derive_ohlcvc,
             flush_mode,
             policy,
@@ -1356,6 +1365,8 @@ impl FpssClient {
                     replay_pace_ms,
                     creds: io_creds,
                     hosts: io_hosts,
+                    host_selection,
+                    host_shuffle_seed,
                     active_subs: io_active_subs,
                     active_full_subs: io_active_full_subs,
                     dropped: io_dropped,
