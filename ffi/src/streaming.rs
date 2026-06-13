@@ -268,7 +268,10 @@ include!("fpss_event_converter.rs");
 /// A single active subscription entry.
 #[repr(C)]
 pub struct TdxSubscription {
-    /// Subscription kind as a C string (e.g. "Quote", "Trade", "`OpenInterest`").
+    /// Subscription kind as a snake_case C string. Per-contract:
+    /// `"quote"` / `"trade"` / `"open_interest"` / `"market_value"`.
+    /// Full-stream: `"full_trades"` / `"full_open_interest"`. Matches the
+    /// Python / TypeScript `Subscription.kind` labels.
     pub kind: *const c_char,
     /// Contract identifier as a C string (e.g. "SPY" or "SPY 20260417 550 C").
     pub contract: *const c_char,
@@ -918,7 +921,8 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
         let handle = unsafe { &*handle };
         match handle.inner.active_subscriptions() {
             Ok(subs) => build_subscription_array(
-                subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))),
+                subs.iter()
+                    .map(|(k, c)| (k.kind_str().to_string(), format!("{c}"))),
             ),
             Err(e) => {
                 set_error_from(&e);
@@ -933,8 +937,10 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
 ///
 /// Each entry's `contract` field carries the security-type discriminant
 /// (`"Stock"` / `"Option"` / `"Index"`) the full-stream subscription is
-/// bound to. The `kind` field is the subscription kind discriminant
-/// (`"Trade"` / `"OpenInterest"` / `"Quote"`).
+/// bound to. The `kind` field is the snake_case full-stream kind label
+/// (`"full_trades"` / `"full_open_interest"`), matching the Python /
+/// TypeScript `Subscription.kind` accessors. Per-contract-only kinds
+/// (`Quote` / `MarketValue`) have no full-stream form and are omitted.
 ///
 /// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
@@ -949,10 +955,10 @@ pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         match handle.inner.active_full_subscriptions() {
-            Ok(subs) => build_subscription_array(
-                subs.iter()
-                    .map(|(k, st)| (format!("{k:?}"), format!("{st:?}"))),
-            ),
+            Ok(subs) => build_subscription_array(subs.iter().filter_map(|(k, st)| {
+                k.full_kind_str()
+                    .map(|kind| (kind.to_string(), format!("{st:?}")))
+            })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -1686,7 +1692,7 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
         let subs = client.active_subscriptions();
         build_subscription_array(
             subs.into_iter()
-                .map(|(kind, contract)| (format!("{kind:?}"), format!("{contract}"))),
+                .map(|(kind, contract)| (kind.kind_str().to_string(), format!("{contract}"))),
         )
     })
 }

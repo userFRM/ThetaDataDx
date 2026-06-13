@@ -465,28 +465,28 @@ cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTim
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
 #
-# Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`) are
-# exposed on Python alone for structural-test usage (point the
-# historical channel at a refused endpoint to prove the streaming
-# surface never opens it). MDDS is a vendor protocol name, kept
-# verbatim; these knobs are Python-only by design — they are NOT
-# forced onto the other bindings, and the setter-set parity check
-# exempts them with a written reason. The dotted rows below capture
-# the partial-binding state via the `setter = "..."` override on
-# Python.
+# Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`):
+# point the historical channel at a known host (e.g. a refused endpoint
+# in structural tests that prove the streaming surface never opens it).
+# MDDS is a vendor protocol name, kept verbatim. Exposed on Python
+# (`Config.mdds_host` / `.mdds_port`) and C++ (`set_mdds_host` /
+# `set_mdds_port` over the FFI `tdx_config_set_mdds_host` /
+# `tdx_config_set_mdds_port`). TypeScript does not carry these advanced
+# knobs. The dotted rows below capture the partial-binding state via the
+# `setter = "..."` override.
 
 [[class]]
 name = "MddsConfig.host"
-python = true       # `Config.mdds_host` advanced override (Python-only)
-typescript = false
-cpp = false
+python = true       # `Config.mdds_host` advanced override
+typescript = false  # advanced historical-endpoint knob not exposed on the napi Config
+cpp = true          # `Config::set_mdds_host` over `tdx_config_set_mdds_host`
 setter = "mdds_host"
 
 [[class]]
 name = "MddsConfig.port"
-python = true       # `Config.mdds_port` advanced override (Python-only)
-typescript = false
-cpp = false
+python = true       # `Config.mdds_port` advanced override
+typescript = false  # advanced historical-endpoint knob not exposed on the napi Config
+cpp = true          # `Config::set_mdds_port` over `tdx_config_set_mdds_port`
 setter = "mdds_port"
 
 [[class]]
@@ -1142,10 +1142,12 @@ cpp = true
 # The `deriveOhlcvc` / `concurrentRequests` readback getters are exposed
 # on every binding: Python (`Config.derive_ohlcvc` / `.concurrent_requests`
 # properties), TypeScript (`Config.deriveOhlcvc` / `.concurrentRequests`
-# getters), C++ (`Config::derive_ohlcvc()` / `::concurrent_requests()`
+# getters), C++ (`Config::get_derive_ohlcvc()` / `::get_concurrent_requests()`
 # over the FFI `tdx_config_get_derive_ohlcvc` / `_concurrent_requests`
-# symbols). The matching setters are tracked by the dotted `[[class]]`
-# rows `FpssConfig.derive_ohlcvc` / `MddsConfig.concurrent_requests`.
+# symbols). C++ readback getters carry a uniform `get_` prefix; the
+# parity gate accepts that per-language convention. The matching setters
+# are tracked by the dotted `[[class]]` rows `FpssConfig.derive_ohlcvc` /
+# `MddsConfig.concurrent_requests`.
 [[method]]
 class = "Config"
 name = "deriveOhlcvc"

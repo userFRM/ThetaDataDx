@@ -998,16 +998,22 @@ def _check_method_rows(
 
         # C++: `<snake>(` member declaration inside the matching
         # class body in `thetadx.hpp`. C++ alias names route through
-        # `CPP_ALIASES` (`Contract` -> `FluentContract`).
+        # `CPP_ALIASES` (`Contract` -> `FluentContract`). Readback
+        # getters on the C++ `Config` carry a uniform `get_` prefix
+        # (`get_flush_mode`), where Python exposes the field-shaped
+        # property (`flush_mode`) and TypeScript the camelCase getter
+        # (`flushMode`); accept the `get_`-prefixed C++ form so the
+        # per-language naming convention does not read as drift.
         declared_cpp = row.get("cpp", False)
         cpp_class = _cpp_class_for(class_name)
-        actual_cpp = snake in cpp_methods.get(cpp_class, set())
+        cpp_class_methods = cpp_methods.get(cpp_class, set())
+        actual_cpp = snake in cpp_class_methods or f"get_{snake}" in cpp_class_methods
         if declared_cpp != actual_cpp:
             verb = "missing" if declared_cpp and not actual_cpp else "unexpected"
             errors.append(
                 f"  {class_name}.{camel}.cpp: declared={declared_cpp}, "
                 f"actual={actual_cpp} ({verb} -- expected `{snake}(` "
-                f"inside `class {cpp_class}` body in "
+                f"or `get_{snake}(` inside `class {cpp_class}` body in "
                 f"sdks/cpp/include/thetadx.hpp)"
             )
 
@@ -2300,6 +2306,27 @@ def _run_selftest() -> int:
             f"C++ alias must resolve to FluentContract; got {errors!r}"
         )
 
+    def _case_method_cpp_get_prefix_resolves() -> None:
+        """C++ readback getter with the `get_` prefix matches a bare row."""
+        rows = [
+            {
+                "class": "Config",
+                "name": "flushMode",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"Config": {"flush_mode"}}
+        ts_methods = {"Config": {"flushMode"}}
+        # C++ exposes the readback getter as `get_flush_mode`; the gate
+        # accepts the `get_`-prefixed convention against the bare row.
+        cpp_methods = {"Config": {"get_flush_mode"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"C++ `get_`-prefixed getter must satisfy a bare row; got {errors!r}"
+        )
+
     def _case_method_unexpected_extra() -> None:
         """Declared `false` but method exists on the source — trips."""
         rows = [
@@ -2364,6 +2391,7 @@ def _run_selftest() -> int:
     _case("method negative — declared Python but missing in source", _case_method_python_missing)
     _case("method negative — declared TS but missing js_name", _case_method_typescript_missing)
     _case("method positive — C++ alias routes Contract -> FluentContract", _case_method_cpp_alias_resolves)
+    _case("method positive — C++ `get_` prefix satisfies a bare getter row", _case_method_cpp_get_prefix_resolves)
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)

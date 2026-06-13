@@ -756,7 +756,7 @@ typedef struct {
 /* ── Subscription types (active_subscriptions) ── */
 
 typedef struct {
-    const char* kind;      /* "Quote", "Trade", or "OpenInterest" */
+    const char* kind;      /* snake_case: per-contract "quote"/"trade"/"open_interest"/"market_value", full-stream "full_trades"/"full_open_interest" */
     const char* contract;  /* "SPY" or "SPY 20260417 550 C" */
 } TdxSubscription;
 
@@ -1431,10 +1431,10 @@ int32_t tdx_config_get_flush_mode(const TdxConfig* config, int32_t* out_mode);
 
 /**
  * Set streaming OHLCVC derivation on a config handle.
- *   enabled=1 (default): derive OHLCVC bars locally from trade events.
- *   enabled=0: only emit server-sent OHLCVC frames (lower overhead).
+ *   enabled=true (default): derive OHLCVC bars locally from trade events.
+ *   enabled=false: only emit server-sent OHLCVC frames (lower overhead).
  */
-void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
+void tdx_config_set_derive_ohlcvc(TdxConfig* config, bool enabled);
 
 /**
  * Read the current OHLCVC-derivation flag. Writes true/false into
@@ -1443,6 +1443,29 @@ void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 int32_t tdx_config_get_derive_ohlcvc(const TdxConfig* config, bool* out_enabled);
 
 /* ── Decode pool sizing ── */
+
+/**
+ * Set the historical (MDDS) gRPC host. host must be a non-null,
+ * NUL-terminated, valid-UTF-8 C string. Returns 0 on success, -1 if
+ * config is null or host is null / not valid UTF-8.
+ */
+int32_t tdx_config_set_mdds_host(TdxConfig* config, const char* host);
+
+/**
+ * Read the current historical (MDDS) gRPC host. Returns a heap-owned
+ * NUL-terminated C string the caller MUST free with tdx_string_free, or
+ * null if config is null or the value contains an interior NUL.
+ */
+char* tdx_config_get_mdds_host(const TdxConfig* config);
+
+/** Set the historical (MDDS) gRPC port. */
+void tdx_config_set_mdds_port(TdxConfig* config, uint16_t port);
+
+/**
+ * Read the configured historical (MDDS) gRPC port. Writes the value
+ * into *out_port. Returns 0 on success, -1 if either pointer is null.
+ */
+int32_t tdx_config_get_mdds_port(const TdxConfig* config, uint16_t* out_port);
 
 /**
  * Set the number of concurrent in-flight gRPC requests.
@@ -1877,8 +1900,9 @@ TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle)
 /** Get active full-stream subscriptions as typed array. Each entry's
  *  `contract` field carries the security-type discriminant
  *  ("Stock" / "Option" / "Index") the full-stream subscription is bound
- *  to; the `kind` field is the subscription kind discriminant
- *  ("Trade" / "OpenInterest" / "Quote"). Returns null on error.
+ *  to; the `kind` field is the snake_case full-stream kind label
+ *  ("full_trades" / "full_open_interest"), matching the Python /
+ *  TypeScript `Subscription.kind` accessor. Returns null on error.
  *  Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_unified_active_full_subscriptions(const TdxUnified* handle);
 
