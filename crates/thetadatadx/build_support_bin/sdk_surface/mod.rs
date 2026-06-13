@@ -91,6 +91,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .iter()
         .filter(|utility| utility.targets.contains(&UtilityTarget::Python))
         .collect();
+    let ts_napi_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Typescript))
+        .collect();
     let cpp_utilities: Vec<&UtilitySpec> = spec
         .utilities
         .iter()
@@ -119,6 +124,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/typescript/src/_generated/streaming_methods.rs",
             contents: typescript::render_ts_streaming_methods(&ts_napi_methods),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/typescript/src/_generated/utility_functions.rs",
+            contents: typescript::render_ts_utility_functions(&ts_napi_utilities),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss.hpp.inc",

@@ -1018,13 +1018,12 @@ class AllGreeks:
     dual_delta: float
     dual_gamma: float
     epsilon: float
-    # NOTE: the runtime also exposes ``lambda`` (the option elasticity,
-    # `delta * spot / value`). It is reachable only as
-    # ``getattr(result, "lambda")`` because ``lambda`` is a reserved
-    # Python keyword and cannot be written as a stub attribute or in
-    # ordinary attribute-access syntax. It is intentionally absent from
-    # the typed body for that reason; the field carries an ``f64`` at
-    # runtime like every other Greek here.
+    # Option elasticity (``delta * spot / value``). Carries the PEP 8
+    # trailing-underscore keyword escape because ``lambda`` is a reserved
+    # Python keyword — same spelling as the ``GreeksAllTick.lambda_`` tick
+    # attribute, so the field stays reachable with ordinary attribute
+    # syntax (``result.lambda_``) across the calculator and tick surfaces.
+    lambda_: float
 
 
 # ─────────────────────────────────────────────────────────────────────

@@ -309,8 +309,10 @@ def test_implied_volatility_returns_iv_and_error_tuple():
     assert iv > 0.0  # in-the-money call solves to a positive vol
 
 
-# Every field the ``AllGreeks`` stub declares, in declaration order, plus
-# the keyword-reserved ``lambda`` the stub documents but cannot annotate.
+# Every field the ``AllGreeks`` stub declares, in declaration order. The
+# elasticity Greek carries the PEP 8 keyword escape ``lambda_`` (matching
+# the ``GreeksAllTick.lambda_`` tick attribute), so it is a normal
+# attribute like the rest — no ``getattr`` workaround.
 _ALL_GREEKS_STUB_FIELDS = (
     "value",
     "iv",
@@ -334,6 +336,7 @@ _ALL_GREEKS_STUB_FIELDS = (
     "dual_delta",
     "dual_gamma",
     "epsilon",
+    "lambda_",
 )
 
 
@@ -343,19 +346,19 @@ def test_all_greeks_exposes_every_stubbed_field_as_float():
     for field in _ALL_GREEKS_STUB_FIELDS:
         value = getattr(greeks, field)
         assert isinstance(value, float), f"AllGreeks.{field} is not a float"
-    # The keyword-reserved elasticity column is documented in the stub as
-    # reachable only via ``getattr`` and is a float like the rest.
-    assert isinstance(getattr(greeks, "lambda"), float)
+    # The elasticity Greek is reachable with ordinary attribute syntax via
+    # its keyword escape, exactly like the tick-class ``lambda_`` field.
+    assert isinstance(greeks.lambda_, float)
 
 
 def test_all_greeks_runtime_fields_match_the_stub_exactly():
     """No runtime field is missing from the stub and the stub invents no
-    field the runtime lacks (covering the ``lambda`` keyword escape)."""
+    field the runtime lacks (covering the ``lambda_`` keyword escape)."""
     greeks = thetadatadx.all_greeks(**_GREEKS_ARGS)
     runtime_fields = {
         name
         for name in dir(greeks)
         if not name.startswith("_") and not callable(getattr(greeks, name))
     }
-    stubbed_fields = set(_ALL_GREEKS_STUB_FIELDS) | {"lambda"}
+    stubbed_fields = set(_ALL_GREEKS_STUB_FIELDS)
     assert runtime_fields == stubbed_fields

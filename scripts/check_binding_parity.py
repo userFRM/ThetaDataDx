@@ -1015,6 +1015,201 @@ def _check_method_rows(
     return errors
 
 
+# ─── Free-function (utility) discovery ──────────────────────────────
+#
+# The offline Greeks calculator (`all_greeks` / `implied_volatility`) is
+# a FREE function on every binding, not a method on a tracked class, so
+# the `[[method]]` collectors above do not see it. These collectors find
+# the per-binding declaration of a calculator function so the
+# `[[utility]]` rows can pin its cross-binding presence.
+
+
+def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
+    """Snake_case names of every `#[pyfunction]` in the Python sources.
+
+    The offline calculators are emitted as module-level `#[pyfunction] fn
+    <name>` in `sdks/python/src/_generated/utility_functions.rs`. The
+    attribute may carry a `(...)` arg list (e.g. a `#[pyo3(...)]` sibling
+    on the next line), so the regex tolerates an optional attribute body
+    before the `fn`.
+    """
+    out: set[str] = set()
+    if not py_src.is_dir():
+        return out
+    fn_re = re.compile(r"#\[pyfunction\][^{}]*?fn\s+(\w+)\s*\(", re.DOTALL)
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            out.add(m.group(1))
+    return out
+
+
+def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
+    """Snake_case names of every napi FREE function in the TS sources.
+
+    A napi free function is a `#[napi(...)]`-attributed `pub fn <name>`
+    that is NOT inside an `impl` block. The collector records the
+    snake_case fn name; the `[[utility]]` checker derives the camelCase
+    `js_name` for the declared-name match. Functions inside `impl`
+    blocks (methods) are excluded by blanking each `impl { ... }` body
+    before the scan, so only true free functions remain.
+    """
+    out: set[str] = set()
+    if not ts_src.is_dir():
+        return out
+    impl_re = re.compile(r"impl\s+(?:[A-Za-z_][\w]*::)*[A-Za-z_][\w]*\s*\{")
+    # A napi free function: the `#[napi(...)]` attribute, then any number
+    # of intervening outer attributes (`#[allow(...)]`, doc comments, or a
+    # trailing `// ...` line comment), then `pub fn <name>`. The generated
+    # calculator carries a `#[allow(clippy::too_many_arguments)] // Reason:
+    # ...` line between the napi attribute and the fn, so the gap tolerates
+    # further `#[...]` / `///` / `//` runs.
+    free_fn_re = re.compile(
+        r"#\[napi(?:\([^)]*\))?\]\s*"
+        r"(?:(?:#\[[^\]]*\]|//[^\n]*)\s*)*"
+        r"(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
+    )
+    for rs in ts_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        # Blank every impl body so method declarations inside them do not
+        # masquerade as free functions. Walk with a brace counter.
+        cleaned = []
+        i = 0
+        while i < len(text):
+            m = impl_re.search(text, i)
+            if not m:
+                cleaned.append(text[i:])
+                break
+            cleaned.append(text[i : m.start()])
+            # Skip from the impl header's opening brace to its match.
+            depth = 0
+            j = m.end() - 1  # position of the `{`
+            while j < len(text):
+                c = text[j]
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        j += 1
+                        break
+                j += 1
+            i = j
+        body = "".join(cleaned)
+        for fm in free_fn_re.finditer(body):
+            out.add(fm.group(1))
+    return out
+
+
+def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
+    """Snake_case names of free functions declared in the `tdx`
+    namespace of the C++ wrapper.
+
+    The calculator declarations live in
+    `sdks/cpp/include/utilities.hpp.inc`, pulled into `thetadx.hpp` via
+    `#include "utilities.hpp.inc"`. `_expand_cpp_includes` inlines the
+    `.inc` first, then a `<ret> <name>(` shape outside any `class {...}`
+    body is a free function. The collector blanks class bodies (mirroring
+    the TS impl-body blanking) so member functions are not counted.
+    """
+    out: set[str] = set()
+    if not cpp_hpp.is_file():
+        return out
+    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    # Blank class / struct bodies so only namespace-scope free functions
+    # remain.
+    type_re = re.compile(r"\b(?:class|struct)\s+\w+[^{;]*\{")
+    cleaned = []
+    i = 0
+    while i < len(text):
+        m = type_re.search(text, i)
+        if not m:
+            cleaned.append(text[i:])
+            break
+        cleaned.append(text[i : m.start()])
+        depth = 0
+        j = m.end() - 1
+        while j < len(text):
+            c = text[j]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    j += 1
+                    break
+            j += 1
+        i = j
+    body = "".join(cleaned)
+    # `<return type> <name>(` at namespace scope. The return type may be
+    # a qualified / templated type (`std::pair<double, double>`), so match
+    # the identifier immediately before the `(` and filter keywords.
+    for fm in re.finditer(r"(?:^|[\s>])([a-z_][a-z0-9_]*)\s*\(", body, re.MULTILINE):
+        name = fm.group(1)
+        if name in {"if", "while", "for", "switch", "return", "sizeof", "throw"}:
+            continue
+        out.add(name)
+    return out
+
+
+def _collect_ffi_utility_functions(ffi_src: pathlib.Path) -> set[str]:
+    """Bare calculator names whose `tdx_<name>` C ABI symbol exists.
+
+    The FFI exposes the calculators as `extern "C" fn tdx_all_greeks` /
+    `fn tdx_implied_volatility`. The collector strips the `tdx_` prefix so
+    the result matches the canonical `[[utility]]` row name directly.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in re.finditer(r"\bfn\s+tdx_(\w+)\s*\(", text):
+            out.add(m.group(1))
+    return out
+
+
+def _check_utility_rows(
+    utility_rows: list[dict[str, Any]],
+    py_utils: set[str],
+    ts_utils: set[str],
+    cpp_utils: set[str],
+    ffi_utils: set[str],
+) -> list[str]:
+    """Per-free-function cross-binding gate for `[[utility]]` rows.
+
+    Each row declares a snake_case function `name` plus the expected
+    presence in Python / TypeScript / C++ / the C ABI. The checker
+    compares the declared state against the actual binding state and
+    returns a list of mismatch strings (empty when every row matches).
+    The TypeScript spelling is derived as camelCase only for the
+    diagnostic; the collector already records the snake_case fn name, so
+    the match is name-to-name.
+    """
+    errors: list[str] = []
+    for row in utility_rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[utility]] row missing `name`: {row!r}")
+            continue
+        camel = _snake_to_camel(name)
+        for lang, actual_set, hint in (
+            ("python", py_utils, f"`#[pyfunction] fn {name}`"),
+            ("typescript", ts_utils, f'`#[napi(js_name = "{camel}")] fn {name}`'),
+            ("cpp", cpp_utils, f"`{name}(` in sdks/cpp/include/utilities.hpp.inc"),
+            ("ffi", ffi_utils, f"`tdx_{name}`"),
+        ):
+            declared = row.get(lang, False)
+            actual = name in actual_set
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
@@ -1256,6 +1451,7 @@ def main(argv: list[str] | None = None) -> int:
     rows: list[dict[str, Any]] = data.get("class", [])
     method_rows: list[dict[str, Any]] = data.get("method", [])
     value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
+    utility_rows: list[dict[str, Any]] = data.get("utility", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -1314,6 +1510,18 @@ def main(argv: list[str] | None = None) -> int:
 
     # Value-field TYPE parity ([[value_field]] rows).
     value_field_errors = _check_value_field_rows(value_field_rows)
+
+    # Free-function (utility) parity ([[utility]] rows) — the offline
+    # Greeks calculator (`all_greeks` / `implied_volatility`) is a free
+    # function on every binding, tracked here because it is not a method
+    # on any class the `[[method]]` rows cover.
+    py_utils = _collect_python_utility_functions(PY_SRC)
+    ts_utils = _collect_typescript_utility_functions(TS_SRC)
+    cpp_utils = _collect_cpp_utility_functions(CPP_HPP)
+    ffi_utils = _collect_ffi_utility_functions(FFI_SRC)
+    utility_errors = _check_utility_rows(
+        utility_rows, py_utils, ts_utils, cpp_utils, ffi_utils
+    )
 
     # Public-surface vocabulary: no public client identifier may embed
     # one of OUR implementation-detail tokens (tokio / disruptor /
@@ -1404,6 +1612,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {e}")
         print()
 
+    if utility_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(utility_errors)} free-function "
+            f"mismatch(es) (per-utility `[[utility]]` granularity):"
+        )
+        for e in utility_errors:
+            print(e)
+        print()
+
     if surface_vocab_errors:
         had_errors = True
         print(
@@ -1447,10 +1665,12 @@ def main(argv: list[str] | None = None) -> int:
     n_fields = sum(len(v) for v in rust_fields.values())
     n_methods = len(method_rows)
     n_value_fields = len(value_field_rows)
+    n_utilities = len(utility_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
         f"{n_methods} method rows + {n_value_fields} value-field rows + "
+        f"{n_utilities} utility rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -1952,6 +2172,115 @@ def _run_selftest() -> int:
     _case("value_field positive — Rust + C++ types match the declared", _case_value_field_positive_matches)
     _case("value_field negative — Rust strike type drift trips", _case_value_field_rust_type_mismatch_trips)
     _case("value_field negative — C++ right-as-int trips", _case_value_field_cpp_type_mismatch_trips)
+
+    # ── Free-function (utility) parity selftests ───────────────────
+
+    def _case_utility_positive_all_four_bound() -> None:
+        """All four bindings expose the calculator function — silent."""
+        rows = [
+            {
+                "name": "all_greeks",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_utility_rows(
+            rows,
+            {"all_greeks"},
+            {"all_greeks"},
+            {"all_greeks"},
+            {"all_greeks"},
+        )
+        assert errors == [], f"positive case must be silent; got {errors!r}"
+
+    def _case_utility_negative_missing_on_ts() -> None:
+        """Declared on TypeScript but absent from the TS source — trips."""
+        rows = [
+            {
+                "name": "all_greeks",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_utility_rows(
+            rows,
+            {"all_greeks"},
+            set(),  # TS missing — the exact gap this matrix closes
+            {"all_greeks"},
+            {"all_greeks"},
+        )
+        assert any("typescript" in e and "missing" in e for e in errors), (
+            f"missing TS free function must trip; got {errors!r}"
+        )
+
+    def _case_utility_negative_unexpected() -> None:
+        """Row says not-on-C++ but the C++ decl exists — trips."""
+        rows = [
+            {
+                "name": "implied_volatility",
+                "python": True,
+                "typescript": True,
+                "cpp": False,
+                "ffi": True,
+            }
+        ]
+        errors = _check_utility_rows(
+            rows,
+            {"implied_volatility"},
+            {"implied_volatility"},
+            {"implied_volatility"},  # present despite cpp=false
+            {"implied_volatility"},
+        )
+        assert any("cpp" in e and "unexpected" in e for e in errors), (
+            f"unexpected C++ decl must trip; got {errors!r}"
+        )
+
+    def _case_utility_ts_free_fn_collector_skips_methods() -> None:
+        """The TS collector records free functions but not impl methods."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ts_dir = pathlib.Path(tmp) / "ts"
+            ts_dir.mkdir()
+            (ts_dir / "gen.rs").write_text(
+                '#[napi(js_name = "allGreeks")]\n'
+                "pub fn all_greeks(spot: f64) -> napi::Result<AllGreeks> { todo!() }\n"
+                "\n"
+                "#[napi]\n"
+                "impl ThetaDataDxClient {\n"
+                '    #[napi(js_name = "isStreaming")]\n'
+                "    pub fn is_streaming(&self) -> bool { true }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            found = _collect_typescript_utility_functions(ts_dir)
+            assert "all_greeks" in found, f"free fn must be seen; got {found!r}"
+            assert "is_streaming" not in found, (
+                f"impl method must NOT be seen as a free fn; got {found!r}"
+            )
+
+    def _case_utility_ffi_collector_strips_prefix() -> None:
+        """The FFI collector strips the `tdx_` prefix to the bare name."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi_dir = pathlib.Path(tmp) / "ffi"
+            ffi_dir.mkdir()
+            (ffi_dir / "utility.rs").write_text(
+                'pub unsafe extern "C" fn tdx_all_greeks() {}\n'
+                'pub unsafe extern "C" fn tdx_implied_volatility() {}\n',
+                encoding="utf-8",
+            )
+            found = _collect_ffi_utility_functions(ffi_dir)
+            assert {"all_greeks", "implied_volatility"} <= found, (
+                f"tdx_-prefixed symbols must map to bare names; got {found!r}"
+            )
+
+    _case("utility positive — all four bindings expose the calculator", _case_utility_positive_all_four_bound)
+    _case("utility negative — calculator missing on TS trips", _case_utility_negative_missing_on_ts)
+    _case("utility negative — unexpected C++ decl trips", _case_utility_negative_unexpected)
+    _case("utility — TS collector skips impl methods", _case_utility_ts_free_fn_collector_skips_methods)
+    _case("utility — FFI collector strips tdx_ prefix", _case_utility_ffi_collector_strips_prefix)
 
     # ── Public-surface vocabulary guard selftests ──────────────────
 

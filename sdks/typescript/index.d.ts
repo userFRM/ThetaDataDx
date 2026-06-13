@@ -1584,6 +1584,40 @@ export declare class Util {
   static sequenceUnsignedToSigned(unsignedValue: bigint): bigint
 }
 
+/** Compute all 23 Black-Scholes Greeks + IV in one call. */
+export declare function allGreeks(spot: number, strike: number, rate: number, divYield: number, tte: number, optionPrice: number, right: string): AllGreeks
+
+/**
+ * All 23 Black-Scholes Greeks + IV in a single typed object.
+ * Mirrors `thetadatadx::greeks::GreeksResult`; returned by
+ * `allGreeks(...)`.
+ */
+export interface AllGreeks {
+  value: number
+  iv: number
+  ivError: number
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+  rho: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  vera: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  d1: number
+  d2: number
+  dualDelta: number
+  dualGamma: number
+  epsilon: number
+  lambda: number
+}
+
 /** Calendar day. Market open/close schedule. */
 export interface CalendarDay {
   date: number
@@ -2030,6 +2064,9 @@ export interface GreeksThirdOrderTick {
  * dataframe from an in-band history result.
  */
 export declare function greeksThirdOrderTickToArrowIpc(rows: Array<GreeksThirdOrderTick>): Buffer
+
+/** Compute implied volatility via bisection. */
+export declare function impliedVolatility(spot: number, strike: number, rate: number, divYield: number, tte: number, optionPrice: number, right: string): [number, number]
 
 /**
  * Optional parameters for [`ThetaDataDxClient::indexAtTimePrice`]. Keys are

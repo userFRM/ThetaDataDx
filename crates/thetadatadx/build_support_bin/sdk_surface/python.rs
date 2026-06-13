@@ -2,7 +2,9 @@
 
 use std::fmt::Write as _;
 
-use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, python_type};
+use super::common::{
+    generated_header, greek_result_fields, push_rust_doc_comment, python_field_ident, python_type,
+};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
@@ -84,8 +86,12 @@ fn render_all_greeks_pyclass() -> String {
         "templates/python/all_greeks_pyclass_header.rs.tmpl"
     ));
     for (field, _rust_field) in greek_result_fields() {
+        // PEP 8 keyword escape (`lambda` -> `lambda_`) keeps every
+        // attribute reachable with normal Python syntax, matching the
+        // tick pyclasses (`GreeksAllTick.lambda_`). Without it the
+        // `lambda` Greek would be reachable only via `getattr`.
         writeln!(out, "    #[pyo3(get)]").unwrap();
-        writeln!(out, "    pub {field}: f64,").unwrap();
+        writeln!(out, "    pub {}: f64,", python_field_ident(field)).unwrap();
     }
     out.push_str("}\n\n");
     out.push_str(include_str!(
@@ -405,7 +411,15 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
             .unwrap();
             out.push_str("    Ok(AllGreeks {\n");
             for (field, rust_field) in greek_result_fields() {
-                writeln!(out, "        {field}: g.{rust_field},").unwrap();
+                // The pyclass field carries the Python keyword escape
+                // (`lambda_`); the `GreeksResult` member it reads stays
+                // the bare Rust name (`lambda`).
+                writeln!(
+                    out,
+                    "        {}: g.{rust_field},",
+                    python_field_ident(field)
+                )
+                .unwrap();
             }
             out.push_str("    })\n");
             out.push_str("}\n");
