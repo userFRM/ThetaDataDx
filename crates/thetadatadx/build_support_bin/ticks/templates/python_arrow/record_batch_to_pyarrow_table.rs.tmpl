@@ -1,12 +1,31 @@
-/// Zero-copy RecordBatch -> pyarrow.Table via `arrow::pyarrow::IntoPyArrow`
-/// on `arrow::pyarrow::Table`. One batch in, one Table out; pyarrow owns
-/// the buffers afterwards. The conversion goes through the Arrow C Data
-/// Interface -- Rust hands pyarrow an `ArrowArrayStream` FFI pointer and
-/// the Python side aliases the underlying buffers in place.
+/// Zero-copy `RecordBatch` -> `pyarrow.Table` over the Arrow C Stream
+/// Interface. One batch in, one Table out; pyarrow aliases the underlying
+/// buffers in place and owns them once the import returns.
+///
+/// The Rust side wraps the batch in a `RecordBatchIterator`, exports it as
+/// an `FFI_ArrowArrayStream`, and hands pyarrow the stream's address.
+/// `pyarrow.RecordBatchReader._import_from_c` moves the stream out of the
+/// struct (nulling its release callback) and `read_all()` drains it into a
+/// `Table`. Buffer ownership transfers through the C Data Interface, so no
+/// column data is copied at the boundary.
 pub(crate) fn record_batch_to_pyarrow_table(py: Python<'_>, batch: RecordBatch) -> PyResult<Py<PyAny>> {
+    use arrow::ffi_stream::FFI_ArrowArrayStream;
+    use arrow::record_batch::RecordBatchIterator;
+
     let schema = batch.schema();
-    let table = arrow::pyarrow::Table::try_new(vec![batch], schema)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-    let obj = table.into_pyarrow(py)?;
-    Ok(obj.unbind())
+    let reader = RecordBatchIterator::new(std::iter::once(Ok(batch)), schema);
+
+    // Stack-owned stream handed to pyarrow by address. `_import_from_c`
+    // takes ownership of the stream contents and nulls the release
+    // callback, so the `FFI_ArrowArrayStream` `Drop` that runs when this
+    // function returns is a no-op on the moved-out handle.
+    let mut stream = FFI_ArrowArrayStream::new(Box::new(reader));
+    let stream_addr = std::ptr::addr_of_mut!(stream) as usize;
+
+    let pyarrow = py.import("pyarrow")?;
+    let reader_obj = pyarrow
+        .getattr("RecordBatchReader")?
+        .call_method1("_import_from_c", (stream_addr,))?;
+    let table = reader_obj.call_method0("read_all")?;
+    Ok(table.unbind())
 }

@@ -24,14 +24,14 @@
 
 use std::sync::Arc;
 
-use arrow::pyarrow::IntoPyArrow;
-use pyo3::exceptions::{PyImportError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyImportError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
 use crate::errors::to_py_err;
+use crate::record_batch_to_pyarrow_table;
 use crate::run_blocking;
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -73,11 +73,7 @@ fn parse_flatfile_format(fmt: Option<&str>) -> PyResult<FlatFileFormat> {
 
 fn rows_to_pyarrow_table(py: Python<'_>, rows: &[FlatFileRow]) -> PyResult<Py<PyAny>> {
     let batch = flatfiles::arrow::rows_to_arrow(rows).map_err(to_py_err)?;
-    let schema = batch.schema();
-    let table = arrow::pyarrow::Table::try_new(vec![batch], schema)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-    let obj = table.into_pyarrow(py)?;
-    Ok(obj.unbind())
+    record_batch_to_pyarrow_table(py, batch)
 }
 
 fn pyarrow_table_to_pandas_local(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {

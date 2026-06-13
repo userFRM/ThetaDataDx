@@ -76,8 +76,8 @@ SDK_OWNED = {
 # different arrow-schema versions, napi shims compiled against
 # divergent napi cores, gRPC envelopes encoded by divergent prost /
 # old transport schemas). The default-mode drift check used to pass while
-# `--strict` flagged `pyo3 0.28.2 vs 0.28.3` and `arrow-ipc /
-# arrow-select 58.2.0 vs 58.3.0` between workspace root and
+# `--strict` flagged a `pyo3` patch split and an `arrow-ipc /
+# arrow-select` minor split between workspace root and
 # sdks/python Cargo.lock. Pinning these in the default set keeps the
 # gate strict enough to catch the binding-ABI class of drift without
 # burning operators on legitimately-divergent leaf transitives.
