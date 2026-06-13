@@ -39,14 +39,9 @@ function methodNames(block) {
 }
 
 describe('FpssClient native addon surface', () => {
-  it('exports the FpssClient class with all four connect factories', () => {
+  it('exports the FpssClient class with the creds-first connect factories', () => {
     assert.ok(mod.FpssClient, 'FpssClient should be exported');
-    for (const factory of [
-      'connect',
-      'connectFromFile',
-      'connectWithConfig',
-      'connectFromFileWithConfig',
-    ]) {
+    for (const factory of ['connect', 'connectFromFile']) {
       assert.equal(
         typeof mod.FpssClient[factory],
         'function',

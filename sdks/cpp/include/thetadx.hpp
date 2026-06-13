@@ -333,6 +333,18 @@ public:
     using ThetaDataError::ThetaDataError;
 };
 
+/// Environmental configuration fault — a config-file read failure, a
+/// TOML parse error, or an internal config invariant. Distinct from
+/// `InvalidParameterError` (a rejected user-supplied argument): a
+/// `ConfigError` is the environment, not the call site. Pinned to the
+/// reserved `TDX_ERR_CONFIG` discriminant so a `catch (const
+/// ConfigError&)` clause catches the same conditions the Python
+/// `ConfigError` and the C ABI config code surface.
+class ConfigError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
 // Generated request-options bag. Included after the exception hierarchy
 // so its `with_deadline` setter can throw the complete
 // `InvalidParameterError` type when handed a negative deadline.
@@ -383,8 +395,9 @@ inline std::optional<double> last_ffi_retry_after_seconds() {
             throw InvalidParameterError("thetadatadx: " + message);
         case TDX_ERR_STREAM:
             throw StreamError("thetadatadx: " + message);
-        case TDX_ERR_OTHER:
         case TDX_ERR_CONFIG:
+            throw ConfigError("thetadatadx: " + message);
+        case TDX_ERR_OTHER:
         case TDX_ERR_NONE:
         default:
             throw ThetaDataError("thetadatadx: " + message);

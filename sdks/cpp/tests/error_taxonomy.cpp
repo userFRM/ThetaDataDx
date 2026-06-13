@@ -38,16 +38,17 @@ TEST_CASE("ThetaDataError is the root of the SDK exception hierarchy",
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::SchemaMismatchError>);
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::InvalidParameterError>);
     STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::StreamError>);
+    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::ConfigError>);
     // InvalidCredentialsError narrows AuthenticationError.
     STATIC_REQUIRE(std::is_base_of_v<tdx::AuthenticationError, tdx::InvalidCredentialsError>);
 }
 
-TEST_CASE("throw_for_code routes the invalid-parameter discriminant to InvalidParameterError",
+TEST_CASE("throw_for_code routes config discriminants to their leaf classes",
           "[errors][offline]") {
     // A rejected client parameter (`TDX_ERR_INVALID_PARAMETER`) must
     // surface as `InvalidParameterError`, distinguishable by catch type
-    // from the generic `ThetaDataError` that the environmental config
-    // code (`TDX_ERR_CONFIG`) still produces.
+    // from the environmental config fault (`TDX_ERR_CONFIG`) that
+    // surfaces as `ConfigError`.
     try {
         tdx::detail::throw_for_code(TDX_ERR_INVALID_PARAMETER, "bad date");
         FAIL("throw_for_code must throw");
@@ -57,14 +58,17 @@ TEST_CASE("throw_for_code routes the invalid-parameter discriminant to InvalidPa
         FAIL("expected InvalidParameterError, got generic ThetaDataError: " << e.what());
     }
 
-    // The generic config code stays on the root class.
+    // The environmental config code routes to the dedicated
+    // `ConfigError` leaf, not `InvalidParameterError` and not the root.
     try {
         tdx::detail::throw_for_code(TDX_ERR_CONFIG, "toml parse");
         FAIL("throw_for_code must throw");
     } catch (const tdx::InvalidParameterError& e) {
         FAIL("TDX_ERR_CONFIG must not surface as InvalidParameterError: " << e.what());
-    } catch (const tdx::ThetaDataError&) {
-        // expected — generic config fault
+    } catch (const tdx::ConfigError&) {
+        // expected — environmental config fault
+    } catch (const tdx::ThetaDataError& e) {
+        FAIL("expected ConfigError, got generic ThetaDataError: " << e.what());
     }
 }
 

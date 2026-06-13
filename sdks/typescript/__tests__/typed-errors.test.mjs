@@ -41,6 +41,7 @@ describe('typed error hierarchy', () => {
       'NetworkError',
       'SchemaMismatchError',
       'StreamError',
+      'ConfigError',
     ];
 
     for (const name of expected) {

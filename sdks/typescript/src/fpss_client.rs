@@ -47,14 +47,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use thetadatadx::auth::{self, Credentials as RustCredentials};
-use thetadatadx::config::{self, DirectConfig};
+use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::SubscriptionKind;
 use thetadatadx::fpss::{self, FpssClient as RustFpssClient};
 use thetadatadx::DispatcherSession;
 
 use crate::fluent::Subscription;
 use crate::{
-    buffered_event_to_typed, fpss_event_to_buffered, runtime, to_napi_err, Config, TsfnCallback,
+    buffered_event_to_typed, config_or_production, fpss_event_to_buffered, runtime, to_napi_err,
+    Config, Credentials, TsfnCallback,
 };
 
 /// Snapshot of the parameters required to open an FPSS TLS connection.
@@ -314,57 +315,30 @@ impl FpssClient {
     // observable behaviour applies across every binding. No MDDS channel is
     // opened and no Nexus request is issued by any factory.
 
-    /// Allocate a standalone FPSS handle against the production endpoint.
+    /// Allocate a standalone FPSS handle with a [`Credentials`] handle.
     /// Streaming only — opens no MDDS channel and issues no Nexus request.
-    /// The FPSS TLS connection opens on the first `startStreaming` call.
+    /// Pass an optional [`Config`] (`dev` / `stage` / `production`, plus
+    /// any tuned FPSS / reconnect setters) to override the
+    /// production-default endpoint. The FPSS TLS connection opens on the
+    /// first `startStreaming` call.
+    ///
+    /// The config is snapshot at construction time: the `Config` handle
+    /// may be reused or mutated afterward without affecting this client.
     #[napi(factory)]
-    pub fn connect(email: String, password: String) -> napi::Result<FpssClient> {
-        let creds = auth::Credentials::new(email, password);
-        let direct = config::DirectConfig::production();
-        let params = params_from_direct(&creds, &direct)?;
+    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<FpssClient> {
+        let direct = config_or_production(config);
+        let params = params_from_direct(&creds.inner, &direct)?;
         Ok(FpssClient::from_params(params))
     }
 
     /// Allocate a standalone FPSS handle with a credentials file (line 1 =
-    /// email, line 2 = password) against the production endpoint.
-    #[napi(factory)]
-    pub fn connect_from_file(path: String) -> napi::Result<FpssClient> {
+    /// email, line 2 = password). Convenience wrapper over
+    /// `Credentials.fromFile` + `connect`. Pass an optional [`Config`] to
+    /// override the production-default endpoint.
+    #[napi(factory, js_name = "connectFromFile")]
+    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<FpssClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let direct = config::DirectConfig::production();
-        let params = params_from_direct(&creds, &direct)?;
-        Ok(FpssClient::from_params(params))
-    }
-
-    /// Allocate a standalone FPSS handle against an explicit [`Config`]
-    /// (`dev` / `stage` / `production`, plus any tuned FPSS / reconnect
-    /// setters). Use `connect` for the production-default endpoint.
-    ///
-    /// The config is snapshot at construction time: the `Config` handle may
-    /// be reused or mutated afterward without affecting this client.
-    #[napi(factory)]
-    pub fn connect_with_config(
-        email: String,
-        password: String,
-        config: &Config,
-    ) -> napi::Result<FpssClient> {
-        let creds = auth::Credentials::new(email, password);
-        let direct = config.snapshot();
-        let params = params_from_direct(&creds, &direct)?;
-        Ok(FpssClient::from_params(params))
-    }
-
-    /// Allocate a standalone FPSS handle with a credentials file against an
-    /// explicit [`Config`]. Use `connectFromFile` for the
-    /// production-default endpoint.
-    ///
-    /// The config is snapshot at construction time.
-    #[napi(factory)]
-    pub fn connect_from_file_with_config(
-        path: String,
-        config: &Config,
-    ) -> napi::Result<FpssClient> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let direct = config.snapshot();
+        let direct = config_or_production(config);
         let params = params_from_direct(&creds, &direct)?;
         Ok(FpssClient::from_params(params))
     }

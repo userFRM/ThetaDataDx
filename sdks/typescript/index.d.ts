@@ -480,6 +480,34 @@ export declare class ContractRef {
 }
 
 /**
+ * ThetaData login credentials.
+ *
+ * Build from an email + password pair (`new Credentials(email,
+ * password)`) or load from a credentials file (`Credentials.fromFile`,
+ * line 1 = email, line 2 = password), then pass the handle to a client
+ * `connect(creds, config?)`. Mirrors the Python `Credentials` and the
+ * C++ `tdx::Credentials`.
+ *
+ * ```js
+ * const { Credentials, ThetaDataDxClient } = require("@thetadatadx/sdk");
+ * const creds = Credentials.fromFile("creds.txt");
+ * const tdx = ThetaDataDxClient.connect(creds);
+ * ```
+ */
+export declare class Credentials {
+  /** Create credentials from an email and password. */
+  constructor(email: string, password: string)
+  /** Load credentials from a file (line 1 = email, line 2 = password). */
+  static fromFile(path: string): Credentials
+  /**
+   * Redacted string form — never exposes the email or password. Matches
+   * the redacted `Debug` impl on the Rust `auth::Credentials` and the
+   * Python `Credentials.__repr__`.
+   */
+  toString(): string
+}
+
+/**
  * JS class wrapping a decoded flat-file row vector. Created by every
  * method on [`FlatFilesNamespace`]; carries the typed
  * `Vec<FlatFileRow>` until the user picks a terminal.
@@ -549,33 +577,24 @@ export declare class FlatFilesNamespace {
  */
 export declare class FpssClient {
   /**
-   * Allocate a standalone FPSS handle against the production endpoint.
+   * Allocate a standalone FPSS handle with a [`Credentials`] handle.
    * Streaming only — opens no MDDS channel and issues no Nexus request.
-   * The FPSS TLS connection opens on the first `startStreaming` call.
+   * Pass an optional [`Config`] (`dev` / `stage` / `production`, plus
+   * any tuned FPSS / reconnect setters) to override the
+   * production-default endpoint. The FPSS TLS connection opens on the
+   * first `startStreaming` call.
+   *
+   * The config is snapshot at construction time: the `Config` handle
+   * may be reused or mutated afterward without affecting this client.
    */
-  static connect(email: string, password: string): FpssClient
+  static connect(creds: Credentials, config?: Config | undefined | null): FpssClient
   /**
    * Allocate a standalone FPSS handle with a credentials file (line 1 =
-   * email, line 2 = password) against the production endpoint.
+   * email, line 2 = password). Convenience wrapper over
+   * `Credentials.fromFile` + `connect`. Pass an optional [`Config`] to
+   * override the production-default endpoint.
    */
-  static connectFromFile(path: string): FpssClient
-  /**
-   * Allocate a standalone FPSS handle against an explicit [`Config`]
-   * (`dev` / `stage` / `production`, plus any tuned FPSS / reconnect
-   * setters). Use `connect` for the production-default endpoint.
-   *
-   * The config is snapshot at construction time: the `Config` handle may
-   * be reused or mutated afterward without affecting this client.
-   */
-  static connectWithConfig(email: string, password: string, config: Config): FpssClient
-  /**
-   * Allocate a standalone FPSS handle with a credentials file against an
-   * explicit [`Config`]. Use `connectFromFile` for the
-   * production-default endpoint.
-   *
-   * The config is snapshot at construction time.
-   */
-  static connectFromFileWithConfig(path: string, config: Config): FpssClient
+  static connectFromFile(path: string, config?: Config | undefined | null): FpssClient
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
@@ -754,35 +773,23 @@ export declare class FpssClient {
  */
 export declare class MddsClient {
   /**
-   * Connect to ThetaData and open the MDDS channel. Historical
-   * (MDDS/gRPC) only — this client never opens the FPSS streaming
-   * transport. Use [`FpssClient`] for real-time data.
+   * Connect to ThetaData with a [`Credentials`] handle and open the
+   * MDDS channel. Historical (MDDS/gRPC) only — this client never
+   * opens the FPSS streaming transport. Pass an optional [`Config`] to
+   * override the production-default endpoint. Use [`FpssClient`] for
+   * real-time data.
+   *
+   * The config is snapshot at connect time: the `Config` handle may be
+   * reused or mutated afterward without affecting this client.
    */
-  static connect(email: string, password: string): MddsClient
+  static connect(creds: Credentials, config?: Config | undefined | null): MddsClient
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
-   * password). Historical (MDDS/gRPC) only.
+   * password). Convenience wrapper over `Credentials.fromFile` +
+   * `connect`. Historical (MDDS/gRPC) only. Pass an optional
+   * [`Config`] to override the production-default endpoint.
    */
-  static connectFromFile(path: string): MddsClient
-  /**
-   * Connect to ThetaData against an explicit [`Config`] (`dev` /
-   * `stage` / `production`, plus any tuned setters). Historical
-   * (MDDS/gRPC) only. Use `connect` for the production-default
-   * endpoint.
-   *
-   * The config is snapshot at connect time: the `Config` handle may
-   * be reused or mutated afterward without affecting this client.
-   */
-  static connectWithConfig(email: string, password: string, config: Config): MddsClient
-  /**
-   * Connect with a credentials file (line 1 = email, line 2 =
-   * password) against an explicit [`Config`]. Historical (MDDS/gRPC)
-   * only. Use `connectFromFile` for the production-default endpoint.
-   *
-   * The config is snapshot at connect time: the `Config` handle may
-   * be reused or mutated afterward without affecting this client.
-   */
-  static connectFromFileWithConfig(path: string, config: Config): MddsClient
+  static connectFromFile(path: string, config?: Config | undefined | null): MddsClient
   /**
    * List all available stock ticker symbols.
    *
@@ -1666,32 +1673,28 @@ export declare class Subscription {
 
 export declare class ThetaDataDxClient {
   /**
-   * Connect to ThetaData. Historical (MDDS/gRPC) only; call startStreaming()
-   * to begin FPSS real-time data.
-   */
-  static connect(email: string, password: string): ThetaDataDxClient
-  /** Connect with a credentials file (line 1 = email, line 2 = password). */
-  static connectFromFile(path: string): ThetaDataDxClient
-  /**
-   * Connect to ThetaData against an explicit [`Config`] (`dev` /
-   * `stage` / `production`, plus any tuned setters). Historical
-   * (MDDS/gRPC) only; call startStreaming() to begin FPSS real-time
-   * data. Use `connect` for the production-default endpoint.
+   * Connect to ThetaData with a [`Credentials`] handle. Pass an
+   * optional [`Config`] (`dev` / `stage` / `production`, plus any
+   * tuned setters) to override the production-default endpoint.
+   * Historical (MDDS/gRPC) only; call startStreaming() to begin FPSS
+   * real-time data.
    *
-   * The config is snapshot at connect time: the `Config` handle may
-   * be reused or mutated afterward without affecting this client.
+   * The config is snapshot at connect time: the `Config` handle may be
+   * reused or mutated afterward without affecting this client.
+   *
+   * ```js
+   * const creds = Credentials.fromFile("creds.txt");
+   * const tdx = ThetaDataDxClient.connect(creds);
+   * ```
    */
-  static connectWithConfig(email: string, password: string, config: Config): ThetaDataDxClient
+  static connect(creds: Credentials, config?: Config | undefined | null): ThetaDataDxClient
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
-   * password) against an explicit [`Config`] (`dev` / `stage` /
-   * `production`, plus any tuned setters). Use `connectFromFile` for
-   * the production-default endpoint.
-   *
-   * The config is snapshot at connect time: the `Config` handle may
-   * be reused or mutated afterward without affecting this client.
+   * password). Convenience wrapper over `Credentials.fromFile` +
+   * `connect`. Pass an optional [`Config`] to override the
+   * production-default endpoint.
    */
-  static connectFromFileWithConfig(path: string, config: Config): ThetaDataDxClient
+  static connectFromFile(path: string, config?: Config | undefined | null): ThetaDataDxClient
   /**
    * Cumulative count of FPSS events the TLS reader could not
    * publish into the event ring because the event-dispatch consumer

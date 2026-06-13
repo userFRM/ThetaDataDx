@@ -68,10 +68,11 @@ create_exception!(thetadatadx, SubscriptionError, ThetaDataError);
 create_exception!(thetadatadx, RateLimitError, ThetaDataError);
 
 // Client-side input validation rejected a parameter (a bad value, an
-// out-of-range number, a missing required field). Distinct from the root
-// `ThetaDataError` so a malformed-but-rejected argument is distinguishable
-// by class from an unrelated configuration fault (config-file I/O, TOML
-// parse, internal invariant) which stays on the root class.
+// out-of-range number, a missing required field). Distinct from
+// `ConfigError` so a malformed-but-rejected argument is distinguishable
+// by class from an unrelated environmental configuration fault
+// (config-file I/O, TOML parse, internal invariant), which raises
+// `ConfigError`.
 create_exception!(thetadatadx, InvalidParameterError, ThetaDataError);
 
 // Decoder schema mismatch — surfaces `Error::Decode` + `DecodeError`
@@ -102,6 +103,15 @@ create_exception!(thetadatadx, NotFoundError, ThetaDataError);
 
 // FPSS streaming protocol / state-machine failures.
 create_exception!(thetadatadx, StreamError, ThetaDataError);
+
+// Environmental configuration fault — a config-file read failure, a
+// TOML parse error, or an internal config invariant. Distinct from
+// `InvalidParameterError` (a rejected user-supplied argument): a
+// `ConfigError` is the environment, not the call site. Pinned to the
+// reserved `TDX_ERR_CONFIG` discriminant so a `except
+// thetadatadx.ConfigError` clause catches the same conditions the C++
+// `ConfigError` and the C ABI config code surface.
+create_exception!(thetadatadx, ConfigError, ThetaDataError);
 
 // ── Back-compatibility aliases ────────────────────────────────────────
 //
@@ -151,6 +161,7 @@ pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<
     )?;
     m.add("NotFoundError", py.get_type::<NotFoundError>())?;
     m.add("StreamError", py.get_type::<StreamError>())?;
+    m.add("ConfigError", py.get_type::<ConfigError>())?;
     // Back-compatibility aliases: same type object under the legacy name.
     m.add("NoDataFoundError", py.get_type::<NotFoundError>())?;
     m.add("TimeoutError", py.get_type::<DeadlineExceededError>())?;
@@ -218,12 +229,12 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         thetadatadx::Error::Decompress { .. } => SchemaMismatchError::new_err(e.to_string()),
         // User-input validation failures route to the dedicated
         // invalid-parameter class; environmental config faults
-        // (`Io` / `TomlParse` / `Internal`) stay on the root class.
+        // (`Io` / `TomlParse` / `Internal`) route to `ConfigError`.
         thetadatadx::Error::Config { kind, .. } => {
             if kind.is_invalid_parameter() {
                 InvalidParameterError::new_err(e.to_string())
             } else {
-                ThetaDataError::new_err(e.to_string())
+                ConfigError::new_err(e.to_string())
             }
         }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
@@ -235,6 +246,12 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             FpssErrorKind::ProtocolError => StreamError::new_err(e.to_string()),
             _ => StreamError::new_err(e.to_string()),
         },
+        // FlatFiles availability + partial-reconnect failures are
+        // streaming-surface faults; route them to `StreamError` so a
+        // `except StreamError` clause behaves identically to the C++
+        // and C ABI mapping (both pin these to the stream discriminant).
+        thetadatadx::Error::FlatFilesUnavailable(_)
+        | thetadatadx::Error::PartialReconnect { .. } => StreamError::new_err(e.to_string()),
         // Catch-all for future `#[non_exhaustive]` variants added on the
         // Rust side. We keep the build green and route to the root class
         // so the caller still sees a branded exception rather than an
@@ -467,17 +484,43 @@ mod tests {
     }
 
     #[test]
-    fn config_environmental_fault_maps_to_root_class() {
+    fn config_environmental_fault_maps_to_config_error() {
         // A non-input config fault (file I/O, TOML parse, internal
-        // invariant) is not a user-parameter error and stays on the
-        // root class.
+        // invariant) is not a user-parameter error; it routes to the
+        // dedicated `ConfigError` leaf, matching the C++ `ConfigError`
+        // and the C ABI `TDX_ERR_CONFIG` discriminant.
         Python::initialize();
         Python::attach(|py| {
             let io = to_py_err(thetadatadx::Error::config_io("file not found"));
-            assert_exception_class(py, &io, "ThetaDataError");
+            assert_exception_class(py, &io, "ConfigError");
 
             let toml = to_py_err(thetadatadx::Error::config_toml("expected `]`"));
-            assert_exception_class(py, &toml, "ThetaDataError");
+            assert_exception_class(py, &toml, "ConfigError");
+        });
+    }
+
+    #[test]
+    fn flatfiles_unavailable_maps_to_stream_error() {
+        // FlatFiles availability failures are a streaming-surface fault;
+        // they route to `StreamError` so the class matches the C++ / C
+        // ABI mapping (both pin this to the stream discriminant).
+        Python::initialize();
+        Python::attach(|py| {
+            let err = to_py_err(thetadatadx::Error::FlatFilesUnavailable(
+                thetadatadx::flatfiles::FlatFilesUnavailableReason::RequestRejected {
+                    server_message: "no subscription".into(),
+                },
+            ));
+            assert_exception_class(py, &err, "StreamError");
+        });
+    }
+
+    #[test]
+    fn partial_reconnect_maps_to_stream_error() {
+        Python::initialize();
+        Python::attach(|py| {
+            let err = to_py_err(thetadatadx::Error::PartialReconnect { failed: Vec::new() });
+            assert_exception_class(py, &err, "StreamError");
         });
     }
 
@@ -511,6 +554,7 @@ mod tests {
                 ),
                 ("NotFoundError", py.get_type::<NotFoundError>()),
                 ("StreamError", py.get_type::<StreamError>()),
+                ("ConfigError", py.get_type::<ConfigError>()),
             ] {
                 let is_sub = cls_ty
                     .is_subclass(&root)

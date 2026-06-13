@@ -41,6 +41,7 @@ CANONICAL_CLASSES = [
     "DeadlineExceededError",
     "NotFoundError",
     "StreamError",
+    "ConfigError",
 ]
 
 

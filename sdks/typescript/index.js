@@ -592,6 +592,7 @@ module.exports.ContractRef = nativeBinding.ContractRef
 // napi-emitted `ContractRef` constructor. Without this, `require
 // ('thetadatadx').Contract.stock(...)` is undefined at runtime.
 module.exports.Contract = nativeBinding.ContractRef;
+module.exports.Credentials = nativeBinding.Credentials
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
 module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace
 module.exports.FpssClient = nativeBinding.FpssClient
