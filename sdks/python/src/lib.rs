@@ -998,7 +998,7 @@ impl Config {
 
     /// Get the current OHLCVC derivation setting.
     #[getter]
-    fn get_derive_ohlcvc(&self) -> bool {
+    fn derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.fpss.derive_ohlcvc
     }
@@ -1094,7 +1094,7 @@ impl Config {
 
     /// Current `concurrent_requests` setting (``0`` = auto-detect).
     #[getter]
-    fn get_concurrent_requests(&self) -> usize {
+    fn concurrent_requests(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.concurrent_requests
     }

@@ -191,7 +191,34 @@ fn render_python_string_list() -> String {
         "        format!(\"StringList({} rows, column={:?})\", self.inner.len(), self.column_name)\n",
     );
     out.push_str("    }\n\n");
-    out.push_str("    fn __getitem__(&self, idx: isize) -> PyResult<String> {\n");
+    // Integer indexing (negative-aware) AND slice indexing
+    // (`symbols[1:3]`, `symbols[::-1]`), matching the Python list protocol.
+    // A slice returns a new `StringList` over a cloned sub-Vec, preserving
+    // the `column_name` so the result still chains into `.to_polars()`
+    // with the same typed column; an integer returns one `str`.
+    out.push_str(
+        "    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {\n",
+    );
+    out.push_str("        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {\n");
+    out.push_str("            let indices = slice.indices(self.inner.len() as isize)?;\n");
+    out.push_str("            let mut rows = Vec::new();\n");
+    out.push_str("            let mut i = indices.start;\n");
+    out.push_str("            if indices.step > 0 {\n");
+    out.push_str("                while i < indices.stop {\n");
+    out.push_str("                    rows.push(self.inner[i as usize].clone());\n");
+    out.push_str("                    i += indices.step;\n");
+    out.push_str("                }\n");
+    out.push_str("            } else {\n");
+    out.push_str("                while i > indices.stop {\n");
+    out.push_str("                    rows.push(self.inner[i as usize].clone());\n");
+    out.push_str("                    i += indices.step;\n");
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+    out.push_str(
+        "            return Ok(Py::new(py, StringList::new(rows, &self.column_name))?.into_any());\n",
+    );
+    out.push_str("        }\n");
+    out.push_str("        let idx: isize = key.extract()?;\n");
     out.push_str("        let len = self.inner.len() as isize;\n");
     out.push_str("        let resolved = if idx < 0 { idx + len } else { idx };\n");
     out.push_str("        if resolved < 0 || resolved >= len {\n");
@@ -201,7 +228,7 @@ fn render_python_string_list() -> String {
     );
     out.push_str("            )));\n");
     out.push_str("        }\n");
-    out.push_str("        Ok(self.inner[resolved as usize].clone())\n");
+    out.push_str("        Ok(pyo3::types::PyString::new(py, &self.inner[resolved as usize]).into_any().unbind())\n");
     out.push_str("    }\n\n");
     out.push_str(
         "    fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<StringListIter>> {\n",
@@ -886,12 +913,49 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     .unwrap();
     out.push_str("    }\n\n");
 
-    // __getitem__ — supports negative indexing, raises IndexError on OOB.
+    // __getitem__ — integer indexing (negative-aware, raises IndexError
+    // on OOB) AND slice indexing (`ticks[1:3]`, `ticks[::-1]`), matching
+    // the Python list protocol the TypeScript array and C++ std::vector
+    // surfaces already satisfy. A slice returns a new `<Tick>List` over a
+    // cloned sub-Vec so the result chains straight into the same terminals
+    // (`.to_arrow()`, `.to_polars()`); an integer returns one typed tick.
+    // The single `Py<PyAny>` return unifies both shapes the way CPython's
+    // own `list.__getitem__` does.
+    // Copy tick types index out by value (no `.clone()` — clippy's
+    // `clone_on_copy` would reject it); the few non-Copy types (e.g.
+    // `OptionContract`, which carries a `String`) clone per row.
+    let row_at = if def.copy {
+        "self.inner[i as usize]"
+    } else {
+        "self.inner[i as usize].clone()"
+    };
     writeln!(
         out,
-        "    fn __getitem__(&self, idx: isize) -> PyResult<{class}> {{"
+        "    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {{"
     )
     .unwrap();
+    out.push_str("        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {\n");
+    out.push_str("            let indices = slice.indices(self.inner.len() as isize)?;\n");
+    out.push_str("            let mut rows = Vec::new();\n");
+    out.push_str("            let mut i = indices.start;\n");
+    out.push_str("            if indices.step > 0 {\n");
+    out.push_str("                while i < indices.stop {\n");
+    writeln!(out, "                    rows.push({row_at});").unwrap();
+    out.push_str("                    i += indices.step;\n");
+    out.push_str("                }\n");
+    out.push_str("            } else {\n");
+    out.push_str("                while i > indices.stop {\n");
+    writeln!(out, "                    rows.push({row_at});").unwrap();
+    out.push_str("                    i += indices.step;\n");
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+    writeln!(
+        out,
+        "            return Ok(Py::new(py, {list_class}::new(rows))?.into_any());"
+    )
+    .unwrap();
+    out.push_str("        }\n");
+    out.push_str("        let idx: isize = key.extract()?;\n");
     out.push_str("        let len = self.inner.len() as isize;\n");
     out.push_str("        let resolved = if idx < 0 { idx + len } else { idx };\n");
     out.push_str("        if resolved < 0 || resolved >= len {\n");
@@ -904,10 +968,10 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("            )));\n");
     out.push_str("        }\n");
     out.push_str("        let t = &self.inner[resolved as usize];\n");
-    out.push_str("        Ok(");
+    out.push_str("        let obj = ");
     pyclass_from_tick_expr(&mut out, type_name, def, "t", "            ");
-    // Trim the trailing newline pyclass_from_tick_expr emits inside the expression.
-    out.push_str("        )\n");
+    out.push_str("        ;\n");
+    out.push_str("        Ok(Py::new(py, obj)?.into_any())\n");
     out.push_str("    }\n\n");
 
     // __iter__

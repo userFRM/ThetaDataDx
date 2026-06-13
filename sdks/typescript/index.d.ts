@@ -571,8 +571,9 @@ export declare class SecType {
  */
 export declare class Subscription {
   /**
-   * One of `"quote"`, `"trade"`, `"open_interest"`, `"full_trades"`,
-   * `"full_open_interest"` — the wire-level kind.
+   * One of `"quote"`, `"trade"`, `"open_interest"`,
+   * `"market_value"`, `"full_trades"`, `"full_open_interest"` — the
+   * wire-level kind.
    */
   get kind(): string
   /** `true` for full-stream (security-type-scoped) subscriptions. */

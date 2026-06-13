@@ -1,8 +1,8 @@
-// MDDS pool-sizing setter on tdx::Config.
+// MDDS pool-sizing setter + getter on tdx::Config.
 //
-// Offline test pinning the contract that `set_concurrent_requests`
-// on the `tdx::Config` C++ wrapper invokes the underlying C ABI
-// without crashing.
+// Offline test pinning the contract that `set_concurrent_requests` and
+// the `concurrent_requests()` readback getter on the `tdx::Config` C++
+// wrapper round-trip through the underlying C ABI.
 
 #include <cstdint>
 
@@ -11,16 +11,17 @@
 #include "thetadx.h"
 #include "thetadx.hpp"
 
-TEST_CASE("Config::set_concurrent_requests round-trips", "[config][pool_sizing][offline]") {
+TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][pool_sizing][offline]") {
     auto cfg = tdx::Config::production();
-    // The setter takes a uint32_t and returns void; the round-trip is
-    // observable through the FFI handle's underlying MddsConfig field,
-    // which the offline test cannot reach directly. The C++ test
-    // therefore asserts only that the setter accepts a range of values
-    // without throwing — the actual round-trip is exercised by the
-    // Rust-side `ffi::auth::pool_sizing_tests::concurrent_requests_round_trips`.
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(0));
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(1));
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(8));
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(32));
+    // The readback getter mirrors the Python `Config.concurrent_requests`
+    // and TypeScript `concurrentRequests` surfaces, so a value set
+    // through the C++ wrapper reads back through the same wrapper.
+    cfg.set_concurrent_requests(0);
+    REQUIRE(cfg.concurrent_requests() == 0u);
+    cfg.set_concurrent_requests(1);
+    REQUIRE(cfg.concurrent_requests() == 1u);
+    cfg.set_concurrent_requests(8);
+    REQUIRE(cfg.concurrent_requests() == 8u);
+    cfg.set_concurrent_requests(32);
+    REQUIRE(cfg.concurrent_requests() == 32u);
 }

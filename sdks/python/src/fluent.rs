@@ -245,9 +245,9 @@ pub(crate) struct PySubscription {
 
 #[pymethods]
 impl PySubscription {
-    /// One of `"quote"`, `"trade"`, `"open_interest"`, `"full_trades"`,
-    /// or `"full_open_interest"` — the wire-level kind for this
-    /// subscription.
+    /// One of `"quote"`, `"trade"`, `"open_interest"`,
+    /// `"market_value"`, `"full_trades"`, or `"full_open_interest"` —
+    /// the wire-level kind for this subscription.
     #[getter]
     fn kind(&self) -> &'static str {
         match &self.inner {
@@ -255,6 +255,7 @@ impl PySubscription {
                 SubscriptionKind::Quote => "quote",
                 SubscriptionKind::Trade => "trade",
                 SubscriptionKind::OpenInterest => "open_interest",
+                SubscriptionKind::MarketValue => "market_value",
                 _ => "unknown",
             },
             protocol::Subscription::Full { kind, .. } => match kind {
