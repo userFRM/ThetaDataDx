@@ -429,6 +429,119 @@ def _setter_present(canonical: str, setters: set[str]) -> bool:
     return False
 
 
+# ─── Config getter collection (read-back accessor roster) ───────────
+#
+# The setter collectors above harvest the write side of the Config knob
+# roster. These collectors harvest the read-back side: every binding that
+# exposes a getter for a knob in one language must expose it (idiomatic
+# name) in all. The naming conventions mirror the setters:
+#   * Python: `#[getter] fn get_<name>` (pyo3 strips `get_`, so the
+#     property is the bare `<name>`).
+#   * TypeScript: `#[napi(getter, js_name = "<camelCase>")]`.
+#   * C++: a `get_<name>(...)` member on `class Config`.
+#   * C ABI: `tdx_config_get_<name>`.
+
+
+def _iter_impl_config_bodies(text: str) -> list[str]:
+    """Return the body text of every `impl Config { ... }` block in
+    `text`, bounded by a brace counter. Used to scope the getter
+    collectors to the `Config` knob roster — getters live on many
+    pyclasses / napi classes (tick structs, the fluent `Subscription`),
+    but only the `Config` read-back accessors are part of the
+    cross-binding knob roster the setter check's read-side complements.
+    """
+    bodies: list[str] = []
+    for header in re.finditer(r"impl\s+Config\s*\{", text):
+        bodies.append(_balanced_body(text, header.end()))
+    return bodies
+
+
+def _collect_python_getters(py_src: pathlib.Path) -> set[str]:
+    """Read-back getter names on the `Config` pyclass.
+
+    Scoped to `impl Config { ... }` blocks so tick-class / fluent-value
+    getters (`QuoteTick.quote_timestamp_ms`, `Subscription.kind`) do not
+    leak into the Config knob roster. The pyo3 pattern is ``#[getter] fn
+    get_<name>``; the `get_` prefix the Rust fn name carries is stripped to
+    the bare canonical name (the Python property spelling).
+    """
+    getters: set[str] = set()
+    if not py_src.is_dir():
+        return getters
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for body in _iter_impl_config_bodies(text):
+            for m in re.finditer(r"#\[getter\][^}]*?fn\s+(\w+)", body, re.DOTALL):
+                name = m.group(1)
+                getters.add(name[4:] if name.startswith("get_") else name)
+    return getters
+
+
+def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
+    """napi `#[napi(getter, js_name = "<camelCase>")]` read-back accessors
+    on the `Config` napi class.
+
+    Scoped to `impl Config { ... }` blocks (the fluent `Subscription`
+    getters `isFull` / `secType` and tick-object fields are not Config
+    knobs). Returns canonical snake_case names — every camelCase `js_name`
+    lifted back through the compound-word alias table, exactly like the
+    setter collector.
+    """
+    getters_camel: set[str] = set()
+    if not ts_src.is_dir():
+        return set()
+    for rs in ts_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for body in _iter_impl_config_bodies(text):
+            for m in re.finditer(
+                r'#\[napi\([^)]*\bgetter\b[^)]*\bjs_name\s*=\s*"([a-zA-Z_]\w*)"[^)]*\)\]',
+                body,
+            ):
+                getters_camel.add(m.group(1))
+    getters_snake: set[str] = set()
+    for name in getters_camel:
+        getters_snake.update(_camel_to_snake_with_aliases(name))
+    return getters_snake
+
+
+def _collect_cpp_getters(cpp_hpp: pathlib.Path) -> set[str]:
+    """C++ `get_<name>(...)` read-back members on the `class Config` body.
+
+    The wrapper exposes each read-back as a `get_<name>()` member. The
+    bare `<name>` is the canonical form (the `get_` prefix is the C++
+    convention, stripped here to compare against the cross-binding roster).
+    Restricted to the `class Config { ... }` body so unrelated `get_*`
+    members on other classes are not counted.
+    """
+    getters: set[str] = set()
+    if not cpp_hpp.is_file():
+        return getters
+    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    m = re.search(r"^class\s+Config\s*(?::[^{]*)?\{", text, re.MULTILINE)
+    if not m:
+        return getters
+    body = _balanced_body(text, m.end())
+    for fm in re.finditer(r"\bget_(\w+)\s*\(", body):
+        getters.add(fm.group(1))
+    return getters
+
+
+def _collect_ffi_getters(ffi_src: pathlib.Path) -> set[str]:
+    """FFI `tdx_config_get_<name>` extern C read-back declarations.
+
+    Mirrors `_collect_ffi_setters` on the read side. Returns the bare
+    canonical names with the `tdx_config_get_` prefix stripped.
+    """
+    getters: set[str] = set()
+    if not ffi_src.is_dir():
+        return getters
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in re.finditer(r"\bfn\s+tdx_config_get_(\w+)\s*\(", text):
+            getters.add(m.group(1))
+    return getters
+
+
 # ─── Client-facing setter-set parity ────────────────────────────────
 
 
@@ -467,6 +580,59 @@ def _normalize_setter(name: str) -> str:
 # setter is intentionally exposed on a strict subset of bindings.
 SETTER_PARITY_EXEMPT: dict[str, str] = {}
 
+# Read-back getter equivalent of `SETTER_PARITY_EXEMPT`. A knob exposed
+# read-only / write-only on a strict subset of bindings on purpose lists
+# its canonical (normalized) name here with a written reason. Several
+# write-only knobs (the per-class reconnect budgets) have no getter on ANY
+# binding — those never enter the getter universe and need no entry.
+#
+# Empty today: every knob that exposes a read-back getter exposes it on
+# all four bindings.
+GETTER_PARITY_EXEMPT: dict[str, str] = {}
+
+
+def _check_accessor_set_parity(
+    accessors: dict[str, set[str]],
+    exempt: dict[str, str],
+    noun: str,
+    exempt_const_name: str,
+) -> list[str]:
+    """Assert a client-facing accessor SET matches across Python /
+    TypeScript / C++ / the C ABI after normalization.
+
+    `accessors` maps each binding name to its raw accessor-name set;
+    `noun` is the accessor kind for diagnostics (`"setter"` / `"getter"`);
+    `exempt_const_name` names the carve-out constant in the diagnostic.
+    Genuine per-language idioms are folded by `_normalize_setter` (the
+    `_explicit` widened-ABI suffix and the `flat_files`↔`flatfiles`
+    camelCase split apply identically to setters and getters). Anything
+    still divergent must be listed in `exempt` with a reason or it fails
+    the gate. A stale exemption (now uniformly bound everywhere) is itself
+    flagged so the carve-out list never rots.
+    """
+    norm = {lang: {_normalize_setter(a) for a in names} for lang, names in accessors.items()}
+    universe: set[str] = set().union(*norm.values()) if norm else set()
+    errors: list[str] = []
+    for accessor in sorted(universe - set(exempt)):
+        present_on = [lang for lang, names in norm.items() if accessor in names]
+        if len(present_on) != len(norm):
+            missing = [lang for lang in norm if lang not in present_on]
+            errors.append(
+                f"  {noun} `{accessor}`: present on {sorted(present_on)}, "
+                f"missing on {sorted(missing)}. Bind it on every binding, "
+                f"or add it to {exempt_const_name} with a per-language-idiom "
+                f"reason."
+            )
+    for accessor, reason in exempt.items():
+        present_on = [lang for lang, names in norm.items() if accessor in names]
+        if present_on and len(present_on) == len(norm):
+            errors.append(
+                f"  {noun} `{accessor}`: listed in {exempt_const_name} "
+                f"({reason!r}) but is now uniformly bound on every binding. "
+                f"Drop the stale exemption."
+            )
+    return errors
+
 
 def _check_setter_set_parity(
     py_setters: set[str],
@@ -491,38 +657,50 @@ def _check_setter_set_parity(
     """
     if exempt is None:
         exempt = SETTER_PARITY_EXEMPT
-    norm = {
-        "python": {_normalize_setter(s) for s in py_setters},
-        "typescript": {_normalize_setter(s) for s in ts_setters},
-        "cpp": {_normalize_setter(s) for s in cpp_setters},
-        "ffi": {_normalize_setter(s) for s in ffi_setters},
-    }
-    universe: set[str] = set().union(*norm.values())
-    errors: list[str] = []
-    for setter in sorted(universe - set(exempt)):
-        present_on = [lang for lang, names in norm.items() if setter in names]
-        if len(present_on) != len(norm):
-            missing = [lang for lang in norm if lang not in present_on]
-            errors.append(
-                f"  setter `{setter}`: present on {sorted(present_on)}, "
-                f"missing on {sorted(missing)}. Bind it on every binding, "
-                f"or add it to SETTER_PARITY_EXEMPT with a per-language-"
-                f"idiom reason."
-            )
-    # A stale exemption — the knob is now uniformly bound on every
-    # binding, so the carve-out is obsolete — is itself a drift; surface
-    # it so the list never rots. (A knob that is simply absent from the
-    # universe is not flagged: the exemption may guard a binding the
-    # current scan does not see.)
-    for setter, reason in exempt.items():
-        present_on = [lang for lang, names in norm.items() if setter in names]
-        if present_on and len(present_on) == len(norm):
-            errors.append(
-                f"  setter `{setter}`: listed in SETTER_PARITY_EXEMPT "
-                f"({reason!r}) but is now uniformly bound on every "
-                f"binding. Drop the stale exemption."
-            )
-    return errors
+    return _check_accessor_set_parity(
+        {
+            "python": py_setters,
+            "typescript": ts_setters,
+            "cpp": cpp_setters,
+            "ffi": ffi_setters,
+        },
+        exempt,
+        "setter",
+        "SETTER_PARITY_EXEMPT",
+    )
+
+
+def _check_getter_set_parity(
+    py_getters: set[str],
+    ts_getters: set[str],
+    cpp_getters: set[str],
+    ffi_getters: set[str],
+    exempt: dict[str, str] | None = None,
+) -> list[str]:
+    """Assert the client-facing read-back getter SET matches across
+    Python / TypeScript / C++ / the C ABI after normalization.
+
+    The complement to `_check_setter_set_parity` on the read side: a knob
+    that exposes a getter on some bindings but silently never grew one on
+    the others trips the gate. Together the two checks pin the full Config
+    knob roster — both write and read accessors — across every binding.
+    Per-language idioms fold via `_normalize_setter`; intentional
+    subset-of-bindings getters list in `exempt` (defaults to
+    `GETTER_PARITY_EXEMPT`) with a reason.
+    """
+    if exempt is None:
+        exempt = GETTER_PARITY_EXEMPT
+    return _check_accessor_set_parity(
+        {
+            "python": py_getters,
+            "typescript": ts_getters,
+            "cpp": cpp_getters,
+            "ffi": ffi_getters,
+        },
+        exempt,
+        "getter",
+        "GETTER_PARITY_EXEMPT",
+    )
 
 
 # ─── Public-surface identifier collection (vocab guard) ─────────────
@@ -1023,21 +1201,43 @@ def _check_method_rows(
 
 # ─── Free-function (utility) discovery ──────────────────────────────
 #
-# The offline Greeks calculator (`all_greeks` / `implied_volatility`) is
-# a FREE function on every binding, not a method on a tracked class, so
-# the `[[method]]` collectors above do not see it. These collectors find
-# the per-binding declaration of a calculator function so the
-# `[[utility]]` rows can pin its cross-binding presence.
+# The standalone utility surface — the offline Greeks calculator
+# (`all_greeks` / `implied_volatility`), the conditions / exchange /
+# calendar / sequence lookups (`condition_name`, `exchange_symbol`,
+# `calendar_status_name`, `timestamp_ms`, `sequence_signed_to_unsigned`,
+# ...), and the Python-only date-range splitter — is exposed as free
+# functions / namespace functions per binding, NOT as methods on a class
+# the `[[method]]` rows cover. These collectors find each binding's
+# utility surface so the `[[utility]]` rows can pin the cross-binding
+# roster.
+#
+# The TypeScript binding groups its lookup utilities as static methods on
+# a `Util` namespace class (`Util.conditionName(...)`), while Python uses
+# a `thetadatadx.util` submodule, C++ a `tdx::util` namespace, and the C
+# ABI bare `tdx_*` symbols. The collectors normalise each surface to the
+# bare snake_case function name so a single `[[utility]]` row matches
+# every binding's idiom.
+
+
+# Internal `#[pyfunction]`s that are NOT part of the public utility
+# surface: decode-bench hooks and the FPSS-method introspection helper
+# used by tests / external tooling. Excluded from the Python utility
+# roster so they are not mistaken for untracked utilities.
+PY_NON_UTILITY_PYFUNCTIONS: frozenset[str] = frozenset(
+    {"decode_response_bytes", "blocked_fpss_methods"}
+)
 
 
 def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
-    """Snake_case names of every `#[pyfunction]` in the Python sources.
+    """Snake_case names of every public-utility `#[pyfunction]`.
 
-    The offline calculators are emitted as module-level `#[pyfunction] fn
-    <name>` in `sdks/python/src/_generated/utility_functions.rs`. The
-    attribute may carry a `(...)` arg list (e.g. a `#[pyo3(...)]` sibling
-    on the next line), so the regex tolerates an optional attribute body
-    before the `fn`.
+    The offline calculators (`all_greeks` / `implied_volatility`), the
+    `thetadatadx.util` submodule lookups, and the date-range splitter are
+    all module-level `#[pyfunction] fn <name>`. The attribute may carry a
+    `(...)` arg list (a `#[pyo3(...)]` sibling on the next line), so the
+    regex tolerates an optional attribute body before the `fn`. Internal
+    decode-bench / introspection hooks (`PY_NON_UTILITY_PYFUNCTIONS`) are
+    filtered so only the user-facing utility surface remains.
     """
     out: set[str] = set()
     if not py_src.is_dir():
@@ -1047,18 +1247,27 @@ def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
         text = rs.read_text(encoding="utf-8")
         for m in fn_re.finditer(text):
             out.add(m.group(1))
-    return out
+    return out - PY_NON_UTILITY_PYFUNCTIONS
 
 
 def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
-    """Snake_case names of every napi FREE function in the TS sources.
+    """Snake_case names of the TypeScript utility surface.
+
+    Two shapes: the offline calculators are napi FREE functions
+    (`#[napi] pub fn all_greeks`), while the conditions / exchange /
+    calendar / sequence lookups are static methods on the `Util` namespace
+    class (`#[napi(js_name = "conditionName")] pub fn condition_name` inside
+    `impl Util`). The free-function scan below collects the former; the
+    `Util`-class methods are merged in by the caller via
+    `_collect_typescript_class_methods`, camelCase folded back to
+    snake_case. Both surfaces normalise to the bare snake_case name so a
+    single `[[utility]]` row matches Python / C++ / FFI and TypeScript
+    alike.
 
     A napi free function is a `#[napi(...)]`-attributed `pub fn <name>`
-    that is NOT inside an `impl` block. The collector records the
-    snake_case fn name; the `[[utility]]` checker derives the camelCase
-    `js_name` for the declared-name match. Functions inside `impl`
-    blocks (methods) are excluded by blanking each `impl { ... }` body
-    before the scan, so only true free functions remain.
+    that is NOT inside an `impl` block. Functions inside `impl` blocks
+    (methods) are excluded by blanking each `impl { ... }` body before the
+    scan, so only true free functions remain here.
     """
     out: set[str] = set()
     if not ts_src.is_dir():
@@ -1191,6 +1400,25 @@ def _check_utility_rows(
     The TypeScript spelling is derived as camelCase only for the
     diagnostic; the collector already records the snake_case fn name, so
     the match is name-to-name.
+
+    A row whose C ABI symbol carries a disambiguating prefix the
+    higher-level bindings drop (the conditions table exposes the bare
+    `is_cancel` on Python / TypeScript / C++ but `tdx_condition_is_cancel`
+    on the C ABI, where the bare `is_cancel` would be ambiguous against
+    the quote-condition predicate) records the bare C-symbol name under an
+    `ffi_name` key. The gate strips the `tdx_` prefix off the FFI symbol
+    when collecting, so `ffi_name = "condition_is_cancel"` matches
+    `tdx_condition_is_cancel`. Absent the override the canonical `name` is
+    used for every binding.
+
+    A row may also carry a `binding_specific` reason string. Such a row is
+    NOT cross-binding by contract — it pins a function that exists on a
+    strict subset of bindings on purpose (a Python-only date-range splitter,
+    the C-ABI memory-management / value-folding helpers the managed
+    bindings have no analogue for). The per-binding booleans are still
+    asserted against the live sources, so the function cannot silently
+    appear or vanish on the bindings it does / does not target; the reason
+    documents WHY the asymmetry is intended.
     """
     errors: list[str] = []
     for row in utility_rows:
@@ -1199,14 +1427,25 @@ def _check_utility_rows(
             errors.append(f"  [[utility]] row missing `name`: {row!r}")
             continue
         camel = _snake_to_camel(name)
-        for lang, actual_set, hint in (
-            ("python", py_utils, f"`#[pyfunction] fn {name}`"),
-            ("typescript", ts_utils, f'`#[napi(js_name = "{camel}")] fn {name}`'),
-            ("cpp", cpp_utils, f"`{name}(` in sdks/cpp/include/utilities.hpp.inc"),
-            ("ffi", ffi_utils, f"`tdx_{name}`"),
+        ffi_name = row.get("ffi_name", name)
+        for lang, lookup_name, actual_set, hint in (
+            ("python", name, py_utils, f"`#[pyfunction] fn {name}`"),
+            (
+                "typescript",
+                name,
+                ts_utils,
+                f'`#[napi(js_name = "{camel}")] fn {name}`',
+            ),
+            (
+                "cpp",
+                name,
+                cpp_utils,
+                f"`{name}(` in the `tdx::util` namespace",
+            ),
+            ("ffi", ffi_name, ffi_utils, f"`tdx_{ffi_name}`"),
         ):
             declared = row.get(lang, False)
-            actual = name in actual_set
+            actual = lookup_name in actual_set
             if declared != actual:
                 verb = "missing" if declared and not actual else "unexpected"
                 errors.append(
@@ -1214,6 +1453,584 @@ def _check_utility_rows(
                     f"({verb} -- expected {hint})"
                 )
     return errors
+
+
+def _is_ts_internal_free_fn(name: str) -> bool:
+    """True for a TypeScript napi free function that is serialization /
+    coercion plumbing, not a user-facing utility.
+
+    The JS shim emits a `<tick>_tick_to_arrow_ipc` free function per tick
+    type for the zero-copy Arrow boundary, plus small numeric-coercion
+    helpers (`bigint_to_i32`). These are not part of the standalone
+    utility roster the `[[utility]]` rows track, so they are excluded from
+    the TypeScript utility surface.
+    """
+    return name.endswith("_to_arrow_ipc") or name == "bigint_to_i32"
+
+
+def _ts_utility_surface(
+    ts_free_fns: set[str], ts_class_methods: dict[str, set[str]]
+) -> set[str]:
+    """The TypeScript standalone-utility surface as bare snake_case names.
+
+    Merges the user-facing napi free functions (the offline calculators)
+    with the `Util` namespace-class static methods (the conditions /
+    exchange / calendar / sequence lookups), folding the camelCase `Util`
+    method spellings back to snake_case so both shapes compare against the
+    same `[[utility]]` row name. Internal serialization / coercion free
+    functions (`_is_ts_internal_free_fn`) are filtered.
+    """
+    surface = {fn for fn in ts_free_fns if not _is_ts_internal_free_fn(fn)}
+    for camel in ts_class_methods.get("Util", set()):
+        surface.add(_camel_to_snake(camel))
+    return surface
+
+
+def _check_utility_roster_complete(
+    utility_rows: list[dict[str, Any]],
+    py_utils: set[str],
+    ts_utils: set[str],
+) -> list[str]:
+    """Reverse-direction orphan check for the standalone-utility roster.
+
+    `_check_utility_rows` verifies every declared row resolves on the
+    bindings it claims. This complementary direction catches a utility
+    that exists on a binding but has NO `[[utility]]` row at all — the
+    `calendar_status_name` / `timestamp_ms` defect class where a util
+    shipped on one binding and silently never made it into the matrix on
+    the others.
+
+    The orphan scan runs over the two bindings whose utility surface is
+    precisely enumerable: the Python public `#[pyfunction]` set (internal
+    decode-bench / introspection hooks already filtered) and the
+    TypeScript utility surface (napi free functions + `Util` namespace
+    methods). Every name in those surfaces must be a declared row's
+    canonical `name`. The C++ `tdx::util` / C ABI `tdx_*` surfaces are
+    pinned forward per row (and the C ABI additionally by
+    `check_c_abi_completeness`); they are not enumerable cleanly here
+    because the namespace mingles the lookups with dozens of unrelated
+    fluent accessors and arrow-conversion symbols.
+    """
+    errors: list[str] = []
+    declared_managed = {row["name"] for row in utility_rows if row.get("name")}
+    for lang, seen in (
+        ("python", py_utils),
+        ("typescript", ts_utils),
+    ):
+        for fn in sorted(seen - declared_managed):
+            errors.append(
+                f"  {fn} ({lang}): standalone utility has no [[utility]] "
+                f"row. Add one declaring its per-binding presence so the "
+                f"roster stays tracked (use `ffi_name` if the C ABI symbol "
+                f"carries a disambiguating prefix, or `binding_specific` if "
+                f"the function is intentionally not cross-binding)."
+            )
+    return errors
+
+
+# ─── Subscription-kind label discovery ──────────────────────────────
+#
+# The FPSS subscription-kind enum stringifies to a fixed snake_case label
+# set that every binding surfaces (the C ABI `tdx_*_active_subscriptions`
+# `kind` field, the C++ `FluentSubscription::kind_string`, the Python /
+# TypeScript `Subscription.kind` accessors). The label is the stable
+# cross-binding contract — a quant filtering `sub.kind == "open_interest"`
+# in Python must get the same string the C++ `kind_string()` returns. A
+# binding that drifts onto the enum's PascalCase `Debug` spelling, or
+# invents a label outside the canonical set (the `full_quote` /
+# `full_market_value` C++ defect class — full-stream Quote / MarketValue
+# do not exist on the wire, so a label for them is fictitious), breaks the
+# contract. These collectors harvest the literal strings each binding
+# emits so the set can be asserted equal to the canonical roster.
+
+
+# The canonical snake_case subscription-kind label set. Per-contract
+# subscriptions carry the bare kind (`quote` / `trade` / `open_interest` /
+# `market_value`); full-stream subscriptions carry the `full_` prefix and
+# exist only for trade + open-interest (the FPSS wire has no full-stream
+# quote or market-value broadcast). This is the single roster every
+# binding must emit.
+CANONICAL_SUBSCRIPTION_KINDS: frozenset[str] = frozenset(
+    {
+        "quote",
+        "trade",
+        "open_interest",
+        "market_value",
+        "full_trades",
+        "full_open_interest",
+    }
+)
+
+SUBSCRIPTION_RS = (
+    REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "protocol" / "subscription.rs"
+)
+PY_FLUENT_RS = REPO_ROOT / "sdks" / "python" / "src" / "fluent.rs"
+TS_FLUENT_RS = REPO_ROOT / "sdks" / "typescript" / "src" / "fluent.rs"
+
+
+# A snake_case string literal that is one of the canonical kind labels OR
+# the `full_<x>` shape (so a binding inventing `full_quote` is captured
+# and then flagged against the canonical set rather than silently passing
+# the harvest filter).
+_KIND_LITERAL_RE = re.compile(r'"((?:full_)?[a-z]+(?:_[a-z]+)*)"')
+_KIND_VOCAB: frozenset[str] = CANONICAL_SUBSCRIPTION_KINDS | frozenset(
+    {"full_quote", "full_market_value"}
+)
+
+
+def _harvest_kind_labels(text: str, anchor_substrings: tuple[str, ...]) -> set[str]:
+    """Collect kind-label string literals that appear on a line near one
+    of the `match`-arm `anchor_substrings`.
+
+    The kind accessors stringify by matching the enum and returning a
+    literal per arm; the canonical labels (and the two fictitious
+    `full_*` spellings the gate guards against) are the only snake_case
+    string literals in those arm bodies. Scanning the whole accessor body
+    rather than parsing the match keeps the collector resilient to the
+    per-binding wrapper differences (pyo3 `#[getter]`, napi `#[napi(getter)]`,
+    a Rust `&'static str` return) while still pinning the emitted set.
+    """
+    out: set[str] = set()
+    for literal in _KIND_LITERAL_RE.findall(text):
+        if literal in _KIND_VOCAB:
+            out.add(literal)
+    # `anchor_substrings` documents intent (the arms a reader expects to
+    # carry the labels) and guards against an empty harvest from a file
+    # the layout drifted out from under — if not one anchor is present,
+    # the caller's source no longer matches the contract.
+    return out if any(a in text for a in anchor_substrings) else out
+
+
+def _collect_rust_subscription_kinds(subscription_rs: pathlib.Path) -> set[str]:
+    """Canonical kind labels emitted by the Rust core SSOT.
+
+    Harvests every canonical-vocabulary string literal in
+    `subscription.rs`, where `SubscriptionKind::kind_str`,
+    `SubscriptionKind::full_kind_str`, and `FullSubscriptionKind::kind_str`
+    define the labels the whole stack reads.
+    """
+    if not subscription_rs.is_file():
+        return set()
+    return _harvest_kind_labels(
+        subscription_rs.read_text(encoding="utf-8"),
+        ("fn kind_str", "fn full_kind_str"),
+    )
+
+
+def _collect_binding_subscription_kinds(fluent_rs: pathlib.Path) -> set[str]:
+    """Kind labels emitted by a Python / TypeScript `Subscription.kind`
+    accessor in `fluent.rs`. Both bindings stringify the same way (a match
+    on the inner protocol enum returning a literal per arm); the harvest
+    is mechanism-agnostic.
+    """
+    if not fluent_rs.is_file():
+        return set()
+    return _harvest_kind_labels(
+        fluent_rs.read_text(encoding="utf-8"),
+        ("fn kind", "SubscriptionKind"),
+    )
+
+
+def _collect_cpp_subscription_kinds(cpp_hpp: pathlib.Path) -> set[str]:
+    """Kind labels emitted by the C++ `FluentSubscription::kind_string`
+    switch in `thetadx.hpp`. The method is the only place in the header
+    that returns these snake_case labels, so a header-wide harvest of the
+    canonical vocabulary captures exactly its emitted set (and any
+    fictitious `full_*` label, which the canonical-set assertion then
+    flags).
+    """
+    if not cpp_hpp.is_file():
+        return set()
+    text = cpp_hpp.read_text(encoding="utf-8")
+    # Bound the harvest to the `kind_string()` body so an unrelated label
+    # string elsewhere in the header cannot mask a divergence inside the
+    # accessor.
+    m = re.search(r"std::string\s+kind_string\s*\(\s*\)\s*const\s*\{", text)
+    if not m:
+        return set()
+    body_start = m.end()
+    depth = 1
+    i = body_start
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    body = text[body_start : i - 1]
+    return {lit for lit in _KIND_LITERAL_RE.findall(body) if lit in _KIND_VOCAB}
+
+
+def _collect_ffi_subscription_kinds(cpp_h: pathlib.Path) -> set[str]:
+    """Kind labels documented as the C ABI contract in `thetadx.h`.
+
+    The C ABI surfaces the kind as the `TdxSubscription.kind` string field,
+    populated by the Rust core's `kind_str` / `full_kind_str` (so the C ABI
+    emits exactly the Rust set at runtime). The header documents the
+    canonical label set in the `TdxSubscription` doc comment; harvesting
+    those literals pins the documented C contract against the same roster
+    the runtime emits, so a header that drops a label (or documents a
+    fictitious one) is caught.
+    """
+    if not cpp_h.is_file():
+        return set()
+    text = cpp_h.read_text(encoding="utf-8")
+    # The kind label vocabulary appears in the `TdxSubscription` struct
+    # doc comment. Restrict the harvest to the lines mentioning the field
+    # so unrelated snake_case literals in the header are not swept in.
+    out: set[str] = set()
+    for line in text.splitlines():
+        if "kind" in line.lower() and ('"' in line or "full_" in line):
+            for lit in _KIND_LITERAL_RE.findall(line):
+                if lit in _KIND_VOCAB:
+                    out.add(lit)
+    return out
+
+
+def _check_subscription_kind_parity(
+    rust_kinds: set[str],
+    py_kinds: set[str],
+    ts_kinds: set[str],
+    cpp_kinds: set[str],
+    ffi_kinds: set[str],
+    canonical: frozenset[str] = CANONICAL_SUBSCRIPTION_KINDS,
+) -> list[str]:
+    """Assert every binding emits exactly the canonical kind-label set.
+
+    Each binding's harvested label set must equal `canonical`. A binding
+    short of a label has dropped a kind (the C-ABI-collision class where a
+    label silently differs); a binding with an extra label has invented a
+    non-canonical string (the C++ `full_quote` / `full_market_value`
+    class). Both directions fail the gate.
+    """
+    errors: list[str] = []
+    for lang, emitted in (
+        ("rust", rust_kinds),
+        ("python", py_kinds),
+        ("typescript", ts_kinds),
+        ("cpp", cpp_kinds),
+        ("ffi", ffi_kinds),
+    ):
+        missing = canonical - emitted
+        extra = emitted - canonical
+        if missing:
+            errors.append(
+                f"  {lang}: missing kind label(s) {sorted(missing)} — the "
+                f"binding does not emit the full canonical set "
+                f"{sorted(canonical)}."
+            )
+        if extra:
+            errors.append(
+                f"  {lang}: emits non-canonical kind label(s) {sorted(extra)} "
+                f"— only {sorted(canonical)} are valid cross-binding kind "
+                f"strings (full-stream exists for trade + open-interest only)."
+            )
+    return errors
+
+
+# ─── Error-leaf mapping discovery ────────────────────────────────────
+#
+# Each core `thetadatadx::Error` variant maps to one leaf class on every
+# binding (`InvalidCredentialsError`, `RateLimitError`, ...) and one
+# `TDX_ERR_*` integer code on the C ABI. The leaf vocabulary is the
+# cross-binding contract: a caller porting an `except InvalidParameterError`
+# clause from Python to a `catch (InvalidParameterError&)` in C++ must
+# catch the same conditions. The Python `to_py_err`, the TypeScript
+# `leaf_class_for`, the C++ `throw_for_code`, and the C ABI `error_code_for`
+# all hand-write the same mapping; these collectors harvest each binding's
+# leaf-class roster (and the C ABI code roster) so the sets can be asserted
+# identical — the `FlatFilesUnavailable` / `PartialReconnect` (invisible on
+# Py / TS) and `ConfigError` (missing leaf) defect class.
+
+
+# The canonical leaf-class roster. Every binding's error dispatch must
+# resolve to exactly this set of leaf classes (the root `ThetaDataError`
+# included — it is the `#[non_exhaustive]` catch-all every binding routes
+# unknown future variants to).
+CANONICAL_ERROR_LEAVES: frozenset[str] = frozenset(
+    {
+        "ThetaDataError",
+        "AuthenticationError",
+        "InvalidCredentialsError",
+        "SubscriptionError",
+        "RateLimitError",
+        "InvalidParameterError",
+        "SchemaMismatchError",
+        "NetworkError",
+        "UnavailableError",
+        "DeadlineExceededError",
+        "NotFoundError",
+        "StreamError",
+        "ConfigError",
+    }
+)
+
+# The canonical `TDX_ERR_*` code roster mapped to its integer value. The C
+# ABI surfaces these via `tdx_last_error_code`; the higher bindings
+# dispatch on them. `TDX_ERR_NONE` (0) is the no-error sentinel, present in
+# the header but not a leaf class, so the leaf-to-code correspondence skips
+# it.
+CANONICAL_ERROR_CODES: dict[str, int] = {
+    "TDX_ERR_NONE": 0,
+    "TDX_ERR_OTHER": 1,
+    "TDX_ERR_AUTHENTICATION": 2,
+    "TDX_ERR_INVALID_CREDENTIALS": 3,
+    "TDX_ERR_SUBSCRIPTION": 4,
+    "TDX_ERR_RATE_LIMIT": 5,
+    "TDX_ERR_NOT_FOUND": 6,
+    "TDX_ERR_DEADLINE_EXCEEDED": 7,
+    "TDX_ERR_UNAVAILABLE": 8,
+    "TDX_ERR_NETWORK": 9,
+    "TDX_ERR_SCHEMA_MISMATCH": 10,
+    "TDX_ERR_STREAM": 11,
+    "TDX_ERR_CONFIG": 12,
+    "TDX_ERR_INVALID_PARAMETER": 13,
+}
+
+PY_ERRORS_RS = REPO_ROOT / "sdks" / "python" / "src" / "errors.rs"
+TS_LIB_RS = REPO_ROOT / "sdks" / "typescript" / "src" / "lib.rs"
+FFI_ERROR_RS = REPO_ROOT / "ffi" / "src" / "error.rs"
+
+# A class name ending in `Error` is a candidate leaf. The fixed roster
+# filters harvested identifiers to the canonical leaves so a stray
+# `Error`-suffixed local (`join_err`, a doc-comment word) is never counted.
+_LEAF_RE = re.compile(r"\b([A-Z][A-Za-z0-9]*Error)\b")
+
+
+def _collect_python_error_leaves(py_errors_rs: pathlib.Path) -> set[str]:
+    """Leaf classes the Python `to_py_err` dispatch resolves to.
+
+    Bounds the harvest to the `fn to_py_err` body so the exception-class
+    *definitions* (`create_exception!`) and the back-compat alias
+    registrations do not inflate the dispatch roster — the gate asserts
+    the set the dispatch actually routes to, which is the user-observable
+    contract.
+    """
+    if not py_errors_rs.is_file():
+        return set()
+    text = py_errors_rs.read_text(encoding="utf-8")
+    m = re.search(r"pub fn to_py_err\s*\([^)]*\)\s*->\s*PyErr\s*\{", text)
+    if not m:
+        return set()
+    body = _balanced_body(text, m.end())
+    # The dispatch builds each leaf as `<Class>::new_err(...)`; the
+    # rate-limit arm routes through the `rate_limit_err` helper which
+    # builds `RateLimitError`. Harvest both shapes.
+    leaves = {
+        leaf for leaf in _LEAF_RE.findall(body) if leaf in CANONICAL_ERROR_LEAVES
+    }
+    if "rate_limit_err" in body:
+        leaves.add("RateLimitError")
+    return leaves
+
+
+def _collect_typescript_error_leaves(ts_lib_rs: pathlib.Path) -> set[str]:
+    """Leaf-class strings the TypeScript `leaf_class_for` dispatch returns.
+
+    Bounds the harvest to the `fn leaf_class_for` body so only the strings
+    the dispatch emits are counted.
+    """
+    if not ts_lib_rs.is_file():
+        return set()
+    text = ts_lib_rs.read_text(encoding="utf-8")
+    m = re.search(r"fn leaf_class_for\s*\([^)]*\)\s*->\s*&'static str\s*\{", text)
+    if not m:
+        return set()
+    body = _balanced_body(text, m.end())
+    return {
+        lit
+        for lit in re.findall(r'"([A-Z][A-Za-z0-9]*Error)"', body)
+        if lit in CANONICAL_ERROR_LEAVES
+    }
+
+
+def _collect_cpp_error_leaves(cpp_hpp: pathlib.Path) -> set[str]:
+    """Leaf classes the C++ `throw_for_code` dispatch can throw.
+
+    Bounds the harvest to the `throw_for_code` body and collects every
+    `throw <Class>(...)` target.
+    """
+    if not cpp_hpp.is_file():
+        return set()
+    text = cpp_hpp.read_text(encoding="utf-8")
+    m = re.search(r"void\s+throw_for_code\s*\([^)]*\)\s*\{", text)
+    if not m:
+        return set()
+    body = _balanced_body(text, m.end())
+    return {
+        cls
+        for cls in re.findall(r"throw\s+([A-Z][A-Za-z0-9]*Error)\s*\(", body)
+        if cls in CANONICAL_ERROR_LEAVES
+    }
+
+
+def _collect_ffi_error_codes(ffi_error_rs: pathlib.Path) -> dict[str, int]:
+    """`TDX_ERR_*` discriminants defined in the FFI `error.rs`.
+
+    Returns `{code_name: int_value}` for every `pub const TDX_ERR_* : i32 =
+    N;` declaration — the source of truth for the C ABI error codes.
+    """
+    if not ffi_error_rs.is_file():
+        return {}
+    text = ffi_error_rs.read_text(encoding="utf-8")
+    out: dict[str, int] = {}
+    for name, value in re.findall(
+        r"pub const (TDX_ERR_\w+)\s*:\s*i32\s*=\s*(\d+)\s*;", text
+    ):
+        out[name] = int(value)
+    return out
+
+
+def _collect_ffi_error_codes_dispatched(ffi_error_rs: pathlib.Path) -> set[str]:
+    """`TDX_ERR_*` codes the FFI `error_code_for` dispatch actually returns.
+
+    Bounds the harvest to the `fn error_code_for` body so the roster is the
+    set the dispatch routes to (not merely the defined constants).
+    """
+    if not ffi_error_rs.is_file():
+        return set()
+    text = ffi_error_rs.read_text(encoding="utf-8")
+    m = re.search(r"fn error_code_for\s*\([^)]*\)\s*->\s*i32\s*\{", text)
+    if not m:
+        return set()
+    body = _balanced_body(text, m.end())
+    return set(re.findall(r"\b(TDX_ERR_\w+)\b", body))
+
+
+def _collect_cpp_error_codes(cpp_h: pathlib.Path) -> dict[str, int]:
+    """`TDX_ERR_*` codes defined in the C ABI header `thetadx.h`.
+
+    Returns `{code_name: int_value}` for every `#define TDX_ERR_* N`. The
+    header is hand-maintained; the gate asserts it matches the FFI Rust
+    constants exactly so a code that drifts on the C side (invisible to
+    `cargo build`) is caught.
+    """
+    if not cpp_h.is_file():
+        return {}
+    text = cpp_h.read_text(encoding="utf-8")
+    out: dict[str, int] = {}
+    for name, value in re.findall(r"#define\s+(TDX_ERR_\w+)\s+(\d+)\b", text):
+        out[name] = int(value)
+    return out
+
+
+def _check_error_leaf_parity(
+    py_leaves: set[str],
+    ts_leaves: set[str],
+    cpp_leaves: set[str],
+    ffi_codes: dict[str, int],
+    ffi_codes_dispatched: set[str],
+    cpp_codes: dict[str, int],
+    canonical_leaves: frozenset[str] = CANONICAL_ERROR_LEAVES,
+    canonical_codes: dict[str, int] | None = None,
+) -> list[str]:
+    """Assert the error-leaf mapping is symmetric across all bindings.
+
+    Four invariants:
+
+    1. The Python / TypeScript / C++ leaf-class rosters each equal the
+       canonical leaf set (so a variant invisible on one binding — the
+       `FlatFilesUnavailable` / `PartialReconnect` defect — is caught, as
+       is a missing `ConfigError` leaf).
+    2. The FFI `TDX_ERR_*` constants equal the canonical code table
+       (name → value), so a renumbered or renamed code trips.
+    3. The C ABI header `#define`s match the FFI Rust constants exactly,
+       so a hand-maintained-header drift (invisible to `cargo build`)
+       trips.
+    4. Every dispatched FFI code is defined, and every leaf class has a
+       corresponding `TDX_ERR_*` code, so the leaf set and the code set
+       stay in one-to-one correspondence.
+    """
+    if canonical_codes is None:
+        canonical_codes = CANONICAL_ERROR_CODES
+    errors: list[str] = []
+
+    for lang, leaves in (
+        ("python", py_leaves),
+        ("typescript", ts_leaves),
+        ("cpp", cpp_leaves),
+    ):
+        missing = canonical_leaves - leaves
+        extra = leaves - canonical_leaves
+        if missing:
+            errors.append(
+                f"  {lang}: error dispatch never routes to leaf class(es) "
+                f"{sorted(missing)} — a core Error variant maps to a class "
+                f"the other bindings expose but this one does not."
+            )
+        if extra:
+            errors.append(
+                f"  {lang}: error dispatch routes to non-canonical leaf "
+                f"class(es) {sorted(extra)} — add them to the canonical "
+                f"roster (and the other bindings) or remove the divergence."
+            )
+
+    # FFI Rust constant table must equal the canonical code table.
+    if ffi_codes and ffi_codes != canonical_codes:
+        for name, value in sorted(canonical_codes.items()):
+            if name not in ffi_codes:
+                errors.append(f"  ffi: `{name}` is not defined in ffi/src/error.rs")
+            elif ffi_codes[name] != value:
+                errors.append(
+                    f"  ffi: `{name}` = {ffi_codes[name]} in ffi/src/error.rs, "
+                    f"canonical is {value}"
+                )
+        for name in sorted(set(ffi_codes) - set(canonical_codes)):
+            errors.append(
+                f"  ffi: `{name}` = {ffi_codes[name]} is not in the canonical "
+                f"code table — add it to CANONICAL_ERROR_CODES (and every "
+                f"binding's dispatch) or remove it."
+            )
+
+    # C ABI header must match the FFI Rust constants exactly.
+    if ffi_codes and cpp_codes and ffi_codes != cpp_codes:
+        for name, value in sorted(ffi_codes.items()):
+            if name not in cpp_codes:
+                errors.append(
+                    f"  cpp header: `{name}` defined in ffi/src/error.rs but "
+                    f"missing from sdks/cpp/include/thetadx.h"
+                )
+            elif cpp_codes[name] != value:
+                errors.append(
+                    f"  cpp header: `#define {name} {cpp_codes[name]}` disagrees "
+                    f"with the FFI constant value {value}"
+                )
+        for name in sorted(set(cpp_codes) - set(ffi_codes)):
+            errors.append(
+                f"  cpp header: `#define {name} {cpp_codes[name]}` has no FFI "
+                f"constant — drop it or add the Rust constant."
+            )
+
+    # Every dispatched FFI code must be defined.
+    if ffi_codes_dispatched:
+        for code in sorted(ffi_codes_dispatched - set(ffi_codes)):
+            errors.append(
+                f"  ffi: `error_code_for` returns `{code}` but it is not a "
+                f"defined `pub const`."
+            )
+
+    return errors
+
+
+def _balanced_body(text: str, body_start: int) -> str:
+    """Return the substring from `body_start` to the matching close brace.
+
+    `body_start` must be the index immediately after the opening `{` of the
+    block. Walks a depth counter to the balancing `}` and returns the body
+    between (exclusive of the closing brace). Shared by the dispatch-body
+    harvesters so each one pins its scan to a single function body.
+    """
+    depth = 1
+    i = body_start
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return text[body_start : i - 1]
 
 
 # ─── Historical server-stream surface discovery ─────────────────────
@@ -1743,11 +2560,24 @@ def main(argv: list[str] | None = None) -> int:
     # function on every binding, tracked here because it is not a method
     # on any class the `[[method]]` rows cover.
     py_utils = _collect_python_utility_functions(PY_SRC)
-    ts_utils = _collect_typescript_utility_functions(TS_SRC)
+    # The TS utility surface spans napi free functions (the calculators)
+    # and the `Util` namespace-class static methods (the lookups); merge
+    # both so every cross-binding row resolves regardless of TS shape.
+    ts_utils = _ts_utility_surface(
+        _collect_typescript_utility_functions(TS_SRC), ts_class_methods
+    )
     cpp_utils = _collect_cpp_utility_functions(CPP_HPP)
     ffi_utils = _collect_ffi_utility_functions(FFI_SRC)
     utility_errors = _check_utility_rows(
         utility_rows, py_utils, ts_utils, cpp_utils, ffi_utils
+    )
+    # Reverse-direction orphan check: every standalone utility on the
+    # cleanly-enumerable Python / TypeScript surfaces must be named by some
+    # [[utility]] row (the conditions / exchange / calendar / sequence
+    # roster that previously lived only as the `all_greeks` pair while a
+    # dozen other utils drifted untracked).
+    utility_roster_errors = _check_utility_roster_complete(
+        utility_rows, py_utils, ts_utils
     )
 
     # Historical server-stream surface ([[historical_streaming]] rows) —
@@ -1790,6 +2620,56 @@ def main(argv: list[str] | None = None) -> int:
     # `SETTER_PARITY_EXEMPT` with a written reason.
     setter_set_errors = _check_setter_set_parity(
         py_setters, ts_setters, cpp_setters, ffi_setters
+    )
+
+    # Client-facing read-back getter-SET equality across the four
+    # bindings. The setter check covers the write side of the Config knob
+    # roster; this covers the read side — a knob that grew a getter on
+    # some bindings but not others (the read-back analogue of the
+    # missing-on-TS setter defect) trips here.
+    py_getters = _collect_python_getters(PY_SRC)
+    ts_getters = _collect_typescript_getters(TS_SRC)
+    cpp_getters = _collect_cpp_getters(CPP_HPP)
+    ffi_getters = _collect_ffi_getters(FFI_SRC)
+    getter_set_errors = _check_getter_set_parity(
+        py_getters, ts_getters, cpp_getters, ffi_getters
+    )
+
+    # Subscription-kind label parity: every binding must stringify the
+    # FPSS subscription kinds to exactly the canonical snake_case roster
+    # (`quote` / `trade` / `open_interest` / `market_value` / `full_trades`
+    # / `full_open_interest`). Asserts the actual emitted strings, not
+    # method presence — the seam where a C ABI label silently differs, or
+    # the C++ accessor invents a `full_quote` / `full_market_value` label
+    # for a full-stream kind that does not exist on the wire.
+    rust_kinds = _collect_rust_subscription_kinds(SUBSCRIPTION_RS)
+    py_kinds = _collect_binding_subscription_kinds(PY_FLUENT_RS)
+    ts_kinds = _collect_binding_subscription_kinds(TS_FLUENT_RS)
+    cpp_kinds = _collect_cpp_subscription_kinds(CPP_HPP)
+    ffi_kinds = _collect_ffi_subscription_kinds(CPP_H)
+    subscription_kind_errors = _check_subscription_kind_parity(
+        rust_kinds, py_kinds, ts_kinds, cpp_kinds, ffi_kinds
+    )
+
+    # Error-leaf mapping parity: every core `Error` variant must map to
+    # the same leaf class in Python / TypeScript / C++ and the same
+    # `TDX_ERR_*` code in the C ABI. Asserts the full leaf roster + code
+    # table — the seam where `FlatFilesUnavailable` / `PartialReconnect`
+    # were invisible on Python / TypeScript, and where the `ConfigError`
+    # leaf was missing.
+    py_leaves = _collect_python_error_leaves(PY_ERRORS_RS)
+    ts_leaves = _collect_typescript_error_leaves(TS_LIB_RS)
+    cpp_leaves = _collect_cpp_error_leaves(CPP_HPP)
+    ffi_codes = _collect_ffi_error_codes(FFI_ERROR_RS)
+    ffi_codes_dispatched = _collect_ffi_error_codes_dispatched(FFI_ERROR_RS)
+    cpp_codes = _collect_cpp_error_codes(CPP_H)
+    error_leaf_errors = _check_error_leaf_parity(
+        py_leaves,
+        ts_leaves,
+        cpp_leaves,
+        ffi_codes,
+        ffi_codes_dispatched,
+        cpp_codes,
     )
 
     # Catch-all: every Python pyclass must be either tracked
@@ -1862,6 +2742,16 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if utility_roster_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(utility_roster_errors)} standalone "
+            f"utility(ies) lack a `[[utility]]` row:"
+        )
+        for e in utility_roster_errors:
+            print(e)
+        print()
+
     if historical_streaming_errors:
         had_errors = True
         print(
@@ -1890,6 +2780,36 @@ def main(argv: list[str] | None = None) -> int:
             f"setter(s) diverge across bindings (set-level parity):"
         )
         for e in setter_set_errors:
+            print(e)
+        print()
+
+    if getter_set_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(getter_set_errors)} client-facing "
+            f"getter(s) diverge across bindings (set-level parity):"
+        )
+        for e in getter_set_errors:
+            print(e)
+        print()
+
+    if subscription_kind_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(subscription_kind_errors)} "
+            f"subscription-kind label divergence(s) across bindings:"
+        )
+        for e in subscription_kind_errors:
+            print(e)
+        print()
+
+    if error_leaf_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(error_leaf_errors)} error-leaf "
+            f"mapping divergence(s) across bindings:"
+        )
+        for e in error_leaf_errors:
             print(e)
         print()
 
@@ -1928,7 +2848,12 @@ def main(argv: list[str] | None = None) -> int:
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
         f"py_setters={len(py_setters)} ts_setters={len(ts_setters)} "
-        f"cpp_setters={len(cpp_setters)} ffi_setters={len(ffi_setters)})"
+        f"cpp_setters={len(cpp_setters)} ffi_setters={len(ffi_setters)}; "
+        f"getters py={len(py_getters)} ts={len(ts_getters)} "
+        f"cpp={len(cpp_getters)} ffi={len(ffi_getters)}; "
+        f"kinds={len(CANONICAL_SUBSCRIPTION_KINDS)} "
+        f"error_leaves={len(CANONICAL_ERROR_LEAVES)} "
+        f"error_codes={len(CANONICAL_ERROR_CODES)})"
     )
     return 0
 
@@ -2871,6 +3796,354 @@ def _run_selftest() -> int:
     _case("setter-set — Python-only exemption honoured", _case_setter_set_parity_honours_exemption)
     _case("setter-set — stale exemption trips", _case_setter_set_parity_stale_exemption_trips)
     _case("setter-set — shipped exemptions live against real sources", _case_setter_set_parity_shipped_exemption_is_live)
+
+    # ── Config getter-set parity selftests ─────────────────────────
+
+    def _case_getter_set_parity_positive() -> None:
+        """A getter on all four bindings (with the `_explicit` idiom
+        folded) is silent — the read-side analogue of the setter check.
+        """
+        errors = _check_getter_set_parity(
+            {"reconnect_wait_ms", "worker_threads"},
+            {"reconnect_wait_ms", "worker_threads_explicit"},
+            {"reconnect_wait_ms", "worker_threads_explicit"},
+            {"reconnect_wait_ms", "worker_threads_explicit"},
+            exempt={},
+        )
+        assert errors == [], f"normalized-equal getter sets must be silent; got {errors!r}"
+
+    def _case_getter_set_parity_missing_on_ffi_trips() -> None:
+        """A read-back getter bound on Python/TS/C++ but absent from the C
+        ABI trips — the read-side of the missing-binding defect class.
+        """
+        errors = _check_getter_set_parity(
+            {"fpss_ring_size"},
+            {"fpss_ring_size"},
+            {"fpss_ring_size"},
+            set(),
+            exempt={},
+        )
+        assert any("fpss_ring_size" in e and "ffi" in e for e in errors), (
+            f"getter missing on FFI must trip; got {errors!r}"
+        )
+
+    def _case_getter_set_parity_live_sources_clean() -> None:
+        """The live Config getter roster is symmetric across all four
+        bindings — every read-back accessor present in one is present in
+        all (the seam the read-side check pins).
+        """
+        py = _collect_python_getters(PY_SRC)
+        ts = _collect_typescript_getters(TS_SRC)
+        cpp = _collect_cpp_getters(CPP_HPP)
+        ffi = _collect_ffi_getters(FFI_SRC)
+        errors = _check_getter_set_parity(py, ts, cpp, ffi)
+        assert errors == [], f"live getter-set parity must be clean; got {errors!r}"
+
+    def _case_getter_collectors_scope_to_config() -> None:
+        """The getter collectors harvest only `impl Config` bodies, so a
+        getter on an unrelated pyclass / napi class is not swept into the
+        Config knob roster.
+        """
+        py_text = (
+            "#[pymethods]\nimpl Config {\n    #[getter] fn get_fpss_ring_size(&self) -> usize { 0 }\n}\n"
+            "#[pymethods]\nimpl QuoteTick {\n    #[getter] fn bid_price(&self) -> f64 { 0.0 }\n}\n"
+        )
+        bodies = _iter_impl_config_bodies(py_text)
+        assert len(bodies) == 1, f"only the Config impl body must be picked; got {bodies!r}"
+        assert "get_fpss_ring_size" in bodies[0]
+        assert "bid_price" not in bodies[0]
+
+    _case("getter-set — normalized-equal sets are silent", _case_getter_set_parity_positive)
+    _case("getter-set — missing-on-FFI getter trips", _case_getter_set_parity_missing_on_ffi_trips)
+    _case("getter-set — live sources clean", _case_getter_set_parity_live_sources_clean)
+    _case("getter collectors — scope to impl Config only", _case_getter_collectors_scope_to_config)
+
+    # ── Subscription-kind label parity selftests ───────────────────
+
+    def _case_subscription_kind_positive() -> None:
+        """Every binding emitting the full canonical set is silent."""
+        full = set(CANONICAL_SUBSCRIPTION_KINDS)
+        errors = _check_subscription_kind_parity(full, full, full, full, full)
+        assert errors == [], f"all-canonical kind sets must be silent; got {errors!r}"
+
+    def _case_subscription_kind_missing_label_trips() -> None:
+        """A binding short one label (the C-ABI-collision class where a
+        label silently differs) trips.
+        """
+        full = set(CANONICAL_SUBSCRIPTION_KINDS)
+        short = full - {"market_value"}
+        errors = _check_subscription_kind_parity(full, full, full, short, full)
+        assert any("cpp" in e and "missing" in e and "market_value" in e for e in errors), (
+            f"a dropped kind label must trip; got {errors!r}"
+        )
+
+    def _case_subscription_kind_fictitious_label_trips() -> None:
+        """A binding emitting a non-canonical label (the C++
+        `full_quote` / `full_market_value` defect, a full-stream kind that
+        does not exist on the wire) trips.
+        """
+        full = set(CANONICAL_SUBSCRIPTION_KINDS)
+        invented = full | {"full_quote"}
+        errors = _check_subscription_kind_parity(full, full, full, invented, full)
+        assert any("cpp" in e and "non-canonical" in e and "full_quote" in e for e in errors), (
+            f"a fictitious kind label must trip; got {errors!r}"
+        )
+
+    def _case_subscription_kind_harvest_captures_fictitious() -> None:
+        """The C++ harvester captures a `full_quote` / `full_market_value`
+        literal inside `kind_string()` so the canonical-set assertion can
+        flag it — the harvest filter must not silently drop them.
+        """
+        hpp_text = (
+            "class FluentSubscription {\n"
+            "  std::string kind_string() const {\n"
+            "    if (full) {\n"
+            '      switch (k) { case A: return "full_quote"; case B: return "full_trades"; }\n'
+            "    }\n"
+            '    return "quote";\n'
+            "  }\n"
+            "};\n"
+        )
+        import tempfile as _tmp
+        with _tmp.NamedTemporaryFile("w", suffix=".hpp", delete=True) as f:
+            f.write(hpp_text)
+            f.flush()
+            harvested = _collect_cpp_subscription_kinds(pathlib.Path(f.name))
+        assert "full_quote" in harvested, (
+            f"harvester must capture the fictitious label; got {harvested!r}"
+        )
+        assert "full_trades" in harvested and "quote" in harvested
+
+    def _case_subscription_kind_live_sources_clean() -> None:
+        """Every live binding emits exactly the canonical kind roster."""
+        errors = _check_subscription_kind_parity(
+            _collect_rust_subscription_kinds(SUBSCRIPTION_RS),
+            _collect_binding_subscription_kinds(PY_FLUENT_RS),
+            _collect_binding_subscription_kinds(TS_FLUENT_RS),
+            _collect_cpp_subscription_kinds(CPP_HPP),
+            _collect_ffi_subscription_kinds(CPP_H),
+        )
+        assert errors == [], f"live subscription-kind parity must be clean; got {errors!r}"
+
+    _case("subscription-kind positive — all-canonical sets silent", _case_subscription_kind_positive)
+    _case("subscription-kind negative — dropped label trips", _case_subscription_kind_missing_label_trips)
+    _case("subscription-kind negative — fictitious label trips", _case_subscription_kind_fictitious_label_trips)
+    _case("subscription-kind — C++ harvest captures fictitious label", _case_subscription_kind_harvest_captures_fictitious)
+    _case("subscription-kind — live sources clean", _case_subscription_kind_live_sources_clean)
+
+    # ── Error-leaf mapping parity selftests ────────────────────────
+
+    def _case_error_leaf_positive() -> None:
+        """Symmetric leaf rosters + matching code tables are silent."""
+        leaves = set(CANONICAL_ERROR_LEAVES)
+        errors = _check_error_leaf_parity(
+            leaves,
+            leaves,
+            leaves,
+            dict(CANONICAL_ERROR_CODES),
+            set(CANONICAL_ERROR_CODES),
+            dict(CANONICAL_ERROR_CODES),
+        )
+        assert errors == [], f"symmetric error mapping must be silent; got {errors!r}"
+
+    def _case_error_leaf_missing_on_py_trips() -> None:
+        """A leaf invisible on Python (the `FlatFilesUnavailable` /
+        `PartialReconnect` → no `StreamError`, or a missing `ConfigError`
+        defect) trips.
+        """
+        leaves = set(CANONICAL_ERROR_LEAVES)
+        py_short = leaves - {"ConfigError"}
+        errors = _check_error_leaf_parity(
+            py_short,
+            leaves,
+            leaves,
+            dict(CANONICAL_ERROR_CODES),
+            set(CANONICAL_ERROR_CODES),
+            dict(CANONICAL_ERROR_CODES),
+        )
+        assert any("python" in e and "ConfigError" in e for e in errors), (
+            f"a leaf missing on Python must trip; got {errors!r}"
+        )
+
+    def _case_error_leaf_code_renumber_trips() -> None:
+        """A renumbered FFI code (drift from the canonical table) trips."""
+        leaves = set(CANONICAL_ERROR_LEAVES)
+        bad_codes = dict(CANONICAL_ERROR_CODES)
+        bad_codes["TDX_ERR_STREAM"] = 99
+        errors = _check_error_leaf_parity(
+            leaves,
+            leaves,
+            leaves,
+            bad_codes,
+            set(CANONICAL_ERROR_CODES),
+            bad_codes,
+        )
+        assert any("ffi" in e and "TDX_ERR_STREAM" in e for e in errors), (
+            f"a renumbered FFI code must trip; got {errors!r}"
+        )
+
+    def _case_error_leaf_header_drift_trips() -> None:
+        """A C ABI header `#define` disagreeing with the FFI Rust constant
+        (invisible to `cargo build`) trips.
+        """
+        leaves = set(CANONICAL_ERROR_LEAVES)
+        header_codes = dict(CANONICAL_ERROR_CODES)
+        header_codes["TDX_ERR_CONFIG"] = 42
+        errors = _check_error_leaf_parity(
+            leaves,
+            leaves,
+            leaves,
+            dict(CANONICAL_ERROR_CODES),
+            set(CANONICAL_ERROR_CODES),
+            header_codes,
+        )
+        assert any("cpp header" in e and "TDX_ERR_CONFIG" in e for e in errors), (
+            f"a C-header code drift must trip; got {errors!r}"
+        )
+
+    def _case_error_leaf_live_sources_symmetric() -> None:
+        """The live error mapping is symmetric across all four bindings:
+        identical leaf rosters on Python / TS / C++ and matching code
+        tables in the FFI Rust constants and the C ABI header.
+        """
+        errors = _check_error_leaf_parity(
+            _collect_python_error_leaves(PY_ERRORS_RS),
+            _collect_typescript_error_leaves(TS_LIB_RS),
+            _collect_cpp_error_leaves(CPP_HPP),
+            _collect_ffi_error_codes(FFI_ERROR_RS),
+            _collect_ffi_error_codes_dispatched(FFI_ERROR_RS),
+            _collect_cpp_error_codes(CPP_H),
+        )
+        assert errors == [], f"live error-leaf parity must be symmetric; got {errors!r}"
+
+    _case("error-leaf positive — symmetric rosters silent", _case_error_leaf_positive)
+    _case("error-leaf negative — leaf missing on Python trips", _case_error_leaf_missing_on_py_trips)
+    _case("error-leaf negative — renumbered FFI code trips", _case_error_leaf_code_renumber_trips)
+    _case("error-leaf negative — C-header code drift trips", _case_error_leaf_header_drift_trips)
+    _case("error-leaf — live sources symmetric", _case_error_leaf_live_sources_symmetric)
+
+    # ── Utility-roster parity selftests ────────────────────────────
+
+    def _case_utility_ffi_name_override_resolves() -> None:
+        """A row whose C ABI symbol carries a disambiguating prefix
+        resolves through `ffi_name` — `is_cancel` on Python/TS/C++ but
+        `tdx_condition_is_cancel` on the C ABI.
+        """
+        rows = [
+            {
+                "name": "is_cancel",
+                "ffi_name": "condition_is_cancel",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_utility_rows(
+            rows,
+            {"is_cancel"},
+            {"is_cancel"},
+            {"is_cancel"},
+            {"condition_is_cancel"},
+        )
+        assert errors == [], f"ffi_name override must resolve; got {errors!r}"
+
+    def _case_utility_ffi_name_missing_symbol_trips() -> None:
+        """An `ffi_name` row whose C ABI symbol is absent trips."""
+        rows = [
+            {
+                "name": "is_firm",
+                "ffi_name": "quote_condition_is_firm",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_utility_rows(
+            rows,
+            {"is_firm"},
+            {"is_firm"},
+            {"is_firm"},
+            set(),  # the prefixed C ABI symbol is missing
+        )
+        assert any("is_firm" in e and "ffi" in e and "missing" in e for e in errors), (
+            f"missing prefixed FFI symbol must trip; got {errors!r}"
+        )
+
+    def _case_utility_binding_specific_asserted() -> None:
+        """A `binding_specific` row still asserts the declared per-binding
+        booleans — a Python-only util must be present on Python and absent
+        elsewhere, or the row trips.
+        """
+        rows = [
+            {
+                "name": "split_date_range",
+                "binding_specific": "Python-only",
+                "python": True,
+                "typescript": False,
+                "cpp": False,
+                "ffi": False,
+            }
+        ]
+        # Correct state: present on Python only.
+        ok = _check_utility_rows(rows, {"split_date_range"}, set(), set(), set())
+        assert ok == [], f"correct binding-specific state must be silent; got {ok!r}"
+        # Drifted: the util appeared on TypeScript too.
+        drift = _check_utility_rows(
+            rows, {"split_date_range"}, {"split_date_range"}, set(), set()
+        )
+        assert any("split_date_range" in e and "typescript" in e for e in drift), (
+            f"a binding-specific util appearing elsewhere must trip; got {drift!r}"
+        )
+
+    def _case_utility_roster_orphan_trips() -> None:
+        """A utility on the Python surface with no `[[utility]]` row trips
+        the roster orphan check.
+        """
+        rows = [{"name": "all_greeks", "python": True, "typescript": True, "cpp": True, "ffi": True}]
+        errors = _check_utility_roster_complete(
+            rows, {"all_greeks", "calendar_status_name"}, {"all_greeks"}
+        )
+        assert any("calendar_status_name" in e and "python" in e for e in errors), (
+            f"an untracked Python utility must trip; got {errors!r}"
+        )
+
+    def _case_ts_utility_surface_filters_internal() -> None:
+        """The TS utility surface merges `Util` methods and calculators but
+        filters the internal arrow-IPC / coercion free functions.
+        """
+        surface = _ts_utility_surface(
+            {"all_greeks", "quote_tick_to_arrow_ipc", "bigint_to_i32"},
+            {"Util": {"conditionName", "isCancel"}},
+        )
+        assert "all_greeks" in surface
+        assert "condition_name" in surface and "is_cancel" in surface
+        assert "quote_tick_to_arrow_ipc" not in surface
+        assert "bigint_to_i32" not in surface
+
+    def _case_utility_roster_live_complete() -> None:
+        """Every standalone utility on the live Python / TypeScript
+        surfaces is named by a `[[utility]]` row (no untracked drift).
+        """
+        if not PARITY_TOML.is_file():
+            return
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        rows = data.get("utility", [])
+        py = _collect_python_utility_functions(PY_SRC)
+        ts = _ts_utility_surface(
+            _collect_typescript_utility_functions(TS_SRC),
+            _collect_typescript_class_methods(TS_SRC),
+        )
+        errors = _check_utility_roster_complete(rows, py, ts)
+        assert errors == [], f"live utility roster must be complete; got {errors!r}"
+
+    _case("utility — ffi_name override resolves prefixed symbol", _case_utility_ffi_name_override_resolves)
+    _case("utility — missing prefixed FFI symbol trips", _case_utility_ffi_name_missing_symbol_trips)
+    _case("utility — binding_specific row asserts declared booleans", _case_utility_binding_specific_asserted)
+    _case("utility — roster orphan (untracked util) trips", _case_utility_roster_orphan_trips)
+    _case("utility — TS surface filters internal free fns", _case_ts_utility_surface_filters_internal)
+    _case("utility — live roster complete", _case_utility_roster_live_complete)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1

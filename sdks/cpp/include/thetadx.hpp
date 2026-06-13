@@ -2073,13 +2073,23 @@ public:
     /// one.
     std::string kind_string() const {
         if (scope_ == Scope::Full) {
+            // Only Trade and OpenInterest have a full-stream broadcast on
+            // the FPSS wire; Quote and MarketValue are per-contract only.
+            // A full-stream `FluentSubscription` is therefore only ever
+            // built for those two kinds (see `FluentSecType::full_trades`
+            // / `full_open_interest`), and the label set is the same two
+            // strings the Rust `FullSubscriptionKind::kind_str` and the
+            // Python / TypeScript `Subscription.kind` accessors emit. The
+            // remaining kinds fall through to the trade label so the
+            // method never invents a non-canonical string.
             switch (kind_) {
-                case Kind::Trade:        return "full_trades";
                 case Kind::OpenInterest: return "full_open_interest";
-                case Kind::Quote:        return "full_quote";
-                case Kind::MarketValue:  return "full_market_value";
+                case Kind::Trade:
+                case Kind::Quote:
+                case Kind::MarketValue:
+                    break;
             }
-            return "full_quote";
+            return "full_trades";
         }
         switch (kind_) {
             case Kind::Quote:        return "quote";
