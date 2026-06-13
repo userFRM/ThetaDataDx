@@ -269,9 +269,38 @@ impl ThetaDataDxClient {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming<F>(&self, mut handler: F) -> Result<(), Error>
+    pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
+    {
+        // Identity batch scope — each batch drain runs directly. The
+        // GIL-amortising form lives in [`Self::start_streaming_scoped`].
+        self.start_streaming_scoped(handler, |drain| drain())
+    }
+
+    /// Start FPSS streaming with each consumer batch drain wrapped in a
+    /// caller-supplied `scope`.
+    ///
+    /// Identical to [`Self::start_streaming`] in every observable respect
+    /// — the same single-flight gate, install/rollback, panic isolation,
+    /// and one-call-per-event delivery — except the dispatcher drives
+    /// [`crate::fpss::FpssClient::for_each_scoped`] instead of
+    /// `for_each`, so `scope` brackets each batch drain. The inter-batch
+    /// wait on an idle ring runs outside `scope`.
+    ///
+    /// A language binding uses this to acquire its interpreter lock once
+    /// per batch rather than once per event: the lock is held across
+    /// every `handler` call in a batch and released across the idle wait,
+    /// which both raises sustained drain throughput and keeps a blocking
+    /// wait off the lock. `handler` still fires exactly once per event.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn start_streaming_scoped<F, S>(&self, mut handler: F, scope: S) -> Result<(), Error>
+    where
+        F: FnMut(&FpssEvent) + Send + 'static,
+        S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
         // Single-flight gate: `dispatcher` mutex serialises the entire
         // connect-spawn-install sequence so two concurrent starts cannot
@@ -343,22 +372,25 @@ impl ThetaDataDxClient {
         let gate: Arc<OnceLock<bool>> = Arc::new(OnceLock::new());
         let gate_for_dispatcher = Arc::clone(&gate);
         let dispatcher_client = Arc::clone(&client_arc);
+        let mut scope = scope;
         let dispatcher_handle = std::thread::Builder::new()
             .name("tdx-fpss-dispatcher".into())
             .spawn(move || {
                 if !*gate_for_dispatcher.wait() {
                     return;
                 }
-                // `FpssClient::for_each` drives `poll_batch`, which wraps
-                // each callback invocation in its own `catch_unwind`.  A
-                // panic in the handler is caught, recorded via
-                // `panic_count()`, and does not stop event delivery for
-                // subsequent events.  The outer `catch_unwind` below
-                // guards only the event-iteration machinery itself (ring
-                // mutex poison, OOM in the polling path, etc.) — not
-                // user-callback panics.
+                // `FpssClient::for_each_scoped` drives `poll_batch`, which
+                // wraps each callback invocation in its own
+                // `catch_unwind`.  A panic in the handler is caught,
+                // recorded via `panic_count()`, and does not stop event
+                // delivery for subsequent events.  The outer
+                // `catch_unwind` below guards only the event-iteration
+                // machinery itself (ring mutex poison, OOM in the polling
+                // path, etc.) — not user-callback panics. `scope` brackets
+                // each batch drain; for the identity scope it is a direct
+                // call, identical to `for_each`.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    dispatcher_client.for_each(|event| handler(event));
+                    dispatcher_client.for_each_scoped(|event| handler(event), &mut scope);
                 }));
                 if outcome.is_err() {
                     tracing::error!(
@@ -1026,6 +1058,29 @@ impl ThetaDataDxClient {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
+        // Identity batch scope — see [`Self::reconnect_streaming_scoped`].
+        self.reconnect_streaming_scoped(handler, |drain| drain())
+    }
+
+    /// Reconnect, re-registering `handler` with each consumer batch drain
+    /// wrapped in `scope`.
+    ///
+    /// The reconnect counterpart of [`Self::start_streaming_scoped`]:
+    /// saves the active subscriptions, tears the session down, restarts
+    /// it via `start_streaming_scoped`, and replays the subscriptions.
+    /// `handler` still fires exactly once per event; `scope` brackets
+    /// each batch drain on the fresh connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] when some subscriptions fail
+    /// to restore, or a network / authentication / parsing error on the
+    /// restart itself.
+    pub fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    where
+        F: FnMut(&FpssEvent) + Send + 'static,
+        S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
+    {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
         let saved_subs = match &**self.state.load() {
@@ -1040,7 +1095,7 @@ impl ThetaDataDxClient {
         self.stop_streaming();
 
         // 3. Start a new streaming connection
-        self.start_streaming(handler)?;
+        self.start_streaming_scoped(handler, scope)?;
 
         // 4. Re-subscribe all saved subscriptions (paced), accumulating
         //    failures.
