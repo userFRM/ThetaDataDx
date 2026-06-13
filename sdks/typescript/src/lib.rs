@@ -549,7 +549,136 @@ impl ThetaDataDxClient {
     }
 }
 
-// Generated historical endpoint methods.
+// ── Standalone MddsClient (historical-only) ──
+
+/// Standalone MDDS-only historical client.
+///
+/// Opens ONLY the MDDS channel and the Nexus authentication flow —
+/// no FPSS TLS connection, no event ring, no streaming state machine.
+/// Mirrors the Python `MddsClient` (`sdks/python/src/mdds_client.rs`),
+/// the C++ `tdx::Client`, and the standalone C ABI entry points
+/// (`tdx_client_*`), letting a caller run a historical-only session
+/// alongside a parallel FPSS process without the unified
+/// [`ThetaDataDxClient`] taking over the Nexus session at connect time.
+///
+/// The full historical / list / snapshot / at-time / FLATFILES surface
+/// is generated onto this class identically to the unified client (see
+/// `_generated/historical_methods.rs`), so `mddsClient.stockHistoryEod(...)`
+/// behaves exactly like `client.stockHistoryEod(...)`. The streaming and
+/// subscription methods are simply not present: there is no
+/// `startStreaming` / `subscribe` on this class, so an MDDS-only handle
+/// cannot open an FPSS slot. Use [`FpssClient`] for streaming, or the
+/// unified [`ThetaDataDxClient`] when you need both surfaces.
+///
+/// ```js
+/// const { MddsClient, Config } = require("@thetadatadx/sdk");
+/// const mdds = MddsClient.connectFromFile("creds.txt");
+/// const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
+/// ```
+#[napi]
+pub struct MddsClient {
+    /// Wrapped in `Arc` so the generated async endpoint methods can
+    /// clone a cheap `'static` handle into the worker future, exactly
+    /// like the unified client's `tdx` field. The generated method
+    /// bodies reference `self.tdx`, so the historical impl block the
+    /// codegen projects onto this class compiles unchanged. This client
+    /// holds the same `thetadatadx::ThetaDataDxClient` core but never
+    /// reaches its streaming methods — no FPSS TLS slot is opened for a
+    /// session that lives entirely through `MddsClient`.
+    tdx: Arc<thetadatadx::ThetaDataDxClient>,
+}
+
+#[napi]
+impl MddsClient {
+    // Lifecycle: intentionally hand-written (language-specific constructor
+    // semantics), mirroring the unified `ThetaDataDxClient` factories. The
+    // connect core is identical — `thetadatadx::ThetaDataDxClient::connect`
+    // opens MDDS + Nexus and never opens FPSS until a streaming method is
+    // called, which this class does not surface.
+
+    /// Connect to ThetaData and open the MDDS channel. Historical
+    /// (MDDS/gRPC) only — this client never opens the FPSS streaming
+    /// transport. Use [`FpssClient`] for real-time data.
+    #[napi(factory)]
+    pub fn connect(email: String, password: String) -> napi::Result<MddsClient> {
+        let creds = auth::Credentials::new(email, password);
+        let config = config::DirectConfig::production();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, config,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(MddsClient { tdx: Arc::new(tdx) })
+    }
+
+    /// Connect with a credentials file (line 1 = email, line 2 =
+    /// password). Historical (MDDS/gRPC) only.
+    #[napi(factory)]
+    pub fn connect_from_file(path: String) -> napi::Result<MddsClient> {
+        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+        let config = config::DirectConfig::production();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, config,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(MddsClient { tdx: Arc::new(tdx) })
+    }
+
+    /// Connect to ThetaData against an explicit [`Config`] (`dev` /
+    /// `stage` / `production`, plus any tuned setters). Historical
+    /// (MDDS/gRPC) only. Use `connect` for the production-default
+    /// endpoint.
+    ///
+    /// The config is snapshot at connect time: the `Config` handle may
+    /// be reused or mutated afterward without affecting this client.
+    #[napi(factory)]
+    pub fn connect_with_config(
+        email: String,
+        password: String,
+        config: &Config,
+    ) -> napi::Result<MddsClient> {
+        let creds = auth::Credentials::new(email, password);
+        let cfg = config.snapshot();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, cfg,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(MddsClient { tdx: Arc::new(tdx) })
+    }
+
+    /// Connect with a credentials file (line 1 = email, line 2 =
+    /// password) against an explicit [`Config`]. Historical (MDDS/gRPC)
+    /// only. Use `connectFromFile` for the production-default endpoint.
+    ///
+    /// The config is snapshot at connect time: the `Config` handle may
+    /// be reused or mutated afterward without affecting this client.
+    #[napi(factory)]
+    pub fn connect_from_file_with_config(
+        path: String,
+        config: &Config,
+    ) -> napi::Result<MddsClient> {
+        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+        let cfg = config.snapshot();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, cfg,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(MddsClient { tdx: Arc::new(tdx) })
+    }
+}
+
+// Generated historical endpoint methods. The codegen projects the same
+// per-endpoint method bodies onto both `ThetaDataDxClient` and
+// `MddsClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
+// emitter); both classes expose an `Arc<thetadatadx::ThetaDataDxClient>`
+// field named `tdx`, so the shared bodies compile against either.
 include!("_generated/historical_methods.rs");
 
 // Generated streaming/FPSS methods.
