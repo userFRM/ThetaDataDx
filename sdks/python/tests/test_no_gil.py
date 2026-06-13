@@ -197,7 +197,7 @@ def test_parallel_throughput_bench_runs() -> None:
 
     # On a free-threaded interpreter, pin the actual nogil claim. The
     # `sys._is_gil_enabled` probe is the load-bearing source of truth
-    # (Python 3.13t / 3.14t); falling back via `getattr` so the GIL-
+    # (Python 3.14t); falling back via `getattr` so the GIL-
     # build path leaves this assertion latent.
     is_gil_enabled = getattr(sys, "_is_gil_enabled", None)
     if is_gil_enabled is not None and is_gil_enabled() is False:

@@ -31,7 +31,7 @@ pip install thetadatadx[arrow]    # raw pyarrow.Table
 pip install thetadatadx[all]      # every optional adapter
 ```
 
-Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. Wheels use CPython's stable ABI (`abi3`), so one wheel per platform covers Python 3.12 and up; free-threaded (`3.13t` / `3.14t`) builds run with the GIL disabled and are selected automatically by `pip`.
+Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. Wheels use CPython's stable ABI (`abi3`), so one wheel per platform covers Python 3.12 and up; the free-threaded (`3.14t`) build runs with the GIL disabled and is selected automatically by `pip`.
 
 ## Quick start
 
