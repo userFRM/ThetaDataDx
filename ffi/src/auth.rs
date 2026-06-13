@@ -2260,7 +2260,9 @@ pub unsafe extern "C" fn tdx_mdds_client_connect_from_file(
         // and is owned by this function; `tdx_mdds_client_connect` borrows
         // it and we free it unconditionally below.
         let client = unsafe { tdx_mdds_client_connect(creds, config) };
-        // SAFETY: same fresh, unfreed handle from above.
+        // SAFETY: `creds` is the non-null handle checked above;
+        // `tdx_mdds_client_connect` only borrowed it, so this scope still
+        // owns it and frees it exactly once.
         unsafe { tdx_credentials_free(creds) };
         client
     })
