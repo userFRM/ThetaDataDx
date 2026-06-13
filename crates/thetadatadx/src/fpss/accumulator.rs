@@ -47,8 +47,8 @@ impl OhlcvcAccumulator {
         high: i32,
         low: i32,
         close: i32,
-        volume: i32,
-        count: i32,
+        volume: i64,
+        count: i64,
         price_type: i32,
         date: i32,
     ) {
@@ -57,8 +57,11 @@ impl OhlcvcAccumulator {
         self.high = high;
         self.low = low;
         self.close = close;
-        self.volume = i64::from(volume);
-        self.count = i64::from(count);
+        // Cumulative volume and count are unsigned 32-bit wire fields; the
+        // caller widens them through `u32` so a value above `i32::MAX` is
+        // preserved rather than sign-extended into a negative `i64`.
+        self.volume = volume;
+        self.count = count;
         self.price_type = price_type;
         self.date = date;
         self.initialized = true;
@@ -179,7 +182,9 @@ mod tests {
     #[test]
     fn ohlcvc_accumulator_server_init_then_trade() {
         let mut acc = OhlcvcAccumulator::new();
-        acc.init_from_server(34200000, 15000, 15100, 14900, 15050, 1000, 10, 8, 20240315);
+        acc.init_from_server(
+            34200000, 15000, 15100, 14900, 15050, 1000_i64, 10_i64, 8, 20240315,
+        );
         acc.process_trade(34200300, 15200, 50, 8, 20240315);
         assert_eq!(acc.high, 15200);
         assert_eq!(acc.low, 14900);
@@ -195,6 +200,26 @@ mod tests {
         // Would overflow i32 (2 * 2_147_483_647 = 4_294_967_294), fine in i64
         assert_eq!(acc.volume, 2 * i64::from(i32::MAX));
         assert_eq!(acc.count, 2);
+    }
+
+    /// A server-seeded bar whose cumulative volume/count exceed `i32::MAX`
+    /// must be preserved as the positive integer the unsigned wire word
+    /// encodes. The caller widens the 32-bit word through `u32`, so a
+    /// value such as the wire bit pattern `-2_069_356_102_i32`
+    /// (== `2_225_611_194_u32`) seeds the accumulator as a positive `i64`
+    /// rather than a sign-extended negative.
+    #[test]
+    fn ohlcvc_accumulator_server_init_preserves_unsigned_volume_count() {
+        let volume = i64::from((-2_069_356_102_i32) as u32);
+        let count = i64::from((-2_008_126_979_i32) as u32);
+        assert_eq!(volume, 2_225_611_194_i64);
+        assert_eq!(count, 2_286_840_317_i64);
+        let mut acc = OhlcvcAccumulator::new();
+        acc.init_from_server(
+            34200000, 15000, 15100, 14900, 15050, volume, count, 8, 20240315,
+        );
+        assert_eq!(acc.volume, 2_225_611_194_i64);
+        assert_eq!(acc.count, 2_286_840_317_i64);
     }
 
     #[test]
