@@ -40,7 +40,7 @@ cpp = false         # not yet ported — issue #545 follow-up
 [[class]]
 name = "FpssClient"
 python = true
-typescript = false  # not yet ported — issue #545 follow-up
+typescript = true   # standalone FPSS-only napi class over `thetadatadx::fpss::FpssClient`
 cpp = true
 
 [[class]]
@@ -927,98 +927,98 @@ cpp = true
 class = "FpssClient"
 name = "startStreaming"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ uses `setCallback` for the same role
 
 [[method]]
 class = "FpssClient"
 name = "stopStreaming"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ frees through the RAII destructor on `FpssClient`
 
 [[method]]
 class = "FpssClient"
 name = "shutdown"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "reconnect"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "isStreaming"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ `FpssClient` is always live once constructed
 
 [[method]]
 class = "FpssClient"
 name = "isAuthenticated"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "awaitDrain"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ drain barrier runs inside the RAII destructor
 
 [[method]]
 class = "FpssClient"
 name = "subscribe"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "subscribeMany"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "unsubscribe"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "unsubscribeMany"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "activeSubscriptions"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "activeFullSubscriptions"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ FpssClient surface omits the full-stream snapshot today
 
 [[method]]
 class = "FpssClient"
 name = "droppedEventCount"
 python = true
-typescript = false
+typescript = true
 cpp = false  # C++ method is `dropped_events`, declared separately below
 
 [[method]]
@@ -1032,42 +1032,42 @@ cpp = true
 class = "FpssClient"
 name = "ringOccupancy"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "ringCapacity"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "panicCount"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "millisSinceLastEvent"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "lastEventReceivedAtUnixNanos"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]
 class = "FpssClient"
 name = "lastConnectedAddr"
 python = true
-typescript = false
+typescript = true
 cpp = true
 
 [[method]]

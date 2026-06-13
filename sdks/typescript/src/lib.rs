@@ -278,7 +278,7 @@ include!("_generated/utility_functions.rs");
 /// undefined behavior. The dispatcher's drain thread therefore hands
 /// every event to this `ThreadsafeFunction`, which queues it for the
 /// main thread via `napi_call_threadsafe_function`.
-type TsfnCallback =
+pub(crate) type TsfnCallback =
     napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>;
 
 #[napi]
@@ -713,6 +713,15 @@ pub use fluent::{ContractRef, SecType, Subscription};
 // under camelCase JS method names.
 mod util_helpers;
 pub use util_helpers::Util;
+
+// Standalone FPSS-only streaming client. Adds the `FpssClient` napi class
+// over `thetadatadx::fpss::FpssClient` (the FPSS primitive), mirroring the
+// Python `FpssClient` and the C++ `tdx::FpssClient`. It opens only the FPSS
+// TLS transport — no MDDS / Nexus — and drives its own dispatcher thread,
+// routing events through the same `TsfnCallback` mechanism as the unified
+// client's streaming surface.
+mod fpss_client;
+pub use fpss_client::FpssClient;
 
 #[napi]
 impl ThetaDataDxClient {

@@ -594,6 +594,7 @@ module.exports.ContractRef = nativeBinding.ContractRef
 module.exports.Contract = nativeBinding.ContractRef;
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
 module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace
+module.exports.FpssClient = nativeBinding.FpssClient
 module.exports.MddsClient = nativeBinding.MddsClient
 module.exports.SecType = nativeBinding.SecType
 module.exports.Subscription = nativeBinding.Subscription
