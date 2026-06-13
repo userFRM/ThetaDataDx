@@ -1294,7 +1294,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
     case 'option_flow_scanner': return `${rustHeader()}
 use thetadatadx::fpss::{FpssEvent, FpssData};
 use thetadatadx::fpss::protocol::SecTypeExt;
-use tdbe::types::enums::SecType;
+use thetadatadx::SecType;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
