@@ -347,6 +347,59 @@ impl ThetaDataDxClient {
         })
     }
 
+    /// Connect to ThetaData against an explicit [`Config`] (`dev` /
+    /// `stage` / `production`, plus any tuned setters). Historical
+    /// (MDDS/gRPC) only; call startStreaming() to begin FPSS real-time
+    /// data. Use `connect` for the production-default endpoint.
+    ///
+    /// The config is snapshot at connect time: the `Config` handle may
+    /// be reused or mutated afterward without affecting this client.
+    #[napi(factory)]
+    pub fn connect_with_config(
+        email: String,
+        password: String,
+        config: &Config,
+    ) -> napi::Result<ThetaDataDxClient> {
+        let creds = auth::Credentials::new(email, password);
+        let cfg = config.snapshot();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, cfg,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
+            callback: Mutex::new(None),
+        })
+    }
+
+    /// Connect with a credentials file (line 1 = email, line 2 =
+    /// password) against an explicit [`Config`] (`dev` / `stage` /
+    /// `production`, plus any tuned setters). Use `connectFromFile` for
+    /// the production-default endpoint.
+    ///
+    /// The config is snapshot at connect time: the `Config` handle may
+    /// be reused or mutated afterward without affecting this client.
+    #[napi(factory)]
+    pub fn connect_from_file_with_config(
+        path: String,
+        config: &Config,
+    ) -> napi::Result<ThetaDataDxClient> {
+        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+        let cfg = config.snapshot();
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, cfg,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
+            callback: Mutex::new(None),
+        })
+    }
+
     /// Cumulative count of FPSS events the TLS reader could not
     /// publish into the event ring because the event-dispatch consumer
     /// fell behind and the ring was full (`Producer::try_publish`

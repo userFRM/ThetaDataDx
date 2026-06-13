@@ -41,9 +41,10 @@ fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<
 /// SDK configuration. Mirrors [`thetadatadx::DirectConfig`].
 ///
 /// Build a config via one of the three static factories
-/// ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
+/// ([`Config::production`] / [`Config::dev`] / [`Config::stage`]), tune
+/// it with the setters below, then pass it to
 /// `ThetaDataDxClient.connectWithConfig` /
-/// `connectFromFileWithConfig`.
+/// `ThetaDataDxClient.connectFromFileWithConfig`.
 ///
 /// Mutating methods follow JS convention and
 /// return `void` (chain by calling `cfg.method(...)` then passing
@@ -88,6 +89,18 @@ impl Config {
         Self {
             inner: Arc::new(Mutex::new(config::DirectConfig::stage())),
         }
+    }
+
+    /// Snapshot the inner [`config::DirectConfig`] for a connect call.
+    ///
+    /// The connect factories take an owned `DirectConfig`, while this
+    /// handle may be reused or mutated afterward, so the value is cloned
+    /// out under the mutex rather than moved. A poisoned mutex is
+    /// recovered (the guarded value stays valid — a setter cannot leave
+    /// the config half-written), matching the Python binding.
+    pub(crate) fn snapshot(&self) -> config::DirectConfig {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.clone()
     }
 
     // ── MDDS pool sizing ───────────────────────────────────────────

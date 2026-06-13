@@ -4,9 +4,10 @@
  * SDK configuration. Mirrors [`thetadatadx::DirectConfig`].
  *
  * Build a config via one of the three static factories
- * ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
+ * ([`Config::production`] / [`Config::dev`] / [`Config::stage`]), tune
+ * it with the setters below, then pass it to
  * `ThetaDataDxClient.connectWithConfig` /
- * `connectFromFileWithConfig`.
+ * `ThetaDataDxClient.connectFromFileWithConfig`.
  *
  * Mutating methods follow JS convention and
  * return `void` (chain by calling `cfg.method(...)` then passing
@@ -602,6 +603,26 @@ export declare class ThetaDataDxClient {
   static connect(email: string, password: string): ThetaDataDxClient
   /** Connect with a credentials file (line 1 = email, line 2 = password). */
   static connectFromFile(path: string): ThetaDataDxClient
+  /**
+   * Connect to ThetaData against an explicit [`Config`] (`dev` /
+   * `stage` / `production`, plus any tuned setters). Historical
+   * (MDDS/gRPC) only; call startStreaming() to begin FPSS real-time
+   * data. Use `connect` for the production-default endpoint.
+   *
+   * The config is snapshot at connect time: the `Config` handle may
+   * be reused or mutated afterward without affecting this client.
+   */
+  static connectWithConfig(email: string, password: string, config: Config): ThetaDataDxClient
+  /**
+   * Connect with a credentials file (line 1 = email, line 2 =
+   * password) against an explicit [`Config`] (`dev` / `stage` /
+   * `production`, plus any tuned setters). Use `connectFromFile` for
+   * the production-default endpoint.
+   *
+   * The config is snapshot at connect time: the `Config` handle may
+   * be reused or mutated afterward without affecting this client.
+   */
+  static connectFromFileWithConfig(path: string, config: Config): ThetaDataDxClient
   /**
    * Cumulative count of FPSS events the TLS reader could not
    * publish into the event ring because the event-dispatch consumer
