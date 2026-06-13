@@ -263,7 +263,7 @@ macro_rules! require_cstr {
     };
 }
 
-/// Dereference an opaque `*const TdxClient` (or equivalent) handle into a
+/// Dereference an opaque `*const TdxMddsClient` (or equivalent) handle into a
 /// `&` reference, returning the supplied fallback after setting
 /// `tdx_last_error` on null. Hides the boilerplate `if is_null() { ... };
 /// unsafe { &*client }` pattern that the FFI endpoint codegen emits at
@@ -274,7 +274,7 @@ macro_rules! require_client {
             $crate::error::set_error(concat!(stringify!($client), " handle is null"));
             return $fallback;
         }
-        // SAFETY: caller passes a pointer returned by `tdx_client_connect` (or `_new`) that has not been freed by `tdx_client_free`; null was rejected above; `&*` produces a shared reference valid for the call duration because the caller owns the Box.
+        // SAFETY: caller passes a pointer returned by `tdx_mdds_client_connect` that has not been freed by `tdx_mdds_client_free`; null was rejected above; `&*` produces a shared reference valid for the call duration because the caller owns the Box.
         unsafe { &*$client }
     }};
 }
@@ -642,7 +642,7 @@ mod tests {
 
     // ─────────────────────────────────────────────────────────────────
     // `require_client!` macro coverage. Uses a synthetic non-opaque
-    // pointee so the test does not need a real `TdxClient` handle (the
+    // pointee so the test does not need a real `TdxMddsClient` handle (the
     // macro only reads the pointer null-ness and dereferences for
     // borrowing).
     fn run_require_client<T>(p: *const T, fallback: i32) -> i32 {

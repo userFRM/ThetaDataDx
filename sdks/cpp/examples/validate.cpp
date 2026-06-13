@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
     try {
         auto creds = tdx::Credentials::from_file(creds_path);
         auto config = tdx::Config::production();
-        auto client = tdx::Client::connect(creds, config);
+        auto client = tdx::MddsClient::connect(creds, config);
 
         auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, const char* rationale, auto&& call) {
             const std::string label = std::string(endpoint) + "::" + mode;
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
                 const std::string msg = lower(e.what());
                 if (msg.find("request deadline exceeded") != std::string::npos) {
                     // SDK cancelled the in-flight gRPC stream on deadline elapse;
-                    // the next cell runs normally on the same Client handle.
+                    // the next cell runs normally on the same MddsClient handle.
                     const long long elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count();
                     std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after " << elapsed_s << "s" << std::endl;
                     ++fail;

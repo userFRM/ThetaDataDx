@@ -164,7 +164,7 @@ struct Subscription {
 
 // ── Greeks result (from standalone tdx_all_greeks) ──
 
-struct Greeks {
+struct GreeksResult {
     double value;
     double delta;
     double gamma;
@@ -538,8 +538,8 @@ struct ConfigDeleter {
     void operator()(TdxConfig* p) const { if (p) tdx_config_free(p); }
 };
 
-struct ClientDeleter {
-    void operator()(TdxClient* p) const { if (p) tdx_client_free(p); }
+struct MddsClientDeleter {
+    void operator()(TdxMddsClient* p) const { if (p) tdx_mdds_client_free(p); }
 };
 
 struct FpssHandleDeleter {
@@ -556,7 +556,7 @@ public:
     /** Create credentials from email and password. */
     static Credentials from_email(const std::string& email, const std::string& password);
 
-    /** Get the raw handle (for passing to Client::connect). */
+    /** Get the raw handle (for passing to MddsClient::connect). */
     TdxCredentials* get() const { return handle_.get(); }
 
 private:
@@ -1145,18 +1145,19 @@ private:
     std::unique_ptr<TdxConfig, ConfigDeleter> handle_;
 };
 
-// ── Client ──
+// ── MddsClient ──
 
-class Client {
+class MddsClient {
 public:
-    /** Connect to ThetaData servers. Throws on failure. */
-    static Client connect(const Credentials& creds, const Config& config);
+    /** Connect a historical (MDDS) client to ThetaData servers. Throws on
+     *  failure. */
+    static MddsClient connect(const Credentials& creds, const Config& config);
 
     #include "historical.hpp.inc"
 
 private:
-    explicit Client(TdxClient* h) : handle_(h) {}
-    std::unique_ptr<TdxClient, ClientDeleter> handle_;
+    explicit MddsClient(TdxMddsClient* h) : handle_(h) {}
+    std::unique_ptr<TdxMddsClient, MddsClientDeleter> handle_;
 };
 
 // ── FPSS event types (re-exported from thetadx.h) ──
@@ -1201,7 +1202,7 @@ using FpssEvent = TdxFpssEvent;
 // catch_unwind(fn)`. The reader thread never blocks on user code; on
 // ring overflow events are dropped and counted via `dropped_events()`.
 //
-// The Client owns the `std::function`. A free `extern "C"` shim retrieves
+// The FpssClient owns the `std::function`. A free `extern "C"` shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
 // the event reference. The shim converts `const TdxFpssEvent*` (the C ABI
 // payload type) to `const FpssEvent&` (the C++ alias) at the boundary.
@@ -1443,7 +1444,7 @@ struct FlatFileRowListDeleter {
 /// RAII wrapper around an opaque `TdxFlatFileRowList*`. Move-only.
 /// Built by `FlatFiles::request(...)`; expose either Arrow IPC bytes
 /// via `to_arrow_ipc()` or use the free `to_path` variant on the
-/// owning `Client`.
+/// owning `ThetaDataDxClient`.
 class FlatFileRowList {
 public:
     FlatFileRowList(FlatFileRowList&&) = default;
@@ -1549,7 +1550,7 @@ public:
     }
 
 private:
-    friend class UnifiedClient;
+    friend class ThetaDataDxClient;
     explicit FlatFiles(const TdxUnified* h) : handle_(h) {}
     const TdxUnified* handle_;
 };
@@ -1561,7 +1562,7 @@ struct UnifiedDeleter {
 };
 
 /// Full-stream subscription descriptor returned by
-/// `UnifiedClient::active_full_subscriptions`. `sec_type` carries the
+/// `ThetaDataDxClient::active_full_subscriptions`. `sec_type` carries the
 /// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
 /// full-stream subscription is bound to; `kind` is the subscription
 /// kind (`"Trade"` / `"OpenInterest"` / `"Quote"`).
@@ -1579,22 +1580,22 @@ struct FullSubscription {
 /// and the lifecycle methods (`stop_streaming`,
 /// `reconnect`, `await_drain`, `dropped_event_count`, `is_streaming`,
 /// `active_subscriptions`, `active_full_subscriptions`). For
-/// pure-historical gRPC use, `Client` remains the recommended entry
+/// pure-historical gRPC use, `MddsClient` remains the recommended entry
 /// point.
-class UnifiedClient {
+class ThetaDataDxClient {
 public:
     /// Connect a unified client. Throws on auth / handshake failure.
-    static UnifiedClient connect(const Credentials& creds, const Config& config) {
+    static ThetaDataDxClient connect(const Credentials& creds, const Config& config) {
         TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
         if (h == nullptr) {
             detail::throw_last_ffi_error();
         }
-        return UnifiedClient(h);
+        return ThetaDataDxClient(h);
     }
 
-    UnifiedClient(const UnifiedClient&) = delete;
-    UnifiedClient& operator=(const UnifiedClient&) = delete;
-    UnifiedClient(UnifiedClient&& other) noexcept
+    ThetaDataDxClient(const ThetaDataDxClient&) = delete;
+    ThetaDataDxClient& operator=(const ThetaDataDxClient&) = delete;
+    ThetaDataDxClient(ThetaDataDxClient&& other) noexcept
         // Initialiser order MUST follow declaration order; see the
         // ordering invariant above the member declarations below.
         : callback_(std::move(other.callback_)),
@@ -1605,7 +1606,7 @@ public:
      *  storage — same discipline as `FpssClient::operator=`. On drain
      *  timeout, detach the callback storage onto a helper thread for a
      *  30 s grace window so destruction happens off the move path. */
-    UnifiedClient& operator=(UnifiedClient&& other) noexcept {
+    ThetaDataDxClient& operator=(ThetaDataDxClient&& other) noexcept {
         if (this != &other) {
             if (handle_) {
                 tdx_unified_stop_streaming(handle_.get());
@@ -1637,7 +1638,7 @@ public:
     // a single chunk. They borrow the historical client from this unified
     // handle (`tdx_unified_historical`), so they share the authenticated
     // session — no second connection. Included here so the declarations extend
-    // the `UnifiedClient` body and count toward the cross-binding parity gate.
+    // the `ThetaDataDxClient` body and count toward the cross-binding parity gate.
     #include "historical_stream.hpp.inc"
 
     /// Polymorphic subscribe — primary fluent entry point. Defined
@@ -1708,7 +1709,7 @@ public:
             }
         }
         auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
-        int rc = tdx_unified_set_callback(handle_.get(), &UnifiedClient::callback_shim, staged.get());
+        int rc = tdx_unified_set_callback(handle_.get(), &ThetaDataDxClient::callback_shim, staged.get());
         if (rc < 0) {
             detail::throw_last_ffi_error();
         }
@@ -1879,7 +1880,7 @@ private:
         }
     }
 
-    explicit UnifiedClient(TdxUnified* h) : handle_(h) {}
+    explicit ThetaDataDxClient(TdxUnified* h) : handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
@@ -1930,7 +1931,7 @@ class FluentSecType;
 /// `Contract::trade` / `Contract::open_interest` (per-contract) or by
 /// `SecType::option().full_trades()` /
 /// `.full_open_interest()` (full-stream). Pass into
-/// `UnifiedClient::subscribe(sub)` or `subscribe_many(...)`.
+/// `ThetaDataDxClient::subscribe(sub)` or `subscribe_many(...)`.
 class FluentSubscription {
 public:
     enum class Scope { Contract, Full };
@@ -2187,7 +2188,7 @@ using Contract = FluentContract;
 using SubscriptionRef = FluentSubscription;
 using SecType = FluentSecType;
 
-// ── UnifiedClient::subscribe(...) inline definitions ───────────────────
+// ── ThetaDataDxClient::subscribe(...) inline definitions ───────────────────
 //
 // Implemented out-of-class so the class body can reference the fluent
 // types by forward declaration, then dispatch at the call site through
@@ -2228,26 +2229,26 @@ inline TdxSubscriptionRequest build_subscription_request(const FluentSubscriptio
 
 } // namespace detail
 
-inline void UnifiedClient::subscribe(const FluentSubscription& sub) const {
+inline void ThetaDataDxClient::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_unified_subscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void UnifiedClient::subscribe_many(
+inline void ThetaDataDxClient::subscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) subscribe(s);
 }
 
-inline void UnifiedClient::unsubscribe(const FluentSubscription& sub) const {
+inline void ThetaDataDxClient::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_unified_unsubscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void UnifiedClient::unsubscribe_many(
+inline void ThetaDataDxClient::unsubscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) unsubscribe(s);
 }

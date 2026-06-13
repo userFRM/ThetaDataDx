@@ -5,7 +5,7 @@
  * Used by both the C++ wrapper and any other C-compatible language.
  *
  * Memory model:
- * - Opaque handles (TdxCredentials*, TdxClient*, TdxConfig*) are heap-allocated
+ * - Opaque handles (TdxCredentials*, TdxMddsClient*, TdxConfig*) are heap-allocated
  *   by the Rust side and MUST be freed with the corresponding tdx_*_free function.
  * - Tick data is returned as #[repr(C)] struct arrays. Each array type has a
  *   corresponding tdx_*_array_free function that MUST be called.
@@ -37,7 +37,7 @@ extern "C" {
 
 /* ── Opaque handle types ── */
 typedef struct TdxCredentials TdxCredentials;
-typedef struct TdxClient TdxClient;
+typedef struct TdxMddsClient TdxMddsClient;
 typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
 typedef struct TdxUnified TdxUnified;
@@ -890,7 +890,7 @@ int64_t tdx_last_error_retry_after_ms(void);
 /* ── Credentials ── */
 
 /** Create credentials from email and password. Returns NULL on error. */
-TdxCredentials* tdx_credentials_new(const char* email, const char* password);
+TdxCredentials* tdx_credentials_from_email(const char* email, const char* password);
 
 /** Load credentials from a file (line 1 = email, line 2 = password). Returns NULL on error. */
 TdxCredentials* tdx_credentials_from_file(const char* path);
@@ -1482,13 +1482,14 @@ void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n
  */
 int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config, size_t* out_n);
 
-/* ── Client ── */
+/* ── MddsClient ── */
 
-/** Connect to ThetaData servers. Returns NULL on connection/auth failure. */
-TdxClient* tdx_client_connect(const TdxCredentials* creds, const TdxConfig* config);
+/** Connect a historical (MDDS) client to ThetaData servers. Returns NULL on
+ *  connection/auth failure. */
+TdxMddsClient* tdx_mdds_client_connect(const TdxCredentials* creds, const TdxConfig* config);
 
-/** Free a client handle. */
-void tdx_client_free(TdxClient* client);
+/** Free a historical (MDDS) client handle. */
+void tdx_mdds_client_free(TdxMddsClient* client);
 
 /* ── String free ── */
 
@@ -1882,7 +1883,7 @@ TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle)
 TdxSubscriptionArray* tdx_unified_active_full_subscriptions(const TdxUnified* handle);
 
 /** Borrow the historical client from a unified handle. Do NOT free the returned pointer. */
-const TdxClient* tdx_unified_historical(const TdxUnified* handle);
+const TdxMddsClient* tdx_unified_historical(const TdxUnified* handle);
 
 /** Stop streaming on the unified client. Historical remains available.
  *  Returns asynchronously: the streaming reader and consumer continue

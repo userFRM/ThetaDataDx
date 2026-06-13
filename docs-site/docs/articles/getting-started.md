@@ -150,7 +150,7 @@ for (const t of rows) {
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::Client::connect(creds, tdx::Config::production());
+    auto client = tdx::MddsClient::connect(creds, tdx::Config::production());
 
     auto rows = client.stock_history_eod("AAPL", "20250303", "20250306");
     for (const auto& t : rows) {

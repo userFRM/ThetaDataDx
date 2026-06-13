@@ -23,17 +23,17 @@ Produces:
 
 | Handle | Create | Free |
 |--------|--------|------|
-| `TdxCredentials` | `tdx_credentials_new`, `tdx_credentials_from_file` | `tdx_credentials_free` |
+| `TdxCredentials` | `tdx_credentials_from_email`, `tdx_credentials_from_file` | `tdx_credentials_free` |
 | `TdxConfig` | `tdx_config_production`, `tdx_config_dev` | `tdx_config_free` |
-| `TdxClient` | `tdx_client_connect` | `tdx_client_free` |
+| `TdxMddsClient` | `tdx_mdds_client_connect` | `tdx_mdds_client_free` |
 | `TdxUnified` | `tdx_unified_connect` | `tdx_unified_free` |
 | `TdxFpssHandle` | `tdx_fpss_connect` | `tdx_fpss_free` |
 
-### Historical (via TdxClient or TdxUnified)
+### Historical (via TdxMddsClient or TdxUnified)
 
-Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
+Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxMddsClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
 
-`tdx_unified_historical()` returns a borrowed `*const TdxClient` from a unified handle - same session, no double auth.
+`tdx_unified_historical()` returns a borrowed `*const TdxMddsClient` from a unified handle - same session, no double auth.
 
 ### Streaming (via TdxUnified)
 
@@ -82,7 +82,7 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 
 - All functions check for null handles before dereferencing.
 - Mutex locks use poison recovery (`unwrap_or_else(|e| e.into_inner())`).
-- `TdxClient` is `#[repr(transparent)]` over `MddsClient` for safe pointer casting.
+- `TdxMddsClient` is `#[repr(transparent)]` over `MddsClient` for safe pointer casting.
 
 ### Panic boundary
 

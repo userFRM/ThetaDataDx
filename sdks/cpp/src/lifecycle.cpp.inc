@@ -7,7 +7,7 @@ Credentials Credentials::from_file(const std::string& path) {
 }
 
 Credentials Credentials::from_email(const std::string& email, const std::string& password) {
-    auto h = tdx_credentials_new(email.c_str(), password.c_str());
+    auto h = tdx_credentials_from_email(email.c_str(), password.c_str());
     if (!h) detail::throw_last_ffi_error();
     return Credentials(h);
 }
@@ -18,9 +18,9 @@ Config Config::dev() { return Config(tdx_config_dev()); }
 
 Config Config::stage() { return Config(tdx_config_stage()); }
 
-Client Client::connect(const Credentials& creds, const Config& config) {
-    auto h = tdx_client_connect(creds.get(), config.get());
+MddsClient MddsClient::connect(const Credentials& creds, const Config& config) {
+    auto h = tdx_mdds_client_connect(creds.get(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return Client(h);
+    return MddsClient(h);
 }
 

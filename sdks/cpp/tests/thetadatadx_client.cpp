@@ -1,4 +1,4 @@
-// UnifiedClient FPSS surface — closes the prior coverage gap
+// ThetaDataDxClient FPSS surface — closes the prior coverage gap
 // where the C++ wrapper exposed only the raw `tdx_unified_*` C ABI
 // for push-callback streaming. Every method listed below is now
 // reachable on the typed wrapper without dropping to the C handle.
@@ -38,22 +38,22 @@ std::string env_or_empty(const char* key) {
 
 } // namespace
 
-TEST_CASE("UnifiedClient is move-only with the right type-trait shape",
+TEST_CASE("ThetaDataDxClient is move-only with the right type-trait shape",
           "[unified][offline]") {
-    STATIC_REQUIRE(std::is_move_constructible_v<tdx::UnifiedClient>);
-    STATIC_REQUIRE(std::is_move_assignable_v<tdx::UnifiedClient>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<tdx::UnifiedClient>);
-    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<tdx::UnifiedClient>);
+    STATIC_REQUIRE(std::is_move_constructible_v<tdx::ThetaDataDxClient>);
+    STATIC_REQUIRE(std::is_move_assignable_v<tdx::ThetaDataDxClient>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<tdx::ThetaDataDxClient>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<tdx::ThetaDataDxClient>);
 }
 
-TEST_CASE("UnifiedClient binds the full FPSS surface",
+TEST_CASE("ThetaDataDxClient binds the full FPSS surface",
           "[unified][offline]") {
     // Pin every method introduced by the B2 closure: an accidental
     // delete or rename here will fire at compile time rather than at
     // runtime against a live server.
     using namespace std::chrono_literals;
     using Cb = std::function<void(const tdx::FpssEvent&)>;
-    using UC = tdx::UnifiedClient;
+    using UC = tdx::ThetaDataDxClient;
 
     // set_callback
     STATIC_REQUIRE(std::is_invocable_v<decltype(&UC::set_callback), UC&, Cb>);
@@ -86,14 +86,14 @@ TEST_CASE("UnifiedClient binds the full FPSS surface",
         std::vector<tdx::FullSubscription>>);
 }
 
-TEST_CASE("UnifiedClient end-to-end push-callback cycle", "[unified][live]") {
+TEST_CASE("ThetaDataDxClient end-to-end push-callback cycle", "[unified][live]") {
     const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADX_LIVE_CREDS not set");
     }
     auto creds = tdx::Credentials::from_file(creds_path);
     auto config = tdx::Config::production();
-    auto client = tdx::UnifiedClient::connect(creds, config);
+    auto client = tdx::ThetaDataDxClient::connect(creds, config);
 
     REQUIRE_FALSE(client.is_streaming());
     REQUIRE(client.dropped_event_count() == 0);

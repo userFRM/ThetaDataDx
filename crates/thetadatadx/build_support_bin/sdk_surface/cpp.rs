@@ -153,10 +153,10 @@ fn cpp_utility_decl(utility: &UtilitySpec) -> String {
     match utility.kind {
         UtilityKind::AllGreeks => {
             out.push_str(
-                "Greeks all_greeks(double spot, double strike, double rate, double div_yield,\n",
+                "GreeksResult all_greeks(double spot, double strike, double rate, double div_yield,\n",
             );
             out.push_str(
-                "                  double tte, double option_price, const std::string& right);\n",
+                "                        double tte, double option_price, const std::string& right);\n",
             );
         }
         UtilityKind::ImpliedVolatility => {

@@ -16,7 +16,7 @@
 //     /// @example
 //     ///     auto creds = tdx::Credentials("user@example.com", "pw");
 //     ///     auto cfg   = tdx::Config::production();
-//     ///     tdx::UnifiedClient client(creds, cfg);
+//     ///     tdx::ThetaDataDxClient client(creds, cfg);
 //
 // Then translate the body into a TEST_CASE below. The build step
 // will fail at compile time if the example references a stale symbol.

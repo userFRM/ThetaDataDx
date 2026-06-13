@@ -23,7 +23,7 @@
 //!
 //! # Memory model
 //!
-//! - Opaque handles (`*mut TdxClient`, `*mut TdxCredentials`, etc.) are heap-allocated
+//! - Opaque handles (`*mut TdxMddsClient`, `*mut TdxCredentials`, etc.) are heap-allocated
 //!   via `Box::into_raw` and freed via the corresponding `tdx_*_free` function.
 //! - Tick arrays are returned as `#[repr(C)]` structs with a `data` pointer and `len`.
 //!   They MUST be freed with the corresponding `tdx_*_array_free` function.

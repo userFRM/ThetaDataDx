@@ -54,7 +54,7 @@ cmake --build build/cpp --config Release --target thetadatadx_cpp
 #include <cstdio>
 
 int main() {
-    auto client = tdx::Client::connect(
+    auto client = tdx::MddsClient::connect(
         tdx::Credentials::from_file("creds.txt"),
         tdx::Config::production());
 
@@ -82,7 +82,7 @@ auto exps   = client.option_list_expirations("SPY");
 
 ## Streaming
 
-Real-time streaming uses a dedicated `tdx::FpssClient` — separate from the historical `Client`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
+Real-time streaming uses a dedicated `tdx::FpssClient` — separate from the historical `MddsClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
 
 ```cpp
 #include <thetadx.hpp>
@@ -170,10 +170,10 @@ auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0
 
 ## Flat files
 
-Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `tdx::UnifiedClient`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
+Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `tdx::ThetaDataDxClient`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
 
 ```cpp
-auto unified = tdx::UnifiedClient::connect(
+auto unified = tdx::ThetaDataDxClient::connect(
     tdx::Credentials::from_file("creds.txt"),
     tdx::Config::production());
 
@@ -187,7 +187,7 @@ auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
 unified.flat_files().to_path("OPTION", "QUOTE", "20260428", "/tmp/option-quote", "csv");
 ```
 
-Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `tdx::Client` remains the historical-only entry point; `tdx::UnifiedClient` adds streaming and flat files on the same connection.
+Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `tdx::MddsClient` remains the historical-only entry point; `tdx::ThetaDataDxClient` adds streaming and flat files on the same connection.
 
 ## Endpoint coverage
 
@@ -201,7 +201,7 @@ Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trad
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every historical endpoint is a method on `tdx::Client`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every historical endpoint is a method on `tdx::MddsClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

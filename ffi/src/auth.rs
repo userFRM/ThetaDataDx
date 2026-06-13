@@ -1,14 +1,12 @@
 //! Credentials, config, and historical-client lifecycle: `tdx_credentials_*`,
-//! `tdx_config_*`, `tdx_client_connect` / `tdx_client_free`.
-//!
-//! Split verbatim from `lib.rs`; the exported C ABI is unchanged.
+//! `tdx_config_*`, `tdx_mdds_client_connect` / `tdx_mdds_client_free`.
 
 use std::os::raw::c_char;
 use std::ptr;
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
-use crate::types::{TdxClient, TdxConfig, TdxCredentials};
+use crate::types::{TdxConfig, TdxCredentials, TdxMddsClient};
 
 // ── Credentials ──
 
@@ -16,7 +14,7 @@ use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 ///
 /// Returns null on invalid input (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_credentials_new(
+pub unsafe extern "C" fn tdx_credentials_from_email(
     email: *const c_char,
     password: *const c_char,
 ) -> *mut TdxCredentials {
@@ -2095,16 +2093,17 @@ pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
     })
 }
 
-// ── Client ──
+// ── MddsClient ──
 
-/// Connect to `ThetaData` servers (authenticates via Nexus API).
+/// Connect a historical (MDDS) client to `ThetaData` servers
+/// (authenticates via Nexus API).
 ///
 /// Returns null on connection/auth failure (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_client_connect(
+pub unsafe extern "C" fn tdx_mdds_client_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
-) -> *mut TdxClient {
+) -> *mut TdxMddsClient {
     ffi_boundary!(ptr::null_mut(), {
         crate::ensure_crypto_provider();
         if creds.is_null() {
@@ -2115,7 +2114,7 @@ pub unsafe extern "C" fn tdx_client_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_from_email / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
@@ -2123,7 +2122,7 @@ pub unsafe extern "C" fn tdx_client_connect(
             &creds.inner,
             config.inner.clone(),
         )) {
-            Ok(client) => Box::into_raw(Box::new(TdxClient { inner: client })),
+            Ok(client) => Box::into_raw(Box::new(TdxMddsClient { inner: client })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -2132,9 +2131,9 @@ pub unsafe extern "C" fn tdx_client_connect(
     })
 }
 
-/// Free a client handle.
+/// Free a historical (MDDS) client handle.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
+pub unsafe extern "C" fn tdx_mdds_client_free(client: *mut TdxMddsClient) {
     ffi_boundary!((), {
         if !client.is_null() {
             // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
