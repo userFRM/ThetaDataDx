@@ -1471,6 +1471,12 @@ int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitte
  * Set the async worker-thread count for embedded runtimes, using the
  * widened (has_value, n) shape so an unset value is distinct from any
  * explicit count across the Python / TypeScript / C++ bindings.
+ *
+ * The async worker pool is process-global: it is built once, from the
+ * config of the first client connected in the process. This setting is
+ * therefore honoured when the first client in the process is created;
+ * clients connected later share the already-built pool, so setting it on
+ * a subsequent config has no effect.
  * @param config Config handle to mutate.
  * @param has_value false leaves the count unset (auto-sized) and ignores n;
  *                  true sets an explicit count. An explicit 0 is preserved

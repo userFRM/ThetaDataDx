@@ -1020,6 +1020,12 @@ impl Config {
     /// `hasValue=false` defers to the default sizing; `hasValue=true`
     /// pins worker count to `n` (with `n=0` preserved verbatim rather
     /// than treated as unset).
+    ///
+    /// The async worker pool is process-global: it is built once, from the
+    /// config of the first client connected in the process. This setting
+    /// is therefore honored when the first client in the process is
+    /// created; clients connected later share the already-built pool, so
+    /// setting it on a subsequent config has no effect.
     #[napi(js_name = "setWorkerThreads")]
     pub fn set_worker_threads(&self, has_value: bool, n: u32) -> napi::Result<()> {
         let mut guard = self

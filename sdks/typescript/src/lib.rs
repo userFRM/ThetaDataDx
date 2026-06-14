@@ -14,12 +14,34 @@ use thetadatadx::config;
 use thetadatadx::fpss;
 
 /// Shared tokio runtime for running async Rust from Node.js.
+///
+/// The runtime is process-global and built exactly once. The first client
+/// connected in the process seeds it from that client's `config.runtime`
+/// via [`runtime_from_config`], so `Config.workerThreads` takes effect for
+/// the first client created in the process.
+static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Build (or return the already-built) process-global runtime, sizing the
+/// worker pool from the first client's [`thetadatadx::RuntimeConfig`].
+///
+/// The first connect in the process seeds the pool from its
+/// `config.runtime`; later connects share the already-built runtime, so
+/// their `runtime` config is a no-op by design.
+pub(crate) fn runtime_from_config(
+    cfg: &thetadatadx::RuntimeConfig,
+) -> &'static tokio::runtime::Runtime {
+    RT.get_or_init(|| cfg.build_runtime().expect("failed to create tokio runtime"))
+}
+
+/// Return the process-global runtime, building it with tokio default
+/// sizing if no client has seeded it from config yet.
+///
+/// Connect functions seed the pool via [`runtime_from_config`]; every
+/// post-connect call resolves the already-built runtime here.
 pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
-    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
+        thetadatadx::RuntimeConfig::default()
+            .build_runtime()
             .expect("failed to create tokio runtime")
     })
 }
@@ -402,7 +424,7 @@ impl ThetaDataDxClient {
         config: Option<&Config>,
     ) -> napi::Result<ThetaDataDxClient> {
         let cfg = config_or_production(config);
-        let tdx = runtime()
+        let tdx = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
@@ -426,7 +448,7 @@ impl ThetaDataDxClient {
     ) -> napi::Result<ThetaDataDxClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let tdx = runtime()
+        let tdx = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
@@ -628,7 +650,7 @@ impl MddsClient {
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<MddsClient> {
         let cfg = config_or_production(config);
-        let tdx = runtime()
+        let tdx = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
@@ -646,7 +668,7 @@ impl MddsClient {
     pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<MddsClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let tdx = runtime()
+        let tdx = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::ThetaDataDxClient::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
