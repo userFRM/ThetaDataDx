@@ -106,6 +106,20 @@ jobs:
           python3 scripts/check_safety_comment_boilerplate.py --selftest
           python3 scripts/check_safety_comment_boilerplate.py
 
+  public-surface-leak:
+    name: Public surface internal-name leak
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Shipped surface internal-name leak detector
+        run: |
+          python3 scripts/check_public_surface_leak.py --selftest
+          python3 scripts/check_public_surface_leak.py
+
   cargo-deny:
     name: Cargo deny
     runs-on: ubuntu-latest
