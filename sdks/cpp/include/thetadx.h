@@ -46,7 +46,7 @@ typedef struct TdxUnified TdxUnified;
 #include "endpoint_request_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-/*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
+/*  #[repr(C)] tick types — layout-compatible with Rust tick structs      */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 /* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))].
