@@ -21,6 +21,12 @@ pub(crate) fn random_id_hex() -> String {
 /// version or variant nibbles, so v1, v4, and v7 all pass.
 ///
 /// Returns `s` unchanged on success.
+///
+/// # Errors
+///
+/// Returns a static message when `s` is not 36 bytes, when a hyphen is
+/// missing at offset 8, 13, 18, or 23, or when any other position holds
+/// a non-hex byte.
 pub(crate) fn validate_uuid_format(s: &str) -> Result<&str, &'static str> {
     if s.len() != 36 {
         return Err("uuid length must be 36");

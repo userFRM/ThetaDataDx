@@ -5,6 +5,13 @@
 //! event-dispatch consumer thread. This is the floor — no Python, no numpy, no
 //! extra FFI hop — so it sets the upper bound on throughput the SDK can
 //! deliver per connection.
+//!
+//! The credentials file path is taken as the first positional argument
+//! (default `creds.txt`). The `DUR` environment variable sets the run length
+//! in seconds (default 30) and `SEC` selects the security type to subscribe to
+//! — `STOCK`, `OPTION`, or `INDEX` (default `OPTION`). On completion it prints
+//! the latency distribution (min/p50/p90/p99/p99.9/max) and the observed event
+//! throughput.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
