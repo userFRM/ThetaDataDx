@@ -4,23 +4,18 @@
 impl ThetaDataDxClient {
     /// Start FPSS streaming and register a JS callback for incoming events.
     ///
-    /// The dispatcher thread routes every typed
-    /// FPSS event through napi-rs `ThreadsafeFunction` to the
-    /// Node main thread, where the user's `callback(event)`
-    /// runs. The FPSS TLS reader thread itself never touches
-    /// V8: events cross the streaming ring first, with the
-    /// consumer thread invoking the callback under
-    /// `catch_unwind`.
+    /// Each typed FPSS event is delivered to your
+    /// `callback(event)` on the Node main thread, so the
+    /// callback may use any JS API safely. A callback that
+    /// panics or throws is isolated and does not interrupt
+    /// the stream.
     ///
-    /// Node's libuv requires JS callbacks on the main thread,
-    /// so `ThreadsafeFunction` (with its internal `uv_async_t`
-    /// queue) is the only safe path.
-    ///
-    /// Backpressure: a slow callback fills the streaming ring
-    /// and overflow events are dropped, observable via
-    /// `droppedEventCount()`. The FPSS TLS reader is never
-    /// blocked — vendor disconnects on slow consumers cannot
-    /// happen on this path.
+    /// Backpressure: a slow callback causes incoming events
+    /// to queue and, once the buffer is full, the oldest
+    /// events are dropped. The dropped count is observable
+    /// via `droppedEventCount()`. The receive path is never
+    /// blocked by a slow callback, so the upstream connection
+    /// stays healthy regardless of callback speed.
     #[napi(js_name = "startStreaming")]
     pub fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>) -> napi::Result<()> {
         // Hold the JS callback in a `Mutex<Option<Arc<...>>>` so
@@ -109,9 +104,10 @@ impl ThetaDataDxClient {
     ///
     /// Requires a prior `startStreaming(callback)`; throws if
     /// no callback is registered. All active subscriptions are
-    /// restored on the new connection — see
-    /// `thetadatadx::ThetaDataDxClient::reconnect_streaming` for
-    /// partial-failure semantics.
+    /// restored on the new connection. If some subscriptions
+    /// cannot be restored, the reconnect still completes for
+    /// the rest and the failures are reported through the
+    /// callback.
     ///
     /// # Callback lifetime across `stopStreaming`
     ///
@@ -164,7 +160,7 @@ impl ThetaDataDxClient {
 
     /// Stop streaming while keeping the historical client usable.
     ///
-    /// Clears the registered callback. To resume streaming, call `start_streaming(callback)` again with a freshly bound callable -- `reconnect()` will fail because no callback is held. See the `reconnect` docs for the rationale (explicit-handoff model shared with the C++ RAII wrapper and the Python `with`-block `__exit__`; the unified C API keeps the callback by design, but the high-level bindings clear it deliberately).
+    /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
         self.tdx.stop_streaming();
@@ -174,7 +170,7 @@ impl ThetaDataDxClient {
 
     /// Shut down the FPSS streaming connection.
     ///
-    /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as `stop_streaming`); a subsequent `reconnect()` will fail until the caller re-registers via `start_streaming(callback)`. The C++ binding preserves the unified C API's behaviour.
+    /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
         self.tdx.stop_streaming();

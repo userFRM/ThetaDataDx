@@ -7,7 +7,7 @@
     /**
      * Shut down the FPSS streaming connection.
      *
-     * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as `stop_streaming`); a subsequent `reconnect()` will fail until the caller re-registers via `start_streaming(callback)`. The C++ binding preserves the unified C API's behaviour.
+     * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
      */
     void shutdown();
     /** Return true if the FPSS client is currently authenticated. */

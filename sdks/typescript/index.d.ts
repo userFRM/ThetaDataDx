@@ -64,7 +64,7 @@ export declare class Config {
   setReconnectPolicy(policy: string): void
   /**
    * Set the per-class transient-failure attempt budget for the
-   * auto-reconnect path. Default `3`. No effect unless the
+   * auto-reconnect path. Default `30`. No effect unless the
    * reconnect policy is `Auto`.
    */
   setReconnectMaxAttempts(maxAttempts: number): void
@@ -88,12 +88,12 @@ export declare class Config {
    * Set the reconnect delay (ms) honoured for generic transient
    * disconnects (TimedOut, ServerRestarting, Unspecified, …).
    * Plumbed through to the streaming I/O loop at connect time.
-   * Default `2_000`.
+   * Default `250`.
    *
    * Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
    */
   setReconnectWaitMs(ms: bigint): void
-  /** Current reconnect `wait_ms` value (default `2_000`). */
+  /** Current reconnect `wait_ms` value (default `250`). */
   get reconnectWaitMs(): bigint
   /**
    * Set the reconnect delay (ms) honoured for `TooManyRequests`
@@ -322,7 +322,7 @@ export declare class Config {
   /**
    * Set the total attempt budget for the historical-channel retry policy. `1`
    * disables retry; higher values permit retries up to
-   * `maxAttempts - 1` after the initial call. Default `5`.
+   * `maxAttempts - 1` after the initial call. Default `20`.
    */
   setRetryMaxAttempts(n: number): void
   /** Current `retry.max_attempts` value. */
@@ -340,7 +340,7 @@ export declare class Config {
    * Set the total attempt budget for the flatfile driver retry
    * loop. `1` disables retry (single call only); higher values
    * permit retries up to `maxAttempts - 1` after the initial call.
-   * Default `3`. Validated to the range `[1, 10]` at connect time.
+   * Default `10`. Validated to the range `[1, 100]` at connect time.
    */
   setFlatfilesMaxAttempts(n: number): void
   /** Current `flatfiles.max_attempts` value. */
@@ -359,7 +359,7 @@ export declare class Config {
   /**
    * Set the upper-bound backoff delay (seconds) for the flatfile
    * driver retry loop. The doubling schedule never exceeds this
-   * value regardless of attempt number. Default `4n`. Must be
+   * value regardless of attempt number. Default `30n`. Must be
    * greater than or equal to `flatfilesInitialBackoffSecs`
    * (rejected at connect-time validate otherwise).
    *
@@ -468,7 +468,12 @@ export declare class ContractRef {
   openInterest(): Subscription
   /** Per-contract market-value subscription. */
   marketValue(): Subscription
+  /** Underlying symbol (e.g. `"AAPL"`, `"SPY"`). */
   get symbol(): string
+  /**
+   * Security type as an upper-case string (`"STOCK"`, `"OPTION"`,
+   * `"INDEX"`).
+   */
   get secType(): string
   /** Expiration date as a `YYYYMMDD` integer; `null` for non-options. */
   get expiration(): number | null
@@ -531,6 +536,7 @@ export declare class FlatFileRowList {
    * when napi-rs adds first-class iterator support.
    */
   len(): number
+  /** Whether the decoded row vector is empty. */
   isEmpty(): boolean
   /**
    * Serialise the typed rows as Arrow IPC stream bytes. The dynamic
@@ -552,15 +558,25 @@ export declare class FlatFileRowList {
  * `(SecType, ReqType)` and returns a [`FlatFileRowList`].
  */
 export declare class FlatFilesNamespace {
+  /** Option quote flat file for the given `YYYYMMDD` date. */
   optionQuote(date: string): FlatFileRowList
+  /** Option trade flat file for the given `YYYYMMDD` date. */
   optionTrade(date: string): FlatFileRowList
+  /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
   optionTradeQuote(date: string): FlatFileRowList
+  /** Option OHLC flat file for the given `YYYYMMDD` date. */
   optionOhlc(date: string): FlatFileRowList
+  /** Option open-interest flat file for the given `YYYYMMDD` date. */
   optionOpenInterest(date: string): FlatFileRowList
+  /** Option end-of-day flat file for the given `YYYYMMDD` date. */
   optionEod(date: string): FlatFileRowList
+  /** Stock quote flat file for the given `YYYYMMDD` date. */
   stockQuote(date: string): FlatFileRowList
+  /** Stock trade flat file for the given `YYYYMMDD` date. */
   stockTrade(date: string): FlatFileRowList
+  /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
   stockTradeQuote(date: string): FlatFileRowList
+  /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
   stockEod(date: string): FlatFileRowList
   /**
    * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
@@ -610,17 +626,16 @@ export declare class FpssClient {
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
-   * Opens the FPSS TLS connection and starts the background dispatcher.
-   * The dispatcher converts every typed FPSS event and routes it through
-   * a napi-rs `ThreadsafeFunction` to the Node main thread, where
-   * `callback(event)` runs. The FPSS TLS reader thread itself never
-   * touches V8: events cross the streaming ring first, with the consumer
-   * thread invoking the callback under `catch_unwind`.
+   * Opens the FPSS connection and begins delivering events. Each typed
+   * FPSS event is delivered to your `callback(event)` on the Node main
+   * thread, so the callback may use any JS API safely. A callback that
+   * panics or throws is isolated and does not interrupt the stream.
    *
-   * Backpressure: a slow callback fills the streaming ring and overflow
-   * events are dropped, observable via `droppedEventCount()`. The FPSS
-   * TLS reader is never blocked — vendor disconnects on slow consumers
-   * cannot happen on this path.
+   * Backpressure: a slow callback causes incoming events to queue and,
+   * once the buffer is full, the oldest events are dropped, observable
+   * via `droppedEventCount()`. The receive path is never blocked by a
+   * slow callback, so the upstream connection stays healthy regardless
+   * of callback speed.
    */
   startStreaming(callback: TsfnCallback): void
   /**
@@ -695,10 +710,9 @@ export declare class FpssClient {
    */
   ringCapacity(): bigint
   /**
-   * Cumulative count of user-callback panics caught by the
-   * per-invocation `catch_unwind` boundary. A panic is caught, recorded
-   * here, and does not stop event delivery. Returned as `bigint` for the
-   * full `u64` range.
+   * Cumulative count of user-callback panics caught at the per-event
+   * isolation boundary. A panic is caught, recorded here, and does not
+   * stop event delivery. Returned as `bigint` for the full `u64` range.
    */
   panicCount(): bigint
   /**
@@ -1045,7 +1059,7 @@ export declare class MddsClient {
    * Get the latest open interest snapshot for an option contract.
    *
    * - Retrieve the last open interest message of an option contract.
-   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day.
+   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
    * - You might need to change the default expiration date to a different date if it is past the current date.
    * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
@@ -1708,19 +1722,14 @@ export declare class ThetaDataDxClient {
    */
   static connectFromFile(path: string, config?: Config | undefined | null): ThetaDataDxClient
   /**
-   * Cumulative count of FPSS events the TLS reader could not
-   * publish into the event ring because the event-dispatch consumer
-   * fell behind and the ring was full (`Producer::try_publish`
-   * returned `RingBufferFull`).
+   * Cumulative count of FPSS events that were dropped because the
+   * callback fell behind and the in-flight buffer was full.
    *
-   * Forwards to `thetadatadx::ThetaDataDxClient::dropped_event_count` so
-   * the value matches every other binding (C ABI, Python, C++).
-   * The counter lives on the underlying `FpssClient` and resets
-   * when the client is recreated -- that happens on
-   * `stop_streaming` and `reconnect` (which calls
-   * `stop_streaming` + `start_streaming` internally). Snapshot the
-   * value before reconnect if you need to accumulate drops across
-   * session boundaries.
+   * The value matches every other binding (C ABI, Python, C++). The
+   * counter resets when the session is recreated -- that happens on
+   * `stopStreaming()` and `reconnect()`. Snapshot the value before
+   * reconnect if you need to accumulate drops across session
+   * boundaries.
    *
    * Returned as `bigint` so it can represent the full `u64` range
    * (Number would top out at 2^53).
@@ -1737,11 +1746,10 @@ export declare class ThetaDataDxClient {
    * is still time to react. Sampling never blocks the feed; poll
    * it from your own code at any cadence.
    *
-   * Forwards to `thetadatadx::ThetaDataDxClient::ring_occupancy`
-   * so the value matches every other binding (C ABI, Python,
-   * C++). Returns `0n` before `startStreaming` and after
-   * `stopStreaming`. Returned as `bigint` for shape-consistency
-   * with the other streaming counters.
+   * The value matches every other binding (C ABI, Python, C++).
+   * Returns `0n` before `startStreaming` and after `stopStreaming`.
+   * Returned as `bigint` for shape-consistency with the other
+   * streaming counters.
    */
   ringOccupancy(): bigint
   /**
@@ -1782,14 +1790,12 @@ export declare class ThetaDataDxClient {
    */
   lastConnectedAddr(): string | null
   /**
-   * Cumulative count of user-callback panics caught by the
-   * per-invocation `catch_unwind` boundary since the current stream
-   * started.
+   * Cumulative count of user-callback panics caught at the per-event
+   * isolation boundary since the current stream started.
    *
    * A panic in the callback is caught, recorded here, and does not
-   * stop event delivery — the next event continues normally.
-   * Forwards to `thetadatadx::ThetaDataDxClient::panic_count` so
-   * the value matches every other binding (C ABI, Python, C++).
+   * stop event delivery — the next event continues normally. The
+   * value matches every other binding (C ABI, Python, C++).
    *
    * Returned as `bigint` so it can represent the full `u64` range
    * (Number would top out at 2^53).
@@ -2057,7 +2063,7 @@ export declare class ThetaDataDxClient {
    * Get the latest open interest snapshot for an option contract.
    *
    * - Retrieve the last open interest message of an option contract.
-   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day.
+   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
    * - You might need to change the default expiration date to a different date if it is past the current date.
    * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
@@ -2626,23 +2632,18 @@ export declare class ThetaDataDxClient {
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
-   * The dispatcher thread routes every typed
-   * FPSS event through napi-rs `ThreadsafeFunction` to the
-   * Node main thread, where the user's `callback(event)`
-   * runs. The FPSS TLS reader thread itself never touches
-   * V8: events cross the streaming ring first, with the
-   * consumer thread invoking the callback under
-   * `catch_unwind`.
+   * Each typed FPSS event is delivered to your
+   * `callback(event)` on the Node main thread, so the
+   * callback may use any JS API safely. A callback that
+   * panics or throws is isolated and does not interrupt
+   * the stream.
    *
-   * Node's libuv requires JS callbacks on the main thread,
-   * so `ThreadsafeFunction` (with its internal `uv_async_t`
-   * queue) is the only safe path.
-   *
-   * Backpressure: a slow callback fills the streaming ring
-   * and overflow events are dropped, observable via
-   * `droppedEventCount()`. The FPSS TLS reader is never
-   * blocked — vendor disconnects on slow consumers cannot
-   * happen on this path.
+   * Backpressure: a slow callback causes incoming events
+   * to queue and, once the buffer is full, the oldest
+   * events are dropped. The dropped count is observable
+   * via `droppedEventCount()`. The receive path is never
+   * blocked by a slow callback, so the upstream connection
+   * stays healthy regardless of callback speed.
    */
   startStreaming(callback: ((arg: FpssEvent) => void)): void
   /** Whether the streaming connection is active. */
@@ -2654,9 +2655,10 @@ export declare class ThetaDataDxClient {
    *
    * Requires a prior `startStreaming(callback)`; throws if
    * no callback is registered. All active subscriptions are
-   * restored on the new connection — see
-   * `thetadatadx::ThetaDataDxClient::reconnect_streaming` for
-   * partial-failure semantics.
+   * restored on the new connection. If some subscriptions
+   * cannot be restored, the reconnect still completes for
+   * the rest and the failures are reported through the
+   * callback.
    *
    * # Callback lifetime across `stopStreaming`
    *
@@ -2679,13 +2681,13 @@ export declare class ThetaDataDxClient {
   /**
    * Stop streaming while keeping the historical client usable.
    *
-   * Clears the registered callback. To resume streaming, call `start_streaming(callback)` again with a freshly bound callable -- `reconnect()` will fail because no callback is held. See the `reconnect` docs for the rationale (explicit-handoff model shared with the C++ RAII wrapper and the Python `with`-block `__exit__`; the unified C API keeps the callback by design, but the high-level bindings clear it deliberately).
+   * Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
    */
   stopStreaming(): void
   /**
    * Shut down the FPSS streaming connection.
    *
-   * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as `stop_streaming`); a subsequent `reconnect()` will fail until the caller re-registers via `start_streaming(callback)`. The C++ binding preserves the unified C API's behaviour.
+   * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
    */
   shutdown(): void
   /** Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise. */
@@ -2718,16 +2720,43 @@ export declare class ThetaDataDxClient {
   unsubscribeMany(subs: Array<Subscription>): void
 }
 
+/**
+ * Cross-language lookup-table namespace. Exposes the static condition,
+ * exchange, calendar, timestamp, and sequence helpers as `Util.*` static
+ * methods so the JS surface mirrors the Python / C++ / C ABI utility sets.
+ */
 export declare class Util {
+  /**
+   * Symbolic name for a trade `condition` code (e.g. `0` -> `"REGULAR"`).
+   * Returns `"UNKNOWN"` for codes outside the table.
+   */
   static conditionName(code: number): string
+  /** Human-readable description for a trade `condition` code. */
   static conditionDescription(code: number): string
+  /** Whether a trade `condition` code marks a trade cancellation. */
   static isCancel(code: number): boolean
+  /**
+   * Whether a trade with this `condition` code contributes to the
+   * running session volume.
+   */
   static updatesVolume(code: number): boolean
+  /** Symbolic name for a quote `condition` code. */
   static quoteConditionName(code: number): string
+  /** Human-readable description for a quote `condition` code. */
   static quoteConditionDescription(code: number): string
+  /** Whether a quote `condition` code marks a firm (binding) quote. */
   static isFirm(code: number): boolean
+  /** Whether a quote `condition` code marks a trading halt. */
   static isHalted(code: number): boolean
+  /**
+   * Symbolic name for an `exchange` code (e.g. `3` ->
+   * `"NewYorkStockExchange"`).
+   */
   static exchangeName(code: number): string
+  /**
+   * Short ticker-tape symbol for an `exchange` code (e.g. `3` ->
+   * `"NYSE"`).
+   */
   static exchangeSymbol(code: number): string
   /**
    * Vendor vocabulary text for a calendar-day `status` code (`0` ->
@@ -3486,6 +3515,7 @@ export interface InterestRateTick {
  */
 export declare function interestRateTickToArrowIpc(rows: Array<InterestRateTick>): Buffer
 
+/** Wire string enum `Interval`. */
 export declare const enum Interval {
   Tick = 'tick',
   Ms10 = '10ms',
@@ -4861,6 +4891,7 @@ export interface QuoteTick {
  */
 export declare function quoteTickToArrowIpc(rows: Array<QuoteTick>): Buffer
 
+/** Wire string enum `RateType`. */
 export declare const enum RateType {
   Sofr = 'sofr',
   TreasuryM1 = 'treasury_m1',
@@ -4928,6 +4959,7 @@ export interface ReqResponse {
   result: number
 }
 
+/** Wire string enum `RequestType`. */
 export declare const enum RequestType {
   Trade = 'trade',
   Quote = 'quote',
@@ -4940,6 +4972,7 @@ export interface Restart {
 
 }
 
+/** Wire string enum `Right`. */
 export declare const enum Right {
   Call = 'call',
   Put = 'put',
@@ -5645,11 +5678,13 @@ export interface UnknownFrame {
   payload: Array<number>
 }
 
+/** Wire string enum `Venue`. */
 export declare const enum Venue {
   Nqb = 'nqb',
   UtpCta = 'utp_cta'
 }
 
+/** Wire string enum `Version`. */
 export declare const enum Version {
   Latest = 'latest',
   V1 = '1'

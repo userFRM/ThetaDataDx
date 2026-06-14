@@ -24,8 +24,8 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
     let mut out = String::new();
     // The doc string in `sdk_surface.toml` is the cross-language
     // semantic summary. Two TS kinds (StartStreaming, Reconnect)
-    // require a callback-specific docstring after PR D (#482); render
-    // those inline below instead of re-using the shared one.
+    // require a callback-specific docstring; render those inline below
+    // instead of re-using the shared one.
     let render_shared_doc = !matches!(
         method.kind,
         MethodKind::StartStreaming | MethodKind::Reconnect
@@ -40,31 +40,25 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a JS callback for incoming events.\n\
                  \n\
-                 The dispatcher thread routes every typed\n\
-                 FPSS event through napi-rs `ThreadsafeFunction` to the\n\
-                 Node main thread, where the user's `callback(event)`\n\
-                 runs. The FPSS TLS reader thread itself never touches\n\
-                 V8: events cross the streaming ring first, with the\n\
-                 consumer thread invoking the callback under\n\
-                 `catch_unwind`.\n\
+                 Each typed FPSS event is delivered to your\n\
+                 `callback(event)` on the Node main thread, so the\n\
+                 callback may use any JS API safely. A callback that\n\
+                 panics or throws is isolated and does not interrupt\n\
+                 the stream.\n\
                  \n\
-                 Node's libuv requires JS callbacks on the main thread,\n\
-                 so `ThreadsafeFunction` (with its internal `uv_async_t`\n\
-                 queue) is the only safe path.\n\
-                 \n\
-                 Backpressure: a slow callback fills the streaming ring\n\
-                 and overflow events are dropped, observable via\n\
-                 `droppedEventCount()`. The FPSS TLS reader is never\n\
-                 blocked — vendor disconnects on slow consumers cannot\n\
-                 happen on this path.",
+                 Backpressure: a slow callback causes incoming events\n\
+                 to queue and, once the buffer is full, the oldest\n\
+                 events are dropped. The dropped count is observable\n\
+                 via `droppedEventCount()`. The receive path is never\n\
+                 blocked by a slow callback, so the upstream connection\n\
+                 stays healthy regardless of callback speed.",
             );
             writeln!(out, "    #[napi(js_name = \"startStreaming\")]").unwrap();
-            // `ThreadsafeFunction<FpssEvent, ErrorStrategy::CalleeHandled>`
-            // is the napi-rs handle that owns a JS function reference
-            // and routes calls onto the V8 main thread via
-            // `uv_async_t`. We register a Rust closure with the SSOT
-            // dispatcher; the closure clones the `ThreadsafeFunction`
-            // (cheap `Arc` bump) and calls it with the typed event.
+            // The callback handle owns a JS function reference and
+            // marshals each call onto the Node main thread. We register
+            // a Rust closure with the dispatcher; the closure clones the
+            // handle (a cheap reference bump) and invokes it with the
+            // typed event.
             writeln!(
                 out,
                 "    pub fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>) -> napi::Result<()> {{",
@@ -171,9 +165,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::NextEvent => {
-            // TypeScript removed `next_event` in PR D (#482) — the
-            // napi-rs binding now uses callback registration via
-            // `startStreaming(callback)`. The TS target is no longer
+            // The TypeScript binding uses callback registration via
+            // `startStreaming(callback)` rather than a poll-style
+            // `next_event`. The TS target is no longer
             // in `MethodKind::NextEvent`'s allowed list (see
             // `spec.rs`), so this arm is unreachable on the TS
             // surface. Panicking here is the loud failure we want if
@@ -189,9 +183,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  \n\
                  Requires a prior `startStreaming(callback)`; throws if\n\
                  no callback is registered. All active subscriptions are\n\
-                 restored on the new connection — see\n\
-                 `thetadatadx::ThetaDataDxClient::reconnect_streaming` for\n\
-                 partial-failure semantics.\n\
+                 restored on the new connection. If some subscriptions\n\
+                 cannot be restored, the reconnect still completes for\n\
+                 the rest and the failures are reported through the\n\
+                 callback.\n\
                  \n\
                  # Callback lifetime across `stopStreaming`\n\
                  \n\
@@ -250,12 +245,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             let js_name = to_ts_camel_case(&method.name);
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
             writeln!(out, "    pub fn {}(&self) {{", method.name).unwrap();
-            // PR D (#482) replaced the receiver `rx` field with a
-            // stored `ThreadsafeFunction` callback. Drop the stored
-            // handle so the napi reference is released before the
-            // streaming side tears down — re-installing via
-            // `startStreaming` after stop / shutdown then sees a clean
-            // slot.
+            // Drop the stored callback handle so its JS reference is
+            // released before the streaming side tears down —
+            // re-installing via `startStreaming` after stop / shutdown
+            // then sees a clean slot.
             out.push_str("        self.tdx.stop_streaming();\n");
             out.push_str(
                 "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",

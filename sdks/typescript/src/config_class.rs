@@ -202,7 +202,7 @@ impl Config {
     }
 
     /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `3`. No effect unless the
+    /// auto-reconnect path. Default `30`. No effect unless the
     /// reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxAttempts")]
     pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
@@ -275,7 +275,7 @@ impl Config {
     /// Set the reconnect delay (ms) honoured for generic transient
     /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
     /// Plumbed through to the streaming I/O loop at connect time.
-    /// Default `2_000`.
+    /// Default `250`.
     ///
     /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
     #[napi(js_name = "setReconnectWaitMs")]
@@ -294,7 +294,7 @@ impl Config {
         Ok(())
     }
 
-    /// Current reconnect `wait_ms` value (default `2_000`).
+    /// Current reconnect `wait_ms` value (default `250`).
     #[napi(getter, js_name = "reconnectWaitMs")]
     pub fn reconnect_wait_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
@@ -1122,7 +1122,7 @@ impl Config {
 
     /// Set the total attempt budget for the historical-channel retry policy. `1`
     /// disables retry; higher values permit retries up to
-    /// `maxAttempts - 1` after the initial call. Default `5`.
+    /// `maxAttempts - 1` after the initial call. Default `20`.
     #[napi(js_name = "setRetryMaxAttempts")]
     pub fn set_retry_max_attempts(&self, n: u32) -> napi::Result<()> {
         let mut guard = self
@@ -1172,7 +1172,7 @@ impl Config {
     /// Set the total attempt budget for the flatfile driver retry
     /// loop. `1` disables retry (single call only); higher values
     /// permit retries up to `maxAttempts - 1` after the initial call.
-    /// Default `3`. Validated to the range `[1, 10]` at connect time.
+    /// Default `10`. Validated to the range `[1, 100]` at connect time.
     #[napi(js_name = "setFlatfilesMaxAttempts")]
     pub fn set_flatfiles_max_attempts(&self, n: u32) -> napi::Result<()> {
         let mut guard = self
@@ -1232,7 +1232,7 @@ impl Config {
 
     /// Set the upper-bound backoff delay (seconds) for the flatfile
     /// driver retry loop. The doubling schedule never exceeds this
-    /// value regardless of attempt number. Default `4n`. Must be
+    /// value regardless of attempt number. Default `30n`. Must be
     /// greater than or equal to `flatfilesInitialBackoffSecs`
     /// (rejected at connect-time validate otherwise).
     ///
