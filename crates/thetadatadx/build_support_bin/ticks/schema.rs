@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// Deserialized `tick_schema.toml`: every tick type keyed by its schema name.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Schema {
     pub(crate) types: HashMap<String, TickTypeDef>,
@@ -137,6 +138,7 @@ impl FlagAccessorDef {
     }
 }
 
+/// One column on a tick type: its wire spelling, public field name, schema type tag, and optional docs-site description.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ColumnDef {
     /// Wire / decode-layer column spelling. Every public surface emits
@@ -205,6 +207,7 @@ pub(crate) struct TickRenderDef {
     pub(crate) pyclass: String,
 }
 
+/// Loads and parses `tick_schema.toml` from the current working directory into a [`Schema`].
 pub(crate) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_path = "tick_schema.toml";
     let schema_str = std::fs::read_to_string(schema_path)?;

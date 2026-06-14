@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// The tick schema parsed from `tick_schema.toml`, keyed by tick type name.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Schema {
     pub(crate) types: HashMap<String, TickTypeDef>,
@@ -28,6 +29,8 @@ pub(crate) struct TickTypeDef {
     pub(crate) columns: Vec<ColumnDef>,
 }
 
+/// One column in a tick type: its wire header `name`, the destination struct
+/// `field`, and the schema `type` that selects the decoder.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ColumnDef {
     pub(crate) name: String,
@@ -35,6 +38,7 @@ pub(crate) struct ColumnDef {
     pub(crate) r#type: String,
 }
 
+/// Reads and deserializes `tick_schema.toml` into a [`Schema`].
 pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_path = "tick_schema.toml";
     let schema_str = std::fs::read_to_string(schema_path)?;

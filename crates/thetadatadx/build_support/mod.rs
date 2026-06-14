@@ -15,6 +15,8 @@ mod endpoints;
 mod grpc;
 mod ticks;
 
+/// Runs the full build-time generation pipeline: condition tables, gRPC stubs
+/// and their drift check, endpoint surfaces, and tick decoders.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     conditions::generate()?;
     grpc::run()?;

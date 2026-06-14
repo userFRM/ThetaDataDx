@@ -75,6 +75,8 @@ fn walk_markdown(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Resu
     Ok(())
 }
 
+/// Renders `llms.txt`: one `path — summary` line per docs page, merging
+/// the generated set with the hand-written pages found on disk.
 pub(super) fn render_llms_txt(
     repo_root: &Path,
     generated: &[DocFile],

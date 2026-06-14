@@ -100,10 +100,12 @@ pub(super) fn render_for(collection: &str) -> &'static TickRender {
 
 // ───────────────────────── Param classification ────────────────────────────
 
+/// True when the endpoint returns a flat list (`kind == "list"`).
 pub(super) fn is_simple_list_endpoint(endpoint: &GeneratedEndpoint) -> bool {
     endpoint.kind == "list"
 }
 
+/// True when the endpoint is a real-time subscription (`kind == "stream"`).
 pub(super) fn is_streaming_endpoint(endpoint: &GeneratedEndpoint) -> bool {
     endpoint.kind == "stream"
 }
@@ -164,6 +166,8 @@ pub(super) fn endpoint_streams_repr_c_ticks(endpoint: &GeneratedEndpoint) -> boo
     endpoint_streams(endpoint) && endpoint.return_type != "OptionContracts"
 }
 
+/// True when the param is passed as a method-call argument
+/// (`binding == "method"`) rather than a builder setter.
 pub(super) fn is_method_call_param(param: &GeneratedParam) -> bool {
     param.binding == "method"
 }
@@ -229,6 +233,7 @@ fn render_param_defaults_block(endpoint: &GeneratedEndpoint) -> String {
 
 // ───────────────────────── Casing ────────────────────────────────────────────
 
+/// Converts a `snake_case` identifier to `PascalCase`.
 pub(super) fn to_pascal_case(value: &str) -> String {
     value
         .split('_')

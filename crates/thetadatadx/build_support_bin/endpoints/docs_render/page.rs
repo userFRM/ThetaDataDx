@@ -7,6 +7,8 @@ use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{builder_params, method_params};
 use super::{lang, response};
 
+/// Sidebar metadata for one endpoint page: its category, subcategory,
+/// title, and site link.
 pub(super) struct PageMeta {
     pub(super) category: String,
     pub(super) subcategory: String,
@@ -139,6 +141,9 @@ fn tab(slot: &str, signature: String, example: String) -> String {
     format!("<template #{slot}>\n\n{signature}\n**Example**\n\n{example}\n</template>\n")
 }
 
+/// Renders a full endpoint reference page (frontmatter, tier badge,
+/// description, language tabs, parameters, response schema, and sample)
+/// and returns it alongside the page's sidebar metadata.
 pub(super) fn render_endpoint_page(
     endpoint: &GeneratedEndpoint,
     tier: &str,

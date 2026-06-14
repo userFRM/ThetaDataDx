@@ -74,6 +74,9 @@ fn rust_string_literal(s: &str) -> String {
     out
 }
 
+/// Reads the trade and quote condition TOML tables and writes
+/// `src/tdbe/conditions/tables_generated.rs` with the `TRADE_CONDITIONS`
+/// and `QUOTE_CONDITIONS` const arrays.
 pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let trade_toml = manifest_dir.join("data/trade_conditions.toml");

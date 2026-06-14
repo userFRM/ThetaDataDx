@@ -65,6 +65,9 @@ use super::super::sdk_helpers::{
 /// `endpoint_surface.toml` lands it on both classes automatically.
 const HISTORICAL_IMPL_CLASSES: &[&str] = &["ThetaDataDxClient", "MddsClient"];
 
+/// Renders the TypeScript historical surface: the per-endpoint options
+/// structs and one napi `impl` block per historical class, each carrying
+/// every endpoint method and its server-stream companion.
 pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(

@@ -20,6 +20,7 @@ pub(super) fn snake_case(name: &str) -> String {
     out
 }
 
+/// Maps a schema column type to the Rust field type emitted on the Python `#[pyclass]` struct.
 pub(super) fn python_rust_field_type(
     column_type: &str,
     event_name: &str,
@@ -48,6 +49,7 @@ pub(super) fn python_rust_field_type(
     }
 }
 
+/// Maps a schema column type to the Rust field type emitted on the TypeScript `#[napi(object)]` struct.
 pub(super) fn ts_rust_field_type(
     column_type: &str,
     event_name: &str,

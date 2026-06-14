@@ -47,6 +47,7 @@ fn render_event_asserts(out: &mut String, event_name: &str, def: &EventDef) {
     out.push('\n');
 }
 
+/// Renders the C++ `static_assert` block covering field offsets and sizes for every FPSS C mirror struct and the tagged `TdxFpssEvent` wrapper.
 pub(super) fn render_cpp_fpss_layout_asserts(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

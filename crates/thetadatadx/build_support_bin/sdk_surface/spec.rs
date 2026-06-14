@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use super::common::offline_greeks_param_layout;
 
+/// Parsed `sdk_surface.toml`: the schema version plus the declared methods and utilities.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SdkSurfaceSpec {
@@ -18,6 +19,7 @@ pub(super) struct SdkSurfaceSpec {
     pub(super) utilities: Vec<UtilitySpec>,
 }
 
+/// One declared SDK method: its name, semantic kind, doc text, target projections, params, and optional call/config bindings.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct MethodSpec {
@@ -35,6 +37,7 @@ pub(super) struct MethodSpec {
     pub(super) config_variant: Option<String>,
 }
 
+/// Semantic kind of an SDK method, driving its expected name, allowed targets, param layout, and emitted code template.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum MethodKind {
@@ -59,6 +62,7 @@ pub(super) enum MethodKind {
     ClientConnectFromFile,
 }
 
+/// Render target a method projects to (Python unified, C++ FPSS, C++ lifecycle, or TypeScript napi).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum MethodTarget {
@@ -68,6 +72,7 @@ pub(super) enum MethodTarget {
     TypescriptNapi,
 }
 
+/// One declared offline utility: its name, semantic kind, doc text, target projections, params, and optional CLI/MCP overrides.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct UtilitySpec {
@@ -85,6 +90,7 @@ pub(super) struct UtilitySpec {
     pub(super) mcp_description: Option<String>,
 }
 
+/// Semantic kind of an offline utility, driving its expected name, allowed targets, and emitted code template.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityKind {
@@ -94,6 +100,7 @@ pub(super) enum UtilityKind {
     ImpliedVolatility,
 }
 
+/// Render target a utility projects to (Python, TypeScript, C++, MCP, or CLI).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityTarget {
@@ -104,6 +111,7 @@ pub(super) enum UtilityTarget {
     Cli,
 }
 
+/// One method or utility parameter: its name, type, doc text, optional CLI/MCP name and description overrides, and allowed enum values.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ParamSpec {
@@ -121,6 +129,7 @@ pub(super) struct ParamSpec {
     pub(super) enum_values: Vec<String>,
 }
 
+/// Type of a parameter, projected per language into the concrete Rust, C++, and JSON Schema types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum ParamType {
@@ -148,6 +157,7 @@ type MethodShape<'a> = (
     &'a [(&'static str, ParamType)],
 );
 
+/// Loads and deserializes `sdk_surface.toml` into an [`SdkSurfaceSpec`] and registers it as a build rerun trigger.
 pub(super) fn load_sdk_surface_spec() -> Result<SdkSurfaceSpec, Box<dyn std::error::Error>> {
     let spec_path = "sdk_surface.toml";
     let spec_str = std::fs::read_to_string(spec_path)?;
@@ -156,6 +166,7 @@ pub(super) fn load_sdk_surface_spec() -> Result<SdkSurfaceSpec, Box<dyn std::err
     Ok(spec)
 }
 
+/// Validates the spec's version, rejects duplicate method or utility names, and checks each entry's per-kind shape.
 pub(super) fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>> {
     if spec.version != 2 {
         return Err(format!("unsupported sdk_surface.toml version: {}", spec.version).into());

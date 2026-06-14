@@ -27,6 +27,7 @@ use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::{Schema, TickTypeDef};
 use super::sorted_type_names;
 
+/// Renders `crates/thetadatadx/src/tdbe/types/generated/tick.rs` — the `#[repr(C, align(N))]` struct definition and timestamp accessors for every tick type in the schema.
 pub(super) fn render_tdbe_tick_structs(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

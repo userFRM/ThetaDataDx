@@ -9,6 +9,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// Resolved fixture tables from the `[test_fixtures]` block, supplying
+/// the live-validator parameter-mode matrix with sample argument values.
 #[derive(Debug, Clone, Default)]
 pub(super) struct TestFixtures {
     pub(super) category_symbol: HashMap<String, String>,
@@ -34,6 +36,8 @@ struct SurfaceTestFixturesFragment {
     optional_defaults: HashMap<String, String>,
 }
 
+/// Loads the `[test_fixtures]` block from `endpoint_surface.toml` into a
+/// `TestFixtures` projection.
 pub(super) fn load_test_fixtures() -> Result<TestFixtures, Box<dyn std::error::Error>> {
     let spec_path = "endpoint_surface.toml";
     let spec_str = std::fs::read_to_string(spec_path)?;

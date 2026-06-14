@@ -21,11 +21,13 @@ use std::path::Path;
 
 use schema::Schema;
 
+/// One rendered SDK surface: the repo-relative output path paired with the generated file contents.
 pub(super) struct GeneratedSourceFile {
     pub(super) relative_path: &'static str,
     pub(super) contents: String,
 }
 
+/// Renders every SDK surface from the schema and writes each to its output path under `repo_root`, creating parent directories as needed.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let snapshot_return_types = super::endpoints::snapshot_return_types()?;
     for file in render_sdk_generated_files(&snapshot_return_types)? {
@@ -38,6 +40,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
+/// Re-renders every SDK surface and compares it against the checked-in file under `repo_root`, returning an error naming the first stale surface.
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let snapshot_return_types = super::endpoints::snapshot_return_types()?;
     for file in render_sdk_generated_files(&snapshot_return_types)? {

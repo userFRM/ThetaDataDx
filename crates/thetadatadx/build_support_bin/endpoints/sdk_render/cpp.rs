@@ -13,6 +13,8 @@ use super::super::sdk_helpers::{
     cpp_value_type, ffi_array_type, method_params, sdk_method_arg_name,
 };
 
+/// Renders the C++ `EndpointRequestOptions` header: the optional builder
+/// fields, their `with_*` setters, and the internal FFI bridge struct.
 pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -85,6 +87,8 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out
 }
 
+/// Renders the `MddsClient` member-function declarations for every
+/// non-streaming endpoint, including the singular-symbol overloads.
 pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -283,6 +287,8 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
     out
 }
 
+/// Renders the `MddsClient` member-function definitions for every
+/// non-streaming endpoint, bridging each into its `_with_options` FFI call.
 pub(super) fn render_cpp_historical_defs(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -424,6 +430,8 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
+/// Renders the cgo-facing `extern` declarations for every endpoint's
+/// `tdx_<endpoint>_with_options` C entry point.
 pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(

@@ -1,6 +1,6 @@
 //! FIT nibble decoder — the core compression codec for FPSS tick data.
 //!
-//! Mirrors `FITReader.java` in ThetaData's terminal for wire-format parity.
+//! FIT delta-decode codec for the FPSS tick wire format.
 //!
 //! # Wire Format
 //!
@@ -28,7 +28,7 @@ const ROW_SEP: u8 = 0xC;
 const END: u8 = 0xD;
 const NEGATIVE: u8 = 0xE;
 
-/// The "spacing" constant from FITReader.java: after a `ROW_SEPARATOR`, the
+/// Row spacing constant in the FIT wire format: after a `ROW_SEPARATOR`, the
 /// field index jumps to this value (zero-filling slots 0..4, skipping to 5).
 const SPACING: usize = 5;
 
@@ -36,7 +36,7 @@ const SPACING: usize = 5;
 /// 10 digits covers the full range of i32 (`2_147_483_647` = 10 digits).
 const MAX_DIGITS: usize = 10;
 
-/// DATE marker byte (0xCE as unsigned). In Java's signed byte world this is -50.
+/// DATE marker byte (`0xCE`) prefixing a date row in the FIT wire format.
 const DATE_MARKER: u8 = 0xCE;
 
 /// Row-major buffer of decoded FIT ticks.
@@ -202,15 +202,13 @@ impl<'a> FitReader<'a> {
     /// Returns the number of fields written (i.e. `idx + 1` after the END nibble),
     /// or `0` if the row was a DATE marker row.
     ///
-    /// Note: Java's `FITReader.readChanges()` returns `-1` on DATE marker rows,
-    /// while this returns `0`. Callers use `is_date` to distinguish DATE rows
-    /// from legitimate 0-field rows, making the difference inconsequential.
+    /// A DATE marker row reports `0` fields; callers use `is_date` to
+    /// distinguish a DATE row from a legitimate 0-field row.
     ///
     /// # Panics
     ///
     /// Does **not** panic — if `alloc` is too short, excess fields are silently
-    /// dropped (matching the Java behavior of writing to a pre-sized array that
-    /// the caller controls).
+    /// dropped, leaving the caller-sized array intact.
     #[inline]
     pub fn read_changes(&mut self, alloc: &mut [i32]) -> usize {
         self.is_date = false;
@@ -333,7 +331,7 @@ impl<'a> FitReader<'a> {
             }
             _ => {
                 // Nibble 0xA (10) and 0xF (15) are unused in the FIT decode path.
-                // Silently ignore, matching Java behavior.
+                // The wire format ignores them silently.
                 false
             }
         }
@@ -360,8 +358,8 @@ impl<'a> FitReader<'a> {
 /// Uses an i64 accumulator internally to avoid overflow for 10-digit values
 /// near `i32::MAX`. Values that exceed i32 range are saturated.
 ///
-/// An empty digit buffer (count == 0) flushes as 0 (matching Java behavior where
-/// a separator immediately after another separator emits 0).
+/// An empty digit buffer (count == 0) flushes as 0, so back-to-back
+/// separators in the wire format emit a 0 field.
 #[inline]
 fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool) -> i32 {
     let mut val: i64 = 0;
@@ -384,9 +382,9 @@ fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool) -> i32 
 /// The first row of a stream should be passed through without calling this
 /// (its values are absolute).
 ///
-/// Uses `wrapping_add` for protocol parity with Java, where `int` addition
-/// wraps silently on overflow. This ensures identical bit patterns for
-/// extreme delta values near i32 boundaries.
+/// Uses `wrapping_add` for protocol parity: the wire format's 32-bit
+/// addition wraps silently on overflow, so this yields identical bit
+/// patterns for extreme delta values near i32 boundaries.
 #[inline]
 pub fn apply_deltas(tick: &mut [i32], prev: &[i32], n_fields: usize) {
     let len = tick.len().min(prev.len());
@@ -821,8 +819,8 @@ mod tests {
     // Property-based tests
     // ---------------------------------------------------------------------------
     //
-    // FIT is a wire-format the SDK only DECODES; the protocol-level encoder
-    // is in the upstream Java terminal. To run a round-trip property test
+    // FIT is a wire format the SDK only DECODES; the protocol-level encoder
+    // lives on the server side. To run a round-trip property test
     // we build a minimal in-test encoder that emits a single-row FIT byte
     // stream from a sequence of `i32` field values, then assert that the
     // production `FitReader` decodes the same values back. The encoder is

@@ -113,6 +113,8 @@ fn render_for(collection: &str) -> &'static BinTickRender {
 
 // ───────────────────────── Param classification ────────────────────────────
 
+/// Returns the endpoint's required positional parameters (those passed
+/// in the method call rather than chained on the builder).
 pub(super) fn method_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam> {
     endpoint
         .params
@@ -121,6 +123,8 @@ pub(super) fn method_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam
         .collect()
 }
 
+/// Returns the endpoint's optional parameters (those chained on the
+/// builder rather than passed in the method call).
 pub(super) fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam> {
     endpoint
         .params
@@ -129,6 +133,8 @@ pub(super) fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedPara
         .collect()
 }
 
+/// Collects the deduplicated set of builder parameters across every
+/// endpoint, preserving first-appearance order.
 pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<GeneratedParam> {
     let mut seen = HashSet::new();
     let mut params = Vec::new();
@@ -175,6 +181,8 @@ pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
 
 // ───────────────────────── Casing ────────────────────────────────────────────
 
+/// Returns the Go-exported PascalCase form of a single name segment,
+/// keeping known initialisms (EOD, OHLC, IV, DTE, NBBO) fully upper.
 pub(super) fn go_segment_pascal(segment: &str) -> String {
     match segment {
         "eod" => "EOD".into(),
@@ -192,6 +200,8 @@ pub(super) fn go_segment_pascal(segment: &str) -> String {
     }
 }
 
+/// Returns the Go-exported PascalCase name for an underscore-separated
+/// identifier, applying `go_segment_pascal` to each segment.
 pub(super) fn to_go_exported_name(value: &str) -> String {
     value
         .split('_')
@@ -200,6 +210,8 @@ pub(super) fn to_go_exported_name(value: &str) -> String {
         .collect::<String>()
 }
 
+/// Returns the camelCase form of an underscore-separated identifier
+/// (PascalCase with a lowercased first letter).
 pub(super) fn to_camel_case(value: &str) -> String {
     let pascal = to_go_exported_name(value);
     let mut chars = pascal.chars();
@@ -211,6 +223,8 @@ pub(super) fn to_camel_case(value: &str) -> String {
 
 // ───────────────────────── Per-language type tables ─────────────────────────
 
+/// Returns the Rust `Option<...>` type used for an optional Python
+/// keyword argument of the given parameter.
 pub(super) fn python_optional_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "Option<i32>",
@@ -222,6 +236,8 @@ pub(super) fn python_optional_type(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns the Rust argument type used for a required Python parameter
+/// of the given wire type.
 pub(super) fn python_string_arg_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Symbols" => "PySymbols",
@@ -231,6 +247,8 @@ pub(super) fn python_string_arg_type(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns `true` if the parameter is a time-of-day argument
+/// (`start_time`, `end_time`, `min_time`, or `time_of_day`).
 pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
     matches!(
         param.name.as_str(),
@@ -238,6 +256,8 @@ pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
     )
 }
 
+/// Returns the FFI `#[repr(C)]` array type name for a return type
+/// (e.g. `TdxStringArray`), looked up from the tick render map.
 pub(super) fn ffi_array_type(return_type: &str) -> String {
     if return_type == "StringList" {
         return "TdxStringArray".into();
@@ -245,6 +265,8 @@ pub(super) fn ffi_array_type(return_type: &str) -> String {
     render_for(return_type).ffi_array.clone()
 }
 
+/// Returns the `EndpointOutput` variant name for a return type, looked
+/// up from the tick render map.
 pub(super) fn ffi_output_variant(return_type: &str) -> String {
     if return_type == "StringList" {
         return "StringList".into();
@@ -263,6 +285,8 @@ pub(super) fn ffi_from_vec_array_type(return_type: &str) -> String {
     render_for(return_type).ffi_from_vec_array.clone()
 }
 
+/// Returns the C++ element type for a return type's row vector, looked
+/// up from the tick render map.
 pub(super) fn cpp_value_type(return_type: &str) -> String {
     if return_type == "StringList" {
         return "std::string".into();
@@ -270,6 +294,8 @@ pub(super) fn cpp_value_type(return_type: &str) -> String {
     render_for(return_type).cpp_value.clone()
 }
 
+/// Returns the C++ expression that converts the FFI array result for a
+/// return type into a `std::vector`, checking the error slot first.
 pub(super) fn cpp_converter_expr(return_type: &str) -> String {
     match return_type {
         "StringList" => "return detail::check_string_array(arr);".into(),
@@ -335,6 +361,8 @@ pub(super) fn ts_class_vec_converter(return_type: &str) -> String {
 
 // ───────────────────────── Builder / FFI option tables ─────────────────────
 
+/// Returns the C++ value type for a builder setter argument of the
+/// given parameter.
 pub(super) fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "int32_t",
@@ -344,6 +372,8 @@ pub(super) fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns the C++ assignment expression storing `source` into the
+/// builder field, moving for string types and copying for scalars.
 pub(super) fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String {
     match param.param_type.as_str() {
         "Int" => format!("{} = {}", param.name, source),
@@ -353,6 +383,8 @@ pub(super) fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String 
     }
 }
 
+/// Returns the Rust FFI field type for an optional builder parameter in
+/// the `#[repr(C)]` options struct.
 pub(super) fn ffi_option_value_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" | "Bool" => "i32",
@@ -361,6 +393,8 @@ pub(super) fn ffi_option_value_type(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns the C field type for an optional builder parameter in the
+/// generated `TdxEndpointRequestOptions` struct.
 pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "int32_t",
@@ -370,6 +404,8 @@ pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns the Rust statement that inserts an optional builder
+/// parameter from the FFI options struct into the endpoint args.
 pub(super) fn ffi_option_insert_expr(param: &GeneratedParam) -> String {
     match param.param_type.as_str() {
         "Int" => format!(
@@ -393,12 +429,16 @@ pub(super) fn ffi_option_insert_expr(param: &GeneratedParam) -> String {
     }
 }
 
+/// Returns `true` if the parameter needs a companion `has_<name>`
+/// presence flag in the FFI options struct (scalar types).
 pub(super) fn ffi_option_has_flag(param: &GeneratedParam) -> bool {
     matches!(param.param_type.as_str(), "Int" | "Float" | "Bool")
 }
 
 // ───────────────────────── SDK method arg declarations ─────────────────────
 
+/// Returns the SDK method argument name for a parameter, mapping the
+/// `Symbols` wire type to `symbols` and otherwise using the param name.
 pub(super) fn sdk_method_arg_name(param: &GeneratedParam) -> String {
     if param.param_type == "Symbols" {
         "symbols".into()
@@ -407,11 +447,15 @@ pub(super) fn sdk_method_arg_name(param: &GeneratedParam) -> String {
     }
 }
 
+/// Returns the `name: Type` declaration for a required Python method
+/// argument.
 pub(super) fn python_method_arg_decl(param: &GeneratedParam) -> String {
     let name = sdk_method_arg_name(param);
     format!("{name}: {}", python_string_arg_type(param))
 }
 
+/// Returns the C++ `const T& name` declaration for a required method
+/// argument.
 pub(super) fn cpp_method_arg_decl(param: &GeneratedParam) -> String {
     let name = sdk_method_arg_name(param);
     if param.param_type == "Symbols" {
@@ -490,6 +534,8 @@ pub(super) fn cpp_builder_setter(
 
 // ───────────────────────── CLI / validator scaffolding ─────────────────────
 
+/// Returns the CLI command name for an endpoint by stripping its
+/// category (or `interest_rate_`) prefix from the endpoint name.
 pub(super) fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
     match endpoint.category.as_str() {
         "stock" | "option" | "index" | "calendar" => endpoint
@@ -506,6 +552,8 @@ pub(super) fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
     }
 }
 
+/// Returns the CLI invocation tokens for an endpoint under a test mode:
+/// the category group, the command name, and the mode's arguments.
 pub(super) fn cli_command_tokens_for_mode(
     endpoint: &GeneratedEndpoint,
     mode: &TestMode,

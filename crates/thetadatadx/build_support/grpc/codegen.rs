@@ -29,6 +29,7 @@ pub const SNAPSHOT_PATH: &str = "proto/beta_endpoints.snapshot.rs";
 pub struct ChannelServiceGenerator;
 
 impl ChannelServiceGenerator {
+    /// Constructs a [`ChannelServiceGenerator`].
     pub fn new() -> Self {
         Self
     }

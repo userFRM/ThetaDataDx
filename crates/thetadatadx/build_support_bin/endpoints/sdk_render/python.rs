@@ -159,6 +159,9 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
     out
 }
 
+/// Renders the Python historical surface: per-endpoint builder
+/// pyclasses, their module registrar, and the `ThetaDataDxClient`
+/// `#[pymethods]` block with sync, async, and builder variants.
 pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(

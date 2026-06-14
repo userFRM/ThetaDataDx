@@ -24,6 +24,8 @@ fn tier_row(tier: &str) -> String {
         .collect()
 }
 
+/// Renders the Subscriptions article: per-category tables mapping each
+/// endpoint to its minimum tier, plus the streaming-tier note.
 pub(super) fn render_subscriptions_page(
     endpoints: &[&GeneratedEndpoint],
     upstream: &UpstreamOpenApi,

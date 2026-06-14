@@ -20,6 +20,9 @@ use super::mdds::{
     generate_mdds_list_endpoint, generate_mdds_parsed_endpoint, generate_mdds_streaming_endpoint,
 };
 
+/// Loads the endpoint specs and writes every generated Rust artifact into
+/// `OUT_DIR`: the registry, the buffered and streaming dispatch runtimes, and
+/// the three per-kind `MddsClient` extension impls.
 pub fn generate_all() -> Result<(), Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;
     generate_endpoint_registry(&parsed)?;

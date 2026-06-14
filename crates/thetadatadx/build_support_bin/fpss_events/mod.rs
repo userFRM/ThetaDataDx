@@ -44,6 +44,7 @@ mod python;
 mod schema;
 mod typescript;
 
+/// Renders the per-language FPSS event sources and writes each to its path under the repository root.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let abs = repo_root.join(file.relative_path);
@@ -52,6 +53,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
+/// Verifies that the checked-in FPSS event sources match freshly rendered output, returning an error on drift.
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let abs = repo_root.join(file.relative_path);

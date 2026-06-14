@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// Parsed `fpss_event_schema.toml`: the version key plus the map of event definitions keyed by name.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Schema {
     /// Schema version key. Schema-validation-only — generator behavior
@@ -14,6 +15,7 @@ pub(crate) struct Schema {
     pub(crate) events: HashMap<String, EventDef>,
 }
 
+/// One FPSS event variant: its kind ("data" / "control"), doc text, and ordered columns.
 #[derive(Debug, Deserialize)]
 pub(crate) struct EventDef {
     /// "data" (typed market-data tick) or "control" (typed control /
@@ -32,12 +34,14 @@ fn default_kind() -> String {
     "data".to_string()
 }
 
+/// One column of an event variant: its field name and schema type string.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ColumnDef {
     pub(crate) name: String,
     pub(crate) r#type: String,
 }
 
+/// Loads and deserializes `fpss_event_schema.toml` from the current directory into a [`Schema`].
 pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_str = std::fs::read_to_string("fpss_event_schema.toml")?;
     let schema: Schema = toml::from_str(&schema_str)?;

@@ -16,6 +16,8 @@ use super::super::sdk_helpers::{
     ffi_option_insert_expr, ffi_option_value_type, ffi_output_variant, method_params,
 };
 
+/// Renders the Rust `#[repr(C)]` `TdxEndpointRequestOptions` struct and
+/// its `apply_*` helper that folds the options into the endpoint args.
 pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -68,6 +70,8 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out
 }
 
+/// Renders the C `typedef struct TdxEndpointRequestOptions` header with
+/// one field (plus presence flag, where needed) per optional parameter.
 pub(super) fn render_c_endpoint_request_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -87,6 +91,8 @@ pub(super) fn render_c_endpoint_request_options(params: &[GeneratedParam]) -> St
     out
 }
 
+/// Renders the `tdx_<endpoint>_with_options` C-ABI export for every
+/// non-streaming endpoint.
 pub(super) fn render_ffi_with_options(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(

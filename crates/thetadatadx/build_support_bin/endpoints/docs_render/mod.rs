@@ -35,6 +35,8 @@ use super::helpers::is_streaming_endpoint;
 use super::model::GeneratedEndpoint;
 use super::parser::load_endpoint_specs;
 
+/// One generated docs-site file: its path relative to the repo root and
+/// its full rendered contents.
 pub(super) struct DocFile {
     pub(super) relative_path: String,
     pub(super) contents: String,
@@ -145,6 +147,8 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
     Ok(files)
 }
 
+/// Renders every docs-site file and writes it to disk under `repo_root`,
+/// creating parent directories as needed.
 pub fn write_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_all(repo_root)? {
         let path = repo_root.join(&file.relative_path);
@@ -156,6 +160,8 @@ pub fn write_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+/// Renders every docs-site file and verifies the on-disk copy matches,
+/// returning an error naming the first missing or stale page.
 pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_all(repo_root)? {
         let path = repo_root.join(&file.relative_path);

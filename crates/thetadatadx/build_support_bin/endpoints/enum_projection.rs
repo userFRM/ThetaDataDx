@@ -10,6 +10,8 @@ use std::collections::HashSet;
 
 use serde::Deserialize;
 
+/// One enum from the surface spec, projected with every per-language
+/// name the emitters need (wire, Rust, Python).
 #[derive(Debug, Clone)]
 pub(super) struct EnumProjection {
     pub(super) name: String,
@@ -17,6 +19,8 @@ pub(super) struct EnumProjection {
     pub(super) variants: Vec<EnumVariantProjection>,
 }
 
+/// One enum variant carrying its wire string and the matching Rust and
+/// Python identifiers.
 #[derive(Debug, Clone)]
 pub(super) struct EnumVariantProjection {
     pub(super) wire: String,

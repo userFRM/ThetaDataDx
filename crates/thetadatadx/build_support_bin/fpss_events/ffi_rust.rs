@@ -83,6 +83,7 @@ pub struct TdxContract {\n\
     pub strike: f64,\n\
 }\n\
 \n\
+/// Zeroed `TdxContract` literal: null symbol, all-false presence flags, zero scalars.\n\
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
     symbol: ptr::null(),\n\
     sec_type: 0,\n\
