@@ -9,7 +9,7 @@
 //!
 //! Both [`TdxUnified`] and [`TdxFpssHandle`] expose a single callback-
 //! registration entry point that wires user `extern "C"` functions
-//! through the SSOT single-queue pipeline introduced in #513:
+//! through a single-queue event pipeline:
 //!
 //! - `tdx_*_set_callback` — the user callback runs on the event ring
 //!   event-dispatch consumer thread, with each invocation wrapped in

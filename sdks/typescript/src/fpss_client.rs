@@ -345,17 +345,16 @@ impl FpssClient {
 
     /// Start FPSS streaming and register a JS callback for incoming events.
     ///
-    /// Opens the FPSS TLS connection and starts the background dispatcher.
-    /// The dispatcher converts every typed FPSS event and routes it through
-    /// a napi-rs `ThreadsafeFunction` to the Node main thread, where
-    /// `callback(event)` runs. The FPSS TLS reader thread itself never
-    /// touches V8: events cross the streaming ring first, with the consumer
-    /// thread invoking the callback under `catch_unwind`.
+    /// Opens the FPSS connection and begins delivering events. Each typed
+    /// FPSS event is delivered to your `callback(event)` on the Node main
+    /// thread, so the callback may use any JS API safely. A callback that
+    /// panics or throws is isolated and does not interrupt the stream.
     ///
-    /// Backpressure: a slow callback fills the streaming ring and overflow
-    /// events are dropped, observable via `droppedEventCount()`. The FPSS
-    /// TLS reader is never blocked — vendor disconnects on slow consumers
-    /// cannot happen on this path.
+    /// Backpressure: a slow callback causes incoming events to queue and,
+    /// once the buffer is full, the oldest events are dropped, observable
+    /// via `droppedEventCount()`. The receive path is never blocked by a
+    /// slow callback, so the upstream connection stays healthy regardless
+    /// of callback speed.
     #[napi(js_name = "startStreaming")]
     pub fn start_streaming(&self, callback: TsfnCallback) -> napi::Result<()> {
         self.start_with_callback(Arc::new(callback))
@@ -509,10 +508,9 @@ impl FpssClient {
         napi::bindgen_prelude::BigInt::from(guard.as_ref().map_or(0, |c| c.ring_capacity()) as u64)
     }
 
-    /// Cumulative count of user-callback panics caught by the
-    /// per-invocation `catch_unwind` boundary. A panic is caught, recorded
-    /// here, and does not stop event delivery. Returned as `bigint` for the
-    /// full `u64` range.
+    /// Cumulative count of user-callback panics caught at the per-event
+    /// isolation boundary. A panic is caught, recorded here, and does not
+    /// stop event delivery. Returned as `bigint` for the full `u64` range.
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
         let guard = self.lock_inner();

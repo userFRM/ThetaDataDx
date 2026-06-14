@@ -441,19 +441,14 @@ impl ThetaDataDxClient {
         })
     }
 
-    /// Cumulative count of FPSS events the TLS reader could not
-    /// publish into the event ring because the event-dispatch consumer
-    /// fell behind and the ring was full (`Producer::try_publish`
-    /// returned `RingBufferFull`).
+    /// Cumulative count of FPSS events that were dropped because the
+    /// callback fell behind and the in-flight buffer was full.
     ///
-    /// Forwards to `thetadatadx::ThetaDataDxClient::dropped_event_count` so
-    /// the value matches every other binding (C ABI, Python, C++).
-    /// The counter lives on the underlying `FpssClient` and resets
-    /// when the client is recreated -- that happens on
-    /// `stop_streaming` and `reconnect` (which calls
-    /// `stop_streaming` + `start_streaming` internally). Snapshot the
-    /// value before reconnect if you need to accumulate drops across
-    /// session boundaries.
+    /// The value matches every other binding (C ABI, Python, C++). The
+    /// counter resets when the session is recreated -- that happens on
+    /// `stopStreaming()` and `reconnect()`. Snapshot the value before
+    /// reconnect if you need to accumulate drops across session
+    /// boundaries.
     ///
     /// Returned as `bigint` so it can represent the full `u64` range
     /// (Number would top out at 2^53).
@@ -472,11 +467,10 @@ impl ThetaDataDxClient {
     /// is still time to react. Sampling never blocks the feed; poll
     /// it from your own code at any cadence.
     ///
-    /// Forwards to `thetadatadx::ThetaDataDxClient::ring_occupancy`
-    /// so the value matches every other binding (C ABI, Python,
-    /// C++). Returns `0n` before `startStreaming` and after
-    /// `stopStreaming`. Returned as `bigint` for shape-consistency
-    /// with the other streaming counters.
+    /// The value matches every other binding (C ABI, Python, C++).
+    /// Returns `0n` before `startStreaming` and after `stopStreaming`.
+    /// Returned as `bigint` for shape-consistency with the other
+    /// streaming counters.
     #[napi(js_name = "ringOccupancy")]
     pub fn ring_occupancy(&self) -> napi::bindgen_prelude::BigInt {
         napi::bindgen_prelude::BigInt::from(self.tdx.ring_occupancy() as u64)
@@ -529,14 +523,12 @@ impl ThetaDataDxClient {
         self.tdx.last_connected_addr()
     }
 
-    /// Cumulative count of user-callback panics caught by the
-    /// per-invocation `catch_unwind` boundary since the current stream
-    /// started.
+    /// Cumulative count of user-callback panics caught at the per-event
+    /// isolation boundary since the current stream started.
     ///
     /// A panic in the callback is caught, recorded here, and does not
-    /// stop event delivery — the next event continues normally.
-    /// Forwards to `thetadatadx::ThetaDataDxClient::panic_count` so
-    /// the value matches every other binding (C ABI, Python, C++).
+    /// stop event delivery — the next event continues normally. The
+    /// value matches every other binding (C ABI, Python, C++).
     ///
     /// Returned as `bigint` so it can represent the full `u64` range
     /// (Number would top out at 2^53).
