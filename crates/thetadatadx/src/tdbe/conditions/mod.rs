@@ -23,16 +23,27 @@ pub use tables_generated::{QUOTE_CONDITIONS, TRADE_CONDITIONS};
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeCondition {
+    /// Numeric trade condition code as carried on the wire.
     pub code: i32,
+    /// Short human-readable name for the condition (e.g. `"Regular"`).
     pub name: &'static str,
+    /// Long-form description of the condition's market meaning.
     pub description: &'static str,
+    /// Whether the condition marks the trade as a cancellation.
     pub cancel: bool,
+    /// Whether the trade is reported late relative to its execution.
     pub late_report: bool,
+    /// Whether the trade was executed automatically by the matching engine.
     pub auto_executed: bool,
+    /// Whether the trade qualifies as the session's opening report.
     pub open_report: bool,
+    /// Whether the trade contributes to the session volume total.
     pub volume: bool,
+    /// Whether the trade is eligible to update the session high.
     pub high: bool,
+    /// Whether the trade is eligible to update the session low.
     pub low: bool,
+    /// Whether the trade is eligible to update the last (most recent) price.
     pub last: bool,
 }
 
@@ -88,10 +99,15 @@ pub fn updates_volume(code: i32) -> bool {
 /// A quote condition code with its properties.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuoteCondition {
+    /// Numeric quote condition code as carried on the wire.
     pub code: i32,
+    /// Short human-readable name for the condition (e.g. `"Regular"`).
     pub name: &'static str,
+    /// Long-form description of the condition's market meaning.
     pub description: &'static str,
+    /// Whether the quote is firm (binding) rather than indicative.
     pub firm: bool,
+    /// Whether the quote reflects a trading halt on the instrument.
     pub halted: bool,
 }
 

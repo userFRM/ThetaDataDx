@@ -13,27 +13,49 @@
 /// bump.
 #[repr(C)]
 pub enum TdxFpssEventKind {
+    /// `Connected` event; the `connected` field carries its payload.
     Connected = 0,
+    /// `ContractAssigned` event; the `contract_assigned` field carries its payload.
     ContractAssigned = 1,
+    /// `Disconnected` event; the `disconnected` field carries its payload.
     Disconnected = 2,
+    /// `LoginSuccess` event; the `login_success` field carries its payload.
     LoginSuccess = 3,
+    /// `MarketClose` event; the `market_close` field carries its payload.
     MarketClose = 4,
+    /// `MarketOpen` event; the `market_open` field carries its payload.
     MarketOpen = 5,
+    /// `MarketValue` event; the `market_value` field carries its payload.
     MarketValue = 6,
+    /// `Ohlcvc` event; the `ohlcvc` field carries its payload.
     Ohlcvc = 7,
+    /// `OpenInterest` event; the `open_interest` field carries its payload.
     OpenInterest = 8,
+    /// `ParseError` event; the `parse_error` field carries its payload.
     ParseError = 9,
+    /// `Ping` event; the `ping` field carries its payload.
     Ping = 10,
+    /// `Quote` event; the `quote` field carries its payload.
     Quote = 11,
+    /// `Reconnected` event; the `reconnected` field carries its payload.
     Reconnected = 12,
+    /// `ReconnectedServer` event; the `reconnected_server` field carries its payload.
     ReconnectedServer = 13,
+    /// `Reconnecting` event; the `reconnecting` field carries its payload.
     Reconnecting = 14,
+    /// `ReconnectsExhausted` event; the `reconnects_exhausted` field carries its payload.
     ReconnectsExhausted = 15,
+    /// `ReqResponse` event; the `req_response` field carries its payload.
     ReqResponse = 16,
+    /// `Restart` event; the `restart` field carries its payload.
     Restart = 17,
+    /// `ServerError` event; the `server_error` field carries its payload.
     ServerError = 18,
+    /// `Trade` event; the `trade` field carries its payload.
     Trade = 19,
+    /// `UnknownControl` event; the `unknown_control` field carries its payload.
     UnknownControl = 20,
+    /// `UnknownFrame` event; the `unknown_frame` field carries its payload.
     UnknownFrame = 21,
 }
 
@@ -54,6 +76,7 @@ pub symbol: *const c_char,
 pub sec_type: i32,
 /// Whether `expiration` is meaningful (options only).
 pub has_expiration: bool,
+/// Option expiration date as `YYYYMMDD` (0 when `has_expiration` is false).
 pub expiration: i32,
 /// Whether `right` is meaningful (options only).
 pub has_right: bool,
@@ -80,76 +103,127 @@ strike: 0.0,
 /// FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[repr(C)]
 pub struct TdxFpssMarketValue {
+    /// Contract this event refers to.
     pub contract: TdxContract,
+    /// Milliseconds since midnight (exchange-local) when the event was recorded.
     pub ms_of_day: i32,
+    /// Calculated market bid (dollars), nudged from the quote bid.
     pub market_bid: f64,
+    /// Calculated market ask (dollars), nudged from the quote ask.
     pub market_ask: f64,
+    /// Integer midpoint of `market_bid` / `market_ask` (dollars).
     pub market_price: f64,
+    /// Trading date as `YYYYMMDD`.
     pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
     pub received_at_ns: u64,
 }
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[repr(C)]
 pub struct TdxFpssOhlcvc {
+    /// Contract this event refers to.
     pub contract: TdxContract,
+    /// Milliseconds since midnight (exchange-local) when the event was recorded.
     pub ms_of_day: i32,
+    /// Opening price of the bar.
     pub open: f64,
+    /// Highest traded price within the bar.
     pub high: f64,
+    /// Lowest traded price within the bar.
     pub low: f64,
+    /// Closing price of the bar.
     pub close: f64,
+    /// Total traded volume within the bar, in contracts/shares.
     pub volume: i64,
+    /// Number of trades aggregated into the bar.
     pub count: i64,
+    /// Trading date as `YYYYMMDD`.
     pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
     pub received_at_ns: u64,
 }
 
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
 #[repr(C)]
 pub struct TdxFpssOpenInterest {
+    /// Contract this event refers to.
     pub contract: TdxContract,
+    /// Milliseconds since midnight (exchange-local) when the event was recorded.
     pub ms_of_day: i32,
+    /// Number of outstanding open contracts.
     pub open_interest: i32,
+    /// Trading date as `YYYYMMDD`.
     pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
     pub received_at_ns: u64,
 }
 
 /// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[repr(C)]
 pub struct TdxFpssQuote {
+    /// Contract this event refers to.
     pub contract: TdxContract,
+    /// Milliseconds since midnight (exchange-local) when the event was recorded.
     pub ms_of_day: i32,
+    /// Number of contracts/shares resting at the bid.
     pub bid_size: i32,
+    /// Exchange code posting the bid.
     pub bid_exchange: i32,
+    /// Bid price.
     pub bid: f64,
+    /// Quote condition code for the bid.
     pub bid_condition: i32,
+    /// Number of contracts/shares resting at the ask.
     pub ask_size: i32,
+    /// Exchange code posting the ask.
     pub ask_exchange: i32,
+    /// Ask price.
     pub ask: f64,
+    /// Quote condition code for the ask.
     pub ask_condition: i32,
+    /// Trading date as `YYYYMMDD`.
     pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
     pub received_at_ns: u64,
 }
 
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
 #[repr(C)]
 pub struct TdxFpssTrade {
+    /// Contract this event refers to.
     pub contract: TdxContract,
+    /// Milliseconds since midnight (exchange-local) when the event was recorded.
     pub ms_of_day: i32,
+    /// Exchange sequence number for ordering trades within the day.
     pub sequence: i32,
+    /// Extended trade condition code 1.
     pub ext_condition1: i32,
+    /// Extended trade condition code 2.
     pub ext_condition2: i32,
+    /// Extended trade condition code 3.
     pub ext_condition3: i32,
+    /// Extended trade condition code 4.
     pub ext_condition4: i32,
+    /// Primary trade condition code.
     pub condition: i32,
+    /// Trade size in contracts/shares.
     pub size: i32,
+    /// Exchange code where the trade printed.
     pub exchange: i32,
+    /// Trade price.
     pub price: f64,
+    /// Bit flags qualifying the trade conditions.
     pub condition_flags: i32,
+    /// Bit flags qualifying the trade price.
     pub price_flags: i32,
+    /// Volume classification code for the trade.
     pub volume_type: i32,
+    /// Number of records back this trade was reported (out-of-order correction offset).
     pub records_back: i32,
+    /// Trading date as `YYYYMMDD`.
     pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
     pub received_at_ns: u64,
 }
 
@@ -165,19 +239,23 @@ pub struct TdxFpssConnected {
 /// FPSS server assigned a contract id. Mirrors `FpssControl::ContractAssigned`. The `contract` payload carries the full resolved `Contract` (root, sec_type, expiration / strike / right for options).
 #[repr(C)]
 pub struct TdxFpssContractAssigned {
+    /// Wire-internal contract id the FPSS server assigns to this contract.
     pub id: i32,
+    /// Contract this event refers to.
     pub contract: TdxContract,
 }
 
 /// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
 #[repr(C)]
 pub struct TdxFpssDisconnected {
+    /// Reason the server gave for dropping the connection.
     pub reason: i32,
 }
 
 /// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
 #[repr(C)]
 pub struct TdxFpssLoginSuccess {
+    /// Server "Bundle" string copied verbatim from the METADATA frame; opaque diagnostic metadata.
     pub permissions: *const c_char,
 }
 
@@ -202,13 +280,16 @@ pub struct TdxFpssMarketOpen {
 /// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
 #[repr(C)]
 pub struct TdxFpssParseError {
+    /// Human-readable error text from the server.
     pub message: *const c_char,
 }
 
 /// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
 #[repr(C)]
 pub struct TdxFpssPing {
+    /// Raw frame payload bytes, preserved for diagnostics. Pointer to the first byte; null when empty.
     pub payload: *const u8,
+    /// Length in bytes of the `payload` buffer.
     pub payload_len: usize,
 }
 
@@ -233,22 +314,29 @@ pub struct TdxFpssReconnectedServer {
 /// FPSS auto-reconnect is about to attempt reconnection. Mirrors `FpssControl::Reconnecting`. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at `i32::MAX` if the reconnect loop exceeds 2^31 attempts.
 #[repr(C)]
 pub struct TdxFpssReconnecting {
+    /// Reason the server gave for dropping the connection.
     pub reason: i32,
+    /// 1-based index of this reconnect attempt.
     pub attempt: i32,
+    /// Delay, in milliseconds, before the attempt fires.
     pub delay_ms: u64,
 }
 
 /// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[repr(C)]
 pub struct TdxFpssReconnectsExhausted {
+    /// Reason the server gave for dropping the connection.
     pub reason: i32,
+    /// Number of consecutive reconnect attempts consumed before giving up.
     pub attempts: i32,
 }
 
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[repr(C)]
 pub struct TdxFpssReqResponse {
+    /// Identifier of the subscription request this response answers.
     pub req_id: i32,
+    /// Outcome of the subscription request.
     pub result: i32,
 }
 
@@ -264,6 +352,7 @@ pub struct TdxFpssRestart {
 /// FPSS server-error message (wire code 11). Mirrors `FpssControl::ServerError`.
 #[repr(C)]
 pub struct TdxFpssServerError {
+    /// Human-readable error text from the server.
     pub message: *const c_char,
 }
 
@@ -279,8 +368,11 @@ pub struct TdxFpssUnknownControl {
 /// FPSS server sent a frame with an unrecognised wire code. Mirrors `FpssControl::UnknownFrame`. Raw bytes preserved for diagnostics / upstream bug reports.
 #[repr(C)]
 pub struct TdxFpssUnknownFrame {
+    /// Unrecognized frame code reported by the server.
     pub code: u8,
+    /// Raw frame payload bytes, preserved for diagnostics. Pointer to the first byte; null when empty.
     pub payload: *const u8,
+    /// Length in bytes of the `payload` buffer.
     pub payload_len: usize,
 }
 
@@ -292,28 +384,51 @@ pub struct TdxFpssUnknownFrame {
 /// dispatch via `kind` and read the matching `event.<variant>` field.
 #[repr(C)]
 pub struct TdxFpssEvent {
+    /// Discriminant selecting which payload field below is valid.
     pub kind: TdxFpssEventKind,
+    /// `MarketValue` payload; valid when `kind` is `MarketValue`.
     pub market_value: TdxFpssMarketValue,
+    /// `Ohlcvc` payload; valid when `kind` is `Ohlcvc`.
     pub ohlcvc: TdxFpssOhlcvc,
+    /// `OpenInterest` payload; valid when `kind` is `OpenInterest`.
     pub open_interest: TdxFpssOpenInterest,
+    /// `Quote` payload; valid when `kind` is `Quote`.
     pub quote: TdxFpssQuote,
+    /// `Trade` payload; valid when `kind` is `Trade`.
     pub trade: TdxFpssTrade,
+    /// `Connected` payload; valid when `kind` is `Connected`.
     pub connected: TdxFpssConnected,
+    /// `ContractAssigned` payload; valid when `kind` is `ContractAssigned`.
     pub contract_assigned: TdxFpssContractAssigned,
+    /// `Disconnected` payload; valid when `kind` is `Disconnected`.
     pub disconnected: TdxFpssDisconnected,
+    /// `LoginSuccess` payload; valid when `kind` is `LoginSuccess`.
     pub login_success: TdxFpssLoginSuccess,
+    /// `MarketClose` payload; valid when `kind` is `MarketClose`.
     pub market_close: TdxFpssMarketClose,
+    /// `MarketOpen` payload; valid when `kind` is `MarketOpen`.
     pub market_open: TdxFpssMarketOpen,
+    /// `ParseError` payload; valid when `kind` is `ParseError`.
     pub parse_error: TdxFpssParseError,
+    /// `Ping` payload; valid when `kind` is `Ping`.
     pub ping: TdxFpssPing,
+    /// `Reconnected` payload; valid when `kind` is `Reconnected`.
     pub reconnected: TdxFpssReconnected,
+    /// `ReconnectedServer` payload; valid when `kind` is `ReconnectedServer`.
     pub reconnected_server: TdxFpssReconnectedServer,
+    /// `Reconnecting` payload; valid when `kind` is `Reconnecting`.
     pub reconnecting: TdxFpssReconnecting,
+    /// `ReconnectsExhausted` payload; valid when `kind` is `ReconnectsExhausted`.
     pub reconnects_exhausted: TdxFpssReconnectsExhausted,
+    /// `ReqResponse` payload; valid when `kind` is `ReqResponse`.
     pub req_response: TdxFpssReqResponse,
+    /// `Restart` payload; valid when `kind` is `Restart`.
     pub restart: TdxFpssRestart,
+    /// `ServerError` payload; valid when `kind` is `ServerError`.
     pub server_error: TdxFpssServerError,
+    /// `UnknownControl` payload; valid when `kind` is `UnknownControl`.
     pub unknown_control: TdxFpssUnknownControl,
+    /// `UnknownFrame` payload; valid when `kind` is `UnknownFrame`.
     pub unknown_frame: TdxFpssUnknownFrame,
 }
 

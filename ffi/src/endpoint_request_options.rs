@@ -11,34 +11,63 @@
 /// underlying gRPC stream is cancelled, leaving the client handle reusable.
 #[repr(C)]
 pub struct TdxEndpointRequestOptions {
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: *const c_char,
+    /// Minimum time filter
     pub min_time: *const c_char,
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: *const c_char,
+    /// Start time filter
     pub start_time: *const c_char,
+    /// End time filter
     pub end_time: *const c_char,
+    /// Start date YYYYMMDD
     pub start_date: *const c_char,
+    /// End date YYYYMMDD
     pub end_date: *const c_char,
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     pub exclusive: i32,
+    /// Presence flag for `exclusive`; set to `1` to apply the value.
     pub has_exclusive: i32,
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: *const c_char,
+    /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: *const c_char,
+    /// Maximum days to expiration
     pub max_dte: i32,
+    /// Presence flag for `max_dte`; set to `1` to apply the value.
     pub has_max_dte: i32,
+    /// Strike range filter
     pub strike_range: i32,
+    /// Presence flag for `strike_range`; set to `1` to apply the value.
     pub has_strike_range: i32,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: f64,
+    /// Presence flag for `annual_dividend`; set to `1` to apply the value.
     pub has_annual_dividend: i32,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: *const c_char,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: f64,
+    /// Presence flag for `rate_value`; set to `1` to apply the value.
     pub has_rate_value: i32,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: f64,
+    /// Presence flag for `stock_price`; set to `1` to apply the value.
     pub has_stock_price: i32,
+    /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: *const c_char,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: i32,
+    /// Presence flag for `use_market_value`; set to `1` to apply the value.
     pub has_use_market_value: i32,
+    /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     pub underlyer_use_nbbo: i32,
+    /// Presence flag for `underlyer_use_nbbo`; set to `1` to apply the value.
     pub has_underlyer_use_nbbo: i32,
+    /// Per-call deadline in milliseconds; gated by `has_timeout_ms`.
     pub timeout_ms: u64,
+    /// Presence flag for `timeout_ms`; set to `1` to apply the deadline.
     pub has_timeout_ms: i32,
 }
 

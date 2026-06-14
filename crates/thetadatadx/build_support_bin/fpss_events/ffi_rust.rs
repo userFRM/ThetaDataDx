@@ -39,6 +39,12 @@ fn render_kind_enum_rust(schema: &Schema) -> String {
     out.push_str("#[repr(C)]\n");
     out.push_str("pub enum TdxFpssEventKind {\n");
     for (idx, name) in sorted_event_names(schema).iter().enumerate() {
+        writeln!(
+            out,
+            "    /// `{name}` event; the `{}` field carries its payload.",
+            snake_case(name)
+        )
+        .unwrap();
         writeln!(out, "    {name} = {idx},").unwrap();
     }
     out.push_str("}\n\n");
@@ -72,6 +78,7 @@ pub struct TdxContract {\n\
     pub sec_type: i32,\n\
     /// Whether `expiration` is meaningful (options only).\n\
     pub has_expiration: bool,\n\
+    /// Option expiration date as `YYYYMMDD` (0 when `has_expiration` is false).\n\
     pub expiration: i32,\n\
     /// Whether `right` is meaningful (options only).\n\
     pub has_right: bool,\n\
@@ -94,6 +101,70 @@ pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
     has_strike: false,\n\
     strike: 0.0,\n\
 };\n\n"
+}
+
+/// Factual one-line doc for a generated event-struct field, keyed on the
+/// schema column name. Mirrors the field docs on the matching Rust core
+/// `FpssData::*` / `FpssControl::*` variant so the C-ABI surface reads the
+/// same as the native one. Unknown names fall back to a humanized form of
+/// the column name so every emitted field still carries a doc.
+fn fpss_column_doc(name: &str) -> String {
+    let doc = match name {
+        "ask" => "Ask price.",
+        "ask_condition" => "Quote condition code for the ask.",
+        "ask_exchange" => "Exchange code posting the ask.",
+        "ask_size" => "Number of contracts/shares resting at the ask.",
+        "attempt" => "1-based index of this reconnect attempt.",
+        "attempts" => "Number of consecutive reconnect attempts consumed before giving up.",
+        "bid" => "Bid price.",
+        "bid_condition" => "Quote condition code for the bid.",
+        "bid_exchange" => "Exchange code posting the bid.",
+        "bid_size" => "Number of contracts/shares resting at the bid.",
+        "close" => "Closing price of the bar.",
+        "code" => "Unrecognized frame code reported by the server.",
+        "condition" => "Primary trade condition code.",
+        "condition_flags" => "Bit flags qualifying the trade conditions.",
+        "contract" => "Contract this event refers to.",
+        "count" => "Number of trades aggregated into the bar.",
+        "date" => "Trading date as `YYYYMMDD`.",
+        "delay_ms" => "Delay, in milliseconds, before the attempt fires.",
+        "exchange" => "Exchange code where the trade printed.",
+        "ext_condition1" => "Extended trade condition code 1.",
+        "ext_condition2" => "Extended trade condition code 2.",
+        "ext_condition3" => "Extended trade condition code 3.",
+        "ext_condition4" => "Extended trade condition code 4.",
+        "high" => "Highest traded price within the bar.",
+        "id" => "Wire-internal contract id the FPSS server assigns to this contract.",
+        "low" => "Lowest traded price within the bar.",
+        "market_ask" => "Calculated market ask (dollars), nudged from the quote ask.",
+        "market_bid" => "Calculated market bid (dollars), nudged from the quote bid.",
+        "market_price" => "Integer midpoint of `market_bid` / `market_ask` (dollars).",
+        "message" => "Human-readable error text from the server.",
+        "ms_of_day" => "Milliseconds since midnight (exchange-local) when the event was recorded.",
+        "open" => "Opening price of the bar.",
+        "open_interest" => "Number of outstanding open contracts.",
+        "payload" => "Raw frame payload bytes, preserved for diagnostics.",
+        "permissions" => {
+            "Server \"Bundle\" string copied verbatim from the METADATA frame; opaque diagnostic metadata."
+        }
+        "price" => "Trade price.",
+        "price_flags" => "Bit flags qualifying the trade price.",
+        "reason" => "Reason the server gave for dropping the connection.",
+        "received_at_ns" => {
+            "Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."
+        }
+        "records_back" => {
+            "Number of records back this trade was reported (out-of-order correction offset)."
+        }
+        "req_id" => "Identifier of the subscription request this response answers.",
+        "result" => "Outcome of the subscription request.",
+        "sequence" => "Exchange sequence number for ordering trades within the day.",
+        "size" => "Trade size in contracts/shares.",
+        "volume" => "Total traded volume within the bar, in contracts/shares.",
+        "volume_type" => "Volume classification code for the trade.",
+        other => return format!("`{other}` field."),
+    };
+    doc.to_string()
 }
 
 /// Render one `#[repr(C)]` struct for a data or control variant. For
@@ -120,11 +191,24 @@ fn render_event_struct_rust(out: &mut String, event_name: &str, def: &EventDef) 
         out.push_str("    pub _padding: u8,\n");
     } else {
         for column in &def.columns {
+            let col_doc = fpss_column_doc(&column.name);
             if is_byte_buffer(&column.r#type) {
+                writeln!(
+                    out,
+                    "    /// {col_doc} Pointer to the first byte; null when empty."
+                )
+                .unwrap();
                 writeln!(out, "    pub {}: *const u8,", column.name).unwrap();
+                writeln!(
+                    out,
+                    "    /// Length in bytes of the `{}` buffer.",
+                    column.name
+                )
+                .unwrap();
                 writeln!(out, "    pub {}_len: usize,", column.name).unwrap();
             } else {
                 let ty = rust_ffi_scalar(&column.r#type, event_name, &column.name);
+                writeln!(out, "    /// {col_doc}").unwrap();
                 writeln!(out, "    pub {}: {ty},", column.name).unwrap();
             }
         }
@@ -203,13 +287,24 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
     out.push_str("/// dispatch via `kind` and read the matching `event.<variant>` field.\n");
     out.push_str("#[repr(C)]\n");
     out.push_str("pub struct TdxFpssEvent {\n");
+    out.push_str("    /// Discriminant selecting which payload field below is valid.\n");
     out.push_str("    pub kind: TdxFpssEventKind,\n");
     for (event_name, _) in sorted_data_events(schema) {
         let field = snake_case(event_name);
+        writeln!(
+            out,
+            "    /// `{event_name}` payload; valid when `kind` is `{event_name}`."
+        )
+        .unwrap();
         writeln!(out, "    pub {field}: TdxFpss{event_name},").unwrap();
     }
     for (event_name, _) in sorted_control_events(schema) {
         let field = snake_case(event_name);
+        writeln!(
+            out,
+            "    /// `{event_name}` payload; valid when `kind` is `{event_name}`."
+        )
+        .unwrap();
         writeln!(out, "    pub {field}: TdxFpss{event_name},").unwrap();
     }
     out.push_str("}\n\n");

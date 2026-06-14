@@ -18,9 +18,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum SecType {
+    /// Equity / common stock contract.
     Stock = 0,
+    /// Listed option contract (call or put on an underlying).
     Option = 1,
+    /// Index instrument (e.g. SPX, VIX).
     Index = 2,
+    /// Interest-rate instrument.
     Rate = 3,
     /// Unresolved contract shape (client-side sentinel, never sent over the wire).
     Unknown = -1,
@@ -61,110 +65,201 @@ impl SecType {
 #[repr(i32)]
 pub enum DataType {
     // Core fields
+    /// Trading date of the record, encoded `YYYYMMDD`.
     Date = 0,
+    /// Timestamp as milliseconds since midnight (exchange time).
     MsOfDay = 1,
+    /// Correction indicator flagging revised or cancelled records.
     Correction = 2,
+    /// Price-type qualifier for the carried price field.
     PriceType = 4,
+    /// Secondary timestamp as milliseconds since midnight (e.g. quote time on a trade record).
     MsOfDay2 = 5,
+    /// Reserved / unspecified field.
     Undefined = 6,
     // Quote fields
+    /// Number of contracts or shares at the bid.
     BidSize = 101,
+    /// Exchange code posting the bid.
     BidExchange = 102,
+    /// Bid price.
     Bid = 103,
+    /// Quote condition code for the bid.
     BidCondition = 104,
+    /// Number of contracts or shares at the ask.
     AskSize = 105,
+    /// Exchange code posting the ask.
     AskExchange = 106,
+    /// Ask price.
     Ask = 107,
+    /// Quote condition code for the ask.
     AskCondition = 108,
+    /// Bid/ask midpoint price.
     Midpoint = 111,
+    /// Volume-weighted average price.
     Vwap = 112,
+    /// Quote-weighted average price.
     Qwap = 113,
+    /// Weighted average price.
     Wap = 114,
     // Open interest
+    /// Open interest (outstanding contracts).
     OpenInterest = 121,
     // Trade fields
+    /// Exchange sequence number of the trade.
     Sequence = 131,
+    /// Trade size (contracts or shares).
     Size = 132,
+    /// Trade condition code.
     Condition = 133,
+    /// Trade price.
     Price = 134,
+    /// Exchange code reporting the trade.
     Exchange = 135,
+    /// Packed trade condition flags.
     ConditionFlags = 136,
+    /// Packed price-qualifier flags.
     PriceFlags = 137,
+    /// Volume-type qualifier.
     VolumeType = 138,
+    /// Number of records back from the most recent (request offset).
     RecordsBack = 139,
+    /// Aggregate volume.
     Volume = 141,
+    /// Trade count.
     Count = 142,
     // First-order Greeks
+    /// Theta — option price sensitivity to the passage of time.
     Theta = 151,
+    /// Vega — option price sensitivity to implied volatility.
     Vega = 152,
+    /// Delta — option price sensitivity to the underlying price.
     Delta = 153,
+    /// Rho — option price sensitivity to the risk-free interest rate.
     Rho = 154,
+    /// Epsilon — option price sensitivity to the dividend yield.
     Epsilon = 155,
+    /// Lambda — elasticity (percentage change in option value per percentage change in the underlying).
     Lambda = 156,
     // Second-order Greeks
+    /// Gamma — rate of change of delta with respect to the underlying price.
     Gamma = 161,
+    /// Vanna — sensitivity of delta to implied volatility (and of vega to the underlying price).
     Vanna = 162,
+    /// Charm — rate of change of delta with respect to the passage of time.
     Charm = 163,
+    /// Vomma — rate of change of vega with respect to implied volatility.
     Vomma = 164,
+    /// Veta — rate of change of vega with respect to the passage of time.
     Veta = 165,
+    /// Vera — rate of change of rho with respect to implied volatility.
     Vera = 166,
+    /// Second-order partial derivative of option price with respect to strike (dual-strike convexity).
     Sopdk = 167,
     // Third-order Greeks
+    /// Speed — rate of change of gamma with respect to the underlying price.
     Speed = 171,
+    /// Zomma — rate of change of gamma with respect to implied volatility.
     Zomma = 172,
+    /// Color — rate of change of gamma with respect to the passage of time.
     Color = 173,
+    /// Ultima — third-order sensitivity of option price to implied volatility.
     Ultima = 174,
     // Black-Scholes internals
+    /// Black-Scholes `d1` term.
     D1 = 181,
+    /// Black-Scholes `d2` term.
     D2 = 182,
+    /// Dual delta — sensitivity of option price to the strike price.
     DualDelta = 183,
+    /// Dual gamma — rate of change of dual delta with respect to the strike price.
     DualGamma = 184,
     // OHLC
+    /// Opening price of the interval.
     Open = 191,
+    /// Highest price of the interval.
     High = 192,
+    /// Lowest price of the interval.
     Low = 193,
+    /// Closing price of the interval.
     Close = 194,
+    /// Net change versus the prior close.
     NetChange = 195,
     // Implied volatility
+    /// Implied volatility derived from the trade or mid price.
     ImpliedVol = 201,
+    /// Implied volatility derived from the bid price.
     BidImpliedVol = 202,
+    /// Implied volatility derived from the ask price.
     AskImpliedVol = 203,
+    /// Underlying instrument price used in the calculation.
     UnderlyingPrice = 204,
+    /// Implied-volatility solver error / residual.
     IvError = 205,
     // Ratios
+    /// Ratio value (e.g. split or adjustment ratio).
     Ratio = 211,
+    /// Rating value.
     Rating = 212,
     // Dividends
+    /// Ex-dividend date, encoded `YYYYMMDD`.
     ExDate = 221,
+    /// Record date, encoded `YYYYMMDD`.
     RecordDate = 222,
+    /// Dividend payment date, encoded `YYYYMMDD`.
     PaymentDate = 223,
+    /// Dividend announcement date, encoded `YYYYMMDD`.
     AnnDate = 224,
+    /// Dividend amount per share.
     DividendAmount = 225,
+    /// Reduction amount applied to the dividend.
     LessAmount = 226,
+    /// Dividend rate.
     Rate = 230,
     // Extended conditions
+    /// First extended trade/quote condition code.
     ExtCondition1 = 241,
+    /// Second extended trade/quote condition code.
     ExtCondition2 = 242,
+    /// Third extended trade/quote condition code.
     ExtCondition3 = 243,
+    /// Fourth extended trade/quote condition code.
     ExtCondition4 = 244,
     // Splits
+    /// Split effective date, encoded `YYYYMMDD`.
     SplitDate = 251,
+    /// Share count before the split.
     BeforeShares = 252,
+    /// Share count after the split.
     AfterShares = 253,
     // Fundamentals
+    /// Total outstanding shares.
     OutstandingShares = 261,
+    /// Shares held short.
     ShortShares = 262,
+    /// Institutional ownership interest.
     InstitutionalInterest = 263,
+    /// Last fiscal quarter, encoded `YYYYMMDD`.
     LastFiscalQuarter = 264,
+    /// Last fiscal year, encoded `YYYYMMDD`.
     LastFiscalYear = 265,
+    /// Total assets.
     Assets = 266,
+    /// Total liabilities.
     Liabilities = 267,
+    /// Long-term debt.
     LongTermDebt = 268,
+    /// Earnings per share, most recent quarter.
     EpsMrq = 269,
+    /// Earnings per share, most recent year.
     EpsMry = 270,
+    /// Diluted earnings per share.
     EpsDiluted = 271,
+    /// Symbol-change effective date, encoded `YYYYMMDD`.
     SymbolChangeDate = 272,
+    /// Symbol-change type code.
     SymbolChangeType = 273,
+    /// Instrument symbol.
     Symbol = 274,
 }
 
@@ -411,28 +506,51 @@ impl ReqType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum StreamMsgType {
+    /// Client-to-server credentials handshake message.
     Credentials = 0,
+    /// Session-token handshake message.
     SessionToken = 1,
+    /// Informational server message.
     Info = 2,
+    /// Stream metadata message.
     Metadata = 3,
+    /// Connection-established acknowledgement.
     Connected = 4,
+    /// Keep-alive ping.
     Ping = 10,
+    /// Server error notification.
     Error = 11,
+    /// Connection-lost notification.
     Disconnected = 12,
+    /// Connection-reestablished notification.
     Reconnected = 13,
+    /// Contract definition message.
     Contract = 20,
+    /// Quote update message.
     Quote = 21,
+    /// Trade update message.
     Trade = 22,
+    /// Open-interest update message.
     OpenInterest = 23,
+    /// OHLCVC bar message (open, high, low, close, volume, count).
     Ohlcvc = 24,
+    /// Calculated market-value update message.
     MarketValue = 25,
+    /// Stream-start control message.
     Start = 30,
+    /// Stream-restart control message.
     Restart = 31,
+    /// Stream-stop control message.
     Stop = 32,
+    /// Request-response message.
     ReqResponse = 40,
+    /// Quote-subscription removal message.
     RemoveQuote = 51,
+    /// Trade-subscription removal message.
     RemoveTrade = 52,
+    /// Open-interest-subscription removal message.
     RemoveOpenInterest = 53,
+    /// Market-value-subscription removal message.
     RemoveMarketValue = 54,
 }
 
@@ -475,9 +593,13 @@ impl StreamMsgType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum StreamResponseType {
+    /// Subscription accepted and active.
     Subscribed = 0,
+    /// Subscription failed with an error.
     Error = 1,
+    /// Subscription rejected: the account's maximum concurrent stream count was reached.
     MaxStreamsReached = 2,
+    /// Subscription rejected: the account lacks permission for the requested data.
     InvalidPerms = 3,
 }
 
@@ -485,23 +607,41 @@ pub enum StreamResponseType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i16)]
 pub enum RemoveReason {
+    /// No reason supplied; also the fallback for unrecognized wire codes.
     Unspecified = -1,
+    /// Supplied credentials were invalid.
     InvalidCredentials = 0,
+    /// Login payload contained invalid values.
     InvalidLoginValues = 1,
+    /// Login payload had an invalid size.
     InvalidLoginSize = 2,
+    /// Login failed general server-side validation.
     GeneralValidationError = 3,
+    /// Connection timed out.
     TimedOut = 4,
+    /// Client requested the disconnect.
     ClientForcedDisconnect = 5,
+    /// The account is already connected on another session.
     AccountAlreadyConnected = 6,
+    /// The session token has expired.
     SessionTokenExpired = 7,
+    /// The supplied session token was invalid.
     InvalidSessionToken = 8,
+    /// The account is a free account without access to this stream.
     FreeAccount = 9,
+    /// The account exceeded its request-rate limit.
     TooManyRequests = 12,
+    /// The request omitted a required start date.
     NoStartDate = 13,
+    /// The login handshake timed out.
     LoginTimedOut = 14,
+    /// The server is restarting.
     ServerRestarting = 15,
+    /// The session token was not found server-side.
     SessionTokenNotFound = 16,
+    /// The user account does not exist on the server.
     ServerUserDoesNotExist = 17,
+    /// Invalid credentials: the user was null.
     InvalidCredentialsNullUser = 18,
 }
 

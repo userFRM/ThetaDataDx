@@ -120,15 +120,19 @@ pub struct AuthUser {
     // Only materialized when the `__internal` feature is enabled — external
     // consumers of `AuthUser` (workspace tools) are the only callers that
     // read this field. The crate itself only uses `max_concurrent_requests`.
+    /// Account email associated with the authenticated session.
     #[cfg(feature = "__internal")]
     pub email: Option<String>,
-    /// Per-asset subscription tiers (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
+    /// Equities subscription tier (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
     #[serde(default)]
     pub stock_subscription: Option<i32>,
+    /// Options subscription tier (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
     #[serde(default)]
     pub options_subscription: Option<i32>,
+    /// Indices subscription tier (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
     #[serde(default)]
     pub indices_subscription: Option<i32>,
+    /// Interest-rate subscription tier (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
     #[serde(default)]
     pub interest_rate_subscription: Option<i32>,
 }

@@ -9,7 +9,9 @@ option java_package = "net.thetadata.grpc";
 // Do not rename without confirming the server has been updated.
 package BetaEndpoints;
 
+// Bearer credential established by the auth handshake and attached to every request.
 message AuthToken {
+  // Opaque session identifier returned by the auth handshake.
   string session_uuid = 1;
 }
 
@@ -20,61 +22,96 @@ message ContractSpec {
   optional string right = 4;
 }
 
+// Envelope carried on every request, pairing the session credential with client metadata.
 message QueryInfo {
+  // Session credential authenticating the request.
   AuthToken auth_token = 1;
+  // Endpoint-specific query parameters as string key/value pairs.
   map <string, string> query_parameters = 2;
+  // Identifier of the client issuing the request.
   string client_type = 3;
+  // Source-revision identifier of the client build.
   string terminal_git_commit = 4;
+  // Version string of the client build.
   string terminal_version = 5;
 }
 
+// Fixed-point monetary value paired with a code describing its scale or kind.
 message Price {
+  // Fixed-point price magnitude.
   int32 value = 1;
+  // Code describing the price scale or kind.
   int32 type = 2;
 }
 
+// Time zone in which a wire timestamp is expressed.
 enum TimeZone {
+  // America/New_York (US Eastern) time zone.
   NEW_YORK = 0;
+  // Coordinated Universal Time.
   UTC = 1;
 }
 
+// Timestamp expressed as a Unix-epoch instant tagged with its time zone.
 message ZonedDateTime {
+  // Milliseconds since the Unix epoch.
   uint64 epoch_ms = 1;
+  // Time zone in which the instant is expressed.
   TimeZone zone = 2;
 }
 
+// Single typed cell of a data table; exactly one variant is set.
 message DataValue {
+  // Typed payload of the cell; exactly one variant is populated.
   oneof data_type {
+    // Cell holding a UTF-8 string.
     string text = 1;
+    // Cell holding a 64-bit signed integer.
     int64 number = 2;
+    // Cell holding a fixed-point price.
     Price price = 3;
+    // Cell holding a zoned timestamp.
     ZonedDateTime timestamp = 4;
+    // Cell holding an explicit null.
     google.protobuf.NullValue null_value = 5;
   }
 }
 
+// Ordered row of typed cells.
 message DataValueList {
+  // Cells of the row, in column order.
   repeated DataValue values = 1;
 }
 
+// Tabular result set with named columns and typed rows.
 message DataTable {
+  // Column names, in column order.
   repeated string headers = 1;
+  // Rows of the table, each a list of typed cells.
   repeated DataValueList data_table = 2;
 }
 
+// Compression algorithm applied to a response payload.
 enum CompressionAlgo {
+  // Payload is uncompressed.
   NONE = 0;
+  // Payload is compressed with Zstandard.
   ZSTD = 1;
 }
 
+// Describes how a response payload was compressed.
 message CompressionDescription {
+  // Compression algorithm applied to the payload.
   CompressionAlgo algo = 1;
+  // Algorithm-specific compression level.
   int32 level = 2;
 }
 
+// Streamed response frame carrying a compressed table payload.
 message ResponseData {
   // compressed_data holds a DataTable when decompressed; can add a type field for other data types
   bytes compressed_data = 1;
+  // Describes how `compressed_data` was compressed.
   CompressionDescription compression_description = 2;
   int32 original_size = 3;  // original size in bytes before compressing
 }
@@ -142,14 +179,21 @@ message StockSnapshotMarketValueRequest {
   StockSnapshotMarketValueRequestQuery params = 2;
 }
 
+// Query parameters for the stock end-of-day history endpoint.
 message StockHistoryEodRequestQuery {
+  // Stock ticker symbol.
   string symbol = 1;
+  // Inclusive start date of the requested range (YYYYMMDD).
   string start_date = 2;
+  // Inclusive end date of the requested range (YYYYMMDD).
   string end_date = 3;
 }
 
+// Request envelope for the stock end-of-day history endpoint.
 message StockHistoryEodRequest {
+  // Authentication and client metadata for the request.
   QueryInfo query_info = 1;
+  // Endpoint-specific query parameters.
   StockHistoryEodRequestQuery params = 2;
 }
 
@@ -627,8 +671,11 @@ message OptionHistoryGreeksFirstOrderRequestQuery {
   optional string end_date = 13;
 }
 
+// Request envelope for the option first-order Greeks history endpoint.
 message OptionHistoryGreeksFirstOrderRequest {
+  // Authentication and client metadata for the request.
   QueryInfo query_info = 1;
+  // Endpoint-specific query parameters.
   OptionHistoryGreeksFirstOrderRequestQuery params = 2;
 }
 
@@ -753,8 +800,11 @@ message OptionHistoryGreeksImpliedVolatilityRequestQuery {
   optional string end_date = 13;
 }
 
+// Request envelope for the option implied-volatility history endpoint.
 message OptionHistoryGreeksImpliedVolatilityRequest {
+  // Authentication and client metadata for the request.
   QueryInfo query_info = 1;
+  // Endpoint-specific query parameters.
   OptionHistoryGreeksImpliedVolatilityRequestQuery params = 2;
 }
 

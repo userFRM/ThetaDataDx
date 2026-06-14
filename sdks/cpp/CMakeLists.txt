@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-# `VERSION` is a release-bump target alongside the Rust Cargo manifests
+# `VERSION` tracks the C++ binding alongside the Rust Cargo manifests
 # (`Cargo.toml`, `crates/*/Cargo.toml`, `tools/*/Cargo.toml`) and the
-# TypeScript `package.json` files. Keep all of them in lockstep when
-# cutting an 11.0.x release — see `CHANGELOG.md` for the canonical version.
+# TypeScript `package.json` files; all bindings carry the same version.
 project(thetadatadx-cpp VERSION 12.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)

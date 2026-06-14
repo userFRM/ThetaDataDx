@@ -27,6 +27,11 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
         "templates/ffi/endpoint_options_header.rs.tmpl"
     ));
     for param in params {
+        if param.description.trim().is_empty() {
+            writeln!(out, "    /// Optional `{}` parameter.", param.name).unwrap();
+        } else {
+            super::doc::rust_doc_lines(&mut out, "    ", &param.description);
+        }
         writeln!(
             out,
             "    pub {}: {},",
@@ -35,10 +40,18 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
         )
         .unwrap();
         if ffi_option_has_flag(param) {
+            writeln!(
+                out,
+                "    /// Presence flag for `{}`; set to `1` to apply the value.",
+                param.name
+            )
+            .unwrap();
             writeln!(out, "    pub has_{}: i32,", param.name).unwrap();
         }
     }
+    out.push_str("    /// Per-call deadline in milliseconds; gated by `has_timeout_ms`.\n");
     out.push_str("    pub timeout_ms: u64,\n");
+    out.push_str("    /// Presence flag for `timeout_ms`; set to `1` to apply the deadline.\n");
     out.push_str("    pub has_timeout_ms: i32,\n");
     out.push_str("}\n\n");
     out.push_str("fn apply_endpoint_request_options(\n");

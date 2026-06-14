@@ -117,7 +117,9 @@ macro_rules! tick_array_type {
         /// Caller MUST free with the corresponding `tdx_*_array_free` function.
         #[repr(C)]
         pub struct $name {
+            /// Pointer to the first element; null when empty.
             pub data: *const $tick,
+            /// Number of elements in the array.
             pub len: usize,
         }
 
@@ -297,7 +299,9 @@ tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 /// the layout is identical so a future merge stays ABI-compatible.
 #[repr(C)]
 pub struct TdxArrowBytes {
+    /// Pointer to the first byte of the IPC stream; null when empty.
     pub data: *const u8,
+    /// Length of the buffer in bytes.
     pub len: usize,
 }
 
@@ -493,7 +497,9 @@ pub struct TdxOptionContract {
 /// Array of FFI-safe option contracts.
 #[repr(C)]
 pub struct TdxOptionContractArray {
+    /// Pointer to the first element; null when empty.
     pub data: *const TdxOptionContract,
+    /// Number of elements in the array.
     pub len: usize,
 }
 
@@ -561,6 +567,7 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
 pub struct TdxStringArray {
     /// Array of pointers to NUL-terminated C strings.
     pub data: *const *const c_char,
+    /// Number of strings in the array.
     pub len: usize,
 }
 

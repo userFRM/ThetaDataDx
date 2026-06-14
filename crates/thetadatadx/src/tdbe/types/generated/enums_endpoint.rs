@@ -3,8 +3,11 @@
 /// Wire string enum `Right`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Right {
+    /// Wire value `call`.
     Call,
+    /// Wire value `put`.
     Put,
+    /// Wire value `both`.
     Both,
 }
 
@@ -65,7 +68,9 @@ impl TryFrom<&str> for Right {
 /// Wire string enum `Venue`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Venue {
+    /// Wire value `nqb`.
     Nqb,
+    /// Wire value `utp_cta`.
     UtpCta,
 }
 
@@ -101,20 +106,35 @@ impl TryFrom<&str> for Venue {
 /// Wire string enum `Interval`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Interval {
+    /// Wire value `tick`.
     Tick,
+    /// Wire value `10ms`.
     Ms10,
+    /// Wire value `100ms`.
     Ms100,
+    /// Wire value `500ms`.
     Ms500,
+    /// Wire value `1s`.
     S1,
+    /// Wire value `5s`.
     S5,
+    /// Wire value `10s`.
     S10,
+    /// Wire value `15s`.
     S15,
+    /// Wire value `30s`.
     S30,
+    /// Wire value `1m`.
     M1,
+    /// Wire value `5m`.
     M5,
+    /// Wire value `10m`.
     M10,
+    /// Wire value `15m`.
     M15,
+    /// Wire value `30m`.
     M30,
+    /// Wire value `1h`.
     H1,
 }
 
@@ -176,17 +196,29 @@ impl TryFrom<&str> for Interval {
 /// Wire string enum `RateType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RateType {
+    /// Wire value `sofr`.
     Sofr,
+    /// Wire value `treasury_m1`.
     TreasuryM1,
+    /// Wire value `treasury_m3`.
     TreasuryM3,
+    /// Wire value `treasury_m6`.
     TreasuryM6,
+    /// Wire value `treasury_y1`.
     TreasuryY1,
+    /// Wire value `treasury_y2`.
     TreasuryY2,
+    /// Wire value `treasury_y3`.
     TreasuryY3,
+    /// Wire value `treasury_y5`.
     TreasuryY5,
+    /// Wire value `treasury_y7`.
     TreasuryY7,
+    /// Wire value `treasury_y10`.
     TreasuryY10,
+    /// Wire value `treasury_y20`.
     TreasuryY20,
+    /// Wire value `treasury_y30`.
     TreasuryY30,
 }
 
@@ -242,9 +274,13 @@ impl TryFrom<&str> for RateType {
 /// Wire string enum `RequestType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RequestType {
+    /// Wire value `trade`.
     Trade,
+    /// Wire value `quote`.
     Quote,
+    /// Wire value `eod`.
     Eod,
+    /// Wire value `ohlc`.
     Ohlc,
 }
 
@@ -284,7 +320,9 @@ impl TryFrom<&str> for RequestType {
 /// Wire string enum `Version`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Version {
+    /// Wire value `latest`.
     Latest,
+    /// Wire value `1`.
     V1,
 }
 

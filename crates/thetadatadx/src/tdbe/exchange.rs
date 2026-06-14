@@ -5,8 +5,11 @@
 /// An exchange with its numeric code, name, and symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Exchange {
+    /// Numeric exchange code as carried on the wire.
     pub code: i32,
+    /// Human-readable exchange name (e.g. `"NASDAQ"`).
     pub name: &'static str,
+    /// Short exchange symbol or MIC identifier.
     pub symbol: &'static str,
 }
 

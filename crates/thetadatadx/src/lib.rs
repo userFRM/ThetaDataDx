@@ -1,4 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs)]
 //! # thetadatadx
 //!
 //! Native Rust SDK for [ThetaData](https://thetadata.us) market data.

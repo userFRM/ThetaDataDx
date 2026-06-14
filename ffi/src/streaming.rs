@@ -281,7 +281,9 @@ pub struct TdxSubscription {
 /// and `tdx_fpss_active_subscriptions`.
 #[repr(C)]
 pub struct TdxSubscriptionArray {
+    /// Pointer to the first element; null when empty.
     pub data: *const TdxSubscription,
+    /// Number of elements in the array.
     pub len: usize,
 }
 
@@ -578,21 +580,26 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
 //  Polymorphic subscription request payload
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Subscription request scope discriminator.
+/// Per-contract subscription scope: one named contract.
 pub const TDX_SUB_SCOPE_CONTRACT: i32 = 0;
+/// Full-stream subscription scope: every contract of a security type.
 pub const TDX_SUB_SCOPE_FULL: i32 = 1;
 
-/// Per-contract / full-stream tick kind discriminators. The set
-/// reachable from each scope is constrained:
-///
-/// - `TDX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`,
-///   `MARKET_VALUE`.
-/// - `TDX_SUB_SCOPE_FULL` accepts `TRADE`, `OPEN_INTEREST` (full-stream
-///   quote and market value are rejected — both are addressed
-///   per-contract only).
+// Per-contract / full-stream tick kind discriminators. The set
+// reachable from each scope is constrained:
+//
+// - `TDX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`,
+//   `MARKET_VALUE`.
+// - `TDX_SUB_SCOPE_FULL` accepts `TRADE`, `OPEN_INTEREST` (full-stream
+//   quote and market value are rejected — both are addressed
+//   per-contract only).
+/// Quote tick stream (per-contract scope only).
 pub const TDX_SUB_KIND_QUOTE: i32 = 0;
+/// Trade tick stream.
 pub const TDX_SUB_KIND_TRADE: i32 = 1;
+/// Open-interest stream.
 pub const TDX_SUB_KIND_OPEN_INTEREST: i32 = 2;
+/// Market-value stream (per-contract scope only).
 pub const TDX_SUB_KIND_MARKET_VALUE: i32 = 3;
 
 /// Polymorphic subscribe / unsubscribe request payload.
@@ -615,10 +622,14 @@ pub struct TdxSubscriptionRequest {
     /// Stock or underlying symbol for per-contract subscriptions.
     /// NULL for full-stream.
     pub symbol: *const c_char,
-    /// Option-only fields. NULL for non-option per-contract or for
-    /// full-stream subscriptions.
+    /// Option expiration as `YYYYMMDD`. NULL for non-option per-contract
+    /// or for full-stream subscriptions.
     pub expiration: *const c_char,
+    /// Option strike price. NULL for non-option per-contract or for
+    /// full-stream subscriptions.
     pub strike: *const c_char,
+    /// Option right (`"C"` / `"P"`). NULL for non-option per-contract or
+    /// for full-stream subscriptions.
     pub right: *const c_char,
     /// `"STOCK"` / `"OPTION"` / `"INDEX"` for full-stream
     /// subscriptions. NULL for per-contract subscriptions.

@@ -15,6 +15,7 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
         writeln!(out, "#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]").unwrap();
         writeln!(out, "pub enum {} {{", enum_spec.rust_name).unwrap();
         for variant in &enum_spec.variants {
+            writeln!(out, "    /// Wire value `{}`.", variant.wire).unwrap();
             writeln!(out, "    {},", variant.rust).unwrap();
         }
         out.push_str("}\n\n");
