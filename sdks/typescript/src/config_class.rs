@@ -3,11 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use thetadatadx::config;
 
-/// `(has_value, n)` shape mirroring the C-ABI `worker_threads`
-/// out-params and the Python `Option<usize>` return — `has_value=false`
-/// encodes the `None` sentinel, `has_value=true` carries the explicit
-/// worker count (with `n=0` preserved verbatim, matching the
-/// widened-`Option` cross-binding contract).
+/// `(hasValue, n)` shape for the worker-threads setting. `hasValue=false`
+/// encodes the unset sentinel; `hasValue=true` carries the explicit
+/// worker count (with `n=0` preserved verbatim).
 #[napi(object)]
 #[derive(Clone, Copy)]
 pub struct WorkerThreadsSetting {
@@ -17,7 +15,7 @@ pub struct WorkerThreadsSetting {
 
 /// `(reason, attempt)` argument object handed to the JS reconnect
 /// callback registered via `Config.setReconnectCallback`. `reason` is
-/// the disconnect `RemoveReason` discriminant; `attempt` is the
+/// the integer disconnect code; `attempt` is the
 /// 1-based consecutive-reconnect counter.
 #[napi(object)]
 #[derive(Clone, Copy)]
@@ -38,10 +36,10 @@ fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<
     Ok(value)
 }
 
-/// SDK configuration. Mirrors [`thetadatadx::DirectConfig`].
+/// SDK configuration.
 ///
 /// Build a config via one of the three static factories
-/// ([`Config::production`] / [`Config::dev`] / [`Config::stage`]), tune
+/// (`Config.production` / `Config.dev` / `Config.stage`), tune
 /// it with the setters below, then pass it as the optional second
 /// argument to `ThetaDataDxClient.connect(creds, config)` /
 /// `ThetaDataDxClient.connectFromFile(path, config)`.
@@ -50,10 +48,8 @@ fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<
 /// return `void` (chain by calling `cfg.method(...)` then passing
 /// `cfg` itself).
 ///
-/// The TypeScript shim takes the inner [`thetadatadx::DirectConfig`]
-/// at connect time via a single-shot consume on the napi side, so
-/// once the config has been used to connect a client further mutations
-/// have no effect on that client.
+/// The config is consumed at connect time, so once it has been used
+/// to connect a client further mutations have no effect on that client.
 #[napi]
 pub struct Config {
     /// Wrapped in `Arc<Mutex<...>>` so napi-rs can hand `&self` borrows
@@ -132,14 +128,13 @@ impl Config {
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
     /// historical responses. Endpoints whose decoded total exceeds this
-    /// value emit a Rust-side `tracing::warn!` pointing the caller at the
+    /// value log a warning pointing the caller at the
     /// matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
     /// which delivers the same rows chunk-by-chunk through a callback with
     /// memory bounded to a single chunk; the buffered data is still
     /// delivered. `0n` disables the warning entirely. Default is
-    /// `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed
-    /// `u32::MAX`, so the setter takes a `BigInt` matching the underlying
-    /// `usize` field.
+    /// `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
+    /// 32-bit unsigned range, so the setter takes a `BigInt`.
     #[napi(js_name = "setWarnOnBufferedThresholdBytes")]
     pub fn set_warn_on_buffered_threshold_bytes(
         &self,
@@ -239,7 +234,7 @@ impl Config {
     /// `60`. No effect unless the reconnect policy is `Auto`.
     ///
     /// Accepts a `bigint` for parity with the Python / C++ / FFI
-    /// surface (`u64`). JavaScript `Number` callers should wrap their
+    /// surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
     /// value: `setReconnectStableWindowSecs(BigInt(60))`.
     #[napi(js_name = "setReconnectStableWindowSecs")]
     pub fn set_reconnect_stable_window_secs(
@@ -277,7 +272,7 @@ impl Config {
     /// Plumbed through to the streaming I/O loop at connect time.
     /// Default `250`.
     ///
-    /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
+    /// Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
     #[napi(js_name = "setReconnectWaitMs")]
     pub fn set_reconnect_wait_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let (_signed, value, lossless) = ms.get_u64();
@@ -1023,9 +1018,8 @@ impl Config {
 
     /// Set the async worker-thread count for embedded runtimes.
     /// `hasValue=false` defers to the default sizing; `hasValue=true`
-    /// pins worker count to `n` (with `n=0` preserved as the `Some(0)`
-    /// sentinel, matching the widened-`Option` setter shape across the
-    /// binding matrix).
+    /// pins worker count to `n` (with `n=0` preserved verbatim rather
+    /// than treated as unset).
     #[napi(js_name = "setWorkerThreads")]
     pub fn set_worker_threads(&self, has_value: bool, n: u32) -> napi::Result<()> {
         let mut guard = self
@@ -1037,7 +1031,7 @@ impl Config {
     }
 
     /// Current `workerThreads` setting as `{ hasValue, n }`.
-    /// `hasValue=false` encodes the `None` (auto) sentinel.
+    /// `hasValue=false` encodes the unset (auto) sentinel.
     #[napi(getter, js_name = "workerThreads")]
     pub fn worker_threads(&self) -> napi::Result<WorkerThreadsSetting> {
         let guard = self
@@ -1197,8 +1191,8 @@ impl Config {
     /// driver retry loop. Doubles per attempt up to
     /// `flatfilesMaxBackoffSecs`. Default `1n`.
     ///
-    /// Accepts a `bigint` for parity with the Python / C++ / FFI
-    /// surface (`u64`).
+    /// Accepts a `bigint` for parity with the other bindings, which
+    /// use a 64-bit unsigned integer.
     #[napi(js_name = "setFlatfilesInitialBackoffSecs")]
     pub fn set_flatfiles_initial_backoff_secs(
         &self,
@@ -1236,8 +1230,8 @@ impl Config {
     /// greater than or equal to `flatfilesInitialBackoffSecs`
     /// (rejected at connect-time validate otherwise).
     ///
-    /// Accepts a `bigint` for parity with the Python / C++ / FFI
-    /// surface (`u64`).
+    /// Accepts a `bigint` for parity with the other bindings, which
+    /// use a 64-bit unsigned integer.
     #[napi(js_name = "setFlatfilesMaxBackoffSecs")]
     pub fn set_flatfiles_max_backoff_secs(
         &self,
@@ -1349,9 +1343,9 @@ impl Config {
         Ok(guard.mdds.host.clone())
     }
 
-    /// Override the historical gRPC port. Companion to `setMddsHost` —
-    /// same test-only rationale. Rejects values outside the `u16` range
-    /// (`0..=65535`).
+    /// Override the historical data port. Companion to `setMddsHost` —
+    /// same test-only rationale. Rejects values outside the `0..=65535`
+    /// port range.
     #[napi(js_name = "setMddsPort")]
     pub fn set_mdds_port(&self, port: u32) -> napi::Result<()> {
         let resolved = u16::try_from(port).map_err(|_| {
@@ -1380,11 +1374,11 @@ impl Config {
     // ── MetricsConfig field setter/getter ─────────────────────────
 
     /// Set the Prometheus exporter port. Pass `null` or `undefined`
-    /// to leave the exporter disabled (the `None` default); pass a
+    /// to leave the exporter disabled (the default); pass a
     /// `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
     /// `metrics-prometheus` feature is compiled in.
     ///
-    /// Rejects values outside the `u16` range (`0..=65535`).
+    /// Rejects values outside the `0..=65535` port range.
     #[napi(js_name = "setMetricsPort")]
     pub fn set_metrics_port(&self, port: Option<u32>) -> napi::Result<()> {
         let resolved = match port {

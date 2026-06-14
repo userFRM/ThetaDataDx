@@ -79,8 +79,8 @@ fn pull_decoded(
 // ── FlatFileRowList ────────────────────────────────────────────────────
 
 /// JS class wrapping a decoded flat-file row vector. Created by every
-/// method on [`FlatFilesNamespace`]; carries the typed
-/// `Vec<FlatFileRow>` until the user picks a terminal.
+/// method on `FlatFilesNamespace`; carries the typed
+/// rows until the user picks a terminal.
 #[napi]
 pub struct FlatFileRowList {
     rows: Vec<FlatFileRow>,
@@ -103,8 +103,7 @@ impl FlatFileRowList {
     }
 
     /// Serialise the typed rows as Arrow IPC stream bytes. The dynamic
-    /// schema is inferred from the first row by
-    /// `thetadatadx::flatfiles::arrow::rows_to_arrow`. Deserialise on
+    /// schema is inferred from the first row. Deserialise on
     /// the JS side with `apache-arrow`'s `tableFromIPC`.
     #[napi(js_name = "toArrowIpc")]
     pub fn to_arrow_ipc(&self) -> napi::Result<Buffer> {
@@ -162,7 +161,7 @@ impl FlatFileRowList {
 // ── FlatFilesNamespace ─────────────────────────────────────────────────
 
 /// JS class returned from `tdx.flatFiles`. Each method maps to one
-/// `(SecType, ReqType)` and returns a [`FlatFileRowList`].
+/// (security type, request type) pair and returns a `FlatFileRowList`.
 #[napi]
 pub struct FlatFilesNamespace {
     pub(crate) tdx: Arc<thetadatadx::ThetaDataDxClient>,

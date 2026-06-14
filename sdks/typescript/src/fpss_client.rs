@@ -124,11 +124,11 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
 
 /// Standalone FPSS-only streaming client.
 ///
-/// Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus HTTP
-/// authentication. Use when a parallel MDDS process is already running in
-/// the same environment and you need to stream FPSS without the bundled
-/// [`crate::ThetaDataDxClient`] taking over the Nexus session at connect
-/// time.
+/// Opens ONLY the FPSS TLS transport — no historical data channel, no
+/// Nexus HTTP authentication. Use when a parallel historical process is
+/// already running in the same environment and you need to stream FPSS
+/// without the bundled `ThetaDataDxClient` taking over the Nexus session
+/// at connect time.
 ///
 /// ```js
 /// const { FpssClient, Config, Contract } = require("@thetadatadx/sdk");
@@ -315,10 +315,10 @@ impl FpssClient {
     // observable behaviour applies across every binding. No MDDS channel is
     // opened and no Nexus request is issued by any factory.
 
-    /// Allocate a standalone FPSS handle with a [`Credentials`] handle.
-    /// Streaming only — opens no MDDS channel and issues no Nexus request.
-    /// Pass an optional [`Config`] (`dev` / `stage` / `production`, plus
-    /// any tuned FPSS / reconnect setters) to override the
+    /// Allocate a standalone FPSS handle with a `Credentials` handle.
+    /// Streaming only — opens no historical data channel and issues no
+    /// Nexus request. Pass an optional `Config` (`dev` / `stage` /
+    /// `production`, plus any tuned FPSS / reconnect setters) to override the
     /// production-default endpoint. The FPSS TLS connection opens on the
     /// first `startStreaming` call.
     ///
@@ -333,7 +333,7 @@ impl FpssClient {
 
     /// Allocate a standalone FPSS handle with a credentials file (line 1 =
     /// email, line 2 = password). Convenience wrapper over
-    /// `Credentials.fromFile` + `connect`. Pass an optional [`Config`] to
+    /// `Credentials.fromFile` + `connect`. Pass an optional `Config` to
     /// override the production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
     pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<FpssClient> {
@@ -481,7 +481,7 @@ impl FpssClient {
     /// the event ring because the consumer fell behind. Snapshot the value
     /// BEFORE `reconnect()` if you need to accumulate drops across session
     /// boundaries — `reconnect` rebuilds the inner client and the counter
-    /// resets. Returned as `bigint` for the full `u64` range.
+    /// resets. Returned as `bigint` for the full 64-bit unsigned range.
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
         let guard = self.lock_inner();
@@ -510,7 +510,7 @@ impl FpssClient {
 
     /// Cumulative count of user-callback panics caught at the per-event
     /// isolation boundary. A panic is caught, recorded here, and does not
-    /// stop event delivery. Returned as `bigint` for the full `u64` range.
+    /// stop event delivery. Returned as `bigint` for the full 64-bit unsigned range.
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
         let guard = self.lock_inner();

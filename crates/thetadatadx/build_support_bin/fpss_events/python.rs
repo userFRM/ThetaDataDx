@@ -258,9 +258,7 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
         event_name,
         "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
     ) {
-        out.push_str(
-            "\n    /// Resolved `RemoveReason` variant name (e.g. `\"TooManyRequests\"`,\n",
-        );
+        out.push_str("\n    /// Resolved disconnect-reason name (e.g. `\"TooManyRequests\"`,\n");
         out.push_str("    /// `\"InvalidCredentials\"`, `\"Unspecified\"` for unknown codes).\n");
         out.push_str("    /// Derived from the wire-level `reason` integer.\n");
         out.push_str("    #[getter]\n");

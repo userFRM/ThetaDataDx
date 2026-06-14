@@ -312,12 +312,7 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
             "    /// `{field}` (Eastern-Time milliseconds-of-day). `undefined` when"
         )
         .unwrap();
-        writeln!(
-            out,
-            "    /// `date` is absent (`0`). Parity of the Python `{accessor}`"
-        )
-        .unwrap();
-        writeln!(out, "    /// property and C++ `tdx::timestamp_ms`.").unwrap();
+        writeln!(out, "    /// `date` is absent (`0`).").unwrap();
         writeln!(out, "    pub {accessor}: Option<BigInt>,").unwrap();
     }
     out.push_str("}\n");

@@ -76,8 +76,7 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 /// Build from an email + password pair (`new Credentials(email,
 /// password)`) or load from a credentials file (`Credentials.fromFile`,
 /// line 1 = email, line 2 = password), then pass the handle to a client
-/// `connect(creds, config?)`. Mirrors the Python `Credentials` and the
-/// C++ `tdx::Credentials`.
+/// `connect(creds, config?)`.
 ///
 /// ```js
 /// const { Credentials, ThetaDataDxClient } = require("@thetadatadx/sdk");
@@ -107,9 +106,7 @@ impl Credentials {
         Ok(Credentials { inner })
     }
 
-    /// Redacted string form — never exposes the email or password. Matches
-    /// the redacted `Debug` impl on the Rust `auth::Credentials` and the
-    /// Python `Credentials.__repr__`.
+    /// Redacted string form — never exposes the email or password.
     #[napi(js_name = "toString")]
     pub fn to_string_js(&self) -> String {
         "Credentials(email=<redacted>)".to_string()
@@ -386,10 +383,10 @@ pub struct ThetaDataDxClient {
 impl ThetaDataDxClient {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
-    /// Connect to ThetaData with a [`Credentials`] handle. Pass an
-    /// optional [`Config`] (`dev` / `stage` / `production`, plus any
+    /// Connect to ThetaData with a `Credentials` handle. Pass an
+    /// optional `Config` (`dev` / `stage` / `production`, plus any
     /// tuned setters) to override the production-default endpoint.
-    /// Historical (MDDS/gRPC) only; call startStreaming() to begin FPSS
+    /// Historical only; call startStreaming() to begin FPSS
     /// real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
@@ -420,7 +417,7 @@ impl ThetaDataDxClient {
 
     /// Connect with a credentials file (line 1 = email, line 2 =
     /// password). Convenience wrapper over `Credentials.fromFile` +
-    /// `connect`. Pass an optional [`Config`] to override the
+    /// `connect`. Pass an optional `Config` to override the
     /// production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
     pub fn connect_from_file(
@@ -450,7 +447,7 @@ impl ThetaDataDxClient {
     /// reconnect if you need to accumulate drops across session
     /// boundaries.
     ///
-    /// Returned as `bigint` so it can represent the full `u64` range
+    /// Returned as `bigint` so it can represent the full 64-bit unsigned range
     /// (Number would top out at 2^53).
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
@@ -530,7 +527,7 @@ impl ThetaDataDxClient {
     /// stop event delivery — the next event continues normally. The
     /// value matches every other binding (C ABI, Python, C++).
     ///
-    /// Returned as `bigint` so it can represent the full `u64` range
+    /// Returned as `bigint` so it can represent the full 64-bit unsigned range
     /// (Number would top out at 2^53).
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
@@ -547,12 +544,6 @@ impl ThetaDataDxClient {
     /// Quote is never a valid full-stream kind on the FPSS wire, so
     /// any such row from the core is dropped from the projection.
     /// Empty array when streaming has not started.
-    ///
-    /// Mirrors the Python `ThetaDataDxClient.active_full_subscriptions()`
-    /// (`sdks/python/src/lib.rs`) and the C++
-    /// `UnifiedClient::active_full_subscriptions`
-    /// (`sdks/cpp/include/thetadx.hpp`) so every binding reports the
-    /// full-stream subscription set with the same projection shape.
     #[napi(js_name = "activeFullSubscriptions")]
     pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
         use thetadatadx::fpss::protocol::SubscriptionKind;
@@ -586,22 +577,19 @@ impl ThetaDataDxClient {
 
 /// Standalone MDDS-only historical client.
 ///
-/// Opens ONLY the MDDS channel and the Nexus authentication flow —
-/// no FPSS TLS connection, no event ring, no streaming state machine.
-/// Mirrors the Python `MddsClient` (`sdks/python/src/mdds_client.rs`),
-/// the C++ `tdx::Client`, and the standalone C ABI entry points
-/// (`tdx_client_*`), letting a caller run a historical-only session
-/// alongside a parallel FPSS process without the unified
-/// [`ThetaDataDxClient`] taking over the Nexus session at connect time.
+/// Opens ONLY the historical data channel and the Nexus authentication
+/// flow — no real-time streaming connection or streaming state machine.
+/// This lets a caller run a historical-only session alongside a parallel
+/// streaming process without the unified `ThetaDataDxClient` taking over
+/// the Nexus session at connect time.
 ///
-/// The full historical / list / snapshot / at-time / FLATFILES surface
-/// is generated onto this class identically to the unified client (see
-/// `_generated/historical_methods.rs`), so `mddsClient.stockHistoryEod(...)`
+/// The full historical / list / snapshot / at-time / flat-files surface
+/// is identical to the unified client, so `mddsClient.stockHistoryEod(...)`
 /// behaves exactly like `client.stockHistoryEod(...)`. The streaming and
 /// subscription methods are simply not present: there is no
 /// `startStreaming` / `subscribe` on this class, so an MDDS-only handle
-/// cannot open an FPSS slot. Use [`FpssClient`] for streaming, or the
-/// unified [`ThetaDataDxClient`] when you need both surfaces.
+/// cannot open a streaming slot. Use `FpssClient` for streaming, or the
+/// unified `ThetaDataDxClient` when you need both surfaces.
 ///
 /// ```js
 /// const { MddsClient, Config } = require("@thetadatadx/sdk");
@@ -629,10 +617,10 @@ impl MddsClient {
     // opens MDDS + Nexus and never opens FPSS until a streaming method is
     // called, which this class does not surface.
 
-    /// Connect to ThetaData with a [`Credentials`] handle and open the
-    /// MDDS channel. Historical (MDDS/gRPC) only — this client never
-    /// opens the FPSS streaming transport. Pass an optional [`Config`] to
-    /// override the production-default endpoint. Use [`FpssClient`] for
+    /// Connect to ThetaData with a `Credentials` handle and open the
+    /// historical data channel. Historical only — this client never
+    /// opens the FPSS streaming transport. Pass an optional `Config` to
+    /// override the production-default endpoint. Use `FpssClient` for
     /// real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
@@ -652,8 +640,8 @@ impl MddsClient {
 
     /// Connect with a credentials file (line 1 = email, line 2 =
     /// password). Convenience wrapper over `Credentials.fromFile` +
-    /// `connect`. Historical (MDDS/gRPC) only. Pass an optional
-    /// [`Config`] to override the production-default endpoint.
+    /// `connect`. Historical only. Pass an optional
+    /// `Config` to override the production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
     pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<MddsClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
