@@ -285,7 +285,7 @@ impl Config {
     }
 
     /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `3`. No effect unless the
+    /// auto-reconnect path. Default `30`. No effect unless the
     /// reconnect policy is `Auto`.
     #[setter]
     fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
@@ -326,14 +326,14 @@ impl Config {
     /// Set the reconnect delay (ms) honoured for generic transient
     /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
     /// Plumbed through to the streaming I/O loop at connect time.
-    /// Default ``2_000``.
+    /// Default ``250``.
     #[setter]
     fn set_reconnect_wait_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.reconnect.wait_ms = ms;
     }
 
-    /// Current reconnect ``wait_ms`` value (default ``2_000``).
+    /// Current reconnect ``wait_ms`` value (default ``250``).
     #[getter]
     fn get_reconnect_wait_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -866,7 +866,7 @@ impl Config {
 
     /// Set the total attempt budget for the historical-channel retry policy. ``1``
     /// disables retry (single call only); higher values permit retries
-    /// up to ``max_attempts - 1`` after the initial call. Default ``5``.
+    /// up to ``max_attempts - 1`` after the initial call. Default ``20``.
     #[setter]
     fn set_retry_max_attempts(&self, n: u32) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -909,7 +909,7 @@ impl Config {
     /// Set the total attempt budget for the flatfile driver retry loop.
     /// ``1`` disables retry (single call only); higher values permit
     /// retries up to ``max_attempts - 1`` after the initial call.
-    /// Default ``3``. Validated to the range ``[1, 10]`` at connect
+    /// Default ``10``. Validated to the range ``[1, 100]`` at connect
     /// time.
     #[setter]
     fn set_flatfiles_max_attempts(&self, n: u32) {
@@ -942,7 +942,7 @@ impl Config {
 
     /// Set the upper-bound backoff delay (seconds) for the flatfile
     /// driver retry loop. The doubling schedule never exceeds this
-    /// value regardless of attempt number. Default ``4``. Must be
+    /// value regardless of attempt number. Default ``30``. Must be
     /// greater than or equal to :attr:`flatfiles_initial_backoff_secs`
     /// (rejected at connect-time validate otherwise).
     #[setter]
