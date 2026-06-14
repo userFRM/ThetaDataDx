@@ -138,8 +138,7 @@ pub struct RingEvent {
     pub(crate) event: FpssEventInternal,
 }
 
-// SAFETY: Required-invariant restate per audit MINOR sweep --
-// `FpssEventInternal` is `Send` + holds no thread-affine state
+// SAFETY: `FpssEventInternal` is `Send` + holds no thread-affine state
 // (only `Arc<Contract>` + owned `Vec<u8>` + POD primitives). Concurrent
 // shared access is gated by the disruptor's sequencing protocol:
 // exactly one publisher writes a slot before publishing the sequence,
@@ -579,8 +578,8 @@ mod tests {
 
         let count = 1000usize;
         // One Arc<Contract>, reused across all published events so the
-        // throughput test doesn't allocate per event (matches real
-        // hot-path behaviour after v8).
+        // throughput test doesn't allocate per event (matches the
+        // hot-path behaviour where the contract is shared).
         let throughput_contract = std::sync::Arc::new(crate::fpss::protocol::Contract::stock(""));
         for _ in 0..count {
             let contract_clone = std::sync::Arc::clone(&throughput_contract);

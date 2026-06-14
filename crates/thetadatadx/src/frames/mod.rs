@@ -30,6 +30,11 @@ pub trait TicksPolarsExt {
     /// names match the Arrow schema produced by [`TicksArrowExt::to_arrow`]
     /// and the Python `.to_polars()` terminal on the matching
     /// `<TickName>List` wrapper.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`polars::prelude::PolarsError`] when polars rejects the
+    /// assembled columns (e.g. a length mismatch while building the frame).
     fn to_polars(&self) -> polars::prelude::PolarsResult<polars::prelude::DataFrame>;
 }
 
@@ -44,6 +49,11 @@ pub trait TicksArrowExt {
     /// Materialise `self` as an Arrow `RecordBatch`. Column order,
     /// names, and dtypes match the schema emitted by the Python
     /// slice_arrow path in `sdks/python/src/tick_arrow.rs`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`arrow_schema::ArrowError`] when the column arrays
+    /// cannot be assembled into a `RecordBatch` against the schema.
     fn to_arrow(
         &self,
     ) -> ::core::result::Result<arrow_array::RecordBatch, arrow_schema::ArrowError>;

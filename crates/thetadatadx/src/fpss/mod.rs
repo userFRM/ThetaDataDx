@@ -1439,7 +1439,7 @@ impl FpssClient {
     /// was full.
     ///
     /// This is the user-facing "events dropped due to slow callback"
-    /// metric on the post-SSOT pipeline. Operators should poll on a
+    /// metric. Operators should poll on a
     /// periodic timer (e.g. every second) and emit a `warn` log on any
     /// non-zero delta — a per-drop log would amplify under sustained
     /// overflow.

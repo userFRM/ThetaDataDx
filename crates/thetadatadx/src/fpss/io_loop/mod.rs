@@ -485,8 +485,8 @@ where
                     // Otherwise, fall through to drain commands.
                 }
                 Err(ref e) if is_drain_yield(e) => {
-                    // Finding #3: mid-frame reader yielded so the
-                    // command drain can keep up. `frame_state` has
+                    // Mid-frame reader yielded so the command drain can
+                    // keep up. `frame_state` has
                     // been updated with the exact byte offset in the
                     // header / payload, so the next `read_frame_into`
                     // call resumes without desync. Do NOT count this
@@ -1736,8 +1736,8 @@ mod tests {
         assert_eq!(wire_req_id((1_i64 << 32) + 7), 7);
     }
 
-    /// Finding #2 coverage: transient disconnect reasons must NOT
-    /// short-circuit -- they should produce a retry delay so the
+    /// Transient disconnect reasons must NOT short-circuit -- they
+    /// should produce a retry delay so the
     /// reconnect loop proceeds. Paired with the permanent-reasons
     /// test above, this pins the exact set that triggers the
     /// shutdown-store-break path versus the continue'session path.

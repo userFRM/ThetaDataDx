@@ -168,7 +168,7 @@ impl Contract {
                 format!("invalid expiration date {expiration:?}: {e}"),
             )
         })?;
-        // H4: reject impossible expirations (00000000, 20260230,
+        // Reject impossible expirations (00000000, 20260230,
         // 19990431, …) on every public option-builder input. Uses the
         // same canonical Gregorian validator the MDDS validator calls
         // (`crate::tdbe::time::is_valid_yyyymmdd`) so the two surfaces agree
@@ -308,10 +308,10 @@ impl Contract {
     /// (`Contract::to_bytes` / `Contract::from_bytes`). The parser
     /// matches this upper bound so `from_str` / `to_bytes` / `from_bytes`
     /// round-trip symmetrically -- the wire format is the ground truth
-    /// for what the terminal can see. Widening from the previous 6-char
-    /// cap admits upstream sources that ship longer roots (14+ char
-    /// instrument identifiers observed on some non-equity feeds) without
-    /// requiring parser-side special-casing.
+    /// for what the terminal can see. The 16-byte ceiling admits upstream
+    /// sources that ship longer roots (14+ char instrument identifiers
+    /// observed on some non-equity feeds) without requiring parser-side
+    /// special-casing.
     pub(crate) const MAX_ROOT_LEN: usize = 16;
     /// Validate that a candidate root ticker is 1..=`MAX_ROOT_LEN` ASCII
     /// uppercase letters optionally containing a single `.` (e.g.
@@ -322,10 +322,9 @@ impl Contract {
     /// symbols that fail downstream exchange lookups.
     ///
     /// The length ceiling matches `Contract::to_bytes`, which accepts
-    /// roots up to 16 bytes; widening the parser to the wire limit
-    /// keeps `from_str` / `to_bytes` / `from_bytes` round-trip
-    /// symmetric. Returns an `Error::Config` with the offending input
-    /// on failure.
+    /// roots up to 16 bytes, so `from_str` / `to_bytes` / `from_bytes`
+    /// round-trip symmetrically. Returns an `Error::Config` with the
+    /// offending input on failure.
     fn validate_root(input: &str, root: &str) -> Result<(), Error> {
         if root.is_empty() || root.len() > Self::MAX_ROOT_LEN {
             return Err(Error::config_invalid(
@@ -434,10 +433,10 @@ impl Contract {
         // ships contracts with future expirations, so pre-2000 OCC
         // symbols cannot reach this parser over the wire.
         let expiration: i32 = 20_000_000 + yymmdd;
-        // H4: reject impossible OCC-21 expirations (e.g. `260230`
+        // Reject impossible OCC-21 expirations (e.g. `260230`
         // (Feb 30) or `260431` (Apr 31)) using the same canonical
-        // Gregorian validator as MDDS + `Contract::option`. Previously
-        // any 6-digit numeric string was accepted silently.
+        // Gregorian validator as MDDS + `Contract::option`, so a
+        // shape-valid-but-impossible date never decodes to a contract.
         if !crate::tdbe::time::is_valid_yyyymmdd(expiration) {
             return Err(Error::config_invalid(
                 "contract.expiration",
@@ -825,9 +824,14 @@ impl std::str::FromStr for Contract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ContractParseError {
+    /// The buffer ended before a full contract record could be read.
     TooShort,
+    /// The leading `total_size` byte is below the structural minimum or
+    /// inconsistent with the declared root length.
     InvalidSize(usize),
+    /// The root field bytes are not valid UTF-8.
     InvalidUtf8,
+    /// The security-type byte does not map to a known [`SecType`].
     UnknownSecType(u8),
 }
 
@@ -1024,9 +1028,9 @@ mod tests {
 
     #[test]
     fn option_rejects_impossible_calendar_dates() {
-        // H4 regression: shape-only validation used to silently accept
-        // these. Both `Contract::option` and OCC-21 parsing now defer
-        // to the canonical Gregorian validator.
+        // Both `Contract::option` and OCC-21 parsing defer to the
+        // canonical Gregorian validator, so shape-valid-but-impossible
+        // dates are rejected.
         for bad in ["00000000", "20260230", "19990431", "21010101", "18991231"] {
             assert!(
                 Contract::option(
@@ -1252,14 +1256,13 @@ mod tests {
         );
     }
 
-    // -- Finding #4: Contract::from_str wire-codec parity ---------------------
+    // -- Contract::from_str wire-codec parity ---------------------------------
     //
     // `to_bytes()` accepts roots up to 16 bytes (Java
     // `Contract.toBytes()` matches); `from_bytes()` round-trips
     // whatever the wire delivers. The bare-root parser must accept the
     // same 1..=16 range so `from_str` / `to_bytes` / `from_bytes`
-    // round-trip symmetrically. Widening keeps 1..=6 behaviour
-    // unchanged (existing tests still pass) and adds 7..=16 as valid.
+    // round-trip symmetrically.
 
     #[test]
     fn from_str_accepts_seven_char_root() {
@@ -1337,9 +1340,9 @@ mod tests {
         let c21 = Contract::from_str(twentyone).expect("21-char OCC-21 must parse");
 
         // Both strings MUST produce the same Contract. This pins the
-        // repair behaviour — previously the 20-char form was padded
-        // with a trailing space, which shifted the right-byte into a
-        // digit slot and either errored or decoded a different contract.
+        // repair behaviour: peeling the fixed 15-char suffix and
+        // re-padding the root keeps the right-byte aligned, rather than
+        // a trailing-space pad that would shift it into a digit slot.
         assert_eq!(c20, c21, "20-char and 21-char forms must parse identically");
         assert_eq!(&*c20.symbol, "SPY");
         assert_eq!(c20.expiration, Some(20_260_417));
