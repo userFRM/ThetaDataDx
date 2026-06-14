@@ -221,7 +221,7 @@ pub fn build(state: AppState, rate_limit_general: bool) -> Router {
             ),
         );
 
-    // FLATFILES routes — issue #432. Whole-universe daily blobs over
+    // Flat-file routes — whole-universe daily blobs over
     // HTTP. Not a WebSocket subscription stream; flat files are batch
     // downloads and the bytes ride a streaming response body so the
     // server doesn't pin multi-hundred-MB blobs in RAM.

@@ -1,3 +1,18 @@
+//! `tdx` -- native command-line client for ThetaData market data.
+//!
+//! Builds its command tree dynamically from the shared endpoint registry, so
+//! every category and endpoint the SDK exposes is reachable as
+//! `tdx <category> <endpoint> [args...]` with no per-command wiring. A
+//! hand-written `flatfile` group covers the whole-universe flat-file surface.
+//!
+//! ## Invocation contract
+//! - Credentials resolve from `--creds <path>` (default `creds.txt`: email on
+//!   line 1, password on line 2). `--config {production,dev}` selects the
+//!   server preset and `--format {table,json,json-raw,csv}` selects the output
+//!   encoding; results go to stdout and diagnostics to stderr.
+//! - The process exits non-zero with a message on stderr when an endpoint
+//!   call, credential load, or argument parse fails.
+
 use std::process;
 
 use clap::{Arg, ArgMatches, Command};

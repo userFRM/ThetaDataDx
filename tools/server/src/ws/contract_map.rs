@@ -7,11 +7,11 @@ use thetadatadx::fpss::{FpssData, FpssEvent};
 
 /// Return the parsed contract attached to a data event, if any.
 ///
-/// Every `FpssData::*` variant now carries `contract: Arc<Contract>`
+/// Every `FpssData::*` variant carries `contract: Arc<Contract>`
 /// directly — the I/O thread populates it from its internal contract
-/// cache at decode time. The WebSocket bridge no longer maintains its
-/// own `contract_id -> Contract` map; cloning the `Arc` is a refcount
-/// bump, not a heap allocation on the contract symbol.
+/// cache at decode time. The WebSocket bridge keeps no
+/// `contract_id -> Contract` map of its own; cloning the `Arc` is a
+/// refcount bump, not a heap allocation on the contract symbol.
 pub(super) fn lookup_event_contract(event: &FpssEvent) -> Option<Arc<Contract>> {
     match event {
         FpssEvent::Data(FpssData::Quote { contract, .. })
