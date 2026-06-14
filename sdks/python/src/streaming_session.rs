@@ -91,12 +91,11 @@ impl StreamableHandle {
 #[pyclass(module = "thetadatadx", name = "StreamingSession")]
 pub(crate) struct StreamingSession {
     /// Typed handle to the streaming pyclass. Closed sum of the two
-    /// transports the session knows how to drive, replacing the
-    /// duck-typed `Py<PyAny>` the field used to carry. The
+    /// transports the session knows how to drive, so the lifecycle path
+    /// compiles only against pyclasses that actually implement it. The
     /// non-lifecycle `__getattr__` proxy still erases the type for
     /// downstream attribute lookup (e.g. `subscribe` / historical
-    /// methods), but the lifecycle path now compiles only against
-    /// pyclasses that actually implement it.
+    /// methods).
     pub(crate) tdx: StreamableHandle,
     pub(crate) callback: Option<Py<PyAny>>,
 }
@@ -279,10 +278,8 @@ impl crate::ThetaDataDxClient {
     /// Current MDDS session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
     ///
-    /// Previously safelisted on `AsyncThetaDataDxClient`'s
-    /// `__getattr__` allowlist but not actually wired through to a
-    /// real method body — added here so the AsyncThetaDataDxClient
-    /// proxy resolves to a working call.
+    /// Backs the `session_uuid` entry on `AsyncThetaDataDxClient`'s
+    /// `__getattr__` allowlist so that proxy resolves to a working call.
     fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
         let inner = self.tdx.clone();
         crate::run_blocking(py, async move { Ok(inner.session_uuid().await) })

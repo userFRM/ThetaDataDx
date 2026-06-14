@@ -981,13 +981,27 @@ TimeoutError: Type[DeadlineExceededError]
 # ─────────────────────────────────────────────────────────────────────
 
 
-def decode_response_bytes(endpoint: str, chunks: List[bytes]) -> Any: ...
+def decode_response_bytes(endpoint: str, chunks: List[bytes]) -> Any:
+    """Decode raw response chunks for ``endpoint`` into the typed result.
+
+    ``chunks`` are the wire-frame byte buffers for one historical
+    response in order; ``endpoint`` selects the decoder. Returns the
+    endpoint's typed ``<Tick>List`` wrapper.
+    """
+    ...
 
 
 def split_date_range(
     start: str,
     end: str,
-) -> List[Tuple[str, str]]: ...
+) -> List[Tuple[str, str]]:
+    """Split an inclusive ``start``..``end`` date range into per-request
+    ``(start, end)`` sub-ranges sized to the server's per-call window.
+
+    Dates are ``YYYYMMDD`` strings; the returned pairs cover the range
+    contiguously in chronological order.
+    """
+    ...
 
 
 def all_greeks(
@@ -998,7 +1012,15 @@ def all_greeks(
     tte: float,
     option_price: float,
     right: str,
-) -> AllGreeks: ...
+) -> AllGreeks:
+    """Compute all Black-Scholes Greeks plus implied volatility for one option.
+
+    ``right`` is ``"C"`` / ``"P"``; ``tte`` is time to expiry in years.
+    The implied volatility is solved from ``option_price`` and seeds the
+    Greek derivatives. Returns an :class:`AllGreeks` with every field
+    populated.
+    """
+    ...
 
 
 # Returns a ``(iv, iv_error)`` pair: the implied volatility from the

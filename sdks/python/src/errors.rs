@@ -1,10 +1,9 @@
 //! Layered Python exception hierarchy for `thetadatadx`.
 //!
-//! Before v8.0.2 every error path mapped to the generic `PyRuntimeError` or
-//! `PyConnectionError` — callers had to parse the error message to
-//! distinguish authentication failures from rate limiting or transient
-//! network errors. This module introduces a typed hierarchy so user code
-//! can `except` on the class it actually cares about.
+//! A typed exception hierarchy lets user code `except` on the class it
+//! actually cares about — distinguishing authentication failures from
+//! rate limiting or transient network errors — rather than parsing the
+//! message text off a generic `PyRuntimeError` / `PyConnectionError`.
 //!
 //! ```python
 //! try:
@@ -134,6 +133,11 @@ create_exception!(thetadatadx, ConfigError, ThetaDataError);
 /// objects are added under both names so the alias shares identity with
 /// its target and an existing `except` clause on the legacy name keeps
 /// catching the dispatched canonical class.
+///
+/// # Errors
+///
+/// Propagates any `PyErr` from adding a class to the module or seating
+/// the `RateLimitError.retry_after` class attribute.
 pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ThetaDataError", py.get_type::<ThetaDataError>())?;
     m.add("AuthenticationError", py.get_type::<AuthenticationError>())?;
