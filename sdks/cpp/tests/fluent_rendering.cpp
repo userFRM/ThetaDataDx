@@ -35,6 +35,11 @@ TEST_CASE("FluentContract renders symbol and option identity", "[fluent][offline
     REQUIRE(render(option) == "SPY OPTION 20260620 C 550");
     REQUIRE(tdx::str(option) == "SPY OPTION 20260620 C 550");
 
+    // Fractional strikes keep the needed decimals — same rendering as the
+    // Rust `Display` / Python `__str__` / TypeScript `toString` surface.
+    const auto fractional = tdx::Contract::option("SPY", {.expiration = "20260620", .strike = "552.5", .right = "P"});
+    REQUIRE(render(fractional) == "SPY OPTION 20260620 P 552.5");
+
     // An index contract renders "INDEX", not "STOCK" — it carries its
     // own security type rather than borrowing the stock-shape default.
     const auto index = tdx::Contract::index("VIX");

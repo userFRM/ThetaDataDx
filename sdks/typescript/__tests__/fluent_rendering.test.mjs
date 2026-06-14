@@ -28,7 +28,12 @@ describe('toString on the fluent value classes', () => {
     assert.equal(Contract.stock('AAPL').toString(), 'AAPL STOCK');
     assert.equal(
       Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' }).toString(),
-      'SPY OPTION 20260620 C 550000'
+      'SPY OPTION 20260620 C 550'
+    );
+    // Fractional strikes keep the needed decimals.
+    assert.equal(
+      Contract.option('SPY', { expiration: '20260620', strike: '552.5', right: 'P' }).toString(),
+      'SPY OPTION 20260620 P 552.5'
     );
   });
 
@@ -39,7 +44,7 @@ describe('toString on the fluent value classes', () => {
 
   it('Subscription renders scope, kind, and contract', () => {
     const perContract = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' }).trade();
-    assert.equal(perContract.toString(), 'Subscription(Trade, SPY OPTION 20260620 C 550000)');
+    assert.equal(perContract.toString(), 'Subscription(Trade, SPY OPTION 20260620 C 550)');
     const marketValue = Contract.stock('AAPL').marketValue();
     assert.equal(marketValue.toString(), 'Subscription(MarketValue, AAPL STOCK)');
     const full = SecType.option().fullOpenInterest();

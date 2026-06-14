@@ -116,11 +116,9 @@ pub struct OptionLeg {
 
 /// Fluent contract identifier — stock or option.
 ///
-/// Exposed to JS as `ContractRef` (the bare `Contract` name on the JS
-/// side already refers to the FPSS event payload data object — see
-/// `fpss_event_classes.rs`). The `index.d.ts` post-processor emits an
-/// `export const Contract = ContractRef` alias so users still write
-/// `Contract.stock("AAPL")` per the documented surface.
+/// Use `Contract.stock("AAPL")` / `Contract.option(...)` to build one.
+/// The class is also exported under the name `ContractRef`; `Contract`
+/// is an alias for it, so the two names are interchangeable.
 #[napi(js_name = "ContractRef")]
 pub struct ContractRef {
     pub(crate) inner: protocol::Contract,
@@ -240,7 +238,8 @@ impl ContractRef {
     }
 
     /// String rendering for `console.log` / template literals, e.g.
-    /// `"SPY OPTION 20260620 C 550000"` or `"AAPL STOCK"`. Delegates to
+    /// `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
+    /// in dollars, matching the `strike` getter. Delegates to
     /// the same core rendering the Python `Contract` `__str__` uses, so
     /// the two bindings print a contract identically. Without it a
     /// `ContractRef` prints as an opaque `ContractRef {}` because its
@@ -324,7 +323,7 @@ impl Subscription {
     }
 
     /// String rendering for `console.log` / template literals, e.g.
-    /// `"Subscription(Trade, SPY OPTION 20260620 C 550000)"` or
+    /// `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
     /// `"Subscription(full Trades, OPTION)"`. Mirrors the Python
     /// `Subscription` `__repr__`. Without it a `Subscription` prints as
     /// an opaque `Subscription {}` because its getters do not surface on
