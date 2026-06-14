@@ -255,7 +255,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(
 }
 
 /// Set the per-class transient-failure attempt budget for the
-/// auto-reconnect path. Default `3`. No effect unless the reconnect
+/// auto-reconnect path. Default `30`. No effect unless the reconnect
 /// policy is `Auto`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
