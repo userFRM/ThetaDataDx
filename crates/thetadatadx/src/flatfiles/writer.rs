@@ -36,8 +36,25 @@ pub(crate) struct RowView<'a> {
 
 /// Polymorphic row writer.
 pub(crate) trait RowSink {
+    /// Emits any once-per-file header. Called before the first row.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when the underlying writer fails.
     fn write_header(&mut self) -> Result<(), Error>;
+    /// Emits one decoded row.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::decode_codec` when a price column carries an
+    /// out-of-range PRICE_TYPE, or `Error::Io` / encode errors from the
+    /// underlying writer.
     fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error>;
+    /// Flushes and finalizes the sink, consuming it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when the final flush fails.
     fn finish(self: Box<Self>) -> Result<(), Error>;
 }
 
@@ -131,6 +148,7 @@ fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
 // CSV sink — vendor byte format
 // ---------------------------------------------------------------------------
 
+/// [`RowSink`] that writes the vendor CSV byte format.
 pub(crate) struct CsvSink {
     out: BufWriter<File>,
     sec: SecType,
@@ -142,6 +160,11 @@ pub(crate) struct CsvSink {
 }
 
 impl CsvSink {
+    /// Creates a CSV sink writing to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when `path` cannot be created.
     pub(crate) fn new(
         path: &Path,
         sec: SecType,
@@ -217,6 +240,7 @@ impl RowSink for CsvSink {
 // JSONL sink — one JSON object per line
 // ---------------------------------------------------------------------------
 
+/// [`RowSink`] that writes one JSON object per line (JSONL).
 pub(crate) struct JsonlSink {
     out: BufWriter<File>,
     sec: SecType,
@@ -226,6 +250,11 @@ pub(crate) struct JsonlSink {
 }
 
 impl JsonlSink {
+    /// Creates a JSONL sink writing to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when `path` cannot be created.
     pub(crate) fn new(
         path: &Path,
         sec: SecType,

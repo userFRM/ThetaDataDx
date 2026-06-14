@@ -1,3 +1,12 @@
+//! Variable-precision fixed-point price.
+//!
+//! `ThetaData` encodes a price as a `(value, price_type)` pair where the real
+//! price is `value * 10^(price_type - 10)`. [`Price`] stores that pair and
+//! compares values by scaling to a common base via integer powers of ten,
+//! falling back to f64 only when the exponent gap would overflow `i64`. The
+//! `price_type` invariant (`0..=MAX_PRICE_TYPE`) keeps every `POW10_*` table
+//! index in bounds.
+
 use std::cmp::Ordering;
 use std::fmt;
 

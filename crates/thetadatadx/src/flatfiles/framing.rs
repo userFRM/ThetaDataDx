@@ -45,12 +45,21 @@ pub(crate) mod msg {
 
 /// Single decoded frame.
 pub(crate) struct Frame {
+    /// Wire message code (see [`msg`]).
     pub msg: u16,
+    /// Request id this frame is scoped to, or `-1` for connection-scoped frames.
     pub id: i64,
+    /// Frame body with the 14-byte header stripped.
     pub payload: Vec<u8>,
 }
 
 /// Encode and write a single frame to `out`, then flush.
+///
+/// # Errors
+///
+/// Returns `Error::Config` when `payload` exceeds `u32::MAX` bytes (it
+/// cannot be expressed in the wire `payload_size` field), or `Error::Io`
+/// when the underlying writer fails on the header, payload, or flush.
 pub(crate) async fn write_frame<W>(
     out: &mut W,
     msg: u16,
@@ -76,7 +85,14 @@ where
     Ok(())
 }
 
-/// Read one frame from `src`. Errors propagate the underlying tokio error.
+/// Read one frame from `src`.
+///
+/// # Errors
+///
+/// Returns `Error::Io` when the underlying reader fails or reaches EOF
+/// before a full header or payload is read, and `Error::Config` when the
+/// header declares a payload larger than [`MAX_PAYLOAD`] (rejected to bound
+/// allocation against a hostile or corrupt frame).
 pub(crate) async fn read_frame<R>(src: &mut R) -> Result<Frame, Error>
 where
     R: tokio::io::AsyncRead + Unpin,

@@ -8,8 +8,9 @@ pub mod trade {
     /// Cancelled trade condition range (40..=44).
     pub const CANCELLED_RANGE: std::ops::RangeInclusive<i32> = 40..=44;
 
-    /// Regular trading hours: 9:30 AM - 4:00 PM ET.
+    /// Regular trading hours open: 9:30 AM ET, in milliseconds-of-day.
     pub const RTH_START_MS: i32 = 34_200_000;
+    /// Regular trading hours close: 4:00 PM ET, in milliseconds-of-day.
     pub const RTH_END_MS: i32 = 57_600_000;
 
     /// Seller-initiated trade (`ext_condition1` == 12).

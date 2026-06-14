@@ -1,3 +1,11 @@
+//! Wire enum taxonomy for the FPSS data layer.
+//!
+//! Each enum mirrors a numeric (or short-text) code carried on the wire and
+//! pairs a `from_code` resolver with an `as_str` symbolic form for the dynamic
+//! bindings. `from_code` constructors stay strict — unknown codes return
+//! `None` (or a documented sentinel) so the decoder fails loudly on schema
+//! drift rather than mis-classifying.
+
 /// Security type identifier.
 ///
 /// `Unknown` is a sentinel for contracts whose shape has not yet been resolved.
@@ -19,6 +27,8 @@ pub enum SecType {
 }
 
 impl SecType {
+    /// Resolve a wire security-type code to its variant; `None` for unknown
+    /// codes (including the `Unknown` sentinel, which has no wire form).
     #[must_use]
     pub fn from_code(code: i32) -> Option<Self> {
         match code {
@@ -33,6 +43,7 @@ impl SecType {
         }
     }
 
+    /// Upper-case symbolic name (`"STOCK"`, `"OPTION"`, …) for binding surfaces.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -158,9 +169,10 @@ pub enum DataType {
 }
 
 impl DataType {
+    /// Resolve a wire field-type code to its variant; `None` for codes outside
+    /// the known taxonomy.
     #[must_use]
     pub fn from_code(code: i32) -> Option<Self> {
-        // Generated from the Java enum
         match code {
             0 => Some(Self::Date),
             1 => Some(Self::MsOfDay),
@@ -372,6 +384,8 @@ pub enum ReqType {
 }
 
 impl ReqType {
+    /// Upper-snake symbolic name for the request type (`"QUOTE"`, `"TRADE"`,
+    /// …), falling back to `"DEFAULT"` for unmapped variants.
     #[must_use]
     #[allow(dead_code)] // Reason: paired with the reference `ReqType` enum above; no in-crate caller today.
     pub fn as_str(&self) -> &'static str {
@@ -423,6 +437,8 @@ pub enum StreamMsgType {
 }
 
 impl StreamMsgType {
+    /// Resolve a wire stream-message code to its variant; `None` for unknown
+    /// codes.
     #[inline]
     #[must_use]
     pub fn from_code(code: u8) -> Option<Self> {

@@ -1,12 +1,20 @@
 //! Public enums for the FLATFILES surface.
+//!
+//! Defines the security and request types a caller selects, plus the typed
+//! reason an unavailable FLATFILES response carries. The reason classifier
+//! ([`FlatFilesUnavailableReason::is_transient`]) drives the request
+//! driver's retry-vs-surface decision.
 
 use std::fmt;
 
 /// Security types accepted by the FLATFILES route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecType {
+    /// Listed options.
     Option,
+    /// Equities.
     Stock,
+    /// Index instruments.
     Index,
 }
 
@@ -38,15 +46,22 @@ impl fmt::Display for SecType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum ReqType {
+    /// End-of-day summary.
     Eod = 1,
+    /// Best bid/offer quotes.
     Quote = 101,
+    /// Open interest.
     OpenInterest = 103,
+    /// Open/high/low/close bars.
     Ohlc = 104,
+    /// Trades.
     Trade = 201,
+    /// Trades interleaved with the prevailing quote.
     TradeQuote = 207,
 }
 
 impl ReqType {
+    /// Returns the V2 server `ReqType.code()` value for the `REQ=` field.
     pub(crate) fn as_wire(self) -> u32 {
         self as u32
     }
