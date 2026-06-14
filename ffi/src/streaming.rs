@@ -1413,6 +1413,11 @@ pub unsafe extern "C" fn tdx_fpss_connect(
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
 
+        // Seed the process-global async runtime from this client's config so
+        // `worker_threads` is honored when a standalone FPSS client is the
+        // first client created in the process; the worker pool is built once.
+        crate::runtime_from_config(&config.inner.runtime);
+
         Box::into_raw(Box::new(TdxFpssHandle {
             inner: Arc::new(Mutex::new(None)),
             connect_params: FpssConnectParams {
