@@ -1,16 +1,14 @@
-// Regression coverage for the `InterestRateTick` schema fix.
+// Schema coverage for the `InterestRateTick` C ABI / C++ wrapper.
 //
-// The upstream v3 server emits 2 columns (`created` as ISO date Text,
-// `rate` as percent Number). The earlier SDK declared 3 fields
-// (`ms_of_day`, `rate`, `date`) and decoded every live response into
-// `column 0: expected Number|Timestamp, got Text`. The fix removed
-// the fictitious `ms_of_day` field and rewired `date` to flow through
-// `parse_iso_date`.
+// The upstream interest-rate response carries 2 columns (`created` as
+// an ISO date Text, `rate` as a percent Number). `TdxInterestRateTick`
+// must mirror that 2-field shape: a `rate` value and a `date` parsed
+// through `parse_iso_date`. A third field would force the live decode
+// to reject column 0 as `expected Number|Timestamp, got Text`.
 //
-// This file pins the C ABI / C++ wrapper surface for the new
-// 2-field shape so a future schema regression cannot ship a header
-// whose `TdxInterestRateTick` struct still carries the removed field.
-// Live decode coverage lives in
+// This file pins the struct layout so a header whose
+// `TdxInterestRateTick` drifts from the 2-field schema fails to
+// compile. Live decode coverage lives in
 // `crates/thetadatadx/tests/test_interest_rate_schema.rs`.
 
 #include <cstddef>
