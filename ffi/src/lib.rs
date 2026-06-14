@@ -47,12 +47,44 @@ use std::sync::OnceLock;
 
 // ── Global tokio runtime (same pattern as the Python bindings) ──
 
-pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
-    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Build (or return the already-built) process-global async runtime,
+/// sizing the worker pool from the first client's
+/// [`thetadatadx::RuntimeConfig`].
+///
+/// The embedded runtime is process-global and built exactly once: the
+/// first connect in the process seeds it from that client's
+/// `config.runtime`, so `tdx_config_set_worker_threads` takes effect for
+/// the first client created in the process. Later connects share the
+/// already-built pool and their `runtime` config is a no-op by design.
+pub(crate) fn runtime_from_config(
+    cfg: &thetadatadx::RuntimeConfig,
+) -> &'static tokio::runtime::Runtime {
     RT.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
+        cfg.build_runtime()
+            .expect("failed to create tokio runtime for thetadatadx-ffi")
+    })
+}
+
+/// Build the process-global runtime from `cfg` and report its worker
+/// count. Test-only hook proving `tdx_config_set_worker_threads` reaches
+/// the tokio builder; not part of the C ABI.
+#[doc(hidden)]
+pub fn __test_runtime_worker_count(cfg: &thetadatadx::RuntimeConfig) -> usize {
+    runtime_from_config(cfg).metrics().num_workers()
+}
+
+/// Return the process-global async runtime, building it with tokio
+/// default sizing if no client has seeded it yet.
+///
+/// Connect functions seed the pool from config via
+/// [`runtime_from_config`]; every post-connect endpoint call resolves the
+/// already-built runtime through this accessor.
+pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
+    RT.get_or_init(|| {
+        thetadatadx::RuntimeConfig::default()
+            .build_runtime()
             .expect("failed to create tokio runtime for thetadatadx-ffi")
     })
 }

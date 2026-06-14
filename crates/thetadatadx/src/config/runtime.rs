@@ -7,8 +7,10 @@
 /// (typically via `#[tokio::main(flavor = "multi_thread")]` or an
 /// explicit `tokio::runtime::Builder::new_multi_thread().build()`).
 /// The embedded bindings that DO own their runtime (FFI, the
-/// `thetadatadx-py` and `thetadatadx-napi` SDKs) read this struct at
-/// module init / first-use to size the worker thread pool.
+/// `thetadatadx-py` and `thetadatadx-napi` SDKs) read this struct when
+/// the first client in the process connects to size the worker thread
+/// pool. That pool is process-global and built once, so the field is
+/// honoured for the first client created in the process.
 ///
 /// For Rust callers building their own runtime, use
 /// [`RuntimeConfig::build_runtime`] to honour the field directly.

@@ -327,6 +327,11 @@ impl FpssClient {
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<FpssClient> {
         let direct = config_or_production(config);
+        // Seed the process-global runtime from this client's runtime config
+        // so `workerThreads` is honored when this is the first client in
+        // the process, even though the FPSS connection is opened lazily by
+        // `startStreaming`.
+        crate::runtime_from_config(&direct.runtime);
         let params = params_from_direct(&creds.inner, &direct)?;
         Ok(FpssClient::from_params(params))
     }
@@ -339,6 +344,11 @@ impl FpssClient {
     pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<FpssClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let direct = config_or_production(config);
+        // Seed the process-global runtime from this client's runtime config
+        // so `workerThreads` is honored when this is the first client in
+        // the process, even though the FPSS connection is opened lazily by
+        // `startStreaming`.
+        crate::runtime_from_config(&direct.runtime);
         let params = params_from_direct(&creds, &direct)?;
         Ok(FpssClient::from_params(params))
     }

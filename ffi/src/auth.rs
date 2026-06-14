@@ -5,7 +5,6 @@ use std::os::raw::c_char;
 use std::ptr;
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
-use crate::runtime;
 use crate::types::{TdxConfig, TdxCredentials, TdxMddsClient};
 
 // ── Credentials ──
@@ -1437,9 +1436,14 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
 ///
 /// * `has_value = false` → `None` (default sizing, one worker per
 ///   logical CPU). `n` is ignored.
-/// * `has_value = true` → `Some(n)`. Embedders consuming
-///   [`thetadatadx::RuntimeConfig::build_runtime`] honour the value
-///   verbatim, clamping `0` to `1` so at least one worker is started.
+/// * `has_value = true` → `Some(n)`, clamping `0` to `1` so at least one
+///   worker is started.
+///
+/// The async worker pool is process-global: it is built once, from the
+/// `config` of the first client connected in the process. This setting is
+/// therefore honoured when the first client in the process is created;
+/// clients connected later share the already-built pool, so changing it
+/// on a subsequent `config` has no effect.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
@@ -2219,10 +2223,9 @@ pub unsafe extern "C" fn tdx_mdds_client_connect(
         let creds = unsafe { &*creds };
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
-        match runtime().block_on(thetadatadx::mdds::MddsClient::connect(
-            &creds.inner,
-            config.inner.clone(),
-        )) {
+        match crate::runtime_from_config(&config.inner.runtime).block_on(
+            thetadatadx::mdds::MddsClient::connect(&creds.inner, config.inner.clone()),
+        ) {
             Ok(client) => Box::into_raw(Box::new(TdxMddsClient { inner: client })),
             Err(e) => {
                 set_error_from(&e);

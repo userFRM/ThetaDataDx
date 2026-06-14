@@ -29,7 +29,6 @@ use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
 use crate::error::{set_error, set_error_from};
-use crate::runtime;
 use crate::types::{TdxConfig, TdxCredentials, TdxMddsClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
@@ -420,10 +419,9 @@ pub unsafe extern "C" fn tdx_unified_connect(
         // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
 
-        match runtime().block_on(thetadatadx::ThetaDataDxClient::connect(
-            &creds.inner,
-            config.inner.clone(),
-        )) {
+        match crate::runtime_from_config(&config.inner.runtime).block_on(
+            thetadatadx::ThetaDataDxClient::connect(&creds.inner, config.inner.clone()),
+        ) {
             Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
                 inner: tdx,
                 callback: Mutex::new(None),

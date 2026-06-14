@@ -243,6 +243,11 @@ impl FpssClient {
                 "FpssClient: config.fpss.hosts is empty (set THETADATA_FPSS_HOSTS or use Config::production())",
             ));
         }
+        // Seed the process-global runtime from this client's runtime config
+        // so `worker_threads` is honoured when this is the first client in
+        // the process, even though the FPSS TLS connection itself is
+        // deferred to `start_streaming`.
+        crate::runtime_from_config(&direct.runtime);
         Ok(Self {
             params: FpssParams::from_config(&creds.inner, &direct),
             inner: Mutex::new(None),

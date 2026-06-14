@@ -993,7 +993,11 @@ public:
 
     /** Set the async worker-thread count using the (has_value, n) shape
      *  that preserves an explicit 0 across the C boundary. has_value=false
-     *  defers to the default sizing. */
+     *  defers to the default sizing. The async worker pool is
+     *  process-global: it is built once, from the config of the first
+     *  client connected in the process, so this is honoured when the first
+     *  client in the process is created; later clients share the
+     *  already-built pool and setting it again has no effect. */
     int32_t set_worker_threads(bool has_value, size_t n) {
         return tdx_config_set_worker_threads(handle_.get(), has_value, n);
     }

@@ -33,18 +33,56 @@ use errors::to_py_err;
 /// Shared tokio runtime for running async Rust from sync Python.
 ///
 /// The `pyo3-async-runtimes` layer consumes the same runtime handle via
-/// `pyo3_async_runtimes::tokio::init_with_runtime(...)` at module init
-/// time (see [`thetadatadx_py`]). No second runtime is ever constructed,
-/// so the sync and async code paths share worker threads, connection
-/// pools, and the request semaphore on the underlying `MddsClient`.
+/// `pyo3_async_runtimes::tokio::init_with_runtime(...)`. No second runtime
+/// is ever constructed, so the sync and async code paths share worker
+/// threads, connection pools, and the request semaphore on the underlying
+/// `MddsClient`.
+///
+/// The runtime is process-global and built exactly once. The first client
+/// connected in the process seeds it from that client's `config.runtime`
+/// via [`runtime_from_config`], so `Config.worker_threads` takes effect
+/// for the first client created in the process. The runtime is built
+/// lazily — never at module import — so a `worker_threads` value set on
+/// the config before the first connect is honoured.
+static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Teach `pyo3-async-runtimes` to reuse our runtime, exactly once, the
+/// first time the runtime is resolved. Guarded by `Once` so the cost is
+/// paid a single time and the registration lands before any
+/// `future_into_py` runs on the async path.
+fn register_async_runtime(rt: &'static tokio::runtime::Runtime) {
+    static REGISTERED: std::sync::Once = std::sync::Once::new();
+    REGISTERED.call_once(|| {
+        let _ = pyo3_async_runtimes::tokio::init_with_runtime(rt);
+    });
+}
+
+/// Build (or return the already-built) process-global runtime, sizing the
+/// worker pool from the first client's [`thetadatadx::RuntimeConfig`].
+///
+/// The first connect in the process seeds the pool from its
+/// `config.runtime`; later connects share the already-built runtime, so
+/// their `runtime` config is a no-op by design.
+fn runtime_from_config(cfg: &thetadatadx::RuntimeConfig) -> &'static tokio::runtime::Runtime {
+    let rt = RT.get_or_init(|| cfg.build_runtime().expect("failed to create tokio runtime"));
+    register_async_runtime(rt);
+    rt
+}
+
+/// Return the process-global runtime, building it with tokio default
+/// sizing if no client has seeded it from config yet.
+///
+/// Connect constructors seed the pool via [`runtime_from_config`] before
+/// their first `run_blocking`; this accessor resolves the already-built
+/// runtime for every subsequent call.
 fn runtime() -> &'static tokio::runtime::Runtime {
-    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RT.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
+    let rt = RT.get_or_init(|| {
+        thetadatadx::RuntimeConfig::default()
+            .build_runtime()
             .expect("failed to create tokio runtime")
-    })
+    });
+    register_async_runtime(rt);
+    rt
 }
 
 /// Run an async future to completion while periodically honoring Python's
@@ -247,7 +285,7 @@ impl Config {
     }
 
     /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `3`. No effect unless the
+    /// auto-reconnect path. Default `30`. No effect unless the
     /// reconnect policy is `Auto`.
     #[setter]
     fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
@@ -288,14 +326,14 @@ impl Config {
     /// Set the reconnect delay (ms) honoured for generic transient
     /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
     /// Plumbed through to the streaming I/O loop at connect time.
-    /// Default ``2_000``.
+    /// Default ``250``.
     #[setter]
     fn set_reconnect_wait_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.reconnect.wait_ms = ms;
     }
 
-    /// Current reconnect ``wait_ms`` value (default ``2_000``).
+    /// Current reconnect ``wait_ms`` value (default ``250``).
     #[getter]
     fn get_reconnect_wait_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -770,9 +808,11 @@ impl Config {
     /// preserved across the binding boundary and clamps to ``1`` so the
     /// runtime always has at least one worker.
     ///
-    /// Note that the runtime backing ``ThetaDataDxClient`` is built
-    /// process-once at module init; mutating this value after import
-    /// affects only freshly-constructed runtimes.
+    /// The async worker pool is process-global: it is built once, from the
+    /// config of the first client connected in the process. This setting
+    /// is therefore honoured when the first client in the process is
+    /// created; clients connected later share the already-built pool, so
+    /// setting it on a subsequent ``Config`` has no effect.
     #[setter]
     fn set_worker_threads(&self, n: Option<usize>) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -826,7 +866,7 @@ impl Config {
 
     /// Set the total attempt budget for the historical-channel retry policy. ``1``
     /// disables retry (single call only); higher values permit retries
-    /// up to ``max_attempts - 1`` after the initial call. Default ``5``.
+    /// up to ``max_attempts - 1`` after the initial call. Default ``20``.
     #[setter]
     fn set_retry_max_attempts(&self, n: u32) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -869,7 +909,7 @@ impl Config {
     /// Set the total attempt budget for the flatfile driver retry loop.
     /// ``1`` disables retry (single call only); higher values permit
     /// retries up to ``max_attempts - 1`` after the initial call.
-    /// Default ``3``. Validated to the range ``[1, 10]`` at connect
+    /// Default ``10``. Validated to the range ``[1, 100]`` at connect
     /// time.
     #[setter]
     fn set_flatfiles_max_attempts(&self, n: u32) {
@@ -902,7 +942,7 @@ impl Config {
 
     /// Set the upper-bound backoff delay (seconds) for the flatfile
     /// driver retry loop. The doubling schedule never exceeds this
-    /// value regardless of attempt number. Default ``4``. Must be
+    /// value regardless of attempt number. Default ``30``. Must be
     /// greater than or equal to :attr:`flatfiles_initial_backoff_secs`
     /// (rejected at connect-time validate otherwise).
     #[setter]
@@ -1243,6 +1283,10 @@ impl ThetaDataDxClient {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
+        // Seed the process-global runtime from this client's runtime config
+        // before the first `run_blocking` resolves it, so `worker_threads`
+        // takes effect when the first client in the process connects.
+        runtime_from_config(&direct_config.runtime);
         let inner_creds = creds.inner.clone();
         let tdx = run_blocking(py, async move {
             thetadatadx::ThetaDataDxClient::connect(&inner_creds, direct_config).await
@@ -1794,18 +1838,14 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // user-configured `logging.getLogger("thetadatadx")` handlers.
     logging_bridge::install_logging_bridge();
 
-    // Teach pyo3-async-runtimes to reuse our shared tokio runtime. This is
-    // the critical coupling that keeps `runtime()` — the one the sync
-    // path uses — and the async path aligned: one runtime, one request
-    // semaphore, one connection pool. Failing to call this early would
-    // cause `pyo3_async_runtimes::tokio::future_into_py` to spin up its
-    // own runtime on first use.
-    //
-    // `init_with_runtime` requires a `&'static tokio::runtime::Runtime`
-    // handle. Our `runtime()` singleton satisfies that contract — the
-    // `OnceLock` leaks the runtime for the lifetime of the process, so
-    // the borrow holds.
-    let _ = pyo3_async_runtimes::tokio::init_with_runtime(runtime());
+    // The tokio runtime is built lazily on the first client connect, not
+    // here, so a `Config.worker_threads` value set before that connect is
+    // honoured (the runtime is sized from the first client's
+    // `config.runtime`). `pyo3-async-runtimes` is taught to reuse that
+    // same runtime at build time via `register_async_runtime`, keeping
+    // the sync and async paths on one runtime, one request semaphore, one
+    // connection pool. Building it here would freeze the worker count at
+    // import, before the user can set it.
 
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
