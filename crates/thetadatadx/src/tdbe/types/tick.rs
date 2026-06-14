@@ -68,32 +68,38 @@ impl_contract_id!(TradeGreeksImpliedVolatilityTick);
 use crate::tdbe::flags;
 
 impl TradeTick {
+    /// `true` when the trade condition falls in the cancellation range.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
         flags::trade::CANCELLED_RANGE.contains(&self.condition)
     }
 
+    /// `true` when the condition flags carry the "do not update last" bit.
     #[must_use]
     pub fn trade_condition_no_last(&self) -> bool {
         self.condition_flags & flags::condition_flags::NO_LAST == flags::condition_flags::NO_LAST
     }
 
+    /// `true` when the price flags carry the "sets last" bit.
     #[must_use]
     pub fn price_condition_set_last(&self) -> bool {
         self.price_flags & flags::price_flags::SET_LAST == flags::price_flags::SET_LAST
     }
 
+    /// `true` when `volume_type` marks this trade as incremental volume.
     #[must_use]
     pub fn is_incremental_volume(&self) -> bool {
         self.volume_type == flags::volume::INCREMENTAL
     }
 
-    /// Regular trading hours: 9:30 AM - 4:00 PM ET.
+    /// `true` when `ms_of_day` falls within regular trading hours
+    /// (9:30 AM - 4:00 PM ET).
     #[must_use]
     pub fn regular_trading_hours(&self) -> bool {
         (flags::trade::RTH_START_MS..=flags::trade::RTH_END_MS).contains(&self.ms_of_day)
     }
 
+    /// `true` when the extended condition marks this trade as seller-initiated.
     #[must_use]
     pub fn is_seller(&self) -> bool {
         self.ext_condition1 == flags::trade::SELLER_CONDITION

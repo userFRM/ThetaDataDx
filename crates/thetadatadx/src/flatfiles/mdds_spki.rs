@@ -28,12 +28,19 @@ pub(crate) const ALLOWED_MDDS_HOSTS: &[&str] = &["nj-a.thetadata.us", "nj-b.thet
 /// Production MDDS legacy ports for the `nj-{a,b}` region.
 pub(crate) const MDDS_PORTS: &[u16] = &[12000, 12001];
 
+/// `rustls` certificate verifier that authenticates the MDDS leaf by
+/// pinning its SubjectPublicKeyInfo (SPKI) rather than walking a chain to a
+/// trusted root. The chain is expired, so chain validation is deliberately
+/// bypassed; trust is anchored solely in the pinned SPKI digest and the
+/// hostname allowlist. Handshake-signature verification is still enforced
+/// against the pinned key.
 #[derive(Debug)]
 pub(crate) struct MddsSpkiVerifier {
     algs: WebPkiSupportedAlgorithms,
 }
 
 impl MddsSpkiVerifier {
+    /// Builds a verifier wired to the ring provider's signature algorithms.
     pub(crate) fn new() -> Arc<Self> {
         // Take the signature algorithms straight from the ring provider rather
         // than the process-global default. ring is the sole provider in the dep

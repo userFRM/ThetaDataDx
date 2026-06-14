@@ -1,4 +1,8 @@
-//! Black-Scholes Greeks calculator, ported from `ThetaData`'s Java implementation.
+//! Black-Scholes option pricing and Greeks calculator.
+//!
+//! Computes the theoretical option value, implied volatility, and the full
+//! first- through third-order Greek surface from the Black-Scholes model
+//! with continuous dividend yield.
 //!
 //! Parameters:
 //! - `s`: Spot price (underlying)
@@ -54,8 +58,9 @@ fn is_degenerate(v: f64, t: f64) -> bool {
 /// of 5 separate multiplies + 5 additions + 4 intermediate power variables.
 /// Same Abramowitz & Stegun coefficients, same max error (~1.5e-7), fewer ops.
 ///
-/// For IV solver loops (128 bisection iterations, each calling `norm_cdf` ~4x),
-/// this is the dominant cost — Horner form shaves ~20% off the polynomial eval.
+/// This is the dominant cost in the IV solver's bisection loop, so the
+/// Horner form (fewer floating-point ops) is preferred over the expanded
+/// polynomial.
 fn norm_cdf(x: f64) -> f64 {
     // Coefficients from Abramowitz & Stegun, formula 26.2.17.
     const A: [f64; 5] = [
@@ -81,6 +86,8 @@ fn norm_cdf(x: f64) -> f64 {
     }
 }
 
+/// Returns the Black-Scholes `d1` term. Yields `0.0` for degenerate inputs
+/// (`v <= 0` or `t <= 0`) so downstream Greeks stay finite.
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
 #[must_use]
@@ -91,6 +98,8 @@ pub fn d1(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     ((s / x).ln() + t * (r - q + v * v / 2.0)) / (v * t.sqrt())
 }
 
+/// Returns the Black-Scholes `d2` term (`d1 - v*sqrt(t)`). Yields `0.0`
+/// for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
 #[must_use]
@@ -144,6 +153,8 @@ pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+/// Returns delta, the option value's sensitivity to spot. Yields `0.0`
+/// for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -159,6 +170,9 @@ pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+/// Returns theta, the option value's sensitivity to time, expressed per
+/// calendar day (annual figure divided by 365). Yields `0.0` for
+/// degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -179,6 +193,8 @@ pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+/// Returns vega, the option value's sensitivity to volatility. Yields
+/// `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -190,6 +206,8 @@ pub fn vega(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     s * (-q * t).exp() * t.sqrt() * ONE_ROOT2PI * e1_from_d1(d1_val)
 }
 
+/// Returns rho, the option value's sensitivity to the risk-free rate.
+/// Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -205,6 +223,8 @@ pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64
     }
 }
 
+/// Returns epsilon, the option value's sensitivity to the dividend yield.
+/// Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -220,6 +240,10 @@ pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) ->
     }
 }
 
+/// Returns lambda (elasticity), the percentage change in option value per
+/// percentage change in spot (`delta * s / value`). Yields `0.0` for
+/// degenerate inputs (`v <= 0` or `t <= 0`); Inf/NaN results are realized
+/// to `0.0`.
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -230,6 +254,9 @@ pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> 
     realize(delta(s, x, v, r, q, t, is_call) * s / value(s, x, v, r, q, t, is_call))
 }
 
+/// Returns gamma, the rate of change of delta with respect to spot.
+/// Independent of `is_call` (identical for both sides). Yields `0.0` for
+/// degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -241,6 +268,9 @@ pub fn gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     (-q * t).exp() / (s * v * t.sqrt()) * ONE_ROOT2PI * e1_from_d1(d1_val)
 }
 
+/// Returns vanna, the sensitivity of delta to volatility (equivalently,
+/// of vega to spot). Yields `0.0` for degenerate inputs (`v <= 0` or
+/// `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -252,6 +282,9 @@ pub fn vanna(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     -(-q * t).exp() * f1(d1_val) * d2_val / v
 }
 
+/// Returns charm, the sensitivity of delta to the passage of time
+/// (delta decay). Yields `0.0` for degenerate inputs (`v <= 0` or
+/// `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -268,6 +301,8 @@ pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+/// Returns vomma, the sensitivity of vega to volatility (vega convexity).
+/// Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -279,6 +314,8 @@ pub fn vomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     vega(s, x, v, r, q, t) * (d1_val * d2_val / v)
 }
 
+/// Returns veta, the sensitivity of vega to the passage of time. Yields
+/// `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -314,6 +351,9 @@ pub fn vera(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     -x * (-r * t).exp() * t * t.sqrt() * f1(d2_val)
 }
 
+/// Returns speed, the rate of change of gamma with respect to spot (third
+/// derivative of value in spot). Yields `0.0` for degenerate inputs
+/// (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -325,6 +365,8 @@ pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     -(-q * t).exp() * f1(d1_val) / (s * s * v * t.sqrt()) * (d1_val / (v * t.sqrt()) + 1.0)
 }
 
+/// Returns zomma, the sensitivity of gamma to volatility. Yields `0.0`
+/// for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -336,6 +378,8 @@ pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     (-q * t).exp() * f1(d1_val) * (d1_val * d2_val - 1.0) / (s * v * v * t.sqrt())
 }
 
+/// Returns color, the sensitivity of gamma to the passage of time (gamma
+/// decay). Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -350,6 +394,10 @@ pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
             + (2.0 * (r - q) * t - d2_val * v * t.sqrt()) / (v * t.sqrt()) * d1_val)
 }
 
+/// Returns ultima, the sensitivity of vomma to volatility (third-order
+/// volatility Greek). The result is clamped to `[-100.0, 100.0]` to bound
+/// the numerically unstable tails. Yields `0.0` for degenerate inputs
+/// (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -363,6 +411,9 @@ pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     out.clamp(-100.0, 100.0)
 }
 
+/// Returns dual delta, the option value's sensitivity to the strike (the
+/// risk-neutral probability of finishing in the money, signed by side).
+/// Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -378,6 +429,8 @@ pub fn dual_delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool)
     }
 }
 
+/// Returns dual gamma, the rate of change of dual delta with respect to
+/// the strike. Yields `0.0` for degenerate inputs (`v <= 0` or `t <= 0`).
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
@@ -474,45 +527,73 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
     out[1] = ((v - o) / o).clamp(-100.0, 100.0);
 }
 
-/// All Greeks computed in a single struct.
+/// Full Greek surface computed in a single pass, with shared intermediates.
+///
+/// Each field carries the same quantity as the like-named free function in
+/// this module; see those for the per-Greek definitions and degenerate-input
+/// behaviour.
 #[derive(Debug, Clone, Copy)]
 pub struct GreeksResult {
+    /// Black-Scholes theoretical option value.
     pub value: f64,
+    /// First derivative of value in spot.
     pub delta: f64,
+    /// Second derivative of value in spot.
     pub gamma: f64,
+    /// Sensitivity to time, per calendar day.
     pub theta: f64,
+    /// Sensitivity to volatility.
     pub vega: f64,
+    /// Sensitivity to the risk-free rate.
     pub rho: f64,
+    /// Implied volatility recovered from the option price.
     pub iv: f64,
+    /// Relative residual of the IV solve (`(value - price) / price`), clamped
+    /// to `[-100.0, 100.0]`.
     pub iv_error: f64,
     // Second order
+    /// Sensitivity of delta to volatility.
     pub vanna: f64,
+    /// Sensitivity of delta to time.
     pub charm: f64,
+    /// Sensitivity of vega to volatility.
     pub vomma: f64,
+    /// Sensitivity of vega to time.
     pub veta: f64,
     /// DvegaDr: `-K * exp(-r*T) * T * sqrt(T) * phi(d2)`. Sensitivity of
     /// vega to the risk-free rate.
     pub vera: f64,
     // Third order
+    /// Sensitivity of gamma to spot.
     pub speed: f64,
+    /// Sensitivity of gamma to volatility.
     pub zomma: f64,
+    /// Sensitivity of gamma to time.
     pub color: f64,
+    /// Sensitivity of vomma to volatility.
     pub ultima: f64,
     // Auxiliary
+    /// Black-Scholes `d1` term.
     pub d1: f64,
+    /// Black-Scholes `d2` term.
     pub d2: f64,
+    /// Sensitivity of value to the strike.
     pub dual_delta: f64,
+    /// Sensitivity of dual delta to the strike.
     pub dual_gamma: f64,
+    /// Sensitivity of value to the dividend yield.
     pub epsilon: f64,
+    /// Elasticity: percentage change in value per percentage change in spot.
     pub lambda: f64,
 }
 
-/// Compute all 23 Greeks at once with maximally shared intermediates.
+/// Computes the full [`GreeksResult`] surface at once with maximally shared
+/// intermediates.
 ///
 /// Precomputes `d1`, `d2`, and all shared sub-expressions (exponentials,
 /// CDF values, products) once, then evaluates Greeks in dependency tiers:
 ///
-/// **Tier 0 — Shared intermediates** (8 precomputed values):
+/// **Tier 0 — Shared intermediates** (precomputed once):
 ///   `sqrt_t`, `v_sqrt_t`, `d1`, `d2`, `exp(-qt)`, `exp(-rt)`, `N(d1)`, `N(d2)`,
 ///   `f1(d1)`, `f1(d2)`, `e1`, `d1*d2`
 ///
@@ -528,8 +609,8 @@ pub struct GreeksResult {
 /// **Auxiliary** (lambda, `dual_delta`, `dual_gamma)`:
 ///   Depend on Tier 1 values.
 ///
-/// This avoids ~20 redundant `d1`/`d2` recalculations and ~40 redundant
-/// `exp()`/`norm_cdf()` calls compared to calling each Greek individually.
+/// This avoids the redundant `d1`/`d2` recalculations and repeated
+/// `exp()`/`norm_cdf()` calls incurred by computing each Greek individually.
 ///
 /// `right` accepts `"C"`/`"P"`/`"call"`/`"put"` case-insensitively (see
 /// [`crate::tdbe::right::parse_right_strict`]).
@@ -595,8 +676,8 @@ pub fn all_greeks(
 /// Use this when the caller already has a recent IV and just wants
 /// the full bundle re-evaluated at new `(s, x, ...)` inputs — the
 /// typical IV-cache hot path. One Tier-0 intermediates pass is
-/// shared across every Greek in the bundle, so this is roughly 2×
-/// faster than issuing 17+ separate per-Greek calls.
+/// shared across every Greek in the bundle, avoiding the repeated
+/// `d1`/`d2`/`exp`/`norm_cdf` work of separate per-Greek calls.
 ///
 /// # Returned `iv_error`
 ///

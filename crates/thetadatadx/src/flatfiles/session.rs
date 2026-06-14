@@ -30,6 +30,8 @@ use crate::fpss::protocol::build_credentials_payload;
 
 /// Established, authenticated MDDS connection.
 pub(crate) struct AuthedSession {
+    /// Authenticated TLS stream, ready to carry FLAT_FILE request/response
+    /// frames.
     pub stream: TlsStream<TcpStream>,
     /// Bundle string from the METADATA frame, e.g.
     /// `"STOCK.STANDARD, OPTION.PRO, INDEX.FREE"`. Useful for surfacing in
@@ -65,15 +67,11 @@ pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStr
     Ok(tls)
 }
 
-/// Build the CREDENTIALS payload.
-///
-/// Layout (verified live):
-/// ```text
 /// Build the VERSION payload — `[u32 BE jsonlen][json_utf8]`.
 ///
 /// The vendor terminal serialises every JVM system property; the server
-/// only inspects the `terminal.version` key. We send a minimal map so the
-/// server's MDC log shows a recognisable client identity without leaking
+/// only inspects the `terminal.version` key. A minimal map keeps the
+/// server's MDC log showing a recognisable client identity without leaking
 /// host details.
 fn build_version_payload() -> Vec<u8> {
     // Hand-rolled to avoid pulling in serde_json for a 1-line constant. The

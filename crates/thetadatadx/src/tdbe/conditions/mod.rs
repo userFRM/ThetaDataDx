@@ -8,8 +8,7 @@
 //!
 //! The public surface — [`TradeCondition`], [`QuoteCondition`],
 //! [`TRADE_CONDITIONS`], [`QUOTE_CONDITIONS`], and the eight lookup
-//! functions — is unchanged from the previous monolithic
-//! `conditions.rs`.
+//! functions — wraps the generated tables with O(1) array-index lookups.
 
 mod tables_generated;
 

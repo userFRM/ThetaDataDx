@@ -133,6 +133,8 @@ pub(crate) struct IndexIter<'a> {
 }
 
 impl<'a> IndexIter<'a> {
+    /// Creates an iterator over the INDEX section `index_bytes`, decoding
+    /// each entry's contract key per `sec`.
     pub(crate) fn new(index_bytes: &'a [u8], sec: SecType) -> Self {
         Self {
             cur: Cursor::new(index_bytes),
