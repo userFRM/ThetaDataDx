@@ -248,7 +248,7 @@ impl Config {
     /// Set the streaming reconnect policy.
     ///
     /// - "auto" (default): auto-reconnect with split per-class attempt
-    ///   budgets ([`config::ReconnectAttemptLimits`] defaults — 3
+    ///   budgets ([`config::ReconnectAttemptLimits`] defaults — 30
     ///   attempts for generic transients, 100 for rate-limited).
     /// - "manual": no auto-reconnect, user calls reconnect explicitly.
     ///

@@ -305,7 +305,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
 /// Set the reconnect delay (ms) honoured for generic transient
 /// disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
 /// through to the FPSS I/O loop at connect time and consumed by the
-/// `Auto` reconnect arm via `reconnect_delay_for`. Default `2_000`.
+/// `Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms(config: *mut TdxConfig, ms: u64) {
     ffi_boundary!((), {
@@ -1583,7 +1583,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
 /// Set the total attempt budget for the MDDS retry policy. `1`
 /// disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default
-/// `5`.
+/// `20`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_retry_max_attempts(config: *mut TdxConfig, n: u32) {
     ffi_boundary!((), {
@@ -1693,7 +1693,7 @@ pub unsafe extern "C" fn tdx_config_get_derive_ohlcvc(
 /// Set the total attempt budget for the flatfile driver retry loop.
 /// `1` disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default
-/// `3`. Validated to the range `[1, 10]` at
+/// `10`. Validated to the range `[1, 100]` at
 /// [`thetadatadx::DirectConfig::validate`] time.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts(config: *mut TdxConfig, n: u32) {
@@ -1768,7 +1768,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_initial_backoff_secs(
 
 /// Set the upper-bound backoff delay (seconds) for the flatfile
 /// driver retry loop. The doubling schedule never exceeds this value
-/// regardless of attempt number. Default `4`. Must be greater than
+/// regardless of attempt number. Default `30`. Must be greater than
 /// or equal to `initial_backoff_secs` (rejected at
 /// [`thetadatadx::DirectConfig::validate`] time otherwise).
 #[no_mangle]

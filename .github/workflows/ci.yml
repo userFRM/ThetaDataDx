@@ -120,6 +120,20 @@ jobs:
           python3 scripts/check_public_surface_leak.py --selftest
           python3 scripts/check_public_surface_leak.py
 
+  doc-defaults:
+    name: Documented config defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Documented default vs Rust source-of-truth detector
+        run: |
+          python3 scripts/check_doc_defaults.py --selftest
+          python3 scripts/check_doc_defaults.py
+
   cargo-deny:
     name: Cargo deny
     runs-on: ubuntu-latest
