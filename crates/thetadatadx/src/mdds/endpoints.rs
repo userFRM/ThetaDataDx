@@ -118,12 +118,10 @@ impl From<&[String]> for SymbolInput {
 /// rather than forwarding a string the upstream cannot serve. Daily
 /// bars come from the `*_history_eod` endpoints.
 ///
-/// The historical SDK accepted `"0"` and silently mapped it to
-/// `"100ms"`. That contradicted the previously-documented behaviour
-/// (`"0"` was advertised as "every quote change"), so `"0"` now snaps
-/// to `"tick"` — which is the upstream every-event vocabulary. Calls
-/// that depended on the silent-100ms behaviour should switch to an
-/// explicit preset.
+/// The `"0"` sentinel snaps to `"tick"` — the upstream every-event
+/// vocabulary — so the zero input maps to every-event sampling rather
+/// than a silent fixed-bar default. Callers wanting a fixed bar should
+/// pass an explicit preset.
 fn normalize_interval(interval: &str) -> String {
     if interval.ends_with('s') || interval.ends_with('m') || interval.ends_with('h') {
         return interval.to_string();
@@ -158,10 +156,9 @@ fn normalize_interval(interval: &str) -> String {
 /// Convert `time_of_day` values into the canonical `HH:MM:SS.SSS` format.
 ///
 /// ThetaData's v3 at-time endpoints expect a formatted ET wall-clock time
-/// such as `"09:30:00.000"`. Older ThetaDataDxClient docs and examples used
-/// millisecond strings like `"34200000"`. To preserve compatibility while
-/// aligning the public contract, this helper accepts either form and
-/// normalizes to `HH:MM:SS.SSS`.
+/// such as `"09:30:00.000"`. This helper also accepts a millisecond-of-day
+/// string like `"34200000"` and normalizes either form to `HH:MM:SS.SSS`,
+/// so both the formatted and millisecond inputs reach the server canonical.
 ///
 /// Invalid or out-of-range values are passed through unchanged so the
 /// server can return the canonical validation error.
@@ -313,17 +310,17 @@ mod tests {
 
     #[test]
     fn normalize_interval_snaps_zero_to_tick() {
-        // The historical mapping was `0 -> 100ms`, which contradicted
-        // the previously-documented every-event semantics. The upstream
-        // `tick` keyword is the every-event vocabulary, so the zero
-        // sentinel snaps to it instead.
+        // The upstream `tick` keyword is the every-event vocabulary, so
+        // the zero sentinel snaps to it (every-event sampling) rather
+        // than a fixed sub-second bar.
         assert_eq!(normalize_interval("0"), "tick");
     }
 
     #[test]
     fn normalize_interval_snaps_small_milliseconds_to_documented_presets() {
-        // 10ms-and-under -> 10ms; 11-100ms -> 100ms. The earlier
-        // 0..=100 -> 100ms mapping skipped the 10ms preset entirely.
+        // 10ms-and-under -> 10ms; 11-100ms -> 100ms. Each sub-100ms
+        // input snaps to the nearest documented preset, including the
+        // 10ms bar.
         assert_eq!(normalize_interval("10"), "10ms");
         assert_eq!(normalize_interval("11"), "100ms");
         assert_eq!(normalize_interval("100"), "100ms");

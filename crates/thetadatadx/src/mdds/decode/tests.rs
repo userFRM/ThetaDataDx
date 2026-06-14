@@ -681,8 +681,8 @@ fn parse_trade_ticks_propagates_type_mismatch() {
 // A `DataValue` with its `data_type` oneof unset is a wire-protocol
 // anomaly (the upstream parser's default arm throws on it). The
 // helpers `row_number` / `row_date` /
-// etc. already surface it as `TypeMismatch { observed: "Unset" }`. These
-// tests pin the same behaviour on the call-sites that used to coalesce
+// etc. surface it as `TypeMismatch { observed: "Unset" }`. These
+// tests pin that behaviour on the call-sites that must not coalesce
 // `NullValue | None` to zero: `parse_option_contracts_v3`,
 // `parse_calendar_days_v3`, the generator-emitted EOD helpers, and the
 // generator-emitted contract-id injected `expiration` / `right` fields.
@@ -782,8 +782,8 @@ fn parse_eod_ticks_errors_on_unset_cell() {
 fn parse_trade_ticks_errors_on_unset_injected_expiration() {
     // `parse_trade_ticks` is generator-emitted with `contract_id = true`;
     // an `expiration` header in the server payload triggers the injected
-    // `expiration` / `strike` / `right` decode. An unset cell there used
-    // to coalesce to 0; now it must fail loud.
+    // `expiration` / `strike` / `right` decode. An unset cell there must
+    // fail loud rather than coalesce to 0.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
         data_table: vec![row_of(vec![
@@ -964,7 +964,7 @@ fn parse_greeks_all_ticks_decodes_first_order_subset_with_silent_gaps() {
     // Wire-absent columns: zero-defaulted. These are the columns the
     // server does NOT publish for `_greeks_first_order` — `find_header`
     // returning `None` for each must NOT yield an error and must NOT
-    // warn (the pre-fix behaviour spammed eight warn lines per row).
+    // warn (an unguarded lookup would emit eight warn lines per row).
     assert_eq!(t.gamma, 0.0);
     assert_eq!(t.vanna, 0.0);
     assert_eq!(t.charm, 0.0);
@@ -1030,12 +1030,12 @@ fn parse_greeks_all_ticks_decodes_second_order_subset_with_silent_gaps() {
 }
 
 /// Vendor wire shape for `option_*_greeks_third_order`: speed / zomma /
-/// color / ultima plus IV pair. This is the exact endpoint the Issue
-/// #472 reporter was hitting — `option_snapshot_greeks_third_order`
-/// previously emitted eight warn lines per row for the absent
-/// first-order / second-order / `_all`-only columns. The test pins the
-/// silent-gap behaviour so a future regression of `find_header` back
-/// to `tracing::warn!` would surface here as a behavioural change.
+/// color / ultima plus IV pair. `option_snapshot_greeks_third_order`
+/// omits the first-order / second-order / `_all`-only columns, so an
+/// unguarded `find_header` would emit eight warn lines per row for the
+/// absent columns. The test pins the silent-gap behaviour so a
+/// regression of `find_header` back to `tracing::warn!` would surface
+/// here as a behavioural change.
 /// Column layout pinned to upstream OpenAPI schema
 /// `items_option_snapshot_greeks_third_order` (notably `vera` is NOT
 /// in the third-order subset; it only ships in `_greeks_all`).

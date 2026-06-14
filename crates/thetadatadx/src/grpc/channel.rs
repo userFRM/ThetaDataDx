@@ -11,7 +11,8 @@
 //! [`Channel::server_streaming`] sends a single server-streaming RPC and
 //! returns a [`ServerStreaming`] that yields decoded response messages.
 //! Per-chunk payload decode (zstd + prost `DataTable`) runs inline on
-//! the request task — the measured-fastest shape for this workload.
+//! the request task, keeping each chunk on its producing connection and
+//! avoiding a cross-thread hand-off for this workload.
 //!
 //! # Connector
 //!
@@ -71,8 +72,7 @@ impl Default for ChannelTuning {
     fn default() -> Self {
         Self {
             // HTTP/2 spec initial windows (64 KiB) — the same wire
-            // shape the production config defaults to and the shape
-            // the transport comparison was measured at.
+            // shape the production config defaults to.
             initial_stream_window_size: 64 * 1024,
             initial_connection_window_size: 64 * 1024,
             keepalive_interval: Duration::from_secs(30),
@@ -629,8 +629,8 @@ fn deadline_error(d: Duration) -> ChannelError {
 /// statuses the decode layer synthesizes locally for protocol-shape
 /// violations (over-limit frames map to the canonical `OutOfRange`,
 /// malformed framing to `Internal`), which carry no source either —
-/// both are terminal for the retry shell, matching the previous
-/// transport's codec-error classification.
+/// a protocol-shape violation is deterministic, so both are terminal
+/// for the retry shell rather than transient.
 ///
 /// A status WITH a source chain is a locally-synthesized wrapper
 /// around a transport fault; the chain is walked for the precise
@@ -640,16 +640,16 @@ fn deadline_error(d: Duration) -> ChannelError {
 ///   surfaces as [`ChannelError::DeadlineExceeded`].
 /// - `tonic::ConnectError` — the lazy reconnect path failed to dial;
 ///   connection-level, surfaces as [`ChannelError::ConnectionClosed`].
-/// - [`h2::Error`] — scoped by the same rules the previous transport
-///   used: `GOAWAY` / IO failure / "inactive stream" are
-///   connection-level ([`ChannelError::ConnectionClosed`]); per-stream
-///   `RST_STREAM` (any reason code) and library-detected per-stream
-///   protocol errors are stream-level ([`ChannelError::H2Stream`]).
-///   HTTP/2 spec § 7 (Error Codes) is the canonical scope list.
+/// - [`h2::Error`] — scoped by HTTP/2 error semantics: `GOAWAY` / IO
+///   failure / "inactive stream" are connection-level
+///   ([`ChannelError::ConnectionClosed`]); per-stream `RST_STREAM`
+///   (any reason code) and library-detected per-stream protocol errors
+///   are stream-level ([`ChannelError::H2Stream`]). HTTP/2 spec § 7
+///   (Error Codes) is the canonical scope list.
 /// - [`std::io::Error`] — transport gone; connection-level.
 /// - An exhausted chain falls back to connection-level: an unknown
-///   local transport fault is retried on a fresh pick, mirroring the
-///   previous transport's open-phase classification.
+///   local transport fault is treated as transient and retried on a
+///   fresh pick.
 pub(crate) fn classify_status(status: tonic::Status, deadline_ms: Option<u64>) -> ChannelError {
     use std::error::Error as _;
     if status.source().is_none() {

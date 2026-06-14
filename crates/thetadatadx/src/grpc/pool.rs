@@ -5,11 +5,10 @@
 //! window and `MAX_CONCURRENT_STREAMS` is finite. [`ChannelPool`] keeps
 //! `N` parallel channels — one HTTP/2 connection each — and hands them
 //! out via [`ChannelPool::next`], picking the channel with the fewest
-//! in-flight streams. Measured against a single multiplexed connection
-//! carrying the same workload, the per-worker connection fan-out
-//! delivers roughly 1.8x the small-frame throughput and 2.3x the
-//! large-frame throughput at the 16-concurrent account ceiling, so the
-//! pool survives the transport swap unchanged.
+//! in-flight streams. Spreading concurrent work across several
+//! connections gives each its own flow-control window and stream
+//! budget, so a saturated stream count on one connection does not
+//! throttle the others the way a single multiplexed connection would.
 //!
 //! The pool is `Arc`-clone-cheap and `Send + Sync`; callers can clone
 //! it freely across tasks. Each [`ChannelPool::next`] returns a lease

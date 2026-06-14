@@ -33,9 +33,13 @@
 #[cfg(feature = "__internal")]
 #[derive(Debug, Clone)]
 pub struct ParamMeta {
+    /// Parameter name as accepted on the call (e.g. `"symbol"`).
     pub name: &'static str,
+    /// Human-readable description surfaced in CLI/MCP help.
     pub description: &'static str,
+    /// Scalar type the value is parsed into.
     pub param_type: ParamType,
+    /// Whether the parameter must be supplied by the caller.
     pub required: bool,
 }
 

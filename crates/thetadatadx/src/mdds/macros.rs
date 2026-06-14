@@ -26,6 +26,11 @@
 /// the future is wrapped in [`tokio::time::timeout`]; on elapsed the future
 /// is dropped and `Error::Timeout { duration_ms }` is returned. Local state
 /// captured by the future (`_permit`, `tonic::Streaming`) drops with it.
+///
+/// # Errors
+///
+/// Returns `Error::Timeout` when the deadline elapses; otherwise propagates
+/// whatever error the wrapped future resolves to.
 pub(crate) async fn run_with_optional_deadline<F, T>(
     deadline: Option<std::time::Duration>,
     fut: F,
@@ -76,8 +81,8 @@ enum StatusClass {
 ///
 /// Exists as a free function so the macros can call it with a plain
 /// `Result` produced by their owned request + stream + collect chain,
-/// avoiding the higher-ranked trait bounds that broke the previous
-/// closure-based helper.
+/// avoiding the higher-ranked trait bounds a closure-based helper
+/// would impose.
 pub(crate) async fn classify_attempt<T>(
     session: &crate::auth::SessionToken,
     snap: &crate::auth::session::SessionSnapshot,
@@ -253,8 +258,8 @@ pub(crate) async fn classify_streaming_attempt(
 
 /// Drive the unary endpoint retry / refresh loop.
 ///
-/// Single source of truth for the control flow previously open-coded
-/// in three macro arms. The closure receives the current session
+/// Single source of truth for the retry / refresh control flow shared
+/// by the endpoint macro arms. The closure receives the current session
 /// snapshot and returns the per-attempt result; the helper handles
 /// snapshotting, classification, refresh, backoff, and the
 /// post-refresh re-attempt budget.
@@ -264,6 +269,12 @@ pub(crate) async fn classify_streaming_attempt(
 /// (budget = 1), a single `Unauthenticated` triggers refresh + one
 /// post-refresh re-attempt. Subsequent failures surface to the
 /// caller.
+///
+/// # Errors
+///
+/// Returns the last attempt's [`crate::error::Error`] once the retry
+/// budget or wall-clock envelope is exhausted, or a terminal error
+/// (including a failed session refresh) surfaced unchanged.
 pub(crate) async fn run_unary_retry_loop<T, F, Fut>(
     session: &crate::auth::SessionToken,
     policy: &crate::config::RetryPolicy,
@@ -324,6 +335,12 @@ where
 /// `Unauthenticated` triggers refresh + restart from chunk zero
 /// (MDDS has no resume token); the closure is invoked again with
 /// the post-refresh snapshot.
+///
+/// # Errors
+///
+/// Returns the last attempt's [`crate::error::Error`] once the retry
+/// budget or wall-clock envelope is exhausted, or a terminal error
+/// (including a failed session refresh) surfaced unchanged.
 pub(crate) async fn run_streaming_retry_loop<F, Fut>(
     session: &crate::auth::SessionToken,
     policy: &crate::config::RetryPolicy,
@@ -526,11 +543,10 @@ macro_rules! list_endpoint {
                     };
                     // Bind the lease to a local so it lives across
                     // the await — the pre-dispatch reservation
-                    // must outlive `server_streaming` for the
-                    // picker fix (Finding 4) to count pending
-                    // opens correctly under burst contention.
-                    // Deref coercion from `&ChannelLease` to
-                    // `&Channel` satisfies the generated stub
+                    // must outlive `server_streaming` so the picker
+                    // counts pending opens correctly under burst
+                    // contention. Deref coercion from `&ChannelLease`
+                    // to `&Channel` satisfies the generated stub
                     // signature.
                     let lease = self.channel();
                     let stream = $crate::proto::beta_theta_terminal::$grpc(
@@ -825,10 +841,10 @@ macro_rules! parsed_endpoint {
                         // Strict decode: type mismatch in any cell propagates
                         // as Error::Decode via `From<DecodeError>`.
                         let parsed = $parser(&table).map_err(Error::from)?;
-                        // Issue #576: surface the wrong-API-for-this-workload
+                        // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered
-                        // `Vec` materialized — before this point we don't yet
-                        // know the row count, after this point the caller has
+                        // `Vec` materialized — before this point the row count
+                        // is unknown, after this point the caller has
                         // already paid the buffered cost. `row_count` is the
                         // length the caller is about to receive; `row_size`
                         // is the wire-shape lower bound (`size_of::<Item>`).
@@ -1542,7 +1558,7 @@ mod refresh_retry_disabled_tests {
 
 #[cfg(test)]
 mod warn_buffered_tests {
-    //! Coverage for the issue #576 large-buffered-response warn helper.
+    //! Coverage for the large-buffered-response warn helper.
     //!
     //! Two layers of tests:
     //!

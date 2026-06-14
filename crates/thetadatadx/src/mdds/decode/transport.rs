@@ -211,8 +211,9 @@ mod r1_tests {
     /// Proof: a hostile `ResponseData.original_size`
     /// larger than `max_message_size` returns a typed
     /// `MessageTooLarge` error BEFORE any allocation runs. Pinned at
-    /// 2 GiB advertised vs 4 MiB ceiling — historically this triggered
-    /// the runaway allocation; the fix returns a clean error.
+    /// 2 GiB advertised vs 4 MiB ceiling — the size guard must reject
+    /// the advertised expansion rather than letting it drive a runaway
+    /// `Vec::resize`.
     #[test]
     fn hostile_original_size_rejected_before_alloc() {
         let mut response = proto::ResponseData {
@@ -220,9 +221,9 @@ mod r1_tests {
                 algo: proto::CompressionAlgo::Zstd as i32,
                 level: 0,
             }),
-            // 2 GiB advertised expansion — would have triggered a
-            // `Vec::resize(usize::try_from(i32::MAX), 0)` before R1.
-            // `original_size` is a wire-protocol `i32`; the v9 hostile
+            // 2 GiB advertised expansion — an unguarded path would feed
+            // this straight into `Vec::resize(usize::try_from(i32::MAX), 0)`.
+            // `original_size` is a wire-protocol `i32`; the hostile
             // value `i32::MAX` is the upper bound a peer can set.
             original_size: i32::MAX,
             // Empty payload — never reached because original_size
