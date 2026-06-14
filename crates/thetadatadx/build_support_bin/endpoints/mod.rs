@@ -43,10 +43,14 @@ use std::path::Path;
 #[cfg(feature = "__internal")]
 pub use docs_render::{check_docs_site_files, write_docs_site_files};
 
+/// Renders every per-language SDK surface file and writes it to disk
+/// under `repo_root`.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     sdk_render::write_sdk_generated_files(repo_root)
 }
 
+/// Renders every per-language SDK surface file and verifies the on-disk
+/// copy matches, returning an error on the first missing or stale file.
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     sdk_render::check_sdk_generated_files(repo_root)
 }

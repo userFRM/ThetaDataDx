@@ -425,6 +425,9 @@ fn http_tab(spec: &StreamSpec) -> String {
 
 // ───────────────────────── Page assembly ────────────────────────────────────
 
+/// Renders one reference page per stream type, returning each as a
+/// `(path, contents)` pair: title, prose, per-language tabs, and the
+/// event field table.
 pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
     let schema = load_event_schema()?;
     let mut pages = Vec::new();

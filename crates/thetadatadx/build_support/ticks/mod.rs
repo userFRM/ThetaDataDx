@@ -9,6 +9,7 @@
 pub(super) mod parser;
 pub(super) mod schema;
 
+/// Generates the tick decoders from `tick_schema.toml`.
 pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
     parser::generate()
 }

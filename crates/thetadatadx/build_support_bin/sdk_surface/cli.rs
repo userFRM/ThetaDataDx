@@ -8,6 +8,7 @@ use super::common::{
 };
 use super::spec::{UtilityKind, UtilitySpec};
 
+/// Renders the CLI utilities source: the subcommand builder and the dispatch arms that run each utility.
 pub(super) fn render_cli_utilities(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());

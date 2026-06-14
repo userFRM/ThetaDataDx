@@ -6,6 +6,7 @@ use std::fmt::Write as _;
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
+/// Renders the TypeScript streaming methods source: the `#[napi]` block on `ThetaDataDxClient`.
 pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
@@ -281,6 +282,7 @@ fn to_ts_camel_case(name: &str) -> String {
     result
 }
 
+/// Renders the TypeScript utility functions source: the `AllGreeks` napi object and the offline utility free functions.
 pub(super) fn render_ts_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());

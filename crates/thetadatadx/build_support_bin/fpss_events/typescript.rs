@@ -39,6 +39,7 @@ pub struct Contract {
 "#
 }
 
+/// Renders the TypeScript SDK source: a `#[napi(object)]` struct per event variant, the flat `FpssEvent` wrapper, and the `buffered_event_to_typed` dispatcher.
 pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

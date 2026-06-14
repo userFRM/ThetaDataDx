@@ -14,6 +14,7 @@ use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::tdbe_structs::timestamp_accessor_fields;
 use super::{pyclass_name, sorted_type_names};
 
+/// Renders `sdks/python/src/_generated/tick_classes.rs` — the typed `#[pyclass]` struct, `<Tick>List` wrapper, iterator, and list converters per tick type, plus the shared `StringList` wrapper and class registration helper.
 pub(super) fn render_python_tick_classes(
     schema: &Schema,
     snapshot_return_types: &std::collections::HashSet<String>,

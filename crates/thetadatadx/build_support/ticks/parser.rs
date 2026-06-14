@@ -22,6 +22,8 @@ use std::path::Path;
 
 use super::schema::{load_schema, ColumnDef, TickTypeDef};
 
+/// Loads the tick schema and writes `decode_generated.rs` with one two-phase
+/// parser function per tick type, in deterministic name order.
 pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     let schema = load_schema()?;
     let schema_path = "tick_schema.toml";

@@ -9,6 +9,7 @@ pub enum Right {
 }
 
 impl Right {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -18,6 +19,7 @@ impl Right {
         }
     }
 
+    /// Parses an option-right character (`C`/`P`, case-insensitive); `None` if unrecognized.
     #[must_use]
     pub fn from_char(c: char) -> Option<Self> {
         match c {
@@ -27,6 +29,7 @@ impl Right {
         }
     }
 
+    /// Returns the single-character option-right code (`C`/`P`/`*`).
     #[must_use]
     pub fn as_char(&self) -> char {
         match self {
@@ -67,6 +70,7 @@ pub enum Venue {
 }
 
 impl Venue {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -115,6 +119,7 @@ pub enum Interval {
 }
 
 impl Interval {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -186,6 +191,7 @@ pub enum RateType {
 }
 
 impl RateType {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -243,6 +249,7 @@ pub enum RequestType {
 }
 
 impl RequestType {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -282,6 +289,7 @@ pub enum Version {
 }
 
 impl Version {
+    /// Returns the wire string for this variant.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {

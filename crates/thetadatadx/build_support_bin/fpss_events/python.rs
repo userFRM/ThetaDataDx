@@ -76,6 +76,7 @@ impl ContractRef {\n\
 }\n\n"
 }
 
+/// Renders the Python SDK source: a typed `#[pyclass]` per event variant, the `fpss_event_to_typed` dispatcher, and the module registration helper.
 pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

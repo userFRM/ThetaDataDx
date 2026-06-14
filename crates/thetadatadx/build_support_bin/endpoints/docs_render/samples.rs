@@ -16,6 +16,8 @@ use super::super::model::GeneratedEndpoint;
 
 const SAMPLE_ROWS: usize = 3;
 
+/// Decoded sample rows from a capture fixture, ready for the example
+/// table on a reference page.
 pub(super) struct DecodedSample {
     /// First rows, stringified in `tick_schema.toml` column order.
     pub(super) rows: Vec<Vec<String>>,

@@ -20,6 +20,7 @@ use polars::prelude::{DataFrame, NamedFrom, PlSmallStr, PolarsResult, Series};
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
+    /// Builds an Arrow `RecordBatch` from a slice of `CalendarDay`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -55,6 +56,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
+    /// Builds a Polars `DataFrame` from a slice of `CalendarDay`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -82,6 +84,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `EodTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -177,6 +180,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
+    /// Builds a Polars `DataFrame` from a slice of `EodTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -249,6 +253,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksAllTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -388,6 +393,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick] {
+    /// Builds a Polars `DataFrame` from a slice of `GreeksAllTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -493,6 +499,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksEodTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -680,6 +687,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick] {
+    /// Builds a Polars `DataFrame` from a slice of `GreeksEodTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -821,6 +829,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksFirstOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -904,6 +913,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `GreeksFirstOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -967,6 +977,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksSecondOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1046,6 +1057,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `GreeksSecondOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1106,6 +1118,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksThirdOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1181,6 +1194,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `GreeksThirdOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1238,6 +1252,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTimeTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `IndexPriceAtTimeTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1297,6 +1312,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTim
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTimeTick] {
+    /// Builds a Polars `DataFrame` from a slice of `IndexPriceAtTimeTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1342,6 +1358,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTi
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `InterestRateTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -1365,6 +1382,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTic
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTick] {
+    /// Builds a Polars `DataFrame` from a slice of `InterestRateTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
@@ -1383,6 +1401,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTi
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `IvTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1454,6 +1473,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
+    /// Builds a Polars `DataFrame` from a slice of `IvTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1508,6 +1528,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `MarketValueTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1555,6 +1576,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTick] {
+    /// Builds a Polars `DataFrame` from a slice of `MarketValueTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1591,6 +1613,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTic
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `OhlcTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1654,6 +1677,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
+    /// Builds a Polars `DataFrame` from a slice of `OhlcTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1702,6 +1726,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `OpenInterestTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1741,6 +1766,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTic
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTick] {
+    /// Builds a Polars `DataFrame` from a slice of `OpenInterestTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1771,6 +1797,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTi
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract] {
+    /// Builds an Arrow `RecordBatch` from a slice of `OptionContract`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_symbol: Vec<String> = Vec::with_capacity(n);
@@ -1802,6 +1829,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract]
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract] {
+    /// Builds a Polars `DataFrame` from a slice of `OptionContract`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_symbol: Vec<String> = Vec::with_capacity(n);
@@ -1826,6 +1854,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `PriceTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1853,6 +1882,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
+    /// Builds a Polars `DataFrame` from a slice of `PriceTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1874,6 +1904,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `QuoteTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1945,6 +1976,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
+    /// Builds a Polars `DataFrame` from a slice of `QuoteTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -1999,6 +2031,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksAllTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2166,6 +2199,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAllTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksAllTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2292,6 +2326,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirstOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksFirstOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2403,6 +2438,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFirstOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksFirstOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2487,6 +2523,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2574,6 +2611,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2640,6 +2678,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSecondOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksSecondOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2747,6 +2786,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSecondOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksSecondOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2828,6 +2868,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThirdOrderTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksThirdOrderTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -2931,6 +2972,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThirdOrderTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksThirdOrderTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3009,6 +3051,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeQuoteTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3132,6 +3175,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick]
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeQuoteTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3225,6 +3269,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeTick`, one column per public field.
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
@@ -3312,6 +3357,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeTick] {
+    /// Builds a Polars `DataFrame` from a slice of `TradeTick`, one column per public field.
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);

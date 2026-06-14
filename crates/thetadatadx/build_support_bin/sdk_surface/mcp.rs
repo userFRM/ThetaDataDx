@@ -8,6 +8,7 @@ use super::common::{
 };
 use super::spec::{UtilityKind, UtilitySpec};
 
+/// Renders the MCP utilities source: the tool definitions and the execute arms that run each utility.
 pub(super) fn render_mcp_utilities(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());

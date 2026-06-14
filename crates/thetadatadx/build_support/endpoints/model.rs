@@ -228,6 +228,8 @@ pub(super) struct SurfaceParamUse {
     pub(super) group: String,
 }
 
+/// A template after `extends` inheritance is flattened, before endpoints
+/// merge their own overrides onto it.
 #[derive(Debug, Clone, Default)]
 pub(super) struct ResolvedTemplate {
     pub(super) wire_name: Option<String>,
@@ -242,6 +244,9 @@ pub(super) struct ResolvedTemplate {
     pub(super) params: Vec<SurfaceParam>,
 }
 
+/// An endpoint after template and param-group expansion, with every field
+/// resolved to a concrete value but before cross-validation against the wire
+/// contract.
 #[derive(Debug, Clone)]
 pub(super) struct ResolvedSurfaceEndpoint {
     pub(super) name: String,
@@ -276,6 +281,7 @@ pub(super) struct Rpc {
     pub(super) request_type: String, // e.g. "StockHistoryEodRequest"
 }
 
+/// A fully merged endpoint parameter consumed by the emitters.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedParam {
     pub(super) name: String,
@@ -308,11 +314,15 @@ pub(super) struct GeneratedEnum {
     pub(super) variants: Vec<GeneratedEnumVariant>,
 }
 
+/// A merged enum variant carrying the wire string the build script validates
+/// default-value membership against.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEnumVariant {
     pub(super) wire: String,
 }
 
+/// The merged endpoint model joining the TOML surface with the wire
+/// contract. The single source of truth every renderer iterates over.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEndpoint {
     pub(super) name: String,
@@ -341,6 +351,7 @@ pub(super) struct GeneratedEndpoint {
     pub(super) vendor_docstring: Option<String>,
 }
 
+/// The full set of merged endpoints handed to the emitters.
 #[derive(Debug, Clone)]
 pub(super) struct ParsedEndpoints {
     pub(super) endpoints: Vec<GeneratedEndpoint>,

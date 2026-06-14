@@ -65,6 +65,7 @@ pub has_strike: bool,
 pub strike: f64,
 }
 
+/// Zeroed `TdxContract` literal: null symbol, all-false presence flags, zero scalars.
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {
 symbol: ptr::null(),
 sec_type: 0,

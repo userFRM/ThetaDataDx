@@ -3,6 +3,7 @@
 use super::common::snake_case;
 use super::schema::{sorted_control_events, sorted_data_events, ColumnDef, Schema};
 
+/// Size and alignment, in bytes, of a single emitted C field.
 #[derive(Clone, Copy)]
 pub(super) struct CFieldLayout {
     pub(super) size: usize,
@@ -44,6 +45,7 @@ pub(super) fn expand_columns(columns: &[ColumnDef]) -> Vec<(String, CFieldLayout
     out
 }
 
+/// Returns the total C struct size, in bytes, for a variant's columns, padded to at least one byte.
 pub(super) fn c_struct_size(columns: &[ColumnDef]) -> usize {
     let expanded = expand_columns(columns);
     let size = c_layout(expanded.iter().map(|(_, l)| *l));
@@ -55,6 +57,7 @@ pub(super) fn c_struct_size(columns: &[ColumnDef]) -> usize {
     size.max(1)
 }
 
+/// Returns the byte offset of each physical C field for a variant's columns.
 pub(super) fn c_struct_offsets(columns: &[ColumnDef]) -> Vec<(String, usize)> {
     let expanded = expand_columns(columns);
     let mut offsets = Vec::with_capacity(expanded.len());
@@ -82,6 +85,7 @@ pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
     }
 }
 
+/// Returns the total C struct size, in bytes, of the tagged `TdxFpssEvent` wrapper.
 pub(super) fn fpss_event_size(schema: &Schema) -> usize {
     c_layout(
         fpss_event_fields(schema)
@@ -90,6 +94,7 @@ pub(super) fn fpss_event_size(schema: &Schema) -> usize {
     )
 }
 
+/// Returns the byte offset of each field on the tagged `TdxFpssEvent` wrapper.
 pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size = 0;

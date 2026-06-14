@@ -20,6 +20,8 @@ use super::super::helpers::{
 };
 use super::super::model::{GeneratedEndpoint, ProtoField};
 
+/// Emits a `list_endpoint!` macro invocation for a flat-list endpoint,
+/// rendering its doc, signature, gRPC stub, request, and query fields.
 pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "list_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", compose_endpoint_doc(endpoint)).unwrap();
@@ -107,6 +109,9 @@ exceeds [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]\n\
 \n\
 ";
 
+/// Emits a `parsed_endpoint!` macro invocation for a typed historical
+/// endpoint, rendering its builder, signature, query fields, parser, per-tick
+/// stream item type, and optional setters.
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", compose_endpoint_doc(endpoint)).unwrap();
@@ -210,6 +215,9 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
     out.push_str("}\n\n");
 }
 
+/// Emits the hand-shaped streaming builder for a subscription endpoint: the
+/// builder struct, its optional setters, the deadline-and-retry stream method,
+/// and the `MddsClient` constructor that returns it.
 pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = endpoint
         .params
@@ -468,6 +476,9 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str("}\n\n");
 }
 
+/// Returns the Rust expression that populates one proto query field from the
+/// endpoint's arguments, applying the per-field normalization and contract-spec
+/// handling the wire contract requires.
 pub(super) fn mdds_query_field_expr(
     endpoint: &GeneratedEndpoint,
     field: &ProtoField,

@@ -7,6 +7,7 @@ use super::common::{
 };
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
+/// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `ThetaDataDxClient`.
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
@@ -39,6 +40,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     out
 }
 
+/// Renders the Python utility functions source: the `AllGreeks` pyclass, the `#[pyfunction]` wrappers, and their module registration helper.
 pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());

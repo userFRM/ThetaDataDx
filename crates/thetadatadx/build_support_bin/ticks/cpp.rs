@@ -7,6 +7,7 @@ use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::Schema;
 use super::sorted_type_names;
 
+/// Renders `sdks/cpp/include/tick_layout_asserts.hpp.inc` — `static_assert` size, alignment, and per-field offset checks pinning each C++ tick mirror to the Rust struct layout.
 pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

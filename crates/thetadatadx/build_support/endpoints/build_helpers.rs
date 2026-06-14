@@ -74,6 +74,8 @@ fn direct_name(collection: &str) -> &'static str {
     })
 }
 
+/// Returns the call-site argument expression for a param, dereferencing
+/// `Symbols` to the borrowed `&symbol_refs` slice and passing others by name.
 pub(super) fn call_arg_name(param: &GeneratedParam) -> String {
     if is_symbols_param(param) {
         "&symbol_refs".into()
@@ -84,6 +86,8 @@ pub(super) fn call_arg_name(param: &GeneratedParam) -> String {
 
 // ───────────────────────── Runtime dispatch getters ─────────────────────────
 
+/// Returns the `EndpointArgs` getter name that extracts a required value
+/// of the given wire param type (e.g. `Date` maps to `required_date`).
 pub(super) fn required_getter_name(param_type: &str) -> &'static str {
     match param_type {
         "Symbol" => "required_symbol",
@@ -101,6 +105,8 @@ pub(super) fn required_getter_name(param_type: &str) -> &'static str {
     }
 }
 
+/// Returns the `EndpointArgs` getter name that extracts an optional value
+/// of the given wire param type (e.g. `Date` maps to `optional_date`).
 pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
     match param_type {
         "Date" => "optional_date",
@@ -117,6 +123,8 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
 
 // ───────────────────────── Direct (Rust) client type maps ──────────────────
 
+/// Returns the in-house Rust client method argument name for a param,
+/// honoring the `_arg_name` override and falling back to the param name.
 pub(super) fn direct_method_arg_name(
     endpoint: &GeneratedEndpoint,
     param: &GeneratedParam,
@@ -128,6 +136,8 @@ pub(super) fn direct_method_arg_name(
         .unwrap_or_else(|| param.name.clone())
 }
 
+/// Returns the method argument name when the param is a date field
+/// (`date`, `start_date`, `end_date`), and `None` otherwise.
 pub(super) fn direct_date_arg_name(
     endpoint: &GeneratedEndpoint,
     param: &GeneratedParam,
@@ -138,6 +148,8 @@ pub(super) fn direct_date_arg_name(
     }
 }
 
+/// Returns the required-param store kind tag for a param: `str_vec` for
+/// `Symbols`, `str` otherwise.
 pub(super) fn direct_required_kind(param: &GeneratedParam) -> &'static str {
     if param.param_type == "Symbols" {
         "str_vec"
@@ -146,6 +158,8 @@ pub(super) fn direct_required_kind(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Returns the optional-field storage kind tag and its default-value
+/// initializer expression for a param, parsing any declared default.
 pub(super) fn direct_optional_kind_and_default(param: &GeneratedParam) -> (&'static str, String) {
     if let Some(default) = param.default.as_deref() {
         return match param.param_type.as_str() {
@@ -193,6 +207,8 @@ pub(super) fn direct_optional_kind_and_default(param: &GeneratedParam) -> (&'sta
     }
 }
 
+/// Returns the Rust type for an optional builder field (e.g. `Option<i32>`
+/// or `String`) based on the param's storage kind.
 pub(super) fn direct_optional_rust_type(param: &GeneratedParam) -> &'static str {
     match direct_optional_kind_and_default(param).0 {
         "opt_i32" => "Option<i32>",
@@ -203,6 +219,8 @@ pub(super) fn direct_optional_rust_type(param: &GeneratedParam) -> &'static str 
     }
 }
 
+/// Returns the argument type for an optional builder setter (e.g. `i32`
+/// or `&str`) based on the param's storage kind.
 pub(super) fn direct_optional_setter_arg_type(param: &GeneratedParam) -> &'static str {
     match direct_optional_kind_and_default(param).0 {
         "opt_i32" => "i32",
@@ -213,6 +231,8 @@ pub(super) fn direct_optional_setter_arg_type(param: &GeneratedParam) -> &'stati
     }
 }
 
+/// Returns the assignment expression an optional builder setter stores from
+/// its argument `v` (e.g. `Some(v)` or `v.to_string()`).
 pub(super) fn direct_optional_setter_assign_expr(param: &GeneratedParam) -> &'static str {
     match direct_optional_kind_and_default(param).0 {
         "opt_i32" | "opt_f64" | "opt_bool" => "Some(v)",
@@ -221,6 +241,8 @@ pub(super) fn direct_optional_setter_assign_expr(param: &GeneratedParam) -> &'st
     }
 }
 
+/// Returns the struct field type for a required param: `Vec<String>` for
+/// `Symbols`, `String` otherwise.
 pub(super) fn direct_required_field_type(param: &GeneratedParam) -> &'static str {
     if param.param_type == "Symbols" {
         "Vec<String>"
@@ -229,6 +251,8 @@ pub(super) fn direct_required_field_type(param: &GeneratedParam) -> &'static str
     }
 }
 
+/// Returns the method parameter type for a required param:
+/// `impl Into<SymbolInput>` for `Symbols`, `&str` otherwise.
 pub(super) fn direct_required_param_type(param: &GeneratedParam) -> &'static str {
     if param.param_type == "Symbols" {
         "impl Into<SymbolInput>"
@@ -237,6 +261,8 @@ pub(super) fn direct_required_param_type(param: &GeneratedParam) -> &'static str
     }
 }
 
+/// Returns the expression that converts a required method argument into its
+/// owned stored form (`Vec<String>` for `Symbols`, `String` otherwise).
 pub(super) fn direct_required_store_expr(
     endpoint: &GeneratedEndpoint,
     param: &GeneratedParam,
@@ -261,6 +287,8 @@ pub(super) fn direct_stream_tick_type(return_type: &str) -> &'static str {
     direct_name(return_type)
 }
 
+/// Returns the buffered return type for an endpoint, wrapping the per-tick
+/// type for the wire collection in a `Vec` (e.g. `Vec<TradeTick>`).
 pub(super) fn direct_return_type(return_type: &str) -> String {
     format!("Vec<{}>", direct_name(return_type))
 }

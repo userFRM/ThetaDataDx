@@ -81,6 +81,8 @@ fn python_return_type(endpoint: &GeneratedEndpoint) -> String {
 
 // ───────────────────────── Rust ─────────────────────────────────────────────
 
+/// Renders the Rust signature block for an endpoint: the fenced method
+/// signature plus prose describing the builder setters and execution.
 pub(super) fn rust_signature(endpoint: &GeneratedEndpoint) -> String {
     let item = rust_item_type(endpoint);
     let required = method_params(endpoint);
@@ -151,6 +153,8 @@ fn rust_setter_arg(param: &GeneratedParam) -> &'static str {
     }
 }
 
+/// Renders a runnable Rust sample for an endpoint, calling the method
+/// with fixture argument values and printing each returned row.
 pub(super) fn rust_example(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let showcased = showcased_builder_params(endpoint);
@@ -206,6 +210,9 @@ pub(super) fn rust_example(endpoint: &GeneratedEndpoint) -> String {
 
 // ───────────────────────── Python ───────────────────────────────────────────
 
+/// Renders the Python signature block for an endpoint: the fenced
+/// method signature plus prose covering the async variant and DataFrame
+/// converters.
 pub(super) fn python_signature(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let opts = builder_params(endpoint);
@@ -261,6 +268,8 @@ pub(super) fn python_signature(endpoint: &GeneratedEndpoint) -> String {
     format!("{sig}\n{prose}\n")
 }
 
+/// Renders a runnable Python sample for an endpoint, calling the method
+/// with fixture argument values and printing each returned row.
 pub(super) fn python_example(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let showcased = showcased_builder_params(endpoint);
@@ -330,6 +339,8 @@ fn ts_return_type(endpoint: &GeneratedEndpoint) -> String {
     }
 }
 
+/// Renders the TypeScript signature block for an endpoint: the fenced
+/// method signature plus the trailing options-object key list.
 pub(super) fn typescript_signature(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let opts = builder_params(endpoint);
@@ -386,6 +397,8 @@ pub(super) fn typescript_signature(endpoint: &GeneratedEndpoint) -> String {
     )
 }
 
+/// Renders a runnable TypeScript sample for an endpoint, awaiting the
+/// method with fixture argument values and logging each returned row.
 pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let showcased = showcased_builder_params(endpoint);
@@ -450,6 +463,8 @@ fn cpp_return_type(endpoint: &GeneratedEndpoint) -> String {
     }
 }
 
+/// Renders the C++ signature block for an endpoint: the fenced method
+/// declaration plus prose covering the option setters and error model.
 pub(super) fn cpp_signature(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let ret = cpp_return_type(endpoint);
@@ -497,6 +512,8 @@ pub(super) fn cpp_signature(endpoint: &GeneratedEndpoint) -> String {
     format!("{sig}\n{prose}\n")
 }
 
+/// Renders a runnable C++ sample for an endpoint, calling the method
+/// with fixture argument values and streaming each returned row.
 pub(super) fn cpp_example(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let showcased = showcased_builder_params(endpoint);
@@ -567,6 +584,8 @@ fn http_sample_value(param: &GeneratedParam, category: &str) -> String {
     }
 }
 
+/// Renders the HTTP signature block for an endpoint: the `GET` line for
+/// the REST path plus a note on the server binary and response formats.
 pub(super) fn http_signature(endpoint: &GeneratedEndpoint) -> String {
     format!(
         "```http\nGET http://127.0.0.1:25503{}\n```\n\nServed by the bundled [server binary](/server/); responses stream as JSON, CSV, or NDJSON via the `format` parameter.\n",
@@ -574,6 +593,8 @@ pub(super) fn http_signature(endpoint: &GeneratedEndpoint) -> String {
     )
 }
 
+/// Renders a runnable `curl` sample for an endpoint, building the query
+/// string from fixture argument values.
 pub(super) fn http_example(endpoint: &GeneratedEndpoint) -> String {
     let required = method_params(endpoint);
     let showcased = showcased_builder_params(endpoint);

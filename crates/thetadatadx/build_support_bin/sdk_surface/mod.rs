@@ -36,6 +36,7 @@ struct GeneratedSourceFile {
     contents: String,
 }
 
+/// Renders the non-endpoint SDK and tool surfaces and writes each to its path under the repository root, creating parent directories as needed.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
@@ -47,6 +48,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
+/// Verifies that the checked-in non-endpoint SDK and tool surfaces match freshly rendered output, returning an error on drift.
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
