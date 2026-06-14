@@ -229,15 +229,13 @@ pub enum FpssControl {
     UnknownFrame { code: u8, payload: Vec<u8> },
     /// Server connection ack (code 4, `StreamMsgType::Connected`).
     ///
-    /// Decoded from the server→client CONNECTED frame. Previously fell
-    /// through to [`FpssControl::UnknownFrame`].
+    /// Decoded from the server→client CONNECTED frame.
     Connected,
     /// Server heartbeat (code 10, `StreamMsgType::Ping`).
     ///
     /// The server emits PING frames (observed 1-byte payload `[0]`) that
     /// client heartbeat logic does not have to answer. Payload preserved
-    /// for diagnostics — previously every heartbeat surfaced as
-    /// `UnknownFrame { code: 10, payload: [0] }`.
+    /// for diagnostics.
     Ping { payload: Vec<u8> },
     /// Server-side reconnect ack (code 13).
     ///
@@ -308,9 +306,9 @@ pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
 ///   for soak-test introspection without leaking raw bytes through the
 ///   public API.
 /// * [`FpssEventInternal::Empty`] — pre-allocation placeholder for
-///   ring-buffer slots that have never been written; the previous
-///   `Option<FpssEvent>` slot wrapper is collapsed into this variant
-///   so the consumer closure can avoid the `Option` discriminant test.
+///   ring-buffer slots that have never been written; folding the empty
+///   case into a variant lets the consumer closure avoid an
+///   `Option<FpssEvent>` discriminant test.
 ///
 /// The I/O thread builds `FpssEventInternal` directly from the wire
 /// decoder; the event-dispatch consumer reborrows the slot reference to a
@@ -329,7 +327,8 @@ pub enum FpssEventInternal {
     /// `thetadatadx.fpss.decode_failures` metric counter and visible
     /// to soak tests that assert on the internal stream shape.
     Unparseable = FPSS_EVENT_TAG_UNPARSEABLE,
-    /// Ring-buffer slot placeholder. Filtered before user callbacks.
+    /// Ring-buffer slot placeholder for an unwritten / drained slot.
+    /// Filtered before user callbacks.
     Empty = FPSS_EVENT_TAG_EMPTY,
 }
 
@@ -470,9 +469,9 @@ mod tests {
     use super::*;
     use crate::tdbe::types::price::Price;
 
-    /// `FpssEventInternal::as_public` relies on. Any future change that
-    /// breaks size, alignment, or discriminant equality between
-    /// `FpssEvent` and the public-facing variants of
+    /// Pins the layout compatibility `FpssEventInternal::as_public`
+    /// relies on. Any change that breaks size, alignment, or discriminant
+    /// equality between `FpssEvent` and the public-facing variants of
     /// `FpssEventInternal` must trip this test before it can corrupt a
     /// reborrow.
     ///

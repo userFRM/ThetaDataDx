@@ -36,10 +36,9 @@ pub(in crate::fpss) enum LoginResult {
 /// the wire delivered them. The caller flushes this buffer onto the
 /// event bus once the Disruptor producer is live, so user callbacks
 /// observe handshake-time control frames on the same channel the
-/// post-login `decode_frame` dispatch uses. Prior to this, every typed
-/// control frame that preceded `METADATA` was silently dropped because
-/// the handshake loop consumed it before the main dispatch could turn
-/// it into a typed event.
+/// post-login `decode_frame` dispatch uses — a typed control frame that
+/// precedes `METADATA` would otherwise be lost, since the handshake loop
+/// consumes it before the main dispatch can turn it into a typed event.
 pub(in crate::fpss) fn wait_for_login(
     stream: &mut connection::FpssStream,
     pending_control: &mut Vec<FpssControl>,
@@ -138,10 +137,9 @@ mod tests {
 
     /// A CONNECTED frame arriving BEFORE METADATA must be captured in
     /// `pending_control` so the io_loop can forward the buffered
-    /// `FpssControl::Connected` to the event bus. Before the v8
-    /// handshake work, the handshake loop silently dropped the frame
-    /// because only the post-login `decode_frame` dispatch knew how to
-    /// turn it into a typed event.
+    /// `FpssControl::Connected` to the event bus. Without this capture
+    /// the frame would be lost, since only the post-login `decode_frame`
+    /// dispatch knows how to turn it into a typed event.
     #[test]
     fn wait_for_login_captures_connected_frame_before_metadata() {
         let mut buf = Vec::new();
@@ -254,11 +252,10 @@ mod tests {
         ));
     }
 
-    /// Finding #1 coverage: a PING frame arriving BEFORE METADATA must
-    /// be captured in `pending_control` as `FpssControl::Ping` with
-    /// the exact payload bytes. Before this fix, the handshake's
-    /// trace-and-drop branch silently swallowed every heartbeat that
-    /// the server emitted between CONNECT and METADATA.
+    /// A PING frame arriving BEFORE METADATA must be captured in
+    /// `pending_control` as `FpssControl::Ping` with the exact payload
+    /// bytes, so the handshake's trace-and-drop branch does not swallow a
+    /// heartbeat the server emits between CONNECT and METADATA.
     #[test]
     fn wait_for_login_captures_ping_frame_before_metadata() {
         let mut buf = Vec::new();
@@ -284,8 +281,8 @@ mod tests {
         }
     }
 
-    /// Finding #1 coverage: a RECONNECTED frame (code 13) arriving
-    /// BEFORE METADATA must be captured as
+    /// A RECONNECTED frame (code 13) arriving BEFORE METADATA must be
+    /// captured as
     /// `FpssControl::ReconnectedServer`. The distinction from the
     /// client-emitted `FpssControl::Reconnected` is preserved.
     #[test]
@@ -303,8 +300,8 @@ mod tests {
         assert!(matches!(pending[0], FpssControl::ReconnectedServer));
     }
 
-    /// Finding #1 coverage: a RESTART frame (code 31) arriving BEFORE
-    /// METADATA must be captured as `FpssControl::Restart`.
+    /// A RESTART frame (code 31) arriving BEFORE METADATA must be
+    /// captured as `FpssControl::Restart`.
     #[test]
     fn wait_for_login_captures_restart_frame_before_metadata() {
         let mut buf = Vec::new();
@@ -320,9 +317,8 @@ mod tests {
         assert!(matches!(pending[0], FpssControl::Restart));
     }
 
-    /// Finding #1 coverage: multiple typed control frames arriving
-    /// BEFORE METADATA must all be captured, in the exact wire order
-    /// the server delivered them.
+    /// Multiple typed control frames arriving BEFORE METADATA must all
+    /// be captured, in the exact wire order the server delivered them.
     #[test]
     fn wait_for_login_captures_multiple_control_frames_in_wire_order() {
         let mut buf = Vec::new();

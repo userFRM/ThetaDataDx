@@ -468,7 +468,7 @@ impl ThetaDataDxClient {
     ///    `Live` (returns [`Self::already_streaming`]); or
     /// 2. an interleaving [`Self::stop_streaming`] bumped the
     ///    [`Self::stop_generation`] counter past `gen_at_entry`
-    ///    (returns [`Self::stopped_during_start`]). This is the H2
+    ///    (returns [`Self::stopped_during_start`]). This is the
     ///    `Stopped → Live` resurrection guard: a caller that started
     ///    connecting BEFORE `stop_streaming` was invoked must NOT see
     ///    its connection installed AFTER stop returned, even though
@@ -703,44 +703,6 @@ impl ThetaDataDxClient {
         }
     }
 
-    /// Wait for the previously-superseded streaming session to
-    /// quiesce, polling its internal drain flag until it observes
-    /// `true` or `timeout` elapses.
-    ///
-    /// Returns `true` when the previous session's I/O thread and
-    /// event-dispatch consumer have both joined, so the previous user
-    /// callback is guaranteed to have stopped firing. Returns `false`
-    /// on timeout, or if no stream has ever been started or stopped on
-    /// this handle (nothing to drain).
-    ///
-    /// # When to call
-    ///
-    /// Call from a thread other than the FPSS consumer thread after
-    /// either [`Self::stop_streaming`] or [`Self::reconnect_streaming`]
-    /// returns, when application code needs to:
-    ///
-    /// - free an FFI callback context that the old callback closure
-    ///   captured by value;
-    /// - drop a captured `Arc` whose contents the old callback was
-    ///   reading;
-    /// - install a fresh callback whose `'static` captures must not
-    ///   alias the old callback's still-running invocations.
-    ///
-    /// # Lifecycle restriction
-    ///
-    /// Because callback-thread stop / reconnect detaches cleanup onto
-    /// a helper thread (see [`Self::start_streaming`] for the full
-    /// rationale), `await_drain` MUST be called from a thread other
-    /// than the FPSS event-dispatch consumer thread. Calling it from
-    /// inside the user callback would block the very thread the
-    /// helper is waiting on and the call would always time out.
-    ///
-    /// # Resolution
-    ///
-    /// Polls every 1 ms; returns as soon as the flag flips. The poll
-    /// loop is intentionally simple (no condvar, no parking) because
-    /// drain is a one-shot, latency-tolerant event — the vast
-    /// majority of calls return on the first or second tick.
     /// Whether a prior streaming session has registered its drain flag
     /// for [`Self::await_drain`] to poll on.
     ///
@@ -921,7 +883,7 @@ impl ThetaDataDxClient {
     /// Get all active per-contract subscriptions.
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Fpss`] when streaming has not been started.
     pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
@@ -929,7 +891,7 @@ impl ThetaDataDxClient {
     /// Get all active full-type (full-stream) subscriptions.
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Fpss`] when streaming has not been started.
     pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }
@@ -1320,6 +1282,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: option open-interest flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_option_open_interest(
         &self,
         date: &str,
@@ -1337,6 +1302,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: option trade-quote flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_option_trade_quote(
         &self,
         date: &str,
@@ -1354,6 +1322,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: option trade flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_option_trade(
         &self,
         date: &str,
@@ -1371,6 +1342,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: option quote flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_option_quote(
         &self,
         date: &str,
@@ -1388,6 +1362,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: option end-of-day flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_option_eod(
         &self,
         date: &str,
@@ -1405,6 +1382,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: stock trade-quote flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_stock_trade_quote(
         &self,
         date: &str,
@@ -1422,6 +1402,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: stock trade flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_stock_trade(
         &self,
         date: &str,
@@ -1439,6 +1422,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: stock quote flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_stock_quote(
         &self,
         date: &str,
@@ -1456,6 +1442,9 @@ impl ThetaDataDxClient {
     }
 
     /// Convenience: stock end-of-day flat file for `date`.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
     pub async fn flatfile_stock_eod(
         &self,
         date: &str,
@@ -1805,8 +1794,7 @@ mod tests {
     }
 
     /// `reconnect_streaming` returns `Error::PartialReconnect` carrying the
-    /// failed list when subscriptions cannot be restored — the regression
-    /// test for issue #461. The variant payload is asserted by pattern-
+    /// failed list when subscriptions cannot be restored. The variant payload is asserted by pattern-
     /// match, not just `is_err()`, so a future refactor that changes the
     /// payload shape breaks this test loudly.
     #[test]
@@ -1846,8 +1834,8 @@ mod tests {
         }
     }
 
-    /// H2 regression: an in-flight `start_streaming*` that snapshotted
-    /// `stop_generation = N` at entry must NOT install `Live` when an
+    /// Resurrection-race regression: an in-flight `start_streaming*` that
+    /// snapshotted `stop_generation = N` at entry must NOT install `Live` when an
     /// interleaving `stop_streaming` has bumped `stop_generation` to
     /// `N+1` by the time the install runs. This is the
     /// `Stopped → Live` resurrection race the generation token closes.
@@ -1928,9 +1916,8 @@ mod tests {
     /// free paths use this to disambiguate the two `false` returns from
     /// `await_drain` (timeout vs. nothing-to-wait-on).
     ///
-    /// Post PR514 audit: the slot is now a `Vec` so stacked
-    /// stop/start/stop cycles cannot lose an earlier still-draining
-    /// generation when a later one retires.
+    /// The slot is a `Vec` so stacked stop/start/stop cycles cannot lose
+    /// an earlier still-draining generation when a later one retires.
     #[test]
     fn prev_drained_is_set_tracks_vec_of_generations() {
         let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
@@ -1966,10 +1953,10 @@ mod tests {
         assert!(g.is_empty(), "all retired generations drained");
     }
 
-    /// HIGH-001 regression — multi-generation `await_drain` must wait
-    /// for ALL retired sessions, not just the most-recent. The pre-fix
-    /// single-slot tracker would have returned `true` as soon as the
-    /// last-pushed flag flipped, even with earlier flags still pending.
+    /// Multi-generation `await_drain` must wait for ALL retired sessions,
+    /// not just the most-recent. A single-slot tracker would return `true`
+    /// as soon as the last-pushed flag flipped, even with earlier flags
+    /// still pending.
     #[test]
     fn await_drain_waits_for_all_retired_generations() {
         // We exercise the predicate logic directly through a `Vec` to
@@ -2091,9 +2078,9 @@ mod tests {
 
     #[test]
     fn theta_data_client_alias_resolves_to_theta_data_dx() {
-        // Phase 3a: `ThetaDataDxClient` is the new public name; the old
-        // `ThetaDataDxClient` is kept as a compatibility alias. Both must
-        // refer to the same type so existing call sites keep compiling.
+        // `ThetaDataDxClient` is the canonical public client type; this
+        // guards that the name continues to resolve to the same type so
+        // existing call sites keep compiling.
         fn _alias_check(c: ThetaDataDxClient) -> ThetaDataDxClient {
             c
         }
