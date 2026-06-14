@@ -1,7 +1,8 @@
-// ThetaDataDxClient FPSS surface — closes the prior coverage gap
-// where the C++ wrapper exposed only the raw `tdx_unified_*` C ABI
-// for push-callback streaming. Every method listed below is now
-// reachable on the typed wrapper without dropping to the C handle.
+// ThetaDataDxClient FPSS surface tests.
+//
+// The typed `ThetaDataDxClient` wrapper exposes the full push-callback
+// streaming surface, so callers reach every method below without
+// dropping to the raw `tdx_unified_*` C ABI handle.
 //
 // Offline tests confirm:
 //   * `is_streaming` returns false on a moved-from / never-connected
@@ -9,8 +10,8 @@
 //   * `dropped_event_count` returns 0 on the same.
 //   * Move-construct + move-assign hold the callback-storage
 //     ordering invariant (no UAF in the destructor).
-//   * The wrapper compiles with each new method bound — that's the
-//     real proof; absence of these symbols was the bug.
+//   * The wrapper compiles with each method bound — symbol presence
+//     is the surface contract this file pins.
 //
 // Live tests (gated on `THETADX_LIVE_CREDS`) drive the full
 // set_callback -> stop_streaming -> reconnect -> await_drain ->

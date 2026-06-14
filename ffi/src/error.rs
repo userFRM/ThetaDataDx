@@ -36,18 +36,33 @@ pub const TDX_RETRY_AFTER_NONE: i64 = -1;
 /// substring-match the formatted error string. The mapping mirrors
 /// the Python `to_py_err` hierarchy one-for-one so the leaf set stays
 /// uniform across bindings.
+/// No error: the last call succeeded.
 pub const TDX_ERR_NONE: i32 = 0;
+/// Uncategorized failure that maps to no more specific discriminant.
 pub const TDX_ERR_OTHER: i32 = 1;
+/// Authentication failed (credentials rejected during the auth handshake).
 pub const TDX_ERR_AUTHENTICATION: i32 = 2;
+/// Credentials are malformed or incomplete before any handshake is attempted.
 pub const TDX_ERR_INVALID_CREDENTIALS: i32 = 3;
+/// The account's subscription does not grant access to the requested data.
 pub const TDX_ERR_SUBSCRIPTION: i32 = 4;
+/// The server rate-limited the request; see [`tdx_last_error_retry_after_ms`].
 pub const TDX_ERR_RATE_LIMIT: i32 = 5;
+/// The requested resource (symbol, contract, or endpoint) does not exist.
 pub const TDX_ERR_NOT_FOUND: i32 = 6;
+/// The call exceeded its deadline before the server responded.
 pub const TDX_ERR_DEADLINE_EXCEEDED: i32 = 7;
+/// The service is temporarily unavailable (transient server-side fault).
 pub const TDX_ERR_UNAVAILABLE: i32 = 8;
+/// A transport-layer failure prevented the request from completing.
 pub const TDX_ERR_NETWORK: i32 = 9;
+/// A decoded payload did not match the expected wire schema.
 pub const TDX_ERR_SCHEMA_MISMATCH: i32 = 10;
+/// A streaming session failed mid-flight (drop, partial reconnect, or
+/// stream-level protocol fault).
 pub const TDX_ERR_STREAM: i32 = 11;
+/// An environmental configuration fault (config-file I/O, TOML parse, or an
+/// internal invariant); distinct from [`TDX_ERR_INVALID_PARAMETER`].
 pub const TDX_ERR_CONFIG: i32 = 12;
 /// A client-side parameter was rejected by input validation (a bad
 /// value, an out-of-range number, a missing required field). Distinct

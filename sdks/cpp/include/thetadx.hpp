@@ -47,6 +47,9 @@ namespace tdx {
 template <typename T>
 using Span = std::span<T>;
 #else
+/// C++17 fallback for `std::span`: a non-owning pointer + length view over a
+/// contiguous run of `T`, exposing the `data()` / `size()` / iteration subset
+/// the streaming callbacks rely on.
 template <typename T>
 class Span {
 public:
@@ -164,6 +167,9 @@ struct Subscription {
 
 // ── Greeks result (from standalone tdx_all_greeks) ──
 
+/// Full set of option Greeks and Black-Scholes intermediates returned by the
+/// standalone `tdx_all_greeks` computation, alongside the implied volatility
+/// solve result (`iv`, `iv_error`).
 struct GreeksResult {
     double value;
     double delta;
@@ -238,6 +244,9 @@ enum class GrpcStatusKind : uint32_t {
     Unauthenticated = 16,
 };
 
+/// Root of the typed exception hierarchy; every FFI failure surfaces as this
+/// class or one of its leaves. Derives from `std::runtime_error` so generic
+/// `catch (const std::runtime_error&)` handlers still observe every failure.
 class ThetaDataError : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -543,24 +552,30 @@ struct FfiString {
 
 // ── RAII deleters ──
 
+/// `unique_ptr` deleter that releases a `TdxCredentials*` via `tdx_credentials_free`.
 struct CredentialsDeleter {
     void operator()(TdxCredentials* p) const { if (p) tdx_credentials_free(p); }
 };
 
+/// `unique_ptr` deleter that releases a `TdxConfig*` via `tdx_config_free`.
 struct ConfigDeleter {
     void operator()(TdxConfig* p) const { if (p) tdx_config_free(p); }
 };
 
+/// `unique_ptr` deleter that releases a `TdxMddsClient*` via `tdx_mdds_client_free`.
 struct MddsClientDeleter {
     void operator()(TdxMddsClient* p) const { if (p) tdx_mdds_client_free(p); }
 };
 
+/// `unique_ptr` deleter that releases a `TdxFpssHandle*` via `tdx_fpss_free`.
 struct FpssHandleDeleter {
     void operator()(TdxFpssHandle* p) const { if (p) tdx_fpss_free(p); }
 };
 
 // ── Credentials ──
 
+/// RAII holder for a ThetaData credentials handle (`TdxCredentials*`), freed
+/// automatically on destruction. Constructed via `from_file` or `from_email`.
 class Credentials {
 public:
     /** Load credentials from a file (line 1 = email, line 2 = password). */
@@ -579,6 +594,10 @@ private:
 
 // ── Config ──
 
+/// RAII holder for a client configuration handle (`TdxConfig*`), freed
+/// automatically on destruction. Built from a named preset (`production` /
+/// `dev` / `stage`) and tuned through the reconnect, FPSS, retry, MDDS, and
+/// metrics setters below.
 class Config {
 public:
     /** Production config (ThetaData NJ datacenter). */
@@ -1263,6 +1282,10 @@ private:
 
 // ── MddsClient ──
 
+/// RAII wrapper around a historical (MDDS) gRPC client handle
+/// (`TdxMddsClient*`), freed automatically on destruction. The recommended
+/// entry point for pure-historical access; the generated historical query
+/// methods are mixed in from `historical.hpp.inc`.
 class MddsClient {
 public:
     /** Connect a historical (MDDS) client to ThetaData servers. Throws on
@@ -1558,6 +1581,8 @@ private:
 // `FlatFileRowList::to_arrow_ipc()`. Pair with arrow-cpp on the
 // consumer side to materialise an `arrow::Table`.
 
+/// `unique_ptr` deleter that releases a `TdxFlatFileRowList*` via
+/// `tdx_flatfile_rowlist_free`.
 struct FlatFileRowListDeleter {
     void operator()(TdxFlatFileRowList* p) const {
         if (p) tdx_flatfile_rowlist_free(p);
@@ -1678,6 +1703,7 @@ private:
     const TdxUnified* handle_;
 };
 
+/// `unique_ptr` deleter that releases a `TdxUnified*` via `tdx_unified_free`.
 struct UnifiedDeleter {
     void operator()(TdxUnified* p) const {
         if (p) tdx_unified_free(p);
@@ -2061,8 +2087,11 @@ private:
 // new C ABI symbols — the value type just routes the existing call
 // dispatch by stored kind + payload.
 
+/// Forward declaration of the fluent stock / option contract identifier.
 class FluentContract;
+/// Forward declaration of the typed market-data subscription value type.
 class FluentSubscription;
+/// Forward declaration of the fluent security-type accessor for full-stream subscriptions.
 class FluentSecType;
 
 /// Typed market-data subscription. Returned by `Contract::quote` /
@@ -2072,7 +2101,10 @@ class FluentSecType;
 /// `ThetaDataDxClient::subscribe(sub)` or `subscribe_many(...)`.
 class FluentSubscription {
 public:
+    /// Whether the subscription targets a single contract or the full
+    /// per-sec-type universe.
     enum class Scope { Contract, Full };
+    /// The market-data feed kind the subscription carries.
     enum class Kind { Quote, Trade, OpenInterest, MarketValue };
 
     Scope scope() const noexcept { return scope_; }

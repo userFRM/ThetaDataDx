@@ -1,3 +1,9 @@
+// Minimal end-to-end example for the C++ SDK.
+//
+// Connects an `MddsClient` from a `creds.txt` file, pulls end-of-day
+// history for one symbol, and runs the offline Greeks / implied-volatility
+// calculators that need no server connection.
+
 #include <iostream>
 #include <iomanip>
 #include "thetadx.hpp"

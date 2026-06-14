@@ -1,12 +1,11 @@
 // Typed-error hierarchy tests for the C++ SDK.
 //
-// Before B4, every FFI error surfaced as a generic
-// `std::runtime_error` carrying the formatted reason string —
-// callers had to substring-match to distinguish auth failures from
-// rate limits. B4 introduces a `ThetaDataError` base + a leaf class
-// per `GrpcStatusKind` + `AuthErrorKind` discriminator that callers
-// can `catch` on directly. The hierarchy mirrors the Python /
-// TypeScript leaf set so the cross-binding contract stays uniform.
+// The C++ surface exposes a `ThetaDataError` base plus a leaf class
+// per `GrpcStatusKind` + `AuthErrorKind` discriminator, so callers
+// `catch` a typed exception instead of substring-matching a generic
+// `std::runtime_error` reason string. The hierarchy mirrors the
+// Python / TypeScript leaf set so the cross-binding contract stays
+// uniform.
 
 #include <chrono>
 #include <stdexcept>

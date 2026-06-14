@@ -61,6 +61,8 @@ typedef struct TdxUnified TdxUnified;
 #define TDX_CALENDAR_STATUS_FULL_CLOSE 2
 #define TDX_CALENDAR_STATUS_WEEKEND 3
 
+/* Per-date trading-calendar entry (list_dates / calendar endpoints):
+ * session open/close times and a TDX_CALENDAR_STATUS_* day-type code. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     /* C99 bool (1 byte): whether the market trades at all on this date
@@ -74,6 +76,9 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[44];
 } TdxCalendarDay TDX_ALIGN64_END;
 
+/* End-of-day OHLC + closing-quote tick (*_history_eod) -- one row per
+ * trading day fusing the day's open/high/low/close, volume/count, and
+ * the closing bid/ask quote. */
 TDX_ALIGN64_BEGIN typedef struct {
     /* EOD report creation time (NOT a trade time), ms since midnight ET. */
     int32_t created_ms_of_day;
@@ -484,6 +489,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[48];
 } TdxInterestRateTick TDX_ALIGN64_END;
 
+/* Interval-sampled implied-volatility tick (option_*_implied_volatility):
+ * the bid/mid/ask quote with its bid/mid/ask IV triple. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
@@ -507,6 +514,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[28];
 } TdxIvTick TDX_ALIGN64_END;
 
+/* Settlement market-value tick (option_*_market_value): the contract's
+ * bid/ask and reference price used for daily mark-to-market. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
@@ -523,6 +532,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[8];
 } TdxMarketValueTick TDX_ALIGN64_END;
 
+/* OHLCVC bar tick (*_history_ohlc): one aggregated bar with
+ * open/high/low/close, volume/count, and a SIP-rule VWAP. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
@@ -547,6 +558,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[44];
 } TdxOhlcTick TDX_ALIGN64_END;
 
+/* Open-interest tick (option_*_open_interest): the outstanding contract
+ * count reported for the contract. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t open_interest;
@@ -560,6 +573,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[32];
 } TdxOpenInterestTick TDX_ALIGN64_END;
 
+/* Bare index price tick (index_*_price): a single price stamped with
+ * time and date, carrying no trade-side execution columns. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
@@ -588,6 +603,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[12];
 } TdxIndexPriceAtTimeTick TDX_ALIGN64_END;
 
+/* NBBO quote tick (*_history_quote): the bid/ask quote with sizes,
+ * exchanges, conditions, and a derived midpoint. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
@@ -613,6 +630,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[40];
 } TdxQuoteTick TDX_ALIGN64_END;
 
+/* Trade-with-quote tick (*_history_trade_quote): each trade print fused
+ * with the bid/ask quote prevailing at execution time. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
@@ -651,6 +670,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[48];
 } TdxTradeQuoteTick TDX_ALIGN64_END;
 
+/* Single trade-print tick (*_history_trade): one OPRA/SIP execution with
+ * price, size, exchange, sequence, and condition codes. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
@@ -681,6 +702,9 @@ TDX_ALIGN64_BEGIN typedef struct {
 /*  Typed array return types                                              */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
+/* Owned tick-array views: { const T* data; size_t len; }. Returned by the
+ * matching tdx_* data call; each MUST be freed with its tdx_*_array_free
+ * (below). An empty result is data=NULL, len=0. */
 typedef struct { const TdxEodTick* data; size_t len; } TdxEodTickArray;
 typedef struct { const TdxOhlcTick* data; size_t len; } TdxOhlcTickArray;
 typedef struct { const TdxTradeTick* data; size_t len; } TdxTradeTickArray;
@@ -769,6 +793,9 @@ typedef struct {
 /*  Free functions for typed arrays                                       */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
+/* Each frees the array returned by its matching tdx_* data call and
+ * releases the backing allocation. No-op on a NULL/empty (data=NULL,
+ * len=0) array. Call exactly once per returned array. */
 void tdx_eod_tick_array_free(TdxEodTickArray arr);
 void tdx_ohlc_tick_array_free(TdxOhlcTickArray arr);
 void tdx_trade_tick_array_free(TdxTradeTickArray arr);
