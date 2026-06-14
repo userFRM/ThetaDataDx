@@ -52,15 +52,25 @@ pub enum FpssData {
         /// when the server has not yet sent the matching
         /// `ContractAssigned` frame.
         contract: Arc<Contract>,
+        /// Milliseconds since midnight (exchange-local) when the quote was recorded.
         ms_of_day: i32,
+        /// Number of contracts/shares resting at the bid.
         bid_size: i32,
+        /// Exchange code posting the bid.
         bid_exchange: i32,
+        /// Bid price.
         bid: f64,
+        /// Quote condition code for the bid.
         bid_condition: i32,
+        /// Number of contracts/shares resting at the ask.
         ask_size: i32,
+        /// Exchange code posting the ask.
         ask_exchange: i32,
+        /// Ask price.
         ask: f64,
+        /// Quote condition code for the ask.
         ask_condition: i32,
+        /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -73,20 +83,35 @@ pub enum FpssData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
+        /// Milliseconds since midnight (exchange-local) when the trade printed.
         ms_of_day: i32,
+        /// Exchange sequence number for ordering trades within the day.
         sequence: i32,
+        /// Extended trade condition code 1.
         ext_condition1: i32,
+        /// Extended trade condition code 2.
         ext_condition2: i32,
+        /// Extended trade condition code 3.
         ext_condition3: i32,
+        /// Extended trade condition code 4.
         ext_condition4: i32,
+        /// Primary trade condition code.
         condition: i32,
+        /// Trade size in contracts/shares.
         size: i32,
+        /// Exchange code where the trade printed.
         exchange: i32,
+        /// Trade price.
         price: f64,
+        /// Bit flags qualifying the trade conditions.
         condition_flags: i32,
+        /// Bit flags qualifying the trade price.
         price_flags: i32,
+        /// Volume classification code for the trade.
         volume_type: i32,
+        /// Number of records back this trade was reported (out-of-order correction offset).
         records_back: i32,
+        /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -99,8 +124,11 @@ pub enum FpssData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
+        /// Milliseconds since midnight (exchange-local) when the open interest was recorded.
         ms_of_day: i32,
+        /// Number of outstanding open contracts.
         open_interest: i32,
+        /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -115,13 +143,21 @@ pub enum FpssData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
+        /// Milliseconds since midnight (exchange-local) at the bar's open.
         ms_of_day: i32,
+        /// Opening price of the bar.
         open: f64,
+        /// Highest traded price within the bar.
         high: f64,
+        /// Lowest traded price within the bar.
         low: f64,
+        /// Closing price of the bar.
         close: f64,
+        /// Total traded volume within the bar, in contracts/shares.
         volume: i64,
+        /// Number of trades aggregated into the bar.
         count: i64,
+        /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -141,6 +177,7 @@ pub enum FpssData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
+        /// Milliseconds since midnight (exchange-local) when the market value was computed.
         ms_of_day: i32,
         /// Calculated market bid (dollars), nudged from the quote bid.
         market_bid: f64,
@@ -148,6 +185,7 @@ pub enum FpssData {
         market_ask: f64,
         /// Integer midpoint of `market_bid` / `market_ask` (dollars).
         market_price: f64,
+        /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -174,16 +212,26 @@ pub enum FpssControl {
     /// limits and gate features.
     ///
     /// Treat this field as a log/diagnostic string only. Do not parse it.
-    LoginSuccess { permissions: String },
+    LoginSuccess {
+        /// Server "Bundle" string copied verbatim from the METADATA frame; opaque diagnostic metadata.
+        permissions: String,
+    },
     /// Server sent a CONTRACT assignment (code 20).
     ///
     /// The `contract` is shared as `Arc<Contract>` so downstream consumers
     /// and the I/O thread's contract cache hold the same heap allocation —
     /// cloning the Arc is a refcount bump with no `String` allocation.
-    ContractAssigned { id: i32, contract: Arc<Contract> },
+    ContractAssigned {
+        /// Wire-internal contract id the FPSS server assigns to this contract.
+        id: i32,
+        /// Fully parsed contract associated with the assigned id.
+        contract: Arc<Contract>,
+    },
     /// Subscription response (code 40).
     ReqResponse {
+        /// Identifier of the subscription request this response answers.
         req_id: i32,
+        /// Outcome of the subscription request.
         result: StreamResponseType,
     },
     /// Market open signal (code 30).
@@ -191,15 +239,24 @@ pub enum FpssControl {
     /// Market close / stop signal (code 32).
     MarketClose,
     /// Server error message (code 11).
-    ServerError { message: String },
+    ServerError {
+        /// Human-readable error text from the server.
+        message: String,
+    },
     /// Server disconnected us (code 12).
-    Disconnected { reason: RemoveReason },
+    Disconnected {
+        /// Reason the server gave for dropping the connection.
+        reason: RemoveReason,
+    },
     /// Auto-reconnect is about to attempt reconnection.
     ///
     /// Emitted before sleeping for the delay. `attempt` is 1-based.
     Reconnecting {
+        /// Disconnect reason that triggered the reconnect attempt.
         reason: RemoveReason,
+        /// 1-based index of this reconnect attempt.
         attempt: u32,
+        /// Delay, in milliseconds, before the attempt fires.
         delay_ms: u64,
     },
     /// Auto-reconnect succeeded -- connection is live again.
@@ -221,12 +278,25 @@ pub enum FpssControl {
     /// is the number of consecutive reconnect attempts consumed before
     /// giving up (`0` when no reconnect was attempted, e.g. permanent
     /// reasons and the `Manual` policy).
-    ReconnectsExhausted { reason: RemoveReason, attempts: u32 },
+    ReconnectsExhausted {
+        /// Disconnect reason of the final drop before recovery was abandoned.
+        reason: RemoveReason,
+        /// Number of consecutive reconnect attempts consumed before giving up.
+        attempts: u32,
+    },
     /// Protocol-level parse error.
-    Error { message: String },
+    Error {
+        /// Human-readable description of the parse failure.
+        message: String,
+    },
     /// Server sent a frame with an unrecognized code. Raw bytes preserved
     /// for diagnostics / upstream bug reports.
-    UnknownFrame { code: u8, payload: Vec<u8> },
+    UnknownFrame {
+        /// Unrecognized frame code reported by the server.
+        code: u8,
+        /// Raw frame payload bytes, preserved for diagnostics.
+        payload: Vec<u8>,
+    },
     /// Server connection ack (code 4, `StreamMsgType::Connected`).
     ///
     /// Decoded from the server→client CONNECTED frame.
@@ -236,7 +306,10 @@ pub enum FpssControl {
     /// The server emits PING frames (observed 1-byte payload `[0]`) that
     /// client heartbeat logic does not have to answer. Payload preserved
     /// for diagnostics.
-    Ping { payload: Vec<u8> },
+    Ping {
+        /// Raw heartbeat payload bytes, preserved for diagnostics.
+        payload: Vec<u8>,
+    },
     /// Server-side reconnect ack (code 13).
     ///
     /// Distinct from [`FpssControl::Reconnected`], which the client

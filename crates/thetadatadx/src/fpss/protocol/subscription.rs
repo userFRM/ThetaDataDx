@@ -31,9 +31,13 @@ use super::contract::Contract;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SubscriptionKind {
+    /// Top-of-book quote (bid/ask) stream for the contract.
     Quote,
+    /// Trade (last-sale) stream for the contract.
     Trade,
+    /// Open-interest stream for the contract.
     OpenInterest,
+    /// Market-value (mark/settlement) stream for the contract.
     MarketValue,
 }
 

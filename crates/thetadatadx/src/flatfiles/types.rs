@@ -90,12 +90,21 @@ impl ReqType {
 pub enum FlatFilesUnavailableReason {
     /// Server returned a `RemoveReason` ordinal during auth (e.g.
     /// `INVALID_CREDENTIALS=1`, `ACCOUNT_ALREADY_CONNECTED=7`).
-    AuthRejected { reason_code: u16 },
+    AuthRejected {
+        /// Server-supplied removal-reason ordinal explaining the rejection.
+        reason_code: u16,
+    },
     /// Server replied with an `ERROR` frame to the FLAT_FILE request itself
     /// (e.g. `INVALID_PARAMS:Invalid request type`).
-    RequestRejected { server_message: String },
+    RequestRejected {
+        /// Diagnostic message text returned by the server.
+        server_message: String,
+    },
     /// Connection dropped before the response completed.
-    StreamTruncated { bytes_received: u64 },
+    StreamTruncated {
+        /// Number of payload bytes received before the stream was cut short.
+        bytes_received: u64,
+    },
 }
 
 impl FlatFilesUnavailableReason {

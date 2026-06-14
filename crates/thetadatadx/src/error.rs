@@ -115,8 +115,11 @@ pub enum DecodeErrorKind {
     /// shape did not match).
     #[error("truncated row at index {row_idx}: expected {expected_columns}, got {actual_columns}")]
     TruncatedRow {
+        /// Zero-based index of the offending row.
         row_idx: usize,
+        /// Number of columns the schema declares.
         expected_columns: usize,
+        /// Number of columns actually present in the row.
         actual_columns: usize,
     },
     /// A column declared as one Arrow / FlatFile value variant carried a
@@ -125,9 +128,13 @@ pub enum DecodeErrorKind {
         "type mismatch at row {row_idx} column {column_name:?}: expected {expected:?}, got {actual:?}"
     )]
     ColumnTypeMismatch {
+        /// Zero-based index of the row whose cell failed type validation.
         row_idx: usize,
+        /// Name of the column whose value type did not match the schema.
         column_name: String,
+        /// Value type the schema declared for the column.
         expected: String,
+        /// Value type actually carried by the cell.
         actual: String,
     },
     /// Protobuf deserialization failure.
@@ -155,7 +162,10 @@ pub enum DecompressErrorKind {
     /// Compression algorithm value did not map to a known
     /// `proto::CompressionAlgo` discriminant.
     #[error("unknown algorithm: {algo}")]
-    UnknownAlgorithm { algo: i32 },
+    UnknownAlgorithm {
+        /// Raw compression algorithm discriminant received on the wire.
+        algo: i32,
+    },
     /// The peer-advertised decompressed size exceeded the
     /// `max_message_size` ceiling threaded from
     /// [`crate::config::MddsConfig::max_message_size`]. A hostile peer
@@ -180,9 +190,13 @@ pub enum ConfigErrorKind {
     /// A user-supplied numeric value was outside the validated range.
     #[error("{field}: value {value} outside range [{min}, {max}]")]
     OutOfRange {
+        /// Name of the field that carried the out-of-range value.
         field: String,
+        /// The supplied value that fell outside the valid range.
         value: i64,
+        /// Lower bound of the valid range (inclusive).
         min: i64,
+        /// Upper bound of the valid range (inclusive).
         max: i64,
     },
     /// A required field was missing.
@@ -191,7 +205,12 @@ pub enum ConfigErrorKind {
     /// A field's value was syntactically invalid (e.g., bad URL,
     /// bad host:port, bad date format).
     #[error("{field}: {message}")]
-    InvalidValue { field: String, message: String },
+    InvalidValue {
+        /// Name of the field whose value was syntactically invalid.
+        field: String,
+        /// Human-readable explanation of why the value was rejected.
+        message: String,
+    },
     /// I/O error reading a config file.
     #[error("config file I/O: {0}")]
     Io(String),
@@ -236,22 +255,43 @@ impl ConfigErrorKind {
 #[non_exhaustive]
 #[repr(u32)]
 pub enum GrpcStatusKind {
+    /// The operation completed successfully.
     Ok = 0,
+    /// The operation was cancelled, typically by the caller.
     Cancelled = 1,
+    /// An unknown error occurred, often a fault not surfaced with a more
+    /// specific status code.
     Unknown = 2,
+    /// The caller specified an invalid argument, independent of the
+    /// system state.
     InvalidArgument = 3,
+    /// The deadline expired before the operation could complete.
     DeadlineExceeded = 4,
+    /// The requested entity was not found.
     NotFound = 5,
+    /// The entity a caller attempted to create already exists.
     AlreadyExists = 6,
+    /// The caller does not have permission to execute the operation.
     PermissionDenied = 7,
+    /// A resource has been exhausted, such as a quota or rate limit.
     ResourceExhausted = 8,
+    /// The system is not in a state required for the operation's
+    /// execution.
     FailedPrecondition = 9,
+    /// The operation was aborted, typically due to a concurrency conflict.
     Aborted = 10,
+    /// The operation was attempted past the valid range.
     OutOfRange = 11,
+    /// The operation is not implemented or not supported.
     Unimplemented = 12,
+    /// An internal error occurred, signalling a broken invariant.
     Internal = 13,
+    /// The service is currently unavailable, usually a transient
+    /// condition that may be resolved by retrying.
     Unavailable = 14,
+    /// Unrecoverable data loss or corruption.
     DataLoss = 15,
+    /// The request does not have valid authentication credentials.
     Unauthenticated = 16,
 }
 
@@ -338,7 +378,9 @@ pub enum Error {
     /// gRPC status error from the ThetaData historical data service.
     #[error("gRPC status {kind}: {message}")]
     Grpc {
+        /// Canonical gRPC status code returned by the service.
         kind: GrpcStatusKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
         /// Server-supplied minimum backoff before the next retry,
         /// decoded from the `google.rpc.RetryInfo` status detail when
@@ -352,7 +394,9 @@ pub enum Error {
     /// Decompression failure (zstd, gzip, etc.).
     #[error("decompression failed ({kind}): {message}")]
     Decompress {
+        /// Concrete decompression failure category.
         kind: DecompressErrorKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
     },
 
@@ -360,7 +404,9 @@ pub enum Error {
     /// per-cell type-mismatch failures produced after the table is decoded.
     #[error("decode failed ({kind}): {message}")]
     Decode {
+        /// Concrete decode failure category.
         kind: DecodeErrorKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
     },
 
@@ -371,21 +417,27 @@ pub enum Error {
     /// Authentication error.
     #[error("Authentication error ({kind}): {message}")]
     Auth {
+        /// Concrete authentication failure category.
         kind: AuthErrorKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
     },
 
     /// FPSS streaming error.
     #[error("FPSS error ({kind}): {message}")]
     Fpss {
+        /// Concrete FPSS streaming failure category.
         kind: FpssErrorKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
     },
 
     /// Configuration / input validation error.
     #[error("configuration error ({kind}): {message}")]
     Config {
+        /// Concrete configuration / input-validation failure category.
         kind: ConfigErrorKind,
+        /// Human-readable detail for logs and `Display`.
         message: String,
     },
 

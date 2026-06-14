@@ -3,6 +3,7 @@
 // on nullable pointers, doc_markdown on C identifiers, ptr_cast_constness on FFI
 // boundary types). Fixing these would make the FFI code less idiomatic for C interop.
 #![allow(clippy::pedantic)]
+#![warn(missing_docs)]
 
 //! C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.
 //!

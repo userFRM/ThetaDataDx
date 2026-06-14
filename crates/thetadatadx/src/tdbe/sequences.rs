@@ -238,9 +238,13 @@ impl Default for SequenceTracker {
 /// Result of processing a single sequence number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SequenceUpdate {
+    /// The sequence number after this update, in monotonic absolute form.
     pub sequence: TradeSequence,
+    /// Whether this update wrapped the raw counter past its overflow boundary.
     pub is_overflow: bool,
+    /// Whether a gap was detected between this update and the previous one.
     pub is_gap: bool,
+    /// Number of messages missing in the detected gap (0 when contiguous).
     pub missing_count: u64,
 }
 

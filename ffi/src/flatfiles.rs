@@ -40,7 +40,9 @@ pub struct TdxFlatFileRowList {
 /// `tdx_flatfile_bytes_free`.
 #[repr(C)]
 pub struct TdxFlatFileBytes {
+    /// Pointer to the first byte of the buffer; null when empty.
     pub data: *const u8,
+    /// Length of the buffer in bytes.
     pub len: usize,
 }
 

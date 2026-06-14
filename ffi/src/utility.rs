@@ -15,28 +15,51 @@ use crate::streaming::TdxContract;
 /// All 23 Black-Scholes Greeks + IV as a typed C struct.
 #[repr(C)]
 pub struct TdxGreeksResult {
+    /// Black-Scholes theoretical option value.
     pub value: f64,
+    /// First derivative of value in spot.
     pub delta: f64,
+    /// Second derivative of value in spot.
     pub gamma: f64,
+    /// Sensitivity to time, per calendar day.
     pub theta: f64,
+    /// Sensitivity to volatility.
     pub vega: f64,
+    /// Sensitivity to the risk-free rate.
     pub rho: f64,
+    /// Sensitivity of value to the dividend yield.
     pub epsilon: f64,
+    /// Elasticity: percentage change in value per percentage change in spot.
     pub lambda: f64,
+    /// Sensitivity of delta to volatility.
     pub vanna: f64,
+    /// Sensitivity of delta to time.
     pub charm: f64,
+    /// Sensitivity of vega to volatility.
     pub vomma: f64,
+    /// Sensitivity of vega to time.
     pub veta: f64,
+    /// Sensitivity of vega to the risk-free rate.
     pub vera: f64,
+    /// Sensitivity of gamma to spot.
     pub speed: f64,
+    /// Sensitivity of gamma to volatility.
     pub zomma: f64,
+    /// Sensitivity of gamma to time.
     pub color: f64,
+    /// Sensitivity of vomma to volatility.
     pub ultima: f64,
+    /// Implied volatility recovered from the option price.
     pub iv: f64,
+    /// Relative residual of the IV solve (`(value - price) / price`), clamped to `[-100.0, 100.0]`.
     pub iv_error: f64,
+    /// Black-Scholes `d1` term.
     pub d1: f64,
+    /// Black-Scholes `d2` term.
     pub d2: f64,
+    /// Sensitivity of value to the strike.
     pub dual_delta: f64,
+    /// Sensitivity of dual delta to the strike.
     pub dual_gamma: f64,
 }
 

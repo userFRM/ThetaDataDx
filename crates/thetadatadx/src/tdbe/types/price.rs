@@ -101,6 +101,7 @@ pub struct Price {
 }
 
 impl Price {
+    /// A zero price with the default price type, useful as a neutral initializer.
     pub const ZERO: Self = Self {
         value: 0,
         price_type: 0,
