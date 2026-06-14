@@ -1013,6 +1013,8 @@ fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
 //  Tool execution — registry-driven dispatch
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Failure of a tool invocation, mapped to a JSON-RPC error code at the
+/// dispatch boundary.
 pub(crate) enum ToolError {
     /// -32602: Invalid params
     InvalidParams(String),
@@ -1140,9 +1142,9 @@ async fn handle_request(
 /// Canonicalises non-finite f64 leaves to JSON `null` (cross-language SDK
 /// agreement, see `json_canon`) and surfaces any residual serialisation
 /// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
-/// receives a successful but empty `tools/call` result. Lifted out of the
-/// `tools/call` arm so the regression test for issue #459 can exercise the
-/// canonicalisation path without spinning up a live `ThetaDataDxClient` client.
+/// receives a successful but empty `tools/call` result. Kept separate from the
+/// `tools/call` arm so a test can exercise the canonicalisation path without
+/// spinning up a live `ThetaDataDxClient` client.
 fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
     match thetadatadx::json_canon::canonicalize_and_serialize(result) {
         Ok(text) => JsonRpcResponse::success(
@@ -1770,8 +1772,8 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  Issue #459 regression — tools/call must not return a successful but
-    //  empty result when the tool output carries a non-finite f64 cell.
+    //  tools/call must not return a successful but empty result when the
+    //  tool output carries a non-finite f64 cell.
     // -----------------------------------------------------------------------
 
     #[test]

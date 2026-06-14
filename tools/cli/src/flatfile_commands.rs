@@ -1,14 +1,14 @@
-// Hand-written FLATFILES subcommand surface (issue #433).
-//
-// Wires `tdx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
-// to `thetadatadx::ThetaDataDxClient::flatfile_request`. Output goes to the
-// path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
-// are streamed to stdout via `std::io::copy` from the file we just wrote
-// (the SDK's primary entry point writes to disk; we reroute on demand).
-//
-// Flat files are whole-universe daily blobs — they take a single
-// `YYYYMMDD` date, NOT a (start, end, symbol) tuple. The high-level
-// SDK methods reflect that contract; the CLI mirrors it 1:1.
+//! Hand-written `tdx flatfile` subcommand surface.
+//!
+//! Wires `tdx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
+//! to `thetadatadx::ThetaDataDxClient::flatfile_request`. Output goes to the
+//! path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
+//! are streamed to stdout via `std::io::copy` from the file just written
+//! (the SDK's primary entry point writes to disk; the CLI reroutes on demand).
+//!
+//! Flat files are whole-universe daily blobs — they take a single
+//! `YYYYMMDD` date, not a (start, end, symbol) tuple. The high-level
+//! SDK methods reflect that contract; the CLI mirrors it 1:1.
 
 use clap::{Arg, ArgMatches, Command};
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
@@ -186,6 +186,12 @@ fn parse_req_type(s: &str) -> Result<ReqType, thetadatadx::Error> {
 /// when the subcommand was a `flatfile` subcommand (handled here);
 /// `Ok(false)` lets the caller fall through to the registry-driven
 /// dispatch in `main::run`.
+///
+/// # Errors
+/// Returns an error when the flatfile sub-subcommand is missing or unknown,
+/// when `--sec-type` / `--req-type` fail to parse, when credentials cannot be
+/// loaded, when the underlying flat-file request fails, or when streaming the
+/// result to stdout hits an I/O error.
 pub(crate) async fn try_dispatch(
     matches: &ArgMatches,
     creds_path: &str,

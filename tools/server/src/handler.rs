@@ -888,7 +888,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  Issue #459 regression — non-finite f64 must not collapse to empty body
+    //  non-finite f64 must not collapse to an empty body
     // -----------------------------------------------------------------------
 
     /// Read the body of an axum `Response` to a `String` synchronously inside
@@ -1176,9 +1176,9 @@ mod tests {
     #[tokio::test]
     async fn json_response_emits_non_empty_body_for_nan_payload() {
         // Construct a payload that mimics a Greeks-style row where one cell
-        // came back non-finite from the upstream solver. Before issue #459
-        // this would round-trip through `sonic_rs::to_string(...).unwrap_or_default()`
-        // and hand the client a 200 OK with an empty body.
+        // came back non-finite from the upstream solver. A naive
+        // `sonic_rs::to_string(...).unwrap_or_default()` round-trip would hand
+        // the client a 200 OK with an empty body; canonicalisation must not.
         let mut row = sonic_rs::json!({
             "symbol": "AAPL",
             "delta": 0.5_f64,

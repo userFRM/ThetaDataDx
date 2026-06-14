@@ -1,4 +1,4 @@
-//! Hand-written FLATFILES route surface for the REST server (issue #432).
+//! Hand-written flat-file route surface for the REST server.
 //!
 //! Flat files are server-pre-built whole-universe daily blobs (CSV /
 //! JSONL). They are a one-shot batch download — NOT a WebSocket
@@ -41,6 +41,8 @@ use tokio_util::io::ReaderStream;
 use crate::format;
 use crate::state::AppState;
 
+/// Query parameters for the convenience flat-file route
+/// (`GET /v3/flatfile/{sec_type}/{req_type}`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct FlatfileQuery {
     /// Trading date in `YYYYMMDD` form.
@@ -50,11 +52,17 @@ pub(crate) struct FlatfileQuery {
     pub format: Option<String>,
 }
 
+/// JSON request body for the generic flat-file route
+/// (`POST /v3/flatfile/request`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct FlatfileRequestBody {
+    /// Security type, parsed case-insensitively (`OPTION`, `STOCK`, `INDEX`).
     pub sec_type: String,
+    /// Request type, parsed case-insensitively (`QUOTE`, `TRADE`, `EOD`, ...).
     pub req_type: String,
+    /// Trading date in `YYYYMMDD` form.
     pub date: String,
+    /// On-disk format: `csv` (default) or `jsonl`.
     #[serde(default)]
     pub format: Option<String>,
 }

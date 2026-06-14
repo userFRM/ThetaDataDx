@@ -1,30 +1,30 @@
-// Hand-written FLATFILES tool surface for the MCP server (issue #431).
-//
-// Mirrors the Python / TypeScript flatfile API. Tools return the
-// on-disk path of the written CSV / JSONL blob — MCP transports
-// JSON-RPC, not raw bytes, and whole-universe flat files routinely
-// exceed 100 MB. Returning a path is the same convention the existing
-// MCP utility tools use for any file-producing operation.
-//
-// Tool naming (matches the Rust `flatfile_*` helper methods on
-// `ThetaDataDxClient`):
-//
-//   tdx_flatfile_request                     (generic)
-//   tdx_flatfile_option_quote
-//   tdx_flatfile_option_trade
-//   tdx_flatfile_option_trade_quote
-//   tdx_flatfile_option_ohlc
-//   tdx_flatfile_option_open_interest
-//   tdx_flatfile_option_eod
-//   tdx_flatfile_stock_quote
-//   tdx_flatfile_stock_trade
-//   tdx_flatfile_stock_trade_quote
-//   tdx_flatfile_stock_eod
-//
-// All ten convenience tools take `(date, output_path?, format?)`. The
-// generic tool takes `(sec_type, req_type, date, output_path, format)`
-// with case-insensitive enum strings. A missing `output_path` writes
-// to a deterministic temp path and surfaces it in the response.
+//! Hand-written flat-file tool surface for the MCP server.
+//!
+//! Mirrors the Python / TypeScript flatfile API. Tools return the
+//! on-disk path of the written CSV / JSONL blob — MCP transports
+//! JSON-RPC, not raw bytes, and whole-universe flat files are large.
+//! Returning a path is the same convention the other MCP utility tools
+//! use for any file-producing operation.
+//!
+//! Tool naming (matches the Rust `flatfile_*` helper methods on
+//! `ThetaDataDxClient`):
+//!
+//!   tdx_flatfile_request                     (generic)
+//!   tdx_flatfile_option_quote
+//!   tdx_flatfile_option_trade
+//!   tdx_flatfile_option_trade_quote
+//!   tdx_flatfile_option_ohlc
+//!   tdx_flatfile_option_open_interest
+//!   tdx_flatfile_option_eod
+//!   tdx_flatfile_stock_quote
+//!   tdx_flatfile_stock_trade
+//!   tdx_flatfile_stock_trade_quote
+//!   tdx_flatfile_stock_eod
+//!
+//! All ten convenience tools take `(date, output_path?, format?)`. The
+//! generic tool takes `(sec_type, req_type, date, output_path, format)`
+//! with case-insensitive enum strings. A missing `output_path` writes
+//! to a deterministic temp path and surfaces it in the response.
 
 use sonic_rs::{json, JsonValueTrait, Value};
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
@@ -203,6 +203,12 @@ fn convenience_pair(tool_name: &str) -> Option<(SecType, ReqType)> {
 /// Try to execute a flatfile tool. Returns `Some(result)` if `name`
 /// matches a flatfile tool; `None` otherwise (caller falls through
 /// to the registry-driven dispatch).
+///
+/// # Errors
+/// The inner `Result` is `Err` when a required argument is missing, when an
+/// enum string (`sec_type`, `req_type`, `format`) fails to parse, when no
+/// `ThetaDataDxClient` is connected, or when the underlying flat-file request
+/// fails.
 pub(crate) async fn try_execute_flatfile_tool(
     client: Option<&ThetaDataDxClient>,
     name: &str,

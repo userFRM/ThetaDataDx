@@ -125,6 +125,10 @@ impl std::error::Error for ValidationError {}
 /// flows into any downstream allocator or JSON builder. Legitimate
 /// ThetaData inputs are pure ASCII alphanumerics plus `.,-_*`; none of
 /// those are classified as control characters by `char::is_control`.
+///
+/// # Errors
+/// Returns `ValidationError::invalid_content` when `value` contains any
+/// character for which `char::is_control` is true.
 pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.chars().any(|c| c.is_control()) {
         return Err(ValidationError::invalid_content(
@@ -143,6 +147,10 @@ pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), V
 ///
 /// Only checks bounded size. Format validity (alphanumeric, non-empty) is
 /// enforced downstream by `thetadatadx::validate::validate_symbol`.
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` is empty, exceeds
+/// [`MAX_SYMBOL_LEN`], or contains control characters.
 pub fn validate_symbol(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.is_empty() {
         return Err(ValidationError::invalid_content(field, "must be non-empty"));
@@ -159,6 +167,10 @@ pub fn validate_symbol(value: &str, field: &'static str) -> Result<(), Validatio
 }
 
 /// Validate a comma-separated symbols list (`?roots=AAPL,MSFT,...`).
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` exceeds [`MAX_SYMBOLS_LEN`] or
+/// contains control characters.
 pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_SYMBOLS_LEN {
         return Err(ValidationError::too_long(
@@ -174,6 +186,10 @@ pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), Val
 /// Validate a date or expiration string. Accepts both `YYYYMMDD` (8 chars)
 /// and `YYYY-MM-DD` (10 chars); stricter format validation happens in
 /// `thetadatadx::validate::validate_date` / `validate_expiration`.
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` exceeds [`MAX_DATE_LEN`] or
+/// contains control characters.
 pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_DATE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_DATE_LEN));
@@ -183,6 +199,10 @@ pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationE
 }
 
 /// Validate a strike-price string (decimal or `*`).
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` exceeds [`MAX_STRIKE_LEN`] or
+/// contains control characters.
 pub fn validate_strike(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_STRIKE_LEN {
         return Err(ValidationError::too_long(
@@ -196,6 +216,10 @@ pub fn validate_strike(value: &str, field: &'static str) -> Result<(), Validatio
 }
 
 /// Validate an option `right` string.
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` is empty, exceeds
+/// [`MAX_RIGHT_LEN`], or contains control characters.
 pub fn validate_right(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.is_empty() {
         return Err(ValidationError::invalid_content(field, "must be non-empty"));
@@ -208,6 +232,10 @@ pub fn validate_right(value: &str, field: &'static str) -> Result<(), Validation
 }
 
 /// Validate an interval string (e.g. `"60000"` or `"1m"`).
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` exceeds [`MAX_INTERVAL_LEN`] or
+/// contains control characters.
 pub fn validate_interval(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_INTERVAL_LEN {
         return Err(ValidationError::too_long(
@@ -221,6 +249,10 @@ pub fn validate_interval(value: &str, field: &'static str) -> Result<(), Validat
 }
 
 /// Validate a venue / exchange code.
+///
+/// # Errors
+/// Returns a `ValidationError` when `value` exceeds [`MAX_VENUE_LEN`] or
+/// contains control characters.
 pub fn validate_venue(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_VENUE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_VENUE_LEN));
@@ -245,6 +277,10 @@ pub fn validate_venue(value: &str, field: &'static str) -> Result<(), Validation
 /// attacker-controlled bytes into operator terminals or aggregated logs.
 /// A legitimate query-parameter name is already a C-identifier-shaped
 /// string; filtering is a no-op for valid inputs.
+///
+/// # Errors
+/// Returns a `ValidationError` (carrying the sanitized parameter name) when
+/// `value` exceeds [`MAX_GENERIC_LEN`] or contains control characters.
 pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_GENERIC_LEN {
         let safe_name: String = sanitize_param_name(param_name);
@@ -295,6 +331,10 @@ fn sanitize_param_name(param_name: &str) -> String {
 /// every multi-symbol snapshot list past 16 bytes.
 ///
 /// `ParamMeta.name` is `&'static str` so the error label costs nothing.
+///
+/// # Errors
+/// Propagates the `ValidationError` from whichever type-specific validator
+/// the param routes to (length-cap or control-character rejection).
 pub fn validate_param_value(param: &ParamMeta, value: &str) -> Result<(), ValidationError> {
     match param.param_type {
         ParamType::Symbol => validate_symbol(value, param.name),
@@ -323,6 +363,10 @@ pub fn validate_param_value(param: &ParamMeta, value: &str) -> Result<(), Valida
 /// This is called from `handler::build_endpoint_args` BEFORE the raw value
 /// is parsed into an `EndpointArgValue` so we bound memory + CPU before
 /// anything expensive happens.
+///
+/// # Errors
+/// Propagates the `ValidationError` from whichever name-specific validator
+/// the param routes to (length-cap or control-character rejection).
 pub fn validate_query_param(name: &str, value: &str) -> Result<(), ValidationError> {
     match name {
         "root" | "symbol" | "ticker" => validate_symbol(value, static_name(name)),

@@ -48,15 +48,18 @@ const WARN_EVERY_N: u64 = 1024;
 ///
 /// # Contract identity
 ///
-/// Every `FpssData::*` variant now carries `contract: Arc<Contract>`
+/// Every `FpssData::*` variant carries `contract: Arc<Contract>`
 /// directly — the SDK's I/O thread populates it from its internal
-/// contract cache at decode time. The bridge no longer maintains its
-/// own `contract_id -> Arc<Contract>` map: the contract reference
+/// contract cache at decode time. The bridge keeps no
+/// `contract_id -> Arc<Contract>` map of its own: the contract reference
 /// rides on the event itself, so a concurrent reconnect or
-/// market-close cannot race in between callback-time and
-/// serialisation-time the way the previous map-and-relookup pattern
-/// allowed. `Arc::clone` is still a refcount bump, so the per-event
-/// hot-path cost is unchanged.
+/// market-close cannot race between callback time and serialisation
+/// time. `Arc::clone` is a refcount bump, so the per-event hot-path
+/// cost stays minimal.
+///
+/// # Errors
+/// Returns an error when `ThetaDataDxClient::start_streaming` fails to
+/// establish the FPSS stream.
 pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let state_for_cb = state.clone();
     let state_for_task = state.clone();
