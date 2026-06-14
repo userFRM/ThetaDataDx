@@ -588,9 +588,9 @@ if (!nativeBinding) {
 module.exports = nativeBinding
 module.exports.Config = nativeBinding.Config
 module.exports.ContractRef = nativeBinding.ContractRef
-// U7 closure: alias the documented public name `Contract` to the
-// napi-emitted `ContractRef` constructor. Without this, `require
-// ('thetadatadx').Contract.stock(...)` is undefined at runtime.
+// `Contract` is the public name for the fluent contract builder; it
+// aliases the `ContractRef` constructor so
+// `require('thetadatadx').Contract.stock(...)` resolves.
 module.exports.Contract = nativeBinding.ContractRef;
 module.exports.Credentials = nativeBinding.Credentials
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList

@@ -107,3 +107,28 @@ def test_contract_sec_type_is_symbolic_string(thetadatadx_mod) -> None:
 
     index = thetadatadx_mod.Contract.index("SPX")
     assert index.sec_type == "INDEX"
+
+
+def test_contract_str_renders_strike_in_dollars(thetadatadx_mod) -> None:
+    """`str(Contract)` renders the strike in dollars, identical to the
+    C++ `operator<<` / TypeScript `toString` / Rust `Display` surface — a
+    `$550` strike reads `550`, never the wire-level `550000`."""
+    option = thetadatadx_mod.Contract.option(
+        "SPY",
+        expiration="20260620",
+        strike="550",
+        right="C",
+    )
+    assert str(option) == "SPY OPTION 20260620 C 550"
+
+    # Fractional strikes keep the needed decimals.
+    fractional = thetadatadx_mod.Contract.option(
+        "SPY",
+        expiration="20260620",
+        strike="552.5",
+        right="P",
+    )
+    assert str(fractional) == "SPY OPTION 20260620 P 552.5"
+
+    stock = thetadatadx_mod.Contract.stock("AAPL")
+    assert str(stock) == "AAPL STOCK"

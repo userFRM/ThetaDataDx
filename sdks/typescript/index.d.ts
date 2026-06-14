@@ -434,11 +434,9 @@ export declare class Config {
 /**
  * Fluent contract identifier — stock or option.
  *
- * Exposed to JS as `ContractRef` (the bare `Contract` name on the JS
- * side already refers to the FPSS event payload data object — see
- * `fpss_event_classes.rs`). The `index.d.ts` post-processor emits an
- * `export const Contract = ContractRef` alias so users still write
- * `Contract.stock("AAPL")` per the documented surface.
+ * Use `Contract.stock("AAPL")` / `Contract.option(...)` to build one.
+ * The class is also exported under the name `ContractRef`; `Contract`
+ * is an alias for it, so the two names are interchangeable.
  */
 export declare class ContractRef {
   /** Construct a stock contract. */
@@ -483,7 +481,8 @@ export declare class ContractRef {
   get right(): string | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"SPY OPTION 20260620 C 550000"` or `"AAPL STOCK"`. Delegates to
+   * `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
+   * in dollars, matching the `strike` getter. Delegates to
    * the same core rendering the Python `Contract` `__str__` uses, so
    * the two bindings print a contract identically. Without it a
    * `ContractRef` prints as an opaque `ContractRef {}` because its
@@ -523,8 +522,8 @@ export declare class Credentials {
 export declare class FlatFileRowList {
   /**
    * Number of decoded rows. Same value as `.length` on the JSON
-   * representation, exposed as a method to keep the JS API stable
-   * when napi-rs adds first-class iterator support.
+   * representation, exposed as a method so the API stays stable if
+   * the list later gains first-class iterator support.
    */
   len(): number
   /** Whether the decoded row vector is empty. */
@@ -1675,7 +1674,7 @@ export declare class Subscription {
   get secType(): SecType | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"Subscription(Trade, SPY OPTION 20260620 C 550000)"` or
+   * `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
    * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
    * `Subscription` `__repr__`. Without it a `Subscription` prints as
    * an opaque `Subscription {}` because its getters do not surface on
@@ -5640,10 +5639,7 @@ export interface WorkerThreadsSetting {
   n: number
 }
 
-// ─────────────────────────────────────────────────────────────
-// U7 closure: `Contract` is the documented public name for the
-// fluent contract builder. napi-rs emits the class as
-// `ContractRef` to avoid colliding with the FPSS event
-// payload field; this alias keeps the documented name live.
-// ─────────────────────────────────────────────────────────────
+// `Contract` is the public name for the fluent contract builder; it
+// is an alias for the `ContractRef` class, so the two are
+// interchangeable.
 export const Contract: typeof ContractRef;

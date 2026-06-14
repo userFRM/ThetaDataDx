@@ -710,6 +710,13 @@ impl std::fmt::Display for Contract {
                 } else {
                     "P"
                 };
+                // Render the strike in dollars, not the wire-level
+                // `strike_thousandths` fixed-point integer, so every binding
+                // (Rust / Python / TypeScript / C++) prints the same
+                // human-readable identity. `f64` Display drops a trailing
+                // `.0` for whole-dollar strikes (`550`) and keeps the needed
+                // decimals for fractional ones (`552.5`).
+                let strike = self.strike_dollars().unwrap_or(0.0);
                 write!(
                     f,
                     "{} {} {} {} {}",
@@ -717,7 +724,7 @@ impl std::fmt::Display for Contract {
                     self.sec_type.as_str(),
                     self.expiration.unwrap_or(0),
                     right,
-                    self.strike_thousandths.unwrap_or(0),
+                    strike,
                 )
             }
             _ => write!(f, "{} {}", self.symbol, self.sec_type.as_str()),
@@ -927,7 +934,36 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
+        assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45");
+    }
+
+    #[test]
+    fn contract_display_option_renders_strike_in_dollars() {
+        // The rendered strike is dollars, not the wire-level
+        // `strike_thousandths` integer, so the Rust `Display` matches the
+        // C++ `operator<<` and the Python / TypeScript string surface.
+        let whole = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "550",
+                right: "C",
+            },
+        )
+        .unwrap();
+        assert_eq!(whole.to_string(), "SPY OPTION 20260620 C 550");
+
+        // Fractional strikes keep the needed decimals.
+        let fractional = Contract::option(
+            "SPY",
+            OptionLeg {
+                expiration: "20260620",
+                strike: "552.5",
+                right: "P",
+            },
+        )
+        .unwrap();
+        assert_eq!(fractional.to_string(), "SPY OPTION 20260620 P 552.5");
     }
 
     // -- Wire-format parity tests ----------------------------------------------
