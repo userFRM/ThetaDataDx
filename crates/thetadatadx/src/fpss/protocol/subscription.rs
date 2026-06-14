@@ -218,8 +218,8 @@ impl Subscription {
 /// Singular by design — each method returns exactly one
 /// [`Subscription`] value. Plural aliases (`quotes()`, `trades()`,
 /// `open_interests()`) are intentionally omitted; bulk helpers live on
-/// `Watchlist` / `OptionSeries` (Phase 7 of the report) and route
-/// through [`crate::ThetaDataDxClient::subscribe_many`].
+/// `Watchlist` / `OptionSeries` and route through
+/// [`crate::ThetaDataDxClient::subscribe_many`].
 impl Contract {
     /// Per-contract Quote subscription.
     ///
