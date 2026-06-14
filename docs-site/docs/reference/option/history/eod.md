@@ -11,10 +11,10 @@ description: "Fetch end-of-day option data for a contract over a date range."
 
 Fetch end-of-day option data for a contract over a date range.
 
-- Since [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+- Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
 - `created` represents the datetime the report was generated and `last_trade` represents the datetime of the last trade.
 - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
-- You can read more about EOD & OHLC data [here](https://docs.thetadata.us/Articles/Data-And-Requests/OHLC-EOD.html).
+- You can read more about EOD & OHLC data here.
 
 <SdkTabs>
 

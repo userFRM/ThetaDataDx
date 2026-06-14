@@ -11,7 +11,7 @@ description: "Fetch intraday price history for an index."
 
 Fetch intraday price history for an index.
 
-- Retrieves historical indices price reports. [Exchanges](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
 - When the `interval` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
 - A price update from the exchange is omitted if the price remained the same from the previous update.
 - Multi-day requests are limited to 1 month of data.

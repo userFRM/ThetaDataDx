@@ -11,7 +11,7 @@ description: "Fetch the quote at a specific time of day across a date range for 
 
 Fetch the quote at a specific time of day across a date range for an option.
 
-- Returns the last NBBO quote reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+- Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
 - The `time_of_day`parameter represents the 00:00:00.000 ET that the quote should be provided for.
 
 <SdkTabs>

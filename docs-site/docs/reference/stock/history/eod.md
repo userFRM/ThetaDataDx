@@ -11,7 +11,7 @@ description: "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/
 
 Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
 
-Since [the equity SIPs](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. `created` represents the datetime the report was generated and `last_trade` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](https://docs.thetadata.us/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
+Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. `created` represents the datetime the report was generated and `last_trade` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
 
 <SdkTabs>
 

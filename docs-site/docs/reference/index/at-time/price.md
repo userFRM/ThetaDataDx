@@ -11,7 +11,7 @@ description: "Fetch the index price at a specific time of day across a date rang
 
 Fetch the index price at a specific time of day across a date range.
 
-- Retrieves historical indices price reports. [Exchanges](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
 - The `time_of_day` parameter represents the 00:00:00.000 ET that the price should be provided for.
 
 <SdkTabs>

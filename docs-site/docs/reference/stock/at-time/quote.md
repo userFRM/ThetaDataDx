@@ -13,11 +13,11 @@ Fetch the quote at a specific time of day across a date range.
 
 #### Real-time request:
   - Subscription tier standard or higher will default to NQB.
-  - Real-time last BBO quote at-time_of_day-time from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-  - 15-minute delayed NBBO quote at-time_of_day-time from the [UTP & CTA feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+  - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+  - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
 
 #### Historical request:
-  Returns the last NBBO quote reported by [UTP & CTA feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+  Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
 
 <SdkTabs>
 

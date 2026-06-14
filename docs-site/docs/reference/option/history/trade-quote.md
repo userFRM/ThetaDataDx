@@ -11,7 +11,7 @@ description: "Fetch combined trade + quote ticks for an option contract."
 
 Fetch combined trade + quote ticks for an option contract.
 
-- Returns every [trade](https://docs.thetadata.us/operations/option_history_trade.html) reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) paired with the last NBBO quote reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) at the time of trade.
+- Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
 - A quote is matched with a trade if its timestamp `<=` the trade timestamp.
 - To match trades with quotes timestamps that are `<` the trade timestamp, specify the `exclusive`parameter to `true`. After thorough testing, we have determined that using `exclusive=true` might yield better results for various applications.
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.

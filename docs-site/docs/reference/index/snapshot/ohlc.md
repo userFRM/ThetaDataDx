@@ -12,7 +12,7 @@ description: "Get the latest OHLC snapshot for one or more indices."
 Get the latest OHLC snapshot for one or more indices.
 
 - Retrieves the real-time current day OHLC.
-- [Exchanges](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- Exchanges typically generate a price report every second for popular indices like SPX.
 
 <SdkTabs>
 

@@ -11,7 +11,7 @@ description: "Fetch all trades for a stock on a given date."
 
 Fetch all trades for a stock on a given date.
 
-Returns every trade reported by [UTP & CTA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs). Set the `venue` parameter to `nqb` to access current-day real-time historic data from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+Returns every trade reported by UTP & CTA. Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
 - Multi-day requests are limited to 1 month of data.
 
 <SdkTabs>

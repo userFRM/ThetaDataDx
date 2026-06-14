@@ -12,12 +12,12 @@ description: "Fetch the trade at a specific time of day across a date range."
 Fetch the trade at a specific time of day across a date range.
 
 #### Real-time request:
-- Returns a real-time session from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-- Returns a 15-minute delayed session from the [UTP & CTA feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+- Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+- Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
 
 #### Historical request:
-Returns the last trade reported by [UTP & CTA feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
-Trade condition mappings can be found [here](/articles/conditions).
+Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+Trade condition mappings can be found here.
 
 <SdkTabs>
 

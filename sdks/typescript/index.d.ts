@@ -819,8 +819,8 @@ export declare class MddsClient {
    * Get the latest OHLC snapshot for one or more stocks.
    *
    * Provides a real-time Open, High, Low, Close for the current day.
-   * * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
+   * * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
    * * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -830,7 +830,7 @@ export declare class MddsClient {
   /**
    * Get the latest trade snapshot for one or more stocks.
    *
-   * Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    *
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
@@ -841,8 +841,8 @@ export declare class MddsClient {
   /**
    * Get the latest NBBO quote snapshot for one or more stocks.
    *
-   * * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -852,8 +852,8 @@ export declare class MddsClient {
   /**
    * Get the latest market value snapshot for one or more stocks.
    *
-   * * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -863,7 +863,7 @@ export declare class MddsClient {
   /**
    * Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
    *
-   * Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
+   * Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
    */
   stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
   /** Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -871,8 +871,8 @@ export declare class MddsClient {
   /**
    * Fetch intraday OHLC bars for a stock on a single date.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -887,7 +887,7 @@ export declare class MddsClient {
   /**
    * Fetch all trades for a stock on a given date.
    *
-   * Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -901,9 +901,9 @@ export declare class MddsClient {
   /**
    * Fetch NBBO quotes for a stock on a given date at a given interval.
    *
-   * - Returns every NBBO quote reported by [UTP and CTA](/Articles/Data-And-Requests/The-SIPs).
+   * - Returns every NBBO quote reported by UTP and CTA.
    * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -918,7 +918,7 @@ export declare class MddsClient {
   /**
    * Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
    *
-   * Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -934,12 +934,12 @@ export declare class MddsClient {
    * Fetch the trade at a specific time of day across a date range.
    *
    * #### Real-time request:
-   * - Returns a real-time session from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * - Returns a 15-minute delayed session from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
    *
    * #### Historical request:
-   * Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
-   * Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+   * Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+   * Trade condition mappings can be found here.
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
@@ -952,11 +952,11 @@ export declare class MddsClient {
    *
    * #### Real-time request:
    *   - Subscription tier standard or higher will default to NQB.
-   *   - Real-time last BBO quote at-time_of_day-time from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   *   - 15-minute delayed NBBO quote at-time_of_day-time from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   *   - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   *   - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
    *
    * #### Historical request:
-   *   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+   *   Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
@@ -1071,7 +1071,7 @@ export declare class MddsClient {
    * Returns implied volatilies calculated using the national best bid, mid, and ask price
    * of the option respectively. The underlying price represents whatever the last underlying price was at the
    * ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks
-   * [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * here.
    *
    * Defaults (upstream):
    * - `strike`: `"*"`
@@ -1148,10 +1148,10 @@ export declare class MddsClient {
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
-   * - Since [OPRA](/Articles/Data-And-Requests/The-SIPs.html) does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+   * - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
    * - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade.
    * - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
-   * - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+   * - You can read more about EOD & OHLC data here.
    *
    * Defaults (upstream):
    * - `strike`: `"*"`
@@ -1163,7 +1163,7 @@ export declare class MddsClient {
   /**
    * Fetch intraday OHLC bars for an option contract.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+   * - Aggregated OHLC bars that use SIP rules for each bar.
    * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
    * - Multi-day requests are limited to 1 month of data.
    *
@@ -1180,9 +1180,9 @@ export declare class MddsClient {
   /**
    * Fetch all trades for an option contract on a given date.
    *
-   * - Returns every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
-   * - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+   * - Returns every trade reported by OPRA.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1197,7 +1197,7 @@ export declare class MddsClient {
   /**
    * Fetch NBBO quotes for an option contract on a given date.
    *
-   * - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+   * - Returns every NBBO quote reported by OPRA.
    * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
@@ -1214,7 +1214,7 @@ export declare class MddsClient {
   /**
    * Fetch combined trade + quote ticks for an option contract.
    *
-   * - Returns every [trade](/operations/option_history_trade.html) reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) paired with the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at the time of trade.
+   * - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
    * - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp.
    * - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -1232,8 +1232,8 @@ export declare class MddsClient {
   /**
    * Fetch open interest history for an option contract.
    *
-   * - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
-   * - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
+   * - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+   * - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
    * - The reported open interest represents the open interest at the end of the previous trading day.
    *
    * Defaults (upstream):
@@ -1264,8 +1264,8 @@ export declare class MddsClient {
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1284,8 +1284,8 @@ export declare class MddsClient {
    * Fetch all Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1303,8 +1303,8 @@ export declare class MddsClient {
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1323,8 +1323,8 @@ export declare class MddsClient {
    * Fetch first-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1342,8 +1342,8 @@ export declare class MddsClient {
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1362,8 +1362,8 @@ export declare class MddsClient {
    * Fetch second-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1381,8 +1381,8 @@ export declare class MddsClient {
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1401,8 +1401,8 @@ export declare class MddsClient {
    * Fetch third-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1420,7 +1420,7 @@ export declare class MddsClient {
    * Fetch implied volatility history (intraday, sampled by interval).
    *
    * - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1438,8 +1438,8 @@ export declare class MddsClient {
   /**
    * Fetch implied volatility on each trade for an option contract.
    *
-   * - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Returns implied volatilies calculated using the trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -1456,9 +1456,9 @@ export declare class MddsClient {
   /**
    * Fetch the trade at a specific time of day across a date range for an option.
    *
-   * - Returns the last trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
-   * - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
-   * - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+   * - Returns the last trade reported by OPRA at a specified millisecond of the day.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
    * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
    *
    * Defaults (upstream):
@@ -1471,7 +1471,7 @@ export declare class MddsClient {
   /**
    * Fetch the quote at a specific time of day across a date range for an option.
    *
-   * - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+   * - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
    * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
    *
    * Defaults (upstream):
@@ -1497,27 +1497,27 @@ export declare class MddsClient {
    * Get the latest OHLC snapshot for one or more indices.
    *
    * - Retrieves the real-time current day OHLC.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /**
    * Get the latest price snapshot for one or more indices.
    *
    * - Retrieves a real-time last index price.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
   /**
    * Get the latest market value snapshot for one or more indices.
    *
    * - Retrieves a real-time last index market value.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /**
    * Fetch end-of-day index data for a date range.
    *
-   * - Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+   * - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
    */
   indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
   /** Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1525,9 +1525,9 @@ export declare class MddsClient {
   /**
    * Fetch intraday OHLC bars for an index.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+   * - Aggregated OHLC bars that use SIP rules for each bar.
    * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    *
    * Defaults (upstream):
    * - `interval`: `"1s"`
@@ -1540,7 +1540,7 @@ export declare class MddsClient {
   /**
    * Fetch intraday price history for an index.
    *
-   * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
    * - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
    * - A price update from the exchange is omitted if the price remained the same from the previous update.
    * - Multi-day requests are limited to 1 month of data.
@@ -1556,7 +1556,7 @@ export declare class MddsClient {
   /**
    * Fetch the index price at a specific time of day across a date range.
    *
-   * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
    * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
    */
   indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: IndexAtTimePriceOptions | undefined | null): Promise<Array<IndexPriceAtTimeTick>>
@@ -1817,8 +1817,8 @@ export declare class ThetaDataDxClient {
    * Get the latest OHLC snapshot for one or more stocks.
    *
    * Provides a real-time Open, High, Low, Close for the current day.
-   * * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
+   * * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
    * * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -1828,7 +1828,7 @@ export declare class ThetaDataDxClient {
   /**
    * Get the latest trade snapshot for one or more stocks.
    *
-   * Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    *
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
@@ -1839,8 +1839,8 @@ export declare class ThetaDataDxClient {
   /**
    * Get the latest NBBO quote snapshot for one or more stocks.
    *
-   * * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -1850,8 +1850,8 @@ export declare class ThetaDataDxClient {
   /**
    * Get the latest market value snapshot for one or more stocks.
    *
-   * * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
    * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
    *
    * Defaults (upstream):
@@ -1861,7 +1861,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
    *
-   * Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
+   * Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
    */
   stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
   /** Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1869,8 +1869,8 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch intraday OHLC bars for a stock on a single date.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1885,7 +1885,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch all trades for a stock on a given date.
    *
-   * Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1899,9 +1899,9 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch NBBO quotes for a stock on a given date at a given interval.
    *
-   * - Returns every NBBO quote reported by [UTP and CTA](/Articles/Data-And-Requests/The-SIPs).
+   * - Returns every NBBO quote reported by UTP and CTA.
    * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1916,7 +1916,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
    *
-   * Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+   * Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -1932,12 +1932,12 @@ export declare class ThetaDataDxClient {
    * Fetch the trade at a specific time of day across a date range.
    *
    * #### Real-time request:
-   * - Returns a real-time session from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   * - Returns a 15-minute delayed session from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   * - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
    *
    * #### Historical request:
-   * Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
-   * Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+   * Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+   * Trade condition mappings can be found here.
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
@@ -1950,11 +1950,11 @@ export declare class ThetaDataDxClient {
    *
    * #### Real-time request:
    *   - Subscription tier standard or higher will default to NQB.
-   *   - Real-time last BBO quote at-time_of_day-time from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-   *   - 15-minute delayed NBBO quote at-time_of_day-time from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+   *   - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   *   - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
    *
    * #### Historical request:
-   *   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+   *   Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
@@ -2069,7 +2069,7 @@ export declare class ThetaDataDxClient {
    * Returns implied volatilies calculated using the national best bid, mid, and ask price
    * of the option respectively. The underlying price represents whatever the last underlying price was at the
    * ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks
-   * [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * here.
    *
    * Defaults (upstream):
    * - `strike`: `"*"`
@@ -2146,10 +2146,10 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
-   * - Since [OPRA](/Articles/Data-And-Requests/The-SIPs.html) does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+   * - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
    * - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade.
    * - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
-   * - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+   * - You can read more about EOD & OHLC data here.
    *
    * Defaults (upstream):
    * - `strike`: `"*"`
@@ -2161,7 +2161,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch intraday OHLC bars for an option contract.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+   * - Aggregated OHLC bars that use SIP rules for each bar.
    * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
    * - Multi-day requests are limited to 1 month of data.
    *
@@ -2178,9 +2178,9 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch all trades for an option contract on a given date.
    *
-   * - Returns every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
-   * - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+   * - Returns every trade reported by OPRA.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2195,7 +2195,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch NBBO quotes for an option contract on a given date.
    *
-   * - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+   * - Returns every NBBO quote reported by OPRA.
    * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
@@ -2212,7 +2212,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch combined trade + quote ticks for an option contract.
    *
-   * - Returns every [trade](/operations/option_history_trade.html) reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) paired with the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at the time of trade.
+   * - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
    * - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp.
    * - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -2230,8 +2230,8 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch open interest history for an option contract.
    *
-   * - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
-   * - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
+   * - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+   * - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
    * - The reported open interest represents the open interest at the end of the previous trading day.
    *
    * Defaults (upstream):
@@ -2262,8 +2262,8 @@ export declare class ThetaDataDxClient {
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -2282,8 +2282,8 @@ export declare class ThetaDataDxClient {
    * Fetch all Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2301,8 +2301,8 @@ export declare class ThetaDataDxClient {
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -2321,8 +2321,8 @@ export declare class ThetaDataDxClient {
    * Fetch first-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2340,8 +2340,8 @@ export declare class ThetaDataDxClient {
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -2360,8 +2360,8 @@ export declare class ThetaDataDxClient {
    * Fetch second-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2379,8 +2379,8 @@ export declare class ThetaDataDxClient {
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -2399,8 +2399,8 @@ export declare class ThetaDataDxClient {
    * Fetch third-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2418,7 +2418,7 @@ export declare class ThetaDataDxClient {
    * Fetch implied volatility history (intraday, sampled by interval).
    *
    * - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data.
    *
    * Defaults (upstream):
@@ -2436,8 +2436,8 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch implied volatility on each trade for an option contract.
    *
-   * - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+   * - Returns implied volatilies calculated using the trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
    *
    * Defaults (upstream):
@@ -2454,9 +2454,9 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch the trade at a specific time of day across a date range for an option.
    *
-   * - Returns the last trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
-   * - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
-   * - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+   * - Returns the last trade reported by OPRA at a specified millisecond of the day.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
    * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
    *
    * Defaults (upstream):
@@ -2469,7 +2469,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch the quote at a specific time of day across a date range for an option.
    *
-   * - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+   * - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
    * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
    *
    * Defaults (upstream):
@@ -2495,27 +2495,27 @@ export declare class ThetaDataDxClient {
    * Get the latest OHLC snapshot for one or more indices.
    *
    * - Retrieves the real-time current day OHLC.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /**
    * Get the latest price snapshot for one or more indices.
    *
    * - Retrieves a real-time last index price.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
   /**
    * Get the latest market value snapshot for one or more indices.
    *
    * - Retrieves a real-time last index market value.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    */
   indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /**
    * Fetch end-of-day index data for a date range.
    *
-   * - Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+   * - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
    */
   indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
   /** Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2523,9 +2523,9 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch intraday OHLC bars for an index.
    *
-   * - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+   * - Aggregated OHLC bars that use SIP rules for each bar.
    * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-   * - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
    *
    * Defaults (upstream):
    * - `interval`: `"1s"`
@@ -2538,7 +2538,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch intraday price history for an index.
    *
-   * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
    * - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
    * - A price update from the exchange is omitted if the price remained the same from the previous update.
    * - Multi-day requests are limited to 1 month of data.
@@ -2554,7 +2554,7 @@ export declare class ThetaDataDxClient {
   /**
    * Fetch the index price at a specific time of day across a date range.
    *
-   * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
    * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
    */
   indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: IndexAtTimePriceOptions | undefined | null): Promise<Array<IndexPriceAtTimeTick>>

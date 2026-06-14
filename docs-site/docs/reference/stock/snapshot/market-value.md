@@ -11,8 +11,8 @@ description: "Get the latest market value snapshot for one or more stocks."
 
 Get the latest market value snapshot for one or more stocks.
 
-* Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
-* Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+* Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+* Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
 - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
 
 <SdkTabs>

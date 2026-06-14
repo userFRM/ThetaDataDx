@@ -11,9 +11,9 @@ description: "Fetch intraday OHLC bars for an index."
 
 Fetch intraday OHLC bars for an index.
 
-- Aggregated OHLC bars that use [SIP rules](https://docs.thetadata.us/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+- Aggregated OHLC bars that use SIP rules for each bar.
 - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar timestamp` <= `trade time` < `bar timestamp + interval`.
-- [Exchanges](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- Exchanges typically generate a price report every second for popular indices like SPX.
 
 <SdkTabs>
 

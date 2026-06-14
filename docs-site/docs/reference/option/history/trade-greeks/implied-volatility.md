@@ -11,8 +11,8 @@ description: "Fetch implied volatility on each trade for an option contract."
 
 Fetch implied volatility on each trade for an option contract.
 
-- Returns implied volatilies calculated using the trade reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html).
-- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Returns implied volatilies calculated using the trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks here.
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
 <SdkTabs>

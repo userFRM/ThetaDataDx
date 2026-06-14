@@ -11,9 +11,9 @@ description: "Fetch NBBO quotes for a stock on a given date at a given interval.
 
 Fetch NBBO quotes for a stock on a given date at a given interval.
 
-- Returns every NBBO quote reported by [UTP and CTA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs).
+- Returns every NBBO quote reported by UTP and CTA.
 - If the `interval` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
-- Set the `venue` parameter to `nqb` to access current-day real-time historic data from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
 - Multi-day requests are limited to 1 month of data.
 
 <SdkTabs>
