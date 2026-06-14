@@ -4,8 +4,8 @@
  * RAII wrappers around the C FFI layer. Provides idiomatic C++ access to
  * ThetaData market data with automatic resource management.
  *
- * Tick data is returned directly as #[repr(C)] structs — no JSON parsing.
- * The C++ tick types are layout-compatible with the Rust originals.
+ * Tick data is returned directly as fixed-layout structs — no JSON parsing.
+ * The C++ tick types are layout-compatible with the C ABI structs.
  */
 
 #ifndef THETADX_HPP
@@ -80,7 +80,7 @@ private:
 
 // ── Tick types (re-exported from thetadx.h for C++ convenience) ──
 // These are typedef aliases to the C types defined in thetadx.h.
-// They are #[repr(C)] layout-compatible with the Rust originals.
+// They are fixed-layout and ABI-compatible with those C structs.
 
 using EodTick = TdxEodTick;
 using OhlcTick = TdxOhlcTick;
@@ -119,9 +119,9 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 //
 // Field-level offsetof guards. The `TdxFpssEvent` data-variant field
 // order is generated from `fpss_event_schema.toml` — the same schema
-// the Rust FFI and the Go header are emitted from — so the C++ consumer
-// and the Rust producer agree on member order by construction rather
-// than by hand-kept convention. These asserts catch any ABI-level drift
+// every binding is emitted from — so the C++ consumer and the data
+// producer agree on member order by construction rather than by
+// hand-kept convention. These asserts catch any ABI-level drift
 // (padding, alignment, scalar widths) the schema alone cannot express.
 
 // Every data variant carries an embedded `TdxContract contract` as
@@ -217,9 +217,8 @@ struct GreeksResult {
 // a generic `catch (const std::runtime_error&)` observes both the
 // typed leaves and any plain-`runtime_error` site unchanged.
 
-/// gRPC canonical status kind. Mirror of [`Rust::GrpcStatusKind`].
-/// Enum values match the gRPC wire codes one-for-one (RFC 5234) so
-/// pattern-matching is portable across bindings.
+/// gRPC canonical status kind. Enum values match the gRPC wire codes
+/// one-for-one (RFC 5234) so pattern-matching is portable across bindings.
 enum class GrpcStatusKind : uint32_t {
     Ok = 0,
     Cancelled = 1,
@@ -993,14 +992,14 @@ public:
 
 
     /** Set the async worker-thread count using the (has_value, n) shape
-     *  that preserves Some(0) across the C boundary. has_value=false
+     *  that preserves an explicit 0 across the C boundary. has_value=false
      *  defers to the default sizing. */
     int32_t set_worker_threads(bool has_value, size_t n) {
         return tdx_config_set_worker_threads(handle_.get(), has_value, n);
     }
 
-    /** Read worker_threads back. Returns @c std::nullopt for the None
-     *  (auto-size) sentinel; returns the wrapped count when pinned. */
+    /** Read worker_threads back. Returns @c std::nullopt for the unset
+     *  (auto-size) sentinel; returns the wrapped count when set. */
     std::optional<size_t> get_worker_threads() const {
         bool has_value = false;
         size_t n = 0;
@@ -1151,8 +1150,8 @@ public:
 
     /**
      * Read the current @c metrics.port setting. Returns
-     * @c std::nullopt for the disabled (`None`) sentinel; returns the
-     * wrapped @c std::uint16_t when an explicit port is pinned.
+     * @c std::nullopt for the disabled sentinel; returns the wrapped
+     * @c std::uint16_t when an explicit port is set.
      *
      * Throws a @c tdx::ThetaDataError leaf on a null-handle FFI failure,
      * routing through the typed class the FFI error code selects.
@@ -1260,9 +1259,9 @@ public:
     /**
      * Set the warn_on_buffered_threshold_bytes ceiling.
      *
-     * Pre-stream-API endpoints log a `tracing::warn!` when a buffered
-     * response's decoded total exceeds this threshold, guiding users
-     * to the streaming variant. The payload is still delivered.
+     * Buffered (non-streaming) endpoints log a warning when a response's
+     * decoded total exceeds this threshold, guiding users to the streaming
+     * variant. The payload is still delivered.
      *
      * @p n = 0 disables the warning entirely.
      * Default is `100 * 1024 * 1024` (100 MiB).
@@ -1328,12 +1327,12 @@ private:
 
 // ── FPSS event types (re-exported from thetadx.h) ──
 //
-// Each `FpssControl::*` Rust variant has its own typed C struct rather
-// than a single flat `{ kind, id, detail }` envelope. Consumers
-// dispatch via `event.kind` and read the matching `event.<variant>`
-// payload (`event.login_success.permissions`,
-// `event.disconnected.reason`, etc.). The aliases below mirror every
-// generated type so C++ users can stay in the `tdx::` namespace.
+// Each control variant has its own typed C struct rather than a single
+// flat `{ kind, id, detail }` envelope. Consumers dispatch via
+// `event.kind` and read the matching `event.<variant>` payload
+// (`event.login_success.permissions`, `event.disconnected.reason`,
+// etc.). The aliases below mirror every generated type so C++ users can
+// stay in the `tdx::` namespace.
 
 using FpssEventKind = TdxFpssEventKind;
 using FpssQuote = TdxFpssQuote;
@@ -1341,7 +1340,7 @@ using FpssTrade = TdxFpssTrade;
 using FpssOpenInterest = TdxFpssOpenInterest;
 using FpssOhlcvc = TdxFpssOhlcvc;
 using FpssMarketValue = TdxFpssMarketValue;
-// Typed control variants — one alias per `FpssControl::*` Rust variant.
+// Typed control variants — one alias per control event type.
 using FpssConnected = TdxFpssConnected;
 using FpssContractAssigned = TdxFpssContractAssigned;
 using FpssDisconnected = TdxFpssDisconnected;
@@ -1364,9 +1363,10 @@ using FpssEvent = TdxFpssEvent;
 // ── Real-time streaming client ──
 //
 // Event delivery is callback-driven via `set_callback(fn)`. Events flow
-// `streaming reader -> bounded ring -> consumer thread ->
-// catch_unwind(fn)`. The reader thread never blocks on user code; on
-// ring overflow events are dropped and counted via `dropped_events()`.
+// from the streaming reader through a bounded ring to a dedicated consumer
+// thread, which invokes `fn` inside an isolation boundary. The reader
+// thread never blocks on user code; on ring overflow events are dropped
+// and counted via `dropped_events()`.
 //
 // The FpssClient owns the `std::function`. A free `extern "C"` shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
@@ -1448,8 +1448,8 @@ public:
     }
 
     /** Register a streaming callback and open the streaming connection.
-     *  `fn` runs on the consumer thread under `catch_unwind`, never on
-     *  the streaming reader. The reader thread cannot be blocked by
+     *  `fn` runs on the consumer thread inside an isolation boundary, never
+     *  on the streaming reader. The reader thread cannot be blocked by
      *  user code: on ring overflow events are dropped and counted via
      *  `dropped_events()`. Throws on registration failure.
      *
@@ -1514,12 +1514,12 @@ public:
         return handle_ ? tdx_fpss_ring_capacity(handle_.get()) : 0;
     }
 
-    /** Cumulative count of user-callback panics caught by the
-     *  per-invocation catch_unwind boundary since the current stream
-     *  started. A panic in the callback is caught, recorded here, and
-     *  does not stop event delivery — the next event continues normally.
-     *  Returns 0 when no callback has been installed yet.
-     *  Safe to call from any thread without blocking. */
+    /** Cumulative count of user-callback failures contained by the
+     *  per-invocation isolation boundary since the current stream
+     *  started. If the callback aborts on a given event, the failure is
+     *  contained, recorded here, and does not stop event delivery — the
+     *  next event continues normally. Returns 0 when no callback has been
+     *  installed yet. Safe to call from any thread without blocking. */
     uint64_t panic_count() const {
         return handle_ ? tdx_fpss_panic_count(handle_.get()) : 0;
     }
@@ -1553,7 +1553,7 @@ public:
 
 
 private:
-    // Free C-ABI shim that the Rust dispatcher invokes. `ctx` is the
+    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
     // `std::function*` we registered alongside the callback. The event
     // pointer is non-null and valid only for the duration of this call.
     static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
@@ -1563,7 +1563,8 @@ private:
             (*fn)(*event);
         } catch (...) {
             // User callbacks must not propagate exceptions across the
-            // C ABI boundary — Rust would unwind into UB. Swallow.
+            // C ABI boundary — unwinding across it is undefined behavior.
+            // Swallow.
         }
     }
 
@@ -1855,8 +1856,8 @@ public:
     const TdxUnified* get() const noexcept { return handle_.get(); }
 
     /** Register a streaming push callback and open the streaming session.
-     *  `fn` runs on the consumer thread under `catch_unwind`, never on
-     *  the streaming reader. The reader thread cannot be blocked by
+     *  `fn` runs on the consumer thread inside an isolation boundary, never
+     *  on the streaming reader. The reader thread cannot be blocked by
      *  user code: on ring overflow events are dropped and counted via
      *  `dropped_event_count()`. Throws on registration failure.
      *
@@ -1970,12 +1971,12 @@ public:
         return handle_ ? tdx_unified_ring_capacity(handle_.get()) : 0;
     }
 
-    /// Cumulative count of user-callback panics caught by the
-    /// per-invocation catch_unwind boundary since the current stream
-    /// started. A panic in the callback is caught, recorded here, and
-    /// does not stop event delivery — the next event continues normally.
-    /// Returns 0 when no callback has been installed yet.
-    /// Safe to call from any thread without blocking.
+    /// Cumulative count of user-callback failures contained by the
+    /// per-invocation isolation boundary since the current stream
+    /// started. If the callback aborts on a given event, the failure is
+    /// contained, recorded here, and does not stop event delivery — the
+    /// next event continues normally. Returns 0 when no callback has been
+    /// installed yet. Safe to call from any thread without blocking.
     uint64_t panic_count() const {
         return handle_ ? tdx_unified_panic_count(handle_.get()) : 0;
     }
@@ -2061,7 +2062,7 @@ public:
     }
 
 private:
-    // Free C-ABI shim that the Rust dispatcher invokes. `ctx` is the
+    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
     // `std::function*` we registered alongside the callback. The event
     // pointer is non-null and valid only for the duration of this call.
     static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
@@ -2071,7 +2072,8 @@ private:
             (*fn)(*event);
         } catch (...) {
             // User callbacks must not propagate exceptions across the
-            // C ABI boundary — Rust would unwind into UB. Swallow.
+            // C ABI boundary — unwinding across it is undefined behavior.
+            // Swallow.
         }
     }
 
@@ -2103,8 +2105,7 @@ private:
 // Fluent contract-first API
 // ══════════════════════════════════════════════════════════════════════════
 //
-// Mirrors the Rust target shape from
-// `report/ThetaDataDxClient_API_DX_Review_Rust_Python.md`:
+// The fluent contract-first surface mirrored across every binding:
 //
 //     auto stock  = tdx::Contract::stock("AAPL");
 //     auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
@@ -2162,8 +2163,8 @@ public:
             // A full-stream `FluentSubscription` is therefore only ever
             // built for those two kinds (see `FluentSecType::full_trades`
             // / `full_open_interest`), and the label set is the same two
-            // strings the Rust `FullSubscriptionKind::kind_str` and the
-            // Python / TypeScript `Subscription.kind` accessors emit. The
+            // strings the Python / TypeScript `Subscription.kind` accessors
+            // emit. The
             // remaining kinds fall through to the trade label so the
             // method never invents a non-canonical string.
             switch (kind_) {
@@ -2424,8 +2425,8 @@ using SecType = FluentSecType;
 // Implemented out-of-class so the class body can reference the fluent
 // types by forward declaration, then dispatch at the call site through
 // the polymorphic C ABI (`tdx_unified_subscribe` /
-// `tdx_unified_unsubscribe`) which mirrors the Rust `subscribe`
-// signature one-for-one.
+// `tdx_unified_unsubscribe`), the same subscribe surface every binding
+// exposes.
 
 namespace detail {
 
@@ -2519,8 +2520,8 @@ inline void FpssClient::unsubscribe_many(
 
 // ── Cross-language utility helpers ──────────────────────────────────────
 //
-// Thin std::string wrappers over the `'static` C-string accessors in
-// `thetadx.h`. Each call copies the table entry once into a
+// Thin std::string wrappers over the process-lifetime C-string accessors
+// in `thetadx.h`. Each call copies the table entry once into a
 // std::string so consumers don't need to think about C-string
 // lifetimes. The underlying C functions are zero-cost lookups
 // (no heap allocation, table-bounded).
@@ -2579,8 +2580,7 @@ inline std::string exchange_symbol(int32_t code) {
 }
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
-/// monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
-/// `signed_value` must lie in the i32 wire range
+/// monotonic form. `signed_value` must lie in the 32-bit signed wire range
 /// (`-2'147'483'648 ..= 2'147'483'647`); a value outside that domain
 /// throws @c tdx::InvalidParameterError rather than being silently
 /// reinterpreted, matching the Python `ValueError` / TypeScript
@@ -2594,8 +2594,7 @@ inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
 }
 
 /// Convert an unsigned monotonic trade-sequence value back to its
-/// signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
-/// `unsigned_value` must lie in the unsigned wire range
+/// signed wire encoding. `unsigned_value` must lie in the unsigned wire range
 /// (`0 ..= 2^32 - 1`); a value above that domain throws
 /// @c tdx::InvalidParameterError rather than being silently
 /// reinterpreted.
@@ -2613,7 +2612,7 @@ inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
 //
 // C++ users get the same fluent surface Python and TypeScript see —
 // the strike in dollars, the option side as a `char`, `sec_type` as a
-// symbolic uppercase name, and `reason_name` for `RemoveReason`
+// symbolic uppercase name, and `reason_name` for disconnect-reason
 // values. These inline helpers take the C struct by reference and
 // return the same shape Python / TypeScript bindings expose as fields.
 
@@ -2642,7 +2641,7 @@ inline std::optional<char> right(const TdxContract& c) noexcept {
 
 /// Vendor vocabulary text for a `TdxCalendarDay.status` code
 /// (`"open"` / `"early_close"` / `"full_close"` / `"weekend"`;
-/// `"UNKNOWN"` otherwise). 'static lifetime — never freed.
+/// `"UNKNOWN"` otherwise). Process-lifetime string — never freed.
 inline std::string_view calendar_status_name(int32_t status) noexcept {
     return tdx_calendar_status_name(status);
 }
@@ -2651,7 +2650,7 @@ inline std::string_view calendar_status_name(int32_t status) noexcept {
 /// into Unix epoch milliseconds (UTC, DST-aware). Usable with any
 /// `(date, *_ms_of_day)` pair on the tick structs. Returns
 /// `std::nullopt` when `date` is absent (`0`) or either input is out
-/// of domain — mirrors the Rust / Python `*_timestamp_ms()` accessors.
+/// of domain — mirrors the Python / TypeScript `*_timestamp_ms()` accessors.
 inline std::optional<int64_t> timestamp_ms(int32_t date, int32_t ms_of_day) noexcept {
     const int64_t epoch = tdx_timestamp_ms(date, ms_of_day);
     if (epoch < 0) {
@@ -2661,10 +2660,9 @@ inline std::optional<int64_t> timestamp_ms(int32_t date, int32_t ms_of_day) noex
 }
 
 /// Security type as a symbolic uppercase name (`"STOCK"` /
-/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`). Mirrors
-/// `SecType::as_str()` on the Rust core and the Python / TypeScript
-/// `sec_type` string surface. Returns `"UNKNOWN"` for unrecognised
-/// discriminants so callers stay total.
+/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`). Mirrors the
+/// Python / TypeScript `sec_type` string surface. Returns `"UNKNOWN"`
+/// for unrecognised discriminants so callers stay total.
 inline std::string_view sec_type_name(int32_t sec_type) noexcept {
     switch (sec_type) {
         case 0:
@@ -2681,8 +2679,7 @@ inline std::string_view sec_type_name(int32_t sec_type) noexcept {
 }
 
 /// Disconnect reason name (`"TooManyRequests"`, `"InvalidCredentials"`,
-/// ...). Mirrors `thetadatadx::RemoveReason::as_str()` on the
-/// Rust core and the Python / TypeScript `reason_name` field surface.
+/// ...). Mirrors the Python / TypeScript `reason_name` field surface.
 /// Returns `"Unspecified"` for unrecognised discriminants so callers
 /// stay total.
 inline std::string_view reason_name(int32_t reason) noexcept {
