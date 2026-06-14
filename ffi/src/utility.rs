@@ -206,7 +206,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 //  predicates and integer accessors for trade-sequence math.
 // ═══════════════════════════════════════════════════════════════════════
 
-// R4: every `tdx_condition_*` / `tdx_exchange_*` / `tdx_quote_condition_*`
+// every `tdx_condition_*` / `tdx_exchange_*` / `tdx_quote_condition_*`
 // entry point wraps its body in `ffi_boundary!` so a panic in the
 // condition / exchange lookup tables (debug-build invariant trips,
 // etc.) or in `static_cstr` (cache mutex contention, allocator OOM) cannot abort
@@ -473,7 +473,7 @@ pub unsafe extern "C" fn tdx_contract_strike_dollars(
 /// string in a process-lifetime `OnceLock<Mutex<HashMap<...>>>` and
 /// return the cached pointer so the C side can hold it indefinitely.
 ///
-/// R4: poison-tolerant via `PoisonError::into_inner` rather than
+/// poison-tolerant via `PoisonError::into_inner` rather than
 /// `.expect(...)`. A panic in a previous holder of this cache mutex
 /// (e.g. an OOM during `Box::leak`) leaves the map structurally
 /// valid — we have no transient half-mutated state because every
