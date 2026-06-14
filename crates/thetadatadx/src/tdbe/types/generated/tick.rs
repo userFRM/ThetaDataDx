@@ -31,7 +31,7 @@ pub struct CalendarDay {
     pub status: crate::tdbe::types::enums::CalendarStatus,
 }
 
-/// End-of-day tick -- 17 fields. Full EOD snapshot with OHLC + quote.
+/// End-of-day tick -- 20 fields. Full EOD snapshot with OHLC + quote.
 ///
 /// The two time columns carry the vendor's v3 field semantics under their
 /// v3 names: `created` is when the EOD report was generated (~17:15 ET,
@@ -221,20 +221,6 @@ impl GreeksAllTick {
 /// 39-column EOD response -- the same data-loss class as the per-trade
 /// Greeks endpoints. `GreeksEodTick` carries the full
 /// EOD wire shape end-to-end across every binding.
-///
-/// Wire layout verified-live against terminal jar build `202605221`
-/// (SPY 2024-06-21 expiration query on 2024-06-14):
-///
-///   symbol, expiration, strike, right,
-///   timestamp, open, high, low, close, volume, count,
-///   bid_size, bid_exchange, bid, bid_condition,
-///   ask_size, ask_exchange, ask, ask_condition,
-///   delta, theta, vega, rho, epsilon, lambda,
-///   gamma, vanna, charm, vomma, veta, vera,
-///   speed, zomma, color, ultima,
-///   d1, d2, dual_delta, dual_gamma,
-///   implied_vol, iv_error,
-///   underlying_timestamp, underlying_price
 ///
 /// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
 /// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
@@ -548,10 +534,6 @@ impl GreeksThirdOrderTick {
 /// columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
 /// `exchange` -- including the SIP-exchange attribution field.
 ///
-/// Wire layout verified-live against terminal jar build `202605221`:
-///
-///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price
-///
 /// The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
 /// applied through the existing `HEADER_ALIASES` rows in
 /// `crates/thetadatadx/src/mdds/decode/headers.rs`.
@@ -597,14 +579,6 @@ impl IndexPriceAtTimeTick {
 
 /// Interest rate tick -- 2 fields. End-of-day interest rate (percent).
 ///
-/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
-/// and verified-live against terminal jar build `202605221`:
-///
-/// | Schema field | Wire header | Wire type        | Mapping                    |
-/// |--------------|-------------|------------------|----------------------------|
-/// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
-/// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
-///
 /// The `date` decode flows through `thetadatadx::decode::row_date`, which
 /// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
 /// decodes either the documented Text-ISO shape or any future
@@ -619,24 +593,7 @@ pub struct InterestRateTick {
     pub rate: f64,
 }
 
-/// Implied volatility tick -- 11 fields.
-///
-/// Wire layout verified-live against `option_history_greeks_implied_volatility`
-/// (terminal jar build `202605221`):
-///
-/// | Schema field                | Wire header               | Type   |
-/// |-----------------------------|---------------------------|--------|
-/// | `ms_of_day`                 | `timestamp`               | i32    |
-/// | `bid`                       | `bid`                     | price  |
-/// | `bid_implied_volatility`    | `bid_implied_vol`         | f64    |
-/// | `midpoint`                  | `midpoint`                | price  |
-/// | `implied_volatility`        | `implied_vol`             | f64    |
-/// | `ask`                       | `ask`                     | price  |
-/// | `ask_implied_volatility`    | `ask_implied_vol`         | f64    |
-/// | `iv_error`                  | `iv_error`                | f64    |
-/// | `underlying_ms_of_day`      | `underlying_timestamp`    | i32    |
-/// | `underlying_price`          | `underlying_price`        | price  |
-/// | `date`                      | `timestamp`               | i32    |
+/// Implied volatility tick -- 14 fields.
 ///
 /// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
 /// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
@@ -732,15 +689,9 @@ impl MarketValueTick {
     }
 }
 
-/// OHLC tick -- 9 fields. Aggregated bar data including SIP-rule VWAP.
+/// OHLC tick -- 12 fields. Aggregated bar data including SIP-rule VWAP.
 ///
-/// Wire layout verified-live (terminal jar build `202605221`) against
-/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`,
-/// which emit the same 8 data columns (`timestamp,open,high,low,close,
-/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
-/// `vwap`; the generated parser's optional-column path defaults the
-/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
-/// already zero-default on quote-only intraday bars.
+/// The snapshot variants (`*_snapshot_ohlc`) omit `vwap`; the generated parser's optional-column path defaults the field to `0.0` for those endpoints, mirroring how `volume`/`count` already zero-default on quote-only intraday bars.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -783,7 +734,7 @@ impl OhlcTick {
     }
 }
 
-/// Open interest tick -- 3 fields.
+/// Open interest tick -- 6 fields.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -856,7 +807,7 @@ impl PriceTick {
     }
 }
 
-/// Quote tick -- 10 fields + midpoint. NBBO quote data.
+/// Quote tick -- 13 fields + midpoint. NBBO quote data.
 ///
 /// Wire layout: the full shape is 11 columns (`ms_of_day`,
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
@@ -919,17 +870,6 @@ impl QuoteTick {
 /// columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
 /// `exchange`, `price`) that identify which OPRA print each Greek was
 /// calculated against.
-///
-/// Wire layout verified-live against terminal jar build `202605221`:
-///
-///   symbol, expiration, strike, right,
-///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price,
-///   delta, theta, vega, rho, epsilon, lambda,
-///   gamma, vanna, charm, vomma, veta, vera,
-///   speed, zomma, color, ultima,
-///   d1, d2, dual_delta, dual_gamma,
-///   implied_vol, iv_error,
-///   underlying_timestamp, underlying_price
 ///
 /// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
 /// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
@@ -1037,10 +977,7 @@ impl TradeGreeksAllTick {
     }
 }
 
-/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
-/// / lambda) paired with the trade-side execution columns identifying the
-/// OPRA print each Greek was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -1116,11 +1053,7 @@ impl TradeGreeksFirstOrderTick {
     }
 }
 
-/// Per-trade implied-volatility tick (single `implied_volatility` +
-/// `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
-/// `IvTick`) paired with the trade-side execution columns identifying the
-/// OPRA print the IV was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -1184,10 +1117,7 @@ impl TradeGreeksImpliedVolatilityTick {
     }
 }
 
-/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
-/// veta) paired with the trade-side execution columns identifying the OPRA
-/// print each Greek was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -1261,11 +1191,7 @@ impl TradeGreeksSecondOrderTick {
     }
 }
 
-/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
-/// paired with the trade-side execution columns identifying the OPRA print
-/// each Greek was calculated against. The vendor's third-order schema does
-/// not publish `vera`. Wire layout verified-live against terminal jar build
-/// `202605221`.
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -1337,7 +1263,7 @@ impl TradeGreeksThirdOrderTick {
     }
 }
 
-/// Combined trade + quote tick -- 24 fields.
+/// Combined trade + quote tick -- 27 fields.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -1419,7 +1345,7 @@ impl TradeQuoteTick {
     }
 }
 
-/// Trade tick -- 15 fields. Core unit of trade data.
+/// Trade tick -- 18 fields. Core unit of trade data.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
