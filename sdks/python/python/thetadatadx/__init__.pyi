@@ -45,6 +45,7 @@ from typing import (
 # back to the in-source default when the wheel metadata is absent
 # (editable installs, source-tree imports).
 __version__: str
+"""Installed package version string (PEP 396)."""
 
 # ─────────────────────────────────────────────────────────────────────
 # Credentials + Config
@@ -98,114 +99,94 @@ class Config:
         """Return the stage configuration (port 20100, testing, unstable)."""
         ...
 
-    # MDDS host / port.
     mdds_host: str
+    """Hostname of the historical-data server."""
     mdds_port: int
-    # MDDS pool sizing. `concurrent_requests = 0` auto-detects from
-    # the tier; explicit values above the tier cap are clamped at
-    # connect time with a warn.
+    """TCP port of the historical-data server."""
     concurrent_requests: int
-    # Byte ceiling above which a buffered (non-`.stream()`) historical
-    # response logs a warning pointing the caller at the streaming
-    # surface. `0` disables the warning; the default is
-    # `100 * 1024 * 1024` (100 MiB). The data is still delivered.
+    """Maximum in-flight historical requests. ``0`` auto-detects the cap from the subscription tier; explicit values above the tier cap are clamped at connect time with a warning."""
     warn_on_buffered_threshold_bytes: int
-    # Reconnect tunables. `reconnect_max_attempts` (default 30) and
-    # `reconnect_max_elapsed_secs` (default 300; 0 disables) bound a
-    # consecutive-reconnect sequence on the generic-transient class;
-    # the rate-limited class rides `reconnect_max_rate_limited_attempts`
-    # alone and `reconnect_max_server_restart_attempts` (default 60)
-    # budgets pool bounces.
+    """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
     reconnect_policy: str
+    """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
     reconnect_max_attempts: int
+    """Maximum consecutive reconnect attempts on the generic-transient failure class before the session gives up (default 30)."""
     reconnect_max_rate_limited_attempts: int
+    """Maximum consecutive reconnect attempts on the rate-limited (TooManyRequests) failure class, tracked independently of :attr:`reconnect_max_attempts`."""
     reconnect_max_server_restart_attempts: int
+    """Maximum consecutive reconnect attempts on the ServerRestarting failure class, budgeting pool bounces (default 60)."""
     reconnect_max_elapsed_secs: int
+    """Wall-clock envelope, in seconds, bounding a consecutive-reconnect sequence (default 300; ``0`` disables the envelope)."""
     reconnect_stable_window_secs: int
-    # Reconnect cadence (ms) per failure class. `wait_ms` (default 250)
-    # is the initial delay of the generic-transient exponential ladder,
-    # doubling up to `wait_max_ms` (default 30_000);
-    # `wait_rate_limited_ms` (default 130_000) is the TooManyRequests
-    # floor; `wait_server_restart_ms` (default 5_000) is the flat
-    # ServerRestarting cadence. Every delay is jittered per
-    # `reconnect_jitter` ("full" default / "equal" / "decorrelated" /
-    # "none").
+    """Connected duration, in seconds, after which a session is considered stable and the consecutive-reconnect counters reset."""
     reconnect_wait_ms: int
+    """Initial delay, in milliseconds, of the generic-transient exponential back-off ladder (default 250), doubling up to :attr:`reconnect_wait_max_ms`."""
     reconnect_wait_max_ms: int
+    """Ceiling, in milliseconds, of the generic-transient exponential back-off ladder (default 30_000)."""
     reconnect_wait_rate_limited_ms: int
+    """Back-off floor, in milliseconds, applied to the rate-limited (TooManyRequests) failure class (default 130_000)."""
     reconnect_wait_server_restart_ms: int
+    """Flat reconnect cadence, in milliseconds, applied to the ServerRestarting failure class (default 5_000)."""
     reconnect_jitter: Literal["full", "equal", "decorrelated", "none"]
-    # Subscription replay pacing after auto-reconnect: frames per burst
-    # (default 50, minimum 1) and the jittered pause between bursts in
-    # ms (default 5; 0 removes the pause).
+    """Jitter strategy applied to every reconnect delay: ``"full"`` (default), ``"equal"``, ``"decorrelated"``, or ``"none"``."""
     reconnect_replay_burst_size: int
+    """Number of subscription-replay frames sent per burst after an auto-reconnect (default 50, minimum 1)."""
     reconnect_replay_pace_ms: int
-    # Custom reconnect policy: a callable `(reason: int, attempt: int)
-    # -> Optional[int]` returning the reconnect delay in ms, or `None`
-    # to stop (the stream then emits the terminal ReconnectsExhausted
-    # event). Runs on the streaming I/O thread; permanent disconnect
-    # reasons never reach it. Assign `None` to restore the Auto policy.
-    # Write-only: reading the configured callable back is not
-    # supported (`reconnect_policy` reports "custom").
+    """Jittered pause, in milliseconds, between subscription-replay bursts after an auto-reconnect (default 5; ``0`` removes the pause)."""
     reconnect_callback: Optional[Callable[[int, int], Optional[int]]]
-    # Async worker-thread count for embedded runtimes. `None` defers to
-    # the default sizing; `int` (including `0`, which clamps to `1`)
-    # pins worker count.
+    """Custom reconnect policy: a callable ``(reason: int, attempt: int) -> Optional[int]`` returning the reconnect delay in milliseconds, or ``None`` to stop (the stream then emits the terminal :class:`ReconnectsExhausted` event). Runs on the streaming I/O thread; permanent disconnect reasons never reach it. Assign ``None`` to restore the auto policy. Write-only: the configured callable cannot be read back (:attr:`reconnect_policy` then reports ``"custom"``)."""
     worker_threads: Optional[int]
-    # RetryPolicy fields — per-field access on `DirectConfig.retry`.
-    # Defaults: `initial=250ms`, `max=30s`, `attempts=20`,
-    # `max_elapsed_secs=300` (0 disables the wall-clock envelope),
-    # `jitter=True`. Methods `delay_for_attempt` / `capped_backoff`
-    # stay Rust-only.
+    """Async worker-thread count for the embedded runtime. ``None`` defers to the default sizing; an ``int`` (including ``0``, which clamps to ``1``) pins the worker count."""
     retry_initial_delay_ms: int
+    """Initial delay, in milliseconds, of the historical-request retry back-off (default 250)."""
     retry_max_delay_ms: int
+    """Ceiling, in milliseconds, of the historical-request retry back-off (default 30_000)."""
     retry_max_attempts: int
+    """Maximum historical-request retry attempts (default 20)."""
     retry_max_elapsed_secs: int
+    """Wall-clock envelope, in seconds, bounding the historical-request retry loop (default 300; ``0`` disables the envelope)."""
     retry_jitter: bool
-    # FlatFilesConfig fields — per-field access on
-    # `DirectConfig.flatfiles`. Tunes the legacy flatfile driver's
-    # retry loop. Defaults: `max_attempts=10` (validated 1..=100),
-    # `initial_backoff_secs=1`, `max_backoff_secs=30`, `jitter=True`.
+    """Whether jitter is applied to historical-request retry delays (default ``True``)."""
     flatfiles_max_attempts: int
+    """Maximum retry attempts for the flat-file driver (default 10, validated ``1..=100``)."""
     flatfiles_initial_backoff_secs: int
+    """Initial back-off, in seconds, of the flat-file driver retry loop (default 1)."""
     flatfiles_max_backoff_secs: int
+    """Ceiling back-off, in seconds, of the flat-file driver retry loop (default 30)."""
     flatfiles_jitter: bool
-    # AuthConfig fields — per-field access on `DirectConfig.auth`.
-    # `nexus_url` defaults to the upstream production endpoint;
-    # `client_type` defaults to `"rust-thetadatadx"`.
+    """Whether jitter is applied to flat-file driver retry delays (default ``True``)."""
     nexus_url: str
+    """Authentication endpoint URL (defaults to the production endpoint)."""
     client_type: str
-    # MetricsConfig field — Prometheus exporter port on
-    # `DirectConfig.metrics`. `None` (the default) leaves the exporter
-    # disabled even when the `metrics-prometheus` feature is compiled
-    # in; an `int` binds an HTTP listener on `0.0.0.0:<port>`. The
-    # setter raises ValueError for values outside `0..=65535`.
+    """Client-type identifier sent during authentication (defaults to ``"rust-thetadatadx"``)."""
     metrics_port: Optional[int]
-    # FPSS tunables. `fpss_timeout_ms` (default 3_000) is the
-    # no-frames deadline; `fpss_data_watchdog_ms` (default 30_000; 0
-    # disables) is the hard wall-clock backstop above it. The keepalive
-    # trio arms kernel-side half-open detection (defaults 5 s idle /
-    # 2 s interval / 2 probes). `fpss_host_selection` is "shuffled"
-    # (fault-domain-aware per-client shuffle, seedable via
-    # `fpss_host_shuffle_seed`) or "fixed_order". `fpss_ring_size`
-    # must be a power of two >= 64.
+    """Prometheus exporter port. ``None`` (the default) leaves the exporter disabled even when the metrics feature is compiled in; an ``int`` binds an HTTP listener on ``0.0.0.0:<port>``. The setter raises ``ValueError`` for values outside ``0..=65535``."""
     fpss_timeout_ms: int
+    """No-frames deadline, in milliseconds, for the streaming connection (default 3_000)."""
     fpss_connect_timeout_ms: int
+    """Connect timeout, in milliseconds, for opening a streaming connection."""
     fpss_ping_interval_ms: int
+    """Interval, in milliseconds, between client-side streaming heartbeats."""
     fpss_ring_size: int
+    """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
     fpss_io_read_slice_ms: int
+    """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
     fpss_data_watchdog_ms: int
+    """Hard wall-clock backstop, in milliseconds, above :attr:`fpss_timeout_ms` that tears down a silent stream (default 30_000; ``0`` disables)."""
     fpss_keepalive_idle_secs: int
+    """Idle time, in seconds, before kernel-side TCP keepalive probing begins on the streaming socket (default 5)."""
     fpss_keepalive_interval_secs: int
+    """Interval, in seconds, between kernel-side TCP keepalive probes on the streaming socket (default 2)."""
     fpss_keepalive_retries: int
+    """Number of unanswered kernel-side TCP keepalive probes before the streaming socket is declared dead (default 2)."""
     fpss_host_selection: Literal["shuffled", "fixed_order"]
+    """Streaming host-selection order: ``"shuffled"`` (fault-domain-aware per-client shuffle, seedable via :attr:`fpss_host_shuffle_seed`) or ``"fixed_order"``."""
     fpss_host_shuffle_seed: Optional[int]
+    """Seed for the per-client streaming host shuffle; ``None`` draws a fresh seed each connect."""
     derive_ohlcvc: bool
-    # Streaming write-flush policy. `"batched"` (default) flushes on the
-    # PING heartbeat (~100 ms); `"immediate"` flushes after every wire
-    # write. Setter accepts the same two strings case-insensitively and
-    # raises ValueError otherwise.
+    """Whether OHLCVC bars are derived locally from the trade stream and delivered as :class:`Ohlcvc` events."""
     flush_mode: Literal["batched", "immediate"]
+    """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
 
     def __repr__(self) -> str:
         """Return a representation with the host, port, and stream-host count."""
@@ -354,9 +335,13 @@ class SecType:
     """Security type — `STOCK` / `OPTION` / `INDEX` / `RATE`."""
 
     STOCK: SecType
+    """The equity security type."""
     OPTION: SecType
+    """The option security type."""
     INDEX: SecType
+    """The index security type."""
     RATE: SecType
+    """The interest-rate security type."""
 
     def full_trades(self) -> Subscription:
         """Build a full-stream Trade subscription for this security type."""
@@ -428,17 +413,29 @@ class Quote:
     """A real-time Quote tick — top-of-book bid / ask for one contract."""
 
     contract: ContractRef
+    """The contract this quote is for."""
     ms_of_day: int
+    """Milliseconds since exchange-local midnight when the quote was recorded."""
     bid_size: int
+    """Number of contracts or shares resting at the bid."""
     bid_exchange: int
+    """Exchange code posting the bid."""
     bid: float
+    """Bid price in dollars."""
     bid_condition: int
+    """Quote condition code for the bid."""
     ask_size: int
+    """Number of contracts or shares resting at the ask."""
     ask_exchange: int
+    """Exchange code posting the ask."""
     ask: float
+    """Ask price in dollars."""
     ask_condition: int
+    """Quote condition code for the ask."""
     date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
 
     @property
     def kind(self) -> str:
@@ -455,22 +452,39 @@ class Trade:
     """A real-time Trade tick — one executed print for a contract."""
 
     contract: ContractRef
+    """The contract this trade is for."""
     ms_of_day: int
+    """Milliseconds since exchange-local midnight when the trade printed."""
     sequence: int
+    """Exchange sequence number ordering trades within the day."""
     ext_condition1: int
+    """Extended trade condition code 1."""
     ext_condition2: int
+    """Extended trade condition code 2."""
     ext_condition3: int
+    """Extended trade condition code 3."""
     ext_condition4: int
+    """Extended trade condition code 4."""
     condition: int
+    """Primary trade condition code."""
     size: int
+    """Trade size in contracts or shares."""
     exchange: int
+    """Exchange code where the trade printed."""
     price: float
+    """Trade price in dollars."""
     condition_flags: int
+    """Bit flags qualifying the trade conditions."""
     price_flags: int
+    """Bit flags qualifying the trade price."""
     volume_type: int
+    """Volume classification code for the trade."""
     records_back: int
+    """Number of records back this trade was reported (out-of-order correction offset)."""
     date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
 
     @property
     def kind(self) -> str:
@@ -487,10 +501,15 @@ class OpenInterest:
     """A real-time OpenInterest tick — open-contract count for an option."""
 
     contract: ContractRef
+    """The contract this open-interest tick is for."""
     ms_of_day: int
+    """Milliseconds since exchange-local midnight when the open interest was recorded."""
     open_interest: int
+    """Number of outstanding open contracts."""
     date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
 
     @property
     def kind(self) -> str:
@@ -507,15 +526,25 @@ class Ohlcvc:
     """An OHLCVC bar, derived locally when ``Config.derive_ohlcvc`` is ``True``."""
 
     contract: ContractRef
+    """The contract this bar is for."""
     ms_of_day: int
+    """Milliseconds since exchange-local midnight at the bar's open."""
     open: float
+    """Opening price of the bar in dollars."""
     high: float
+    """Highest traded price within the bar in dollars."""
     low: float
+    """Lowest traded price within the bar in dollars."""
     close: float
+    """Closing price of the bar in dollars."""
     volume: int
+    """Total traded volume within the bar, in contracts or shares."""
     count: int
+    """Number of trades aggregated into the bar."""
     date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
 
     @property
     def kind(self) -> str:
@@ -532,7 +561,9 @@ class ContractAssigned:
     """The server assigned a numeric id to a subscribed contract."""
 
     id: int
+    """Wire-internal numeric id the server assigned to this contract."""
     contract: ContractRef
+    """The contract associated with the assigned id."""
 
     @property
     def kind(self) -> str:
@@ -563,6 +594,7 @@ class Disconnected:
     """The server disconnected the client."""
 
     reason: int
+    """Numeric disconnect reason code; see :attr:`reason_name` for the symbolic form."""
 
     @property
     def kind(self) -> str:
@@ -588,6 +620,7 @@ class ParseError:
     """
 
     message: str
+    """Human-readable description of the parse failure."""
 
     @property
     def kind(self) -> str:
@@ -604,6 +637,7 @@ class LoginSuccess:
     """A successful login acknowledgement carrying the granted permissions."""
 
     permissions: str
+    """Server-supplied entitlement string from the login acknowledgement; opaque diagnostic metadata, not a structured permission set."""
 
     @property
     def kind(self) -> str:
@@ -648,6 +682,7 @@ class Ping:
     """A server heartbeat carrying an opaque payload."""
 
     payload: bytes
+    """Raw heartbeat payload bytes, preserved for diagnostics."""
 
     @property
     def kind(self) -> str:
@@ -692,8 +727,11 @@ class Reconnecting:
     """Auto-reconnect is about to attempt a reconnection."""
 
     reason: int
+    """Numeric disconnect reason code that triggered the reconnect attempt; see :attr:`reason_name` for the symbolic form."""
     attempt: int
+    """One-based index of this reconnect attempt."""
     delay_ms: int
+    """Delay, in milliseconds, before this reconnect attempt fires."""
 
     @property
     def kind(self) -> str:
@@ -720,7 +758,9 @@ class ReconnectsExhausted:
     attempted)."""
 
     reason: int
+    """Numeric disconnect reason code of the final drop before recovery was abandoned; see :attr:`reason_name` for the symbolic form."""
     attempts: int
+    """Number of consecutive reconnect attempts consumed before giving up (``0`` when no reconnect was attempted)."""
 
     @property
     def kind(self) -> str:
@@ -742,7 +782,9 @@ class ReqResponse:
     """A response to a subscription request, identified by ``req_id``."""
 
     req_id: int
+    """Identifier of the subscription request this response answers."""
     result: int
+    """Numeric outcome code of the subscription request."""
 
     @property
     def kind(self) -> str:
@@ -773,6 +815,7 @@ class ServerError:
     """A server-error message carrying a human-readable description."""
 
     message: str
+    """Human-readable error text from the server."""
 
     @property
     def kind(self) -> str:
@@ -803,7 +846,9 @@ class UnknownFrame:
     """A frame with an unrecognised wire code, surfaced with its raw bytes."""
 
     code: int
+    """Unrecognised wire frame code reported by the server."""
     payload: bytes
+    """Raw frame payload bytes, preserved for diagnostics."""
 
     @property
     def kind(self) -> str:
@@ -1578,6 +1623,7 @@ class RateLimitError(ThetaDataError):
     """
 
     retry_after: Optional[float]
+    """Server-supplied minimum back-off in seconds, or ``None`` when the upstream attached no retry hint. Always present so callers can read it unconditionally."""
 
 
 @final
@@ -1645,7 +1691,9 @@ class StreamError(ThetaDataError):
 # canonical class. New code should use the canonical names. Typed here
 # as the canonical class so `except` narrowing matches runtime identity.
 NoDataFoundError: Type[NotFoundError]
+"""Back-compatibility alias of :class:`NotFoundError` — the same class object under both names."""
 TimeoutError: Type[DeadlineExceededError]
+"""Back-compatibility alias of :class:`DeadlineExceededError` — the same class object under both names."""
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1732,39 +1780,52 @@ class AllGreeks:
     auxiliaries. Every attribute is a plain ``float``.
     """
 
-    # Model price + implied-volatility pair.
     value: float
+    """Black-Scholes theoretical option value."""
     iv: float
+    """Implied volatility solved from the observed option price (annualised, decimal)."""
     iv_error: float
-    # First-order Greeks.
+    """Relative residual of the implied-volatility solve, ``(model_price - option_price) / option_price``."""
     delta: float
+    """First derivative of value with respect to spot."""
     gamma: float
+    """Second derivative of value with respect to spot (rate of change of delta)."""
     theta: float
+    """Sensitivity of value to the passage of time, expressed per calendar day."""
     vega: float
+    """Sensitivity of value to volatility."""
     rho: float
-    # Second-order Greeks.
+    """Sensitivity of value to the risk-free rate."""
     vanna: float
+    """Sensitivity of delta to volatility (equivalently, of vega to spot)."""
     charm: float
+    """Sensitivity of delta to the passage of time (delta decay)."""
     vomma: float
+    """Sensitivity of vega to volatility (vega convexity)."""
     veta: float
+    """Sensitivity of vega to the passage of time."""
     vera: float
-    # Third-order Greeks.
+    """Sensitivity of vega to the risk-free rate."""
     speed: float
+    """Sensitivity of gamma to spot (third derivative of value in spot)."""
     zomma: float
+    """Sensitivity of gamma to volatility."""
     color: float
+    """Sensitivity of gamma to the passage of time (gamma decay)."""
     ultima: float
-    # Auxiliary quantities.
+    """Sensitivity of vomma to volatility (third-order volatility sensitivity)."""
     d1: float
+    """The Black-Scholes ``d1`` term."""
     d2: float
+    """The Black-Scholes ``d2`` term (``d1 - sigma * sqrt(t)``)."""
     dual_delta: float
+    """Sensitivity of value to the strike."""
     dual_gamma: float
+    """Sensitivity of dual delta to the strike."""
     epsilon: float
-    # Option elasticity (``delta * spot / value``). Carries the PEP 8
-    # trailing-underscore keyword escape because ``lambda`` is a reserved
-    # Python keyword — same spelling as the ``GreeksAllTick.lambda_`` tick
-    # attribute, so the field stays reachable with ordinary attribute
-    # syntax (``result.lambda_``) across the calculator and tick surfaces.
+    """Sensitivity of value to the dividend yield."""
     lambda_: float
+    """Option elasticity: percentage change in value per percentage change in spot (``delta * spot / value``). Carries the PEP 8 trailing-underscore escape because ``lambda`` is a reserved Python keyword."""
 
 
 # ─────────────────────────────────────────────────────────────────────
