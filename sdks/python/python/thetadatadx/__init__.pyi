@@ -1,30 +1,31 @@
-"""Type stubs for the `thetadatadx` native extension.
+"""ThetaData market-data SDK.
 
-Hand-written stubs cover the load-bearing public surface:
-client pyclasses, credentials, config, the fluent
-`Contract` / `Subscription` / `SecType` value types, FPSS event
-classes, and streaming context managers. Generator-emitted
-historical builders and typed `<Tick>List` wrappers fall through
-the module-level ``__getattr__`` to ``Any`` — there are 100+ of
-them and they all share an identical structural shape (a fluent
-builder chained to a typed-list terminal), so a hand-written
-typed mirror would be high-maintenance noise.
+`thetadatadx` provides direct access to ThetaData's real-time and
+historical market data without a separate terminal process. The package
+exposes:
 
-Mypy / pyright pick this up via the ``py.typed`` marker (PEP 561)
-shipped alongside this file.
+- Connection types: :class:`Credentials` and :class:`Config`.
+- Clients: :class:`ThetaDataDxClient` (historical plus on-demand
+  streaming), :class:`AsyncThetaDataDxClient` (``await``-based
+  historical), :class:`FpssClient` (streaming only), and
+  :class:`MddsClient` (historical only).
+- A fluent subscription surface: :class:`Contract`,
+  :class:`Subscription`, and :class:`SecType`.
+- Real-time event types delivered to the streaming callback
+  (:class:`Quote`, :class:`Trade`, :class:`OpenInterest`,
+  :class:`Ohlcvc`, and the connection / lifecycle events).
+- A typed exception hierarchy rooted at :class:`ThetaDataError`.
+- Analytics and utility entry points such as :func:`all_greeks`,
+  :func:`implied_volatility`, and :func:`split_date_range`.
 
-Return types on PyO3-exported callables are NOT verified by the
-stubtest gate: a compiled extension presents an opaque ``builtin``
-descriptor whose annotations stubtest cannot read, so it never
-compares the declared return against the concrete runtime object
-(e.g. it cannot tell ``tuple[float, float]`` from ``float``). The
-return annotation on every function and method below is therefore
-hand-maintained against the live runtime and must be kept correct
-by hand when the binding changes — the gate will not flag a wrong
-one. The ``tests/test_typed_surface.py`` guard re-checks the
-non-trivial offline-constructible returns at runtime to catch
-drift the gate cannot.
+Type checkers discover these annotations through the ``py.typed`` marker
+(PEP 561) shipped alongside this file.
 """
+
+# Per-endpoint historical builders and typed `<Tick>List` wrappers share
+# one structural shape and resolve through the module-level `__getattr__`
+# to `Any`; only the load-bearing public surface is annotated explicitly
+# here.
 
 from __future__ import annotations
 
@@ -54,10 +55,28 @@ __version__: str
 class Credentials:
     """ThetaData Nexus credentials (email + password)."""
 
-    def __init__(self, email: str, password: str) -> None: ...
+    def __init__(self, email: str, password: str) -> None:
+        """Create credentials from an account email and password."""
+        ...
+
     @staticmethod
-    def from_file(path: str) -> Credentials: ...
-    def __repr__(self) -> str: ...
+    def from_file(path: str) -> Credentials:
+        """Load credentials from a two-line file (line 1 email, line 2 password).
+
+        Args:
+            path: Path to the credentials file.
+
+        Returns:
+            The loaded :class:`Credentials`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or is malformed.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation with the email redacted."""
+        ...
 
 
 @final
@@ -65,11 +84,20 @@ class Config:
     """Connection configuration: MDDS host / FPSS hosts / reconnect policy."""
 
     @staticmethod
-    def production() -> Config: ...
+    def production() -> Config:
+        """Return the production configuration (ThetaData NJ datacenter)."""
+        ...
+
     @staticmethod
-    def dev() -> Config: ...
+    def dev() -> Config:
+        """Return the dev configuration (port 20200, infinite historical replay)."""
+        ...
+
     @staticmethod
-    def stage() -> Config: ...
+    def stage() -> Config:
+        """Return the stage configuration (port 20100, testing, unstable)."""
+        ...
+
     # MDDS host / port.
     mdds_host: str
     mdds_port: int
@@ -78,9 +106,9 @@ class Config:
     # connect time with a warn.
     concurrent_requests: int
     # Byte ceiling above which a buffered (non-`.stream()`) historical
-    # response emits a Rust-side `tracing::warn!` pointing the caller
-    # at the streaming surface. `0` disables the warning; the default
-    # is `100 * 1024 * 1024` (100 MiB). The data is still delivered.
+    # response logs a warning pointing the caller at the streaming
+    # surface. `0` disables the warning; the default is
+    # `100 * 1024 * 1024` (100 MiB). The data is still delivered.
     warn_on_buffered_threshold_bytes: int
     # Reconnect tunables. `reconnect_max_attempts` (default 30) and
     # `reconnect_max_elapsed_secs` (default 300; 0 disables) bound a
@@ -179,7 +207,9 @@ class Config:
     # raises ValueError otherwise.
     flush_mode: Literal["batched", "immediate"]
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        """Return a representation with the host, port, and stream-host count."""
+        ...
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -198,7 +228,10 @@ class Contract:
     """
 
     @staticmethod
-    def stock(symbol: str) -> Contract: ...
+    def stock(symbol: str) -> Contract:
+        """Construct a stock contract for ``symbol``."""
+        ...
+
     @staticmethod
     def option(
         symbol: str,
@@ -206,25 +239,72 @@ class Contract:
         expiration: str,
         strike: float | int | str,
         right: str,
-    ) -> Contract: ...
-    @property
-    def symbol(self) -> str: ...
-    @property
-    def sec_type(self) -> str: ...
-    @property
-    def expiration(self) -> Optional[int]: ...
-    @property
-    def strike(self) -> Optional[float]: ...
-    @property
-    def right(self) -> Optional[str]: ...
+    ) -> Contract:
+        """Construct an option contract.
 
-    def quote(self) -> Subscription: ...
-    def trade(self) -> Subscription: ...
-    def open_interest(self) -> Subscription: ...
-    def market_value(self) -> Subscription: ...
+        Args:
+            symbol: Underlying root symbol.
+            expiration: Expiration date as a ``YYYYMMDD`` string.
+            strike: Strike price in dollars; a number or string is
+                accepted (``550``, ``550.0``, and ``"550"`` are equivalent).
+            right: Option right, ``"C"`` (call) or ``"P"`` (put).
 
-    def __repr__(self) -> str: ...
-    def __eq__(self, other: object) -> bool: ...
+        Returns:
+            The constructed option :class:`Contract`.
+
+        Raises:
+            ValueError: If any field fails validation.
+        """
+        ...
+
+    @property
+    def symbol(self) -> str:
+        """The contract's symbol."""
+        ...
+
+    @property
+    def sec_type(self) -> str:
+        """Security type as an uppercase name (``"STOCK"`` / ``"OPTION"`` / ``"INDEX"`` / ``"RATE"``)."""
+        ...
+
+    @property
+    def expiration(self) -> Optional[int]:
+        """Expiration date as a ``YYYYMMDD`` integer; ``None`` for non-options."""
+        ...
+
+    @property
+    def strike(self) -> Optional[float]:
+        """Strike price in dollars; ``None`` for non-options."""
+        ...
+
+    @property
+    def right(self) -> Optional[str]:
+        """Option right (``"C"`` / ``"P"``); ``None`` for non-options."""
+        ...
+
+    def quote(self) -> Subscription:
+        """Build a per-contract Quote subscription."""
+        ...
+
+    def trade(self) -> Subscription:
+        """Build a per-contract Trade subscription."""
+        ...
+
+    def open_interest(self) -> Subscription:
+        """Build a per-contract OpenInterest subscription."""
+        ...
+
+    def market_value(self) -> Subscription:
+        """Build a per-contract market-value subscription."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the contract."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is a contract with the same identity."""
+        ...
 
 
 @final
@@ -240,17 +320,33 @@ class ContractRef:
     """
 
     @property
-    def symbol(self) -> str: ...
-    @property
-    def sec_type(self) -> str: ...
-    @property
-    def expiration(self) -> Optional[int]: ...
-    @property
-    def right(self) -> Optional[str]: ...
-    @property
-    def strike(self) -> Optional[float]: ...
+    def symbol(self) -> str:
+        """The resolved contract symbol."""
+        ...
 
-    def __repr__(self) -> str: ...
+    @property
+    def sec_type(self) -> str:
+        """Security type as an uppercase name (``"STOCK"`` / ``"OPTION"`` / ``"INDEX"`` / ``"RATE"``)."""
+        ...
+
+    @property
+    def expiration(self) -> Optional[int]:
+        """Expiration date as a ``YYYYMMDD`` integer; ``None`` for non-options."""
+        ...
+
+    @property
+    def right(self) -> Optional[str]:
+        """Option right (``"C"`` / ``"P"``); ``None`` for non-options."""
+        ...
+
+    @property
+    def strike(self) -> Optional[float]:
+        """Strike price in dollars; ``None`` for non-options."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the contract reference."""
+        ...
 
 
 @final
@@ -262,13 +358,29 @@ class SecType:
     INDEX: SecType
     RATE: SecType
 
-    def full_trades(self) -> Subscription: ...
-    def full_open_interest(self) -> Subscription: ...
+    def full_trades(self) -> Subscription:
+        """Build a full-stream Trade subscription for this security type."""
+        ...
 
-    def __repr__(self) -> str: ...
-    def __str__(self) -> str: ...
-    def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
+    def full_open_interest(self) -> Subscription:
+        """Build a full-stream OpenInterest subscription for this security type."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the security type (e.g. ``"SecType.OPTION"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the uppercase name (e.g. ``"OPTION"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same security type."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
 
 
 @final
@@ -276,33 +388,44 @@ class Subscription:
     """Typed market-data subscription (per-contract or full-stream)."""
 
     @property
-    def kind(self) -> str: ...
-    """`"quote"` / `"trade"` / `"open_interest"` / `"market_value"` / `"full_trades"` / `"full_open_interest"`."""
+    def kind(self) -> str:
+        """The wire-level kind for this subscription.
+
+        One of ``"quote"`` / ``"trade"`` / ``"open_interest"`` /
+        ``"market_value"`` / ``"full_trades"`` / ``"full_open_interest"``.
+        """
+        ...
 
     @property
-    def is_full(self) -> bool: ...
-    @property
-    def contract(self) -> Optional[Contract]: ...
-    @property
-    def sec_type(self) -> Optional[SecType]: ...
+    def is_full(self) -> bool:
+        """``True`` for full-stream (security-type-scoped) subscriptions."""
+        ...
 
-    def __repr__(self) -> str: ...
+    @property
+    def contract(self) -> Optional[Contract]:
+        """The bound contract for per-contract subscriptions; ``None`` for full-stream."""
+        ...
+
+    @property
+    def sec_type(self) -> Optional[SecType]:
+        """The security type for full-stream subscriptions; ``None`` for per-contract."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the subscription."""
+        ...
 
 
 # ─────────────────────────────────────────────────────────────────────
-# FPSS event classes — emitted to the streaming callback
-#
-# Every field below was extracted from the `#[pyo3(get)]` declarations
-# on the generated `_generated/fpss_event_classes.rs` plus
-# subsequent surface additions. Updating this stub without touching
-# the matching pyclass attribute (or vice versa) is caught by
-# `python -m mypy.stubtest thetadatadx --ignore-missing-stub`.
+# FPSS event classes — delivered to the streaming callback. The
+# dispatcher fires exactly one of these per event; narrow on the
+# concrete class (`match event: case Quote(): ...`) or read `event.kind`.
 # ─────────────────────────────────────────────────────────────────────
 
 
 @final
 class Quote:
-    """FPSS Quote tick. Mirrors `FpssData::Quote`."""
+    """A real-time Quote tick — top-of-book bid / ask for one contract."""
 
     contract: ContractRef
     ms_of_day: int
@@ -318,13 +441,18 @@ class Quote:
     received_at_ns: int
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"quote"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Trade:
-    """FPSS Trade tick. Mirrors `FpssData::Trade`."""
+    """A real-time Trade tick — one executed print for a contract."""
 
     contract: ContractRef
     ms_of_day: int
@@ -345,13 +473,18 @@ class Trade:
     received_at_ns: int
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"trade"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class OpenInterest:
-    """FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`."""
+    """A real-time OpenInterest tick — open-contract count for an option."""
 
     contract: ContractRef
     ms_of_day: int
@@ -360,13 +493,18 @@ class OpenInterest:
     received_at_ns: int
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"open_interest"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Ohlcvc:
-    """FPSS OHLCVC bar (derived in the SDK when `Config.derive_ohlcvc=True`)."""
+    """An OHLCVC bar, derived locally when ``Config.derive_ohlcvc`` is ``True``."""
 
     contract: ContractRef
     ms_of_day: int
@@ -380,137 +518,196 @@ class Ohlcvc:
     received_at_ns: int
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"ohlcvc"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class ContractAssigned:
-    """FPSS server assigned a contract id (`FpssControl::ContractAssigned`)."""
+    """The server assigned a numeric id to a subscribed contract."""
 
     id: int
     contract: ContractRef
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"contract_assigned"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Connected:
-    """FPSS server connection ack (wire code 4)."""
+    """The streaming connection has been established."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"connected"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Disconnected:
-    """FPSS server disconnected the client (wire code 12)."""
+    """The server disconnected the client."""
 
     reason: int
 
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"disconnected"``)."""
+        ...
 
     @property
     def reason_name(self) -> str:
-        """Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`)."""
+        """The disconnect reason as a symbolic name (e.g. ``"TooManyRequests"``)."""
         ...
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class ParseError:
-    """FPSS protocol-level parse error event. Mirrors
-    `FpssControl::Error` on the Rust core. Named ``ParseError`` so it
-    never collides with the :class:`Error` exception class.
+    """A streaming protocol-level parse error.
+
+    Named ``ParseError`` so it never collides with the :class:`Error`
+    exception class.
     """
 
     message: str
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"parse_error"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class LoginSuccess:
-    """FPSS login-success ack. Carries the server-side permissions string."""
+    """A successful login acknowledgement carrying the granted permissions."""
 
     permissions: str
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"login_success"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class MarketClose:
-    """FPSS market-close signal (wire code 32). Carries no payload."""
+    """A market-close signal. Carries no payload."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"market_close"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class MarketOpen:
-    """FPSS market-open signal (wire code 30). Carries no payload."""
+    """A market-open signal. Carries no payload."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"market_open"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Ping:
-    """FPSS server heartbeat (wire code 10)."""
+    """A server heartbeat carrying an opaque payload."""
 
     payload: bytes
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"ping"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Reconnected:
-    """FPSS auto-reconnect succeeded — connection is live again."""
+    """Auto-reconnect succeeded — the connection is live again."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"reconnected"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class ReconnectedServer:
-    """FPSS server-side reconnect ack (wire code 13)."""
+    """A server-side reconnect acknowledgement."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"reconnected_server"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Reconnecting:
-    """FPSS auto-reconnect is about to attempt reconnection."""
+    """Auto-reconnect is about to attempt a reconnection."""
 
     reason: int
     attempt: int
     delay_ms: int
 
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"reconnecting"``)."""
+        ...
 
     @property
     def reason_name(self) -> str:
-        """Resolved `RemoveReason` variant name."""
+        """The disconnect reason as a symbolic name."""
         ...
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
@@ -526,73 +723,101 @@ class ReconnectsExhausted:
     attempts: int
 
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"reconnects_exhausted"``)."""
+        ...
 
     @property
     def reason_name(self) -> str:
-        """Resolved `RemoveReason` variant name."""
+        """The disconnect reason as a symbolic name."""
         ...
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class ReqResponse:
-    """FPSS subscription response (wire code 40)."""
+    """A response to a subscription request, identified by ``req_id``."""
 
     req_id: int
     result: int
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"req_response"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class Restart:
-    """FPSS server stream restart (wire code 31)."""
+    """A server-initiated stream restart."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"restart"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class ServerError:
-    """FPSS server-error message (wire code 11)."""
+    """A server-error message carrying a human-readable description."""
 
     message: str
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"server_error"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class UnknownControl:
-    """FPSS control variant the SDK does not yet recognise."""
+    """A control event the SDK does not yet recognise."""
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"unknown_control"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
 @final
 class UnknownFrame:
-    """FPSS server sent a frame with an unrecognised wire code."""
+    """A frame with an unrecognised wire code, surfaced with its raw bytes."""
 
     code: int
     payload: bytes
 
     @property
-    def kind(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def kind(self) -> str:
+        """Event kind discriminator (``"unknown_frame"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
 
 
-# Discriminated union of every FPSS event class fired through the
-# streaming callback. The dispatcher fires one of these per event;
-# narrow via `match event: case Quote(): ...`.
-FpssEvent = Any  # opaque to mypy; runtime narrowing via `match` / `isinstance`
+# Union of every streaming event class delivered to the callback. Opaque
+# to type checkers; narrow at runtime via `match` / `isinstance`.
+FpssEvent = Any
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -604,42 +829,184 @@ EventCallback = Callable[[Any], None]
 
 @final
 class ThetaDataDxClient:
-    """Unified client: opens MDDS + Nexus at construction, FPSS on demand.
+    """Unified client for historical data and real-time streaming.
 
-    This stub does not carry a per-class ``__getattr__`` fallback.
-    Every public method below is hand-listed so a new generator-emitted
-    method shows up as a stubtest failure until the stub is
-    regenerated. The module-level ``__getattr__`` at the bottom of
-    this file routes the catch-all generator-emitted historical
-    builders / list classes / endpoint factories without masking
-    method-level drift on the load-bearing pyclasses.
+    Connects to ThetaData at construction (a single authentication
+    covers both historical access and streaming). Historical endpoints
+    are available immediately; real-time streaming starts on demand via
+    :meth:`start_streaming`. This is the recommended entry point.
     """
 
-    def __init__(self, creds: Credentials, config: Config) -> None: ...
+    def __init__(self, creds: Credentials, config: Config) -> None:
+        """Connect to ThetaData with ``creds`` and ``config``.
+
+        Authenticates and opens the historical channel; streaming is not
+        started. The call is interruptible with ``Ctrl+C`` if the
+        handshake stalls.
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration (e.g. ``Config.production()``).
+
+        Raises:
+            ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
     @staticmethod
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> ThetaDataDxClient: ...
+    ) -> ThetaDataDxClient:
+        """Construct a client from a credentials file and connect.
+
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+
+        Returns:
+            A connected :class:`ThetaDataDxClient`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or the connection
+                fails.
+        """
+        ...
 
     # Streaming lifecycle.
-    def start_streaming(self, callback: EventCallback) -> None: ...
-    def is_streaming(self) -> bool: ...
-    def stop_streaming(self) -> None: ...
-    def shutdown(self) -> None: ...
-    def reconnect(self) -> None: ...
-    def await_drain(self, timeout_ms: int) -> bool: ...
+    def start_streaming(self, callback: EventCallback) -> None:
+        """Start real-time streaming and register ``callback`` for events.
+
+        ``callback`` is invoked with exactly one argument — a typed
+        event instance (:class:`Quote`, :class:`Trade`, :class:`Ohlcvc`,
+        :class:`OpenInterest`, and the lifecycle / control events).
+        Narrow on the concrete class or read ``event.kind``. Exceptions
+        raised inside the callback are caught and reported through the
+        unraisable hook; each one increments the panic count.
+
+        Args:
+            callback: Single-argument callable receiving each event.
+
+        Raises:
+            RuntimeError: If streaming is already started.
+            ThetaDataError: If the streaming connection cannot be opened.
+        """
+        ...
+
+    def is_streaming(self) -> bool:
+        """Return whether the streaming connection is currently active."""
+        ...
+
+    def stop_streaming(self) -> None:
+        """Stop streaming while keeping the historical client usable.
+
+        Clears the registered callback. To resume, call
+        :meth:`start_streaming` again with a freshly bound callable;
+        :meth:`reconnect` raises until a callback is re-registered.
+        """
+        ...
+
+    def shutdown(self) -> None:
+        """Shut down the streaming connection and clear the callback.
+
+        Equivalent to :meth:`stop_streaming` for callback lifetime; a
+        subsequent :meth:`reconnect` fails until :meth:`start_streaming`
+        is called again.
+        """
+        ...
+
+    def reconnect(self) -> None:
+        """Reconnect streaming and re-register the previous callback.
+
+        Restores all active subscriptions on the new connection.
+
+        Raises:
+            RuntimeError: If no callback is registered (i.e. after
+                :meth:`stop_streaming` / :meth:`shutdown`).
+        """
+        ...
+
+    def await_drain(self, timeout_ms: int) -> bool:
+        """Block until the streaming consumer thread finishes firing the callback.
+
+        Args:
+            timeout_ms: Maximum time to wait, in milliseconds.
+
+        Returns:
+            ``True`` if the drain completed within the timeout, else
+            ``False``.
+        """
+        ...
 
     # Subscriptions.
-    def subscribe(self, sub: Subscription) -> None: ...
-    def subscribe_many(self, subs: List[Subscription]) -> None: ...
-    def unsubscribe(self, sub: Subscription) -> None: ...
-    def unsubscribe_many(self, subs: List[Subscription]) -> None: ...
-    def active_subscriptions(self) -> List[Subscription]: ...
-    def active_full_subscriptions(self) -> List[Subscription]: ...
+    def subscribe(self, sub: Subscription) -> None:
+        """Subscribe to a single :class:`Subscription`.
+
+        Args:
+            sub: A subscription from ``Contract.quote()`` / ``.trade()``
+                / ``.open_interest()`` or ``SecType.OPTION.full_trades()``.
+
+        Raises:
+            ThetaDataError: If the subscription is rejected.
+        """
+        ...
+
+    def subscribe_many(self, subs: List[Subscription]) -> None:
+        """Subscribe to several subscriptions.
+
+        Stops at the first error and re-raises it; previously installed
+        subscriptions are not rolled back.
+
+        Args:
+            subs: An iterable of :class:`Subscription` values.
+
+        Raises:
+            ThetaDataError: If any subscription is rejected.
+        """
+        ...
+
+    def unsubscribe(self, sub: Subscription) -> None:
+        """Cancel a single :class:`Subscription`.
+
+        Raises:
+            ThetaDataError: If the request is rejected.
+        """
+        ...
+
+    def unsubscribe_many(self, subs: List[Subscription]) -> None:
+        """Cancel several subscriptions.
+
+        Raises:
+            ThetaDataError: If any request is rejected.
+        """
+        ...
+
+    def active_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active per-contract subscriptions.
+
+        Empty when streaming has not started.
+        """
+        ...
+
+    def active_full_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active full-stream subscriptions.
+
+        Empty when streaming has not started.
+        """
+        ...
 
     # Metrics + connection observability.
-    def dropped_event_count(self) -> int: ...
+    def dropped_event_count(self) -> int:
+        """Cumulative count of streaming events dropped because the
+        consumer fell behind and the event ring was full.
+
+        Returns 0 before :meth:`start_streaming` and after
+        :meth:`stop_streaming`. :meth:`reconnect` resets the counter;
+        snapshot it beforehand to accumulate across sessions.
+        """
+        ...
+
     def ring_occupancy(self) -> int:
         """Point-in-time count of events published into the streaming
         event ring but not yet drained into the callback. Rising
@@ -658,7 +1025,14 @@ class ThetaDataDxClient:
         growing value is the earliest external signal of a dead or
         wedged connection."""
         ...
-    def last_event_received_at_unix_nanos(self) -> int: ...
+    def last_event_received_at_unix_nanos(self) -> int:
+        """UNIX-nanosecond receive timestamp of the most recent inbound
+        streaming frame of any kind.
+
+        Returns 0 before streaming starts or before any frame arrives.
+        """
+        ...
+
     def last_connected_addr(self) -> Optional[str]:
         """``host:port`` of the live streaming server, following the
         session across auto-reconnects."""
@@ -678,11 +1052,26 @@ class ThetaDataDxClient:
         ...
 
     # Context managers.
-    def streaming(self, callback: EventCallback) -> StreamingSession: ...
+    def streaming(self, callback: EventCallback) -> StreamingSession:
+        """Open a streaming session bound to ``callback`` as a context manager.
+
+        Entering the ``with`` block starts streaming; exiting stops it
+        and drains pending events, so the callback is never invoked after
+        the block closes.
+
+        Args:
+            callback: Single-argument callable receiving each event.
+
+        Returns:
+            A :class:`StreamingSession` context manager.
+        """
+        ...
 
     # FLATFILES namespace getter + direct-to-disk helper.
     @property
-    def flat_files(self) -> FlatFilesNamespace: ...
+    def flat_files(self) -> FlatFilesNamespace:
+        """The flat-files namespace for bulk per-day file requests."""
+        ...
     def flatfile_to_path(
         self,
         sec_type: str,
@@ -701,117 +1090,328 @@ class ThetaDataDxClient:
         """
         ...
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        """Return a representation including historical and streaming state."""
+        ...
 
 
 @final
 class AsyncThetaDataDxClient:
-    """Async surface: ``*_async`` historical methods plus streaming helpers.
+    """Async client exposing ``await``-based historical methods.
 
-    AsyncThetaDataDxClient is a PURE PROXY class — its public surface
-    is dynamic, dispatched through ``__getattr__`` against an inner
-    :class:`ThetaDataDxClient`. The only physical methods on this
-    pyclass are the constructor, ``from_file``, ``__repr__``, and
-    ``__getattr__`` itself. Every other attribute resolves dynamically:
-
-      - ``*_async`` historical methods → 60+ generator-emitted async
-        terminals on the inner unified client.
-      - Streaming lifecycle (``start_streaming`` / ``stop_streaming``
-        / ``subscribe`` etc) → reaches the sync surface on the inner
-        client; documented via :data:`ALLOWED_UNIFIED_PROXY_METHODS`
-        in the binding source.
-
-    The per-class ``__getattr__`` stub below is retained
-    intentionally: hand-stubbing every proxied attribute would
-    duplicate the inner :class:`ThetaDataDxClient` stub and drift on
-    every endpoint addition. The compile-time assertion in the
-    Rust binding (``const _:() = { ... }`` on
-    ``ALLOWED_UNIFIED_PROXY_METHODS``) pins the safelisted names so a
-    confused-deputy proxy promise (e.g. ``is_authenticated`` on
-    AsyncThetaDataDxClient when it only exists on ``FpssClient``) is
-    a build failure rather than a runtime ``AttributeError``.
+    Each historical endpoint is available as an ``*_async`` coroutine
+    (e.g. ``await client.stock_history_eod_async(...)``). The streaming
+    lifecycle and subscription methods (``start_streaming``,
+    ``stop_streaming``, ``subscribe``, ``streaming`` etc.) mirror those
+    on :class:`ThetaDataDxClient`. Accessing the synchronous historical
+    methods on this class raises ``AttributeError`` — use
+    :class:`ThetaDataDxClient` for those.
     """
 
-    def __init__(self, creds: Credentials, config: Config) -> None: ...
+    def __init__(self, creds: Credentials, config: Config) -> None:
+        """Connect to ThetaData with ``creds`` and ``config``.
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration.
+
+        Raises:
+            ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
     @staticmethod
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> AsyncThetaDataDxClient: ...
+    ) -> AsyncThetaDataDxClient:
+        """Construct an async client from a credentials file and connect.
 
-    def __repr__(self) -> str: ...
-    def __getattr__(self, name: str) -> Any: ...
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+
+        Returns:
+            A connected :class:`AsyncThetaDataDxClient`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or the connection
+                fails.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation including historical and streaming state."""
+        ...
+
+    def __getattr__(self, name: str) -> Any:
+        """Resolve an ``*_async`` historical method or a streaming method.
+
+        Raises:
+            AttributeError: If ``name`` is not part of the async surface.
+        """
+        ...
 
 
 @final
 class FpssClient:
-    """Standalone FPSS-only streaming client — never opens MDDS / Nexus."""
+    """Streaming-only client — opens the real-time feed and never the
+    historical channel."""
 
-    def __init__(self, creds: Credentials, config: Config) -> None: ...
+    def __init__(self, creds: Credentials, config: Config) -> None:
+        """Create a streaming-only client with ``creds`` and ``config``.
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration.
+
+        Raises:
+            ThetaDataError: If construction fails.
+        """
+        ...
+
     @staticmethod
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> FpssClient: ...
+    ) -> FpssClient:
+        """Construct a streaming-only client from a credentials file.
 
-    def start_streaming(self, callback: EventCallback) -> None: ...
-    def is_streaming(self) -> bool: ...
-    def is_authenticated(self) -> bool: ...
-    def stop_streaming(self) -> None: ...
-    def shutdown(self) -> None: ...
-    def reconnect(self) -> None: ...
-    def await_drain(self, timeout_ms: int) -> bool: ...
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
 
-    def subscribe(self, sub: Subscription) -> None: ...
-    def subscribe_many(self, subs: List[Subscription]) -> None: ...
-    def unsubscribe(self, sub: Subscription) -> None: ...
-    def unsubscribe_many(self, subs: List[Subscription]) -> None: ...
-    def active_subscriptions(self) -> List[Subscription]: ...
-    def active_full_subscriptions(self) -> List[Subscription]: ...
+        Returns:
+            A :class:`FpssClient`.
 
-    def dropped_event_count(self) -> int: ...
-    def panic_count(self) -> int: ...
-    def ring_occupancy(self) -> int: ...
-    def ring_capacity(self) -> int: ...
-    def millis_since_last_event(self) -> Optional[int]: ...
-    def last_event_received_at_unix_nanos(self) -> int: ...
-    def last_connected_addr(self) -> Optional[str]: ...
+        Raises:
+            ThetaDataError: If the file cannot be read.
+        """
+        ...
 
-    def streaming(self, callback: EventCallback) -> StreamingSession: ...
+    def start_streaming(self, callback: EventCallback) -> None:
+        """Start streaming and register ``callback`` for incoming events.
 
-    def __repr__(self) -> str: ...
+        See :meth:`ThetaDataDxClient.start_streaming` for the callback
+        contract.
+
+        Raises:
+            RuntimeError: If streaming is already started.
+            ThetaDataError: If the connection cannot be opened.
+        """
+        ...
+
+    def is_streaming(self) -> bool:
+        """Return whether the streaming connection is currently open.
+
+        Returns ``False`` if the dispatcher thread has failed.
+        """
+        ...
+
+    def is_authenticated(self) -> bool:
+        """Return whether the streaming session is currently authenticated.
+
+        Distinct from :meth:`is_streaming`: the connection slot can
+        remain populated with the authenticated flag cleared after a
+        server disconnect, before :meth:`reconnect` is issued.
+        """
+        ...
+
+    def stop_streaming(self) -> None:
+        """Stop streaming and clear the registered callback."""
+        ...
+
+    def shutdown(self) -> None:
+        """Shut down the streaming connection and clear the callback."""
+        ...
+
+    def reconnect(self) -> None:
+        """Reconnect and re-register the previous callback, restoring subscriptions.
+
+        Raises:
+            RuntimeError: If no callback is registered.
+        """
+        ...
+
+    def await_drain(self, timeout_ms: int) -> bool:
+        """Block until the streaming consumer thread finishes firing the callback.
+
+        Args:
+            timeout_ms: Maximum time to wait, in milliseconds.
+
+        Returns:
+            ``True`` if the drain completed within the timeout, else
+            ``False``.
+        """
+        ...
+
+    def subscribe(self, sub: Subscription) -> None:
+        """Subscribe to a single :class:`Subscription`.
+
+        Raises:
+            ThetaDataError: If the subscription is rejected.
+        """
+        ...
+
+    def subscribe_many(self, subs: List[Subscription]) -> None:
+        """Subscribe to several subscriptions.
+
+        Stops at the first error and re-raises it.
+
+        Raises:
+            ThetaDataError: If any subscription is rejected.
+        """
+        ...
+
+    def unsubscribe(self, sub: Subscription) -> None:
+        """Cancel a single :class:`Subscription`.
+
+        Raises:
+            ThetaDataError: If the request is rejected.
+        """
+        ...
+
+    def unsubscribe_many(self, subs: List[Subscription]) -> None:
+        """Cancel several subscriptions.
+
+        Raises:
+            ThetaDataError: If any request is rejected.
+        """
+        ...
+
+    def active_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active per-contract subscriptions.
+
+        Empty when streaming has not started.
+        """
+        ...
+
+    def active_full_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active full-stream subscriptions.
+
+        Empty when streaming has not started.
+        """
+        ...
+
+    def dropped_event_count(self) -> int:
+        """Cumulative count of streaming events dropped on a full event ring.
+
+        Returns 0 before :meth:`start_streaming` and after
+        :meth:`stop_streaming`.
+        """
+        ...
+
+    def panic_count(self) -> int:
+        """Cumulative count of exceptions raised by the user callback."""
+        ...
+
+    def ring_occupancy(self) -> int:
+        """Point-in-time count of events queued but not yet delivered to the callback.
+
+        Returns 0 when streaming is not active.
+        """
+        ...
+
+    def ring_capacity(self) -> int:
+        """Configured streaming event-ring capacity in slots.
+
+        The fixed denominator for :meth:`ring_occupancy`; 0 when
+        streaming is not active.
+        """
+        ...
+
+    def millis_since_last_event(self) -> Optional[int]:
+        """Milliseconds since the most recent inbound frame, or ``None`` before streaming starts.
+
+        A steadily growing value is the earliest signal of a dead or
+        wedged connection.
+        """
+        ...
+
+    def last_event_received_at_unix_nanos(self) -> int:
+        """UNIX-nanosecond receive timestamp of the most recent inbound frame.
+
+        Returns 0 before streaming starts or before any frame arrives.
+        """
+        ...
+
+    def last_connected_addr(self) -> Optional[str]:
+        """``host:port`` of the live streaming server, or ``None`` before streaming starts."""
+        ...
+
+    def streaming(self, callback: EventCallback) -> StreamingSession:
+        """Open a streaming session bound to ``callback`` as a context manager.
+
+        Args:
+            callback: Single-argument callable receiving each event.
+
+        Returns:
+            A :class:`StreamingSession` context manager.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the streaming client."""
+        ...
 
 
 @final
 class MddsClient:
-    """Standalone MDDS-only historical client — FPSS surface is blocked.
+    """Historical-only client — the streaming surface is blocked.
 
-    Like :class:`AsyncThetaDataDxClient`, ``MddsClient`` is a PURE
-    PROXY class — its public surface is dynamic, dispatched through
-    ``__getattr__`` against an inner :class:`ThetaDataDxClient`.
-    Every FPSS-touching method name (see
-    ``mdds_client::FPSS_TOUCHING_METHODS`` in the binding source +
-    the matching ``BLOCKED_FPSS_METHODS`` mirror in
-    ``tests/test_standalone_clients.py``) raises ``AttributeError``;
-    every other attribute reaches the unified client transparently.
-
-    The per-class ``__getattr__`` stub below is retained
-    intentionally — hand-stubbing 60+ generator-emitted historical
-    builders would duplicate the inner :class:`ThetaDataDxClient`
-    stub and drift on every endpoint addition. The
-    runtime block-list invariant is enforced via an offline pytest
-    coverage check (``test_mdds_client_block_list_offline``) plus a
-    compile-time guard in the Rust source.
+    Exposes the same historical endpoints as :class:`ThetaDataDxClient`
+    and never opens the real-time feed. Any streaming method (e.g.
+    ``start_streaming`` / ``subscribe``) raises ``AttributeError``; use
+    :class:`FpssClient` or :class:`ThetaDataDxClient` for streaming.
     """
 
-    def __init__(self, creds: Credentials, config: Config) -> None: ...
+    def __init__(self, creds: Credentials, config: Config) -> None:
+        """Connect a historical-only client with ``creds`` and ``config``.
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration.
+
+        Raises:
+            ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
     @staticmethod
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> MddsClient: ...
-    def __repr__(self) -> str: ...
-    def __getattr__(self, name: str) -> Any: ...
+    ) -> MddsClient:
+        """Construct a historical-only client from a credentials file.
+
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+
+        Returns:
+            A connected :class:`MddsClient`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or the connection
+                fails.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the historical client."""
+        ...
+
+    def __getattr__(self, name: str) -> Any:
+        """Resolve a historical method.
+
+        Raises:
+            AttributeError: If ``name`` is a streaming method (blocked on
+                this client).
+        """
+        ...
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -821,36 +1421,61 @@ class MddsClient:
 
 @final
 class StreamingSession:
-    """Context manager for push-callback FPSS streaming.
+    """Context manager for callback-driven streaming.
 
     Acquired via :py:meth:`ThetaDataDxClient.streaming` /
-    :py:meth:`FpssClient.streaming`. StreamingSession is a PURE
-    PROXY class — its public surface is dynamic, dispatched through
-    ``__getattr__`` against the bound client. Only the context-
-    manager dunders and ``__getattr__`` itself are physical methods
-    on the pyclass; subscription / lifecycle methods reach the bound
-    client transparently.
+    :py:meth:`FpssClient.streaming`. Entering the ``with`` block starts
+    streaming; exiting stops it and drains pending events. Subscription
+    and lifecycle methods of the bound client are reachable directly on
+    the session.
     """
 
-    def __enter__(self) -> StreamingSession: ...
+    def __enter__(self) -> StreamingSession:
+        """Start streaming and return the session."""
+        ...
+
     def __exit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[Any],
-    ) -> bool: ...
-    def __getattr__(self, name: str) -> Any: ...
+    ) -> bool:
+        """Stop streaming and drain pending events; never suppresses exceptions."""
+        ...
+
+    def __getattr__(self, name: str) -> Any:
+        """Resolve a subscription or lifecycle method on the bound client.
+
+        Raises:
+            AttributeError: If ``name`` is not available on the bound
+                client.
+        """
+        ...
 
 
 @final
 class FlatFileRowList:
-    """Typed list of FLATFILES rows. One row per `(symbol, date, ...)`."""
+    """Typed list of flat-file rows. One row per `(symbol, date, ...)`."""
 
-    def __len__(self) -> int: ...
-    def to_list(self) -> List[Any]: ...
-    def to_arrow(self) -> Any: ...
-    def to_pandas(self) -> Any: ...
-    def to_polars(self) -> Any: ...
+    def __len__(self) -> int:
+        """Return the number of rows."""
+        ...
+
+    def to_list(self) -> List[Any]:
+        """Return the rows as a list of dicts, one dict per row."""
+        ...
+
+    def to_arrow(self) -> Any:
+        """Return the rows as a ``pyarrow.Table``."""
+        ...
+
+    def to_pandas(self) -> Any:
+        """Return the rows as a ``pandas.DataFrame``. Requires pandas and pyarrow."""
+        ...
+
+    def to_polars(self) -> Any:
+        """Return the rows as a ``polars.DataFrame``. Requires polars and pyarrow."""
+        ...
 
 
 @final
@@ -862,17 +1487,58 @@ class FlatFilesNamespace:
     dynamically by string identifiers.
     """
 
-    def option_quote(self, date: str) -> FlatFileRowList: ...
-    def option_trade(self, date: str) -> FlatFileRowList: ...
-    def option_trade_quote(self, date: str) -> FlatFileRowList: ...
-    def option_ohlc(self, date: str) -> FlatFileRowList: ...
-    def option_open_interest(self, date: str) -> FlatFileRowList: ...
-    def option_eod(self, date: str) -> FlatFileRowList: ...
-    def stock_quote(self, date: str) -> FlatFileRowList: ...
-    def stock_trade(self, date: str) -> FlatFileRowList: ...
-    def stock_trade_quote(self, date: str) -> FlatFileRowList: ...
-    def stock_eod(self, date: str) -> FlatFileRowList: ...
-    def request(self, sec_type: str, req_type: str, date: str) -> FlatFileRowList: ...
+    def option_quote(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_trade(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-trade flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_trade_quote(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_ohlc(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-OHLC flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_open_interest(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-open-interest flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_eod(self, date: str) -> FlatFileRowList:
+        """Return the decoded option-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_quote(self, date: str) -> FlatFileRowList:
+        """Return the decoded stock-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_trade(self, date: str) -> FlatFileRowList:
+        """Return the decoded stock-trade flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_trade_quote(self, date: str) -> FlatFileRowList:
+        """Return the decoded stock-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_eod(self, date: str) -> FlatFileRowList:
+        """Return the decoded stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def request(self, sec_type: str, req_type: str, date: str) -> FlatFileRowList:
+        """Return a decoded flat file selected by string identifiers.
+
+        Args:
+            sec_type: Security type, e.g. ``"OPTION"`` / ``"STOCK"``.
+            req_type: Request type, e.g. ``"QUOTE"`` / ``"TRADE"``.
+            date: The trading day as a ``YYYYMMDD`` string.
+
+        Returns:
+            The decoded :class:`FlatFileRowList`.
+        """
+        ...
 
 
 class ThetaDataError(Exception):
@@ -881,11 +1547,17 @@ class ThetaDataError(Exception):
     ...
 
 
-class AuthenticationError(ThetaDataError): ...
+class AuthenticationError(ThetaDataError):
+    """Authentication failed. Parent of :class:`InvalidCredentialsError`."""
+
+    ...
 
 
 @final
-class InvalidCredentialsError(AuthenticationError): ...
+class InvalidCredentialsError(AuthenticationError):
+    """The supplied email or password was rejected by the server."""
+
+    ...
 
 
 @final
@@ -1023,11 +1695,6 @@ def all_greeks(
     ...
 
 
-# Returns a ``(iv, iv_error)`` pair: the implied volatility from the
-# bisection solver and the residual `(model_price - option_price) /
-# option_price` at that vol. The runtime hands back a 2-tuple, not a
-# bare float — stubtest cannot see the difference, so this annotation
-# is the only thing keeping callers correct.
 def implied_volatility(
     spot: float,
     strike: float,
@@ -1036,17 +1703,33 @@ def implied_volatility(
     tte: float,
     option_price: float,
     right: str,
-) -> tuple[float, float]: ...
+) -> tuple[float, float]:
+    """Solve the Black-Scholes implied volatility for one option.
+
+    Args:
+        spot: Underlying spot price.
+        strike: Option strike price.
+        rate: Risk-free interest rate (annualised, decimal).
+        div_yield: Continuous dividend yield (annualised, decimal).
+        tte: Time to expiry in years.
+        option_price: Observed option price to invert.
+        right: Option right, ``"C"`` (call) or ``"P"`` (put).
+
+    Returns:
+        A ``(iv, iv_error)`` pair: the implied volatility and the
+        residual ``(model_price - option_price) / option_price`` at that
+        volatility.
+    """
+    ...
 
 
 @final
 class AllGreeks:
-    """All 23 Black-Scholes Greeks plus IV returned by ``all_greeks(...)``.
+    """All 23 Black-Scholes Greeks plus IV returned by :func:`all_greeks`.
 
-    Field order mirrors ``thetadatadx::GreeksResult`` (the Rust
-    single-source-of-truth the binding wraps): the model value and IV
-    pair first, then first-, second-, and third-order Greeks, then the
-    ``d1`` / ``d2`` auxiliaries. Every attribute is a plain ``float``.
+    Fields are grouped as the model value and IV pair first, then
+    first-, second-, and third-order Greeks, then the ``d1`` / ``d2``
+    auxiliaries. Every attribute is a plain ``float``.
     """
 
     # Model price + implied-volatility pair.
@@ -1085,20 +1768,12 @@ class AllGreeks:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Catch-all: generator-emitted builders + typed `<Tick>List` wrappers
-# resolve to `Any` at the module level. The Rust binding owns the
-# SSOT for ~100 shape-identical per-endpoint builders / list classes;
-# hand-mirroring every one here is high-maintenance noise that mypy
-# would re-emit on every endpoint addition.
-#
-# This catch-all is scoped to MODULE-LEVEL attribute lookup ONLY.
-# Every load-bearing pyclass (`ThetaDataDxClient`, `FpssClient`,
-# `MddsClient`, `AsyncThetaDataDxClient`, `StreamingSession`)
-# explicitly omits a per-class `__getattr__` fallback so stubtest
-# catches method-level drift on those classes. Adding a new public
-# method to any of them is a stubtest failure until the matching stub
-# is updated.
+# Module-level fallback: the per-endpoint historical builders and typed
+# `<Tick>List` wrappers share one structural shape and resolve to `Any`
+# at the module level rather than being annotated individually.
 # ─────────────────────────────────────────────────────────────────────
 
 
-def __getattr__(name: str) -> Any: ...
+def __getattr__(name: str) -> Any:
+    """Resolve a per-endpoint historical builder or typed result wrapper."""
+    ...
