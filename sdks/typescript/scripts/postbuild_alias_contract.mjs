@@ -31,12 +31,9 @@ if (dtsText.includes(DTS_ALIAS_LINE)) {
 } else {
   const dtsTrailer =
     "\n" +
-    "// ─────────────────────────────────────────────────────────────\n" +
-    "// U7 closure: `Contract` is the documented public name for the\n" +
-    "// fluent contract builder. napi-rs emits the class as\n" +
-    "// `ContractRef` to avoid colliding with the FPSS event\n" +
-    "// payload field; this alias keeps the documented name live.\n" +
-    "// ─────────────────────────────────────────────────────────────\n" +
+    "// `Contract` is the public name for the fluent contract builder; it\n" +
+    "// is an alias for the `ContractRef` class, so the two are\n" +
+    "// interchangeable.\n" +
     `${DTS_ALIAS_LINE};\n`;
   writeFileSync(dtsPath, dtsText + dtsTrailer, "utf-8");
   console.log(`postbuild_alias_contract: appended dts alias to ${dtsPath}`);
@@ -60,9 +57,9 @@ if (jsText.includes(JS_ALIAS_LINE)) {
   }
   const insertAt = jsText.indexOf("\n", idx) + 1;
   const jsAlias =
-    "// U7 closure: alias the documented public name `Contract` to the\n" +
-    "// napi-emitted `ContractRef` constructor. Without this, `require\n" +
-    "// ('thetadatadx').Contract.stock(...)` is undefined at runtime.\n" +
+    "// `Contract` is the public name for the fluent contract builder; it\n" +
+    "// aliases the `ContractRef` constructor so\n" +
+    "// `require('thetadatadx').Contract.stock(...)` resolves.\n" +
     `${JS_ALIAS_LINE};\n`;
   const out = jsText.slice(0, insertAt) + jsAlias + jsText.slice(insertAt);
   writeFileSync(jsPath, out, "utf-8");

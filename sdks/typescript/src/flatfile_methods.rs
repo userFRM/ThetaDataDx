@@ -89,8 +89,8 @@ pub struct FlatFileRowList {
 #[napi]
 impl FlatFileRowList {
     /// Number of decoded rows. Same value as `.length` on the JSON
-    /// representation, exposed as a method to keep the JS API stable
-    /// when napi-rs adds first-class iterator support.
+    /// representation, exposed as a method so the API stays stable if
+    /// the list later gains first-class iterator support.
     #[napi(js_name = "len")]
     pub fn len(&self) -> u32 {
         u32::try_from(self.rows.len()).unwrap_or(u32::MAX)
