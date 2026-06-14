@@ -95,8 +95,7 @@ impl Util {
     /// Vendor vocabulary text for a calendar-day `status` code (`0` ->
     /// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
     /// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside
-    /// the table. Mirrors the C++ `tdx::calendar_status_name` and the C
-    /// ABI `tdx_calendar_status_name`.
+    /// the table.
     #[napi(js_name = "calendarStatusName")]
     pub fn calendar_status_name(code: i32) -> String {
         thetadatadx::CalendarStatus::from_code(code)
@@ -108,25 +107,21 @@ impl Util {
     /// into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
     /// Usable with any `(date, *_ms_of_day)` pair on the tick structs.
     /// Returns `null` when `date` is absent (`0`) or either input is out
-    /// of domain — the same `std::nullopt` contract the C++
-    /// `tdx::timestamp_ms` returns (the C ABI `tdx_timestamp_ms` encodes
-    /// that absence as the `-1` sentinel). BigInt matches the
-    /// `*TimestampMs` tick accessors so the epoch domain is uniform.
+    /// of domain. BigInt matches the `*TimestampMs` tick accessors so the
+    /// epoch domain is uniform.
     #[napi(js_name = "timestampMs")]
     pub fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<BigInt> {
         thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).map(BigInt::from)
     }
 
     /// Convert a signed wire-encoded trade-sequence value to its unsigned
-    /// monotonic form. Mirrors `thetadatadx::utils::sequences::signed_to_unsigned`.
-    /// Accepts a JS BigInt in the **i32 wire range**
-    /// (`-2_147_483_648 ..= 2_147_483_647`) — the upstream Java
-    /// terminal encodes trade sequences as i32; the SDK widens to
-    /// i64 internally, but the meaningful round-trip is the i32
-    /// range. Returns a JS BigInt because the unsigned monotonic
-    /// sequence id can exceed `Number.MAX_SAFE_INTEGER`. Inputs
-    /// outside the i32 wire range throw so silent coercion cannot
-    /// produce a look-correct-but-wrong sequence id downstream.
+    /// monotonic form. Accepts a JS BigInt in the **32-bit signed wire
+    /// range** (`-2_147_483_648 ..= 2_147_483_647`) — the upstream feed
+    /// encodes trade sequences as a 32-bit signed integer. Returns a JS
+    /// BigInt because the unsigned monotonic sequence id can exceed
+    /// `Number.MAX_SAFE_INTEGER`. Inputs outside the wire range throw so
+    /// silent coercion cannot produce a look-correct-but-wrong sequence id
+    /// downstream.
     #[napi(js_name = "sequenceSignedToUnsigned")]
     pub fn sequence_signed_to_unsigned(signed_value: BigInt) -> napi::Result<BigInt> {
         let signed: i64 = bigint_to_i32(&signed_value).map(i64::from).ok_or_else(|| {
@@ -141,13 +136,11 @@ impl Util {
     }
 
     /// Convert an unsigned monotonic trade-sequence value back to its
-    /// signed wire encoding. Mirrors `thetadatadx::utils::sequences::unsigned_to_signed`.
-    /// Accepts a JS BigInt in the unsigned wire range
-    /// (`0 ..= SEQUENCE_RANGE - 1`, i.e. `0 ..= 2^32 - 1`); returns a
-    /// JS BigInt for symmetry with `sequenceSignedToUnsigned`.
-    /// Negative inputs and inputs above the wire range throw — the
-    /// unsigned monotonic sequence id is always non-negative and
-    /// never wider than the i32 wire range.
+    /// signed wire encoding. Accepts a JS BigInt in the unsigned wire
+    /// range (`0 ..= 2^32 - 1`); returns a JS BigInt for symmetry with
+    /// `sequenceSignedToUnsigned`. Negative inputs and inputs above the
+    /// wire range throw — the unsigned monotonic sequence id is always
+    /// non-negative and never wider than the 32-bit wire range.
     #[napi(js_name = "sequenceUnsignedToSigned")]
     pub fn sequence_unsigned_to_signed(unsigned_value: BigInt) -> napi::Result<BigInt> {
         if unsigned_value.sign_bit && !unsigned_value.words.iter().all(|w| *w == 0) {

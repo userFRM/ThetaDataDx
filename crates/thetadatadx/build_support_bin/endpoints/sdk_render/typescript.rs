@@ -151,7 +151,7 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
     let mut out = String::new();
     writeln!(
         out,
-        "/// Optional parameters for [`ThetaDataDxClient::{camel_name}`]. Keys are"
+        "/// Optional parameters for the `{camel_name}` method. Keys are"
     )
     .unwrap();
     out.push_str("/// the camelCase parameter names; absent keys behave exactly like an\n");
@@ -434,7 +434,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
          response in memory. `callback(chunk: {tick}[]) => void` is invoked once \
          per server chunk; the chunk is freed before the next is fetched, so peak \
          memory tracks a single chunk rather than the whole result. This is the \
-         memory-bounded companion to [`ThetaDataDxClient::{camel}`] — prefer it \
+         memory-bounded companion to the `{camel}` method — prefer it \
          for multi-day or full-universe pulls. The returned Promise resolves when \
          the stream drains and rejects (typed like the buffered method) on a wire \
          or decode error. Cancelling the Promise drops the in-flight request. \

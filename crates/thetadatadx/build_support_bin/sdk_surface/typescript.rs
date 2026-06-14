@@ -311,8 +311,7 @@ fn render_all_greeks_napi_object() -> String {
     let mut out = String::new();
     out.push_str(
         "/// All 23 Black-Scholes Greeks + IV in a single typed object.\n\
-         /// Mirrors `thetadatadx::greeks::GreeksResult`; returned by\n\
-         /// `allGreeks(...)`.\n",
+         /// Returned by `allGreeks(...)`.\n",
     );
     out.push_str("#[must_use]\n");
     out.push_str("#[napi(object)]\n");

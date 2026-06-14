@@ -43,13 +43,11 @@ pub struct EodTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `created_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `created_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub created_timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `last_trade_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `last_trade_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub last_trade_timestamp_ms: Option<BigInt>,
 }
 
@@ -91,13 +89,11 @@ pub struct GreeksAllTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -151,13 +147,11 @@ pub struct GreeksEodTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -185,13 +179,11 @@ pub struct GreeksFirstOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -218,13 +210,11 @@ pub struct GreeksSecondOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -250,13 +240,11 @@ pub struct GreeksThirdOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -278,8 +266,7 @@ pub struct IndexPriceAtTimeTick {
     pub date: i32,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -313,13 +300,11 @@ pub struct IvTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -338,8 +323,7 @@ pub struct MarketValueTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -362,8 +346,7 @@ pub struct OhlcTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -380,8 +363,7 @@ pub struct OpenInterestTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -406,8 +388,7 @@ pub struct PriceTick {
     pub date: i32,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -432,8 +413,7 @@ pub struct QuoteTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 
@@ -482,13 +462,11 @@ pub struct TradeGreeksAllTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -523,13 +501,11 @@ pub struct TradeGreeksFirstOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -558,13 +534,11 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -598,13 +572,11 @@ pub struct TradeGreeksSecondOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -637,13 +609,11 @@ pub struct TradeGreeksThirdOrderTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `underlying_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -681,13 +651,11 @@ pub struct TradeQuoteTick {
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `quote_timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub quote_timestamp_ms: Option<BigInt>,
 }
 
@@ -728,8 +696,7 @@ pub struct TradeTick {
     pub is_seller: bool,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`). Parity of the Python `timestamp_ms`
-    /// property and C++ `tdx::timestamp_ms`.
+    /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
 }
 

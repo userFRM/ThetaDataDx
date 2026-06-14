@@ -12,7 +12,7 @@ description: "Get the latest open interest snapshot for an option contract."
 Get the latest open interest snapshot for an option contract.
 
 - Retrieve the last open interest message of an option contract.
-- Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day.
+- Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
 - You might need to change the default expiration date to a different date if it is past the current date.
 - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 

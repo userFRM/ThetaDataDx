@@ -28,7 +28,7 @@ pub struct Contract {
     pub strike: Option<f64>,
 }
 
-/// FPSS MarketValue tick (wire code 25). Mirrors `FpssData::MarketValue`. A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+/// FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -42,7 +42,7 @@ pub struct MarketValue {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
+/// FPSS OHLCVC bar.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -59,7 +59,7 @@ pub struct Ohlcvc {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
+/// FPSS OpenInterest tick.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -71,7 +71,7 @@ pub struct OpenInterest {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS Quote tick. Mirrors `FpssData::Quote`.
+/// FPSS Quote tick.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -90,7 +90,7 @@ pub struct Quote {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS Trade tick. Mirrors `FpssData::Trade`.
+/// FPSS Trade tick.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -114,13 +114,13 @@ pub struct Trade {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS server connection ack (wire code 4, `StreamMsgType::Connected`). Mirrors `FpssControl::Connected`. Carries no payload.
+/// FPSS server connection ack (wire code 4). Carries no payload.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Connected {}
 
-/// FPSS server assigned a contract id. Mirrors `FpssControl::ContractAssigned`. The `contract` payload carries the full resolved `Contract` (root, sec_type, expiration / strike / right for options).
+/// FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -129,19 +129,19 @@ pub struct ContractAssigned {
     pub contract: Contract,
 }
 
-/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `thetadatadx::RemoveReason as i32` for symbolic interpretation.
+/// FPSS server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Disconnected {
     pub reason: i32,
-    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
 }
 
-/// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
+/// FPSS login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -149,19 +149,19 @@ pub struct LoginSuccess {
     pub permissions: String,
 }
 
-/// FPSS market-close signal (wire code 32). Mirrors `FpssControl::MarketClose`. Carries no payload.
+/// FPSS market-close signal (wire code 32). Carries no payload.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketClose {}
 
-/// FPSS market-open signal (wire code 30). Mirrors `FpssControl::MarketOpen`. Carries no payload.
+/// FPSS market-open signal (wire code 30). Carries no payload.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketOpen {}
 
-/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+/// FPSS protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -169,7 +169,7 @@ pub struct ParseError {
     pub message: String,
 }
 
-/// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
+/// FPSS server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -177,19 +177,19 @@ pub struct Ping {
     pub payload: Vec<u8>,
 }
 
-/// FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload.
+/// FPSS auto-reconnect succeeded — connection is live again. Carries no payload.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Reconnected {}
 
-/// FPSS server-side reconnect ack (wire code 13). Mirrors `FpssControl::ReconnectedServer`. Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
+/// FPSS server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct ReconnectedServer {}
 
-/// FPSS auto-reconnect is about to attempt reconnection. Mirrors `FpssControl::Reconnecting`. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at `i32::MAX` if the reconnect loop exceeds 2^31 attempts.
+/// FPSS auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -197,26 +197,26 @@ pub struct Reconnecting {
     pub reason: i32,
     pub attempt: i32,
     pub delay_ms: BigInt,
-    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
 }
 
-/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct ReconnectsExhausted {
     pub reason: i32,
     pub attempts: i32,
-    /// Resolved `RemoveReason` variant name (e.g. `"TooManyRequests"`,
+    /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
 }
 
-/// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
+/// FPSS subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -225,13 +225,13 @@ pub struct ReqResponse {
     pub result: i32,
 }
 
-/// FPSS server stream restart (wire code 31, `StreamMsgType::Restart`). Mirrors `FpssControl::Restart`. The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
+/// FPSS server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Restart {}
 
-/// FPSS server-error message (wire code 11). Mirrors `FpssControl::ServerError`.
+/// FPSS server-error message (wire code 11).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -239,13 +239,13 @@ pub struct ServerError {
     pub message: String,
 }
 
-/// FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
+/// FPSS control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct UnknownControl {}
 
-/// FPSS server sent a frame with an unrecognised wire code. Mirrors `FpssControl::UnknownFrame`. Raw bytes preserved for diagnostics / upstream bug reports.
+/// FPSS server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
