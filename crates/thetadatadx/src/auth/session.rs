@@ -71,7 +71,10 @@ struct Inner {
 /// concurrent refreshes — see [`SessionToken::refresh`].
 #[derive(Clone, Debug)]
 pub struct SessionSnapshot {
+    /// Session UUID observed at snapshot time.
     pub uuid: String,
+    /// Token version observed at snapshot time. [`SessionToken::refresh`]
+    /// re-authenticates only while the live version still equals this.
     pub version: u64,
 }
 

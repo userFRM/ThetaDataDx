@@ -23,12 +23,13 @@
 //!
 //! # Layout
 //!
-//! [`DirectConfig`] is composed of seven nested sub-configs:
+//! [`DirectConfig`] is composed of eight nested sub-configs:
 //!
 //! | Field           | Type                                                |
 //! |-----------------|-----------------------------------------------------|
 //! | `mdds`          | [`MddsConfig`] — gRPC host/port/TLS/keepalive       |
 //! | `fpss`          | [`FpssConfig`] — TCP hosts, queue/ring, flush mode  |
+//! | `flatfiles`     | [`FlatFilesConfig`] — FLATFILES retry budget        |
 //! | `reconnect`     | [`ReconnectConfig`] — wait cadence + policy         |
 //! | `retry`         | [`RetryPolicy`] — exponential backoff for MDDS |
 //! | `auth`          | [`AuthConfig`] — Nexus URL + `client_type`          |
@@ -70,9 +71,9 @@ pub use crate::backoff::JitterMode;
 ///
 /// # Layout
 ///
-/// Fields are grouped into seven nested sub-configs ([`MddsConfig`],
-/// [`FpssConfig`], [`ReconnectConfig`], [`RetryPolicy`], [`AuthConfig`],
-/// [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
+/// Fields are grouped into eight nested sub-configs ([`MddsConfig`],
+/// [`FpssConfig`], [`FlatFilesConfig`], [`ReconnectConfig`], [`RetryPolicy`],
+/// [`AuthConfig`], [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
 /// preserve the field-style naming used by older callers; writes go through
 /// the nested struct (e.g. `cfg.fpss.ring_size = N`).
 ///
@@ -133,6 +134,12 @@ impl DirectConfig {
     ///
     /// Environment variables listed on [`DirectConfig`] are layered on
     /// top of these defaults.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resulting configuration fails [`Self::validate`].
+    /// The hardcoded defaults are always in range, so this fires only
+    /// when an environment override pushes a knob out of bounds.
     #[must_use]
     pub fn production() -> Self {
         let mut config = Self::production_defaults();
@@ -173,6 +180,12 @@ impl DirectConfig {
     /// Note: dev server replays data at max speed, so queue and ring sizes
     /// match production to avoid drops. Some contracts may not exist on
     /// the replayed day.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the preset fails [`Self::validate`] — only reachable
+    /// when an environment override pushes a knob out of bounds, since
+    /// the preset's own values are in range.
     #[must_use]
     pub fn dev() -> Self {
         let mut config = Self::production();
@@ -195,6 +208,12 @@ impl DirectConfig {
     /// MDDS (historical) still uses production servers.
     ///
     /// Source: `config.toml` `fpss_stage_hosts`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the preset fails [`Self::validate`] — only reachable
+    /// when an environment override pushes a knob out of bounds, since
+    /// the preset's own values are in range.
     #[must_use]
     pub fn stage() -> Self {
         let mut config = Self::production();
@@ -386,9 +405,12 @@ impl DirectConfig {
     /// Parse FPSS hosts from a comma-separated `host:port,host:port,...` string.
     ///
     /// This is the format used in `config_0.properties` for `FPSS_NJ_HOSTS`.
+    ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Config`] when an entry lacks a `host:port` split,
+    /// when a port does not parse as a `u16`, or when the input yields no
+    /// hosts at all.
     pub fn parse_fpss_hosts(hosts_str: &str) -> Result<Vec<(String, u16)>, Error> {
         let mut result = Vec::new();
 
@@ -746,9 +768,12 @@ mod config_file {
         /// connection_window_size_kb = 64
         /// concurrent_requests = 0  # 0 = auto from tier
         /// ```
+        ///
         /// # Errors
         ///
-        /// Returns an error on network, authentication, or parsing failure.
+        /// Returns [`Error::Config`] when the file cannot be read, when its
+        /// contents are not valid TOML, or when the parsed values fail
+        /// [`Self::validate`].
         pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
             let contents = std::fs::read_to_string(path.as_ref()).map_err(|e| {
                 Error::config_io(format!(
@@ -762,9 +787,11 @@ mod config_file {
         /// Parse configuration from a TOML string.
         ///
         /// Same semantics as [`from_file`](Self::from_file) but takes a string directly.
+        ///
         /// # Errors
         ///
-        /// Returns an error on network, authentication, or parsing failure.
+        /// Returns [`Error::Config`] when the string is not valid TOML or
+        /// when the parsed values fail [`Self::validate`].
         pub fn from_toml_str(toml_str: &str) -> Result<Self, Error> {
             let cf: ConfigFile =
                 toml::from_str(toml_str).map_err(|e| Error::config_toml(e.to_string()))?;

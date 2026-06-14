@@ -65,23 +65,18 @@ impl Credentials {
     ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Config`] if the file cannot be read, and
+    /// [`Error::Auth`] if its contents fail to parse (fewer than two
+    /// lines, or an empty email or password).
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
-        // U12 closure: previously the error message duplicated the
-        // path inside the `(kind)` portion of the `Error::Config`
-        // Display, producing
-        // `configuration error (config file I/O: failed to read
-        // credentials file PATH: ERR): failed to read credentials
-        // file PATH: ERR`.
-        //
-        // The `Error::Config` outer Display is structurally
-        // `"configuration error ({kind}): {message}"`. We keep the
-        // detail on the `kind` side (the typed
-        // `ConfigErrorKind::Io(String)` retains the full diagnostic
-        // for log parsers / retry classifiers) and reduce the outer
-        // `message` to a short label so the parenthesised section is
-        // not duplicated in the human-readable form.
+        // The `Error::Config` Display is structurally
+        // `"configuration error ({kind}): {message}"`. The detail
+        // stays on the `kind` side (the typed `ConfigErrorKind::Io`
+        // retains the full path + os error for log parsers / retry
+        // classifiers) and the outer `message` is a short label, so
+        // the parenthesised section is not duplicated in the
+        // human-readable form.
         let contents = Zeroizing::new(std::fs::read_to_string(path).map_err(|e| {
             // The typed Io variant carries the long form (path + os
             // error) so structural callers can extract it; the
@@ -117,7 +112,9 @@ impl Credentials {
     ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Auth`] if `contents` has fewer than two lines,
+    /// or if the email (line 1) or password (line 2) is empty after
+    /// trimming.
     pub fn parse(contents: &str) -> Result<Self, Error> {
         let lines: Vec<&str> = contents.lines().collect();
 

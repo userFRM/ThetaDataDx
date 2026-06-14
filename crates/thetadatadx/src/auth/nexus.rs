@@ -230,7 +230,9 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 ///
 /// # Errors
 ///
-/// Returns an error on network, authentication, or parsing failure.
+/// Propagates [`authenticate_at`]'s errors: [`Error::Auth`] for
+/// rejected credentials, network failure, timeout, server error, or an
+/// unparseable / malformed-UUID response.
 ///
 /// Only available when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
@@ -284,7 +286,17 @@ fn auth_tls_config() -> Result<rustls::ClientConfig, Error> {
 ///
 /// # Errors
 ///
-/// Returns an error on network, authentication, or parsing failure.
+/// Returns [`Error::Auth`] with [`AuthErrorKind::InvalidCredentials`]
+/// when Nexus returns 401/404, [`AuthErrorKind::Timeout`] or
+/// [`AuthErrorKind::NetworkError`] on transient connection failure after
+/// retries are exhausted, and [`AuthErrorKind::ServerError`] for any
+/// other non-success status, an unparseable body, or a malformed session
+/// UUID.
+///
+/// [`AuthErrorKind::InvalidCredentials`]: crate::error::AuthErrorKind::InvalidCredentials
+/// [`AuthErrorKind::Timeout`]: crate::error::AuthErrorKind::Timeout
+/// [`AuthErrorKind::NetworkError`]: crate::error::AuthErrorKind::NetworkError
+/// [`AuthErrorKind::ServerError`]: crate::error::AuthErrorKind::ServerError
 pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
     let auth_start = std::time::Instant::now();
@@ -368,8 +380,10 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
     };
 
     let status = resp.status();
-    // Java special-cases 401 and 404 as "invalid credentials".
-    // Source: AuthenticationManager.authenticateViaCloud() in decompiled terminal.
+    // Nexus returns 401 (rejected) and 404 (unknown account) for the
+    // same caller-facing condition: the supplied email/password pair is
+    // not valid. Both collapse to `InvalidCredentials` so callers do not
+    // retry — a bad password will not become good on a second attempt.
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::NOT_FOUND {
         return Err(Error::Auth {
             kind: crate::error::AuthErrorKind::InvalidCredentials,
