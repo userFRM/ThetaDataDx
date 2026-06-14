@@ -10,10 +10,9 @@
 //! TOML surface spec and proto schema — a fundamentally different
 //! domain — so they remain separate.
 //!
-//! This module merges the previous top-level `crate::validate` and the
-//! single-arg `crate::mdds::validate` adapter. The two-argument
-//! canonical validators sit at the top; the single-arg adapters used
-//! by the generated builder macros sit below.
+//! The two-argument canonical validators (which take a parameter name
+//! for diagnostics) sit at the top; the single-arg adapters used by
+//! the generated builder macros sit below.
 
 use crate::error::Error;
 use crate::mdds::endpoint_args::EndpointError;
@@ -91,6 +90,12 @@ fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
 /// shape the caller used. ISO-dashed input is canonicalized to the
 /// compact wire form by [`crate::mdds::wire_semantics::normalize_date`]
 /// at request-construction time, mirroring `normalize_expiration`.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` matches neither
+/// accepted shape or names a calendar-impossible date (e.g. `20260230`,
+/// the `00000000` sentinel, a year outside 1900-2100).
 pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
     // ISO-dashed shape (`YYYY-MM-DD`): parse components and run the
     // same calendar check the compact path uses. Date-typed formatters
@@ -107,7 +112,7 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
     }
     // Shape passed; now apply the calendar check. Rejects the
     // `00000000` sentinel and impossible dates like `20260230` or
-    // `19990431` that the shape-only check used to silently accept.
+    // `19990431` that a shape-only check would silently accept.
     let yyyymmdd: i32 = value.parse().map_err(|_| {
         EndpointError::InvalidParams(format!(
             "'{param_name}' must be 8 digits (YYYYMMDD), got: '{value}'"
@@ -126,6 +131,12 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
 /// Both dated forms are calendar-checked — `2026-02-30`,
 /// `2026-13-01`, and `2026-04-31` are rejected on every public input
 /// regardless of which textual shape the caller used.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is neither a
+/// wildcard (`*` / `0`) nor a calendar-valid date in either accepted
+/// shape.
 ///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
@@ -156,6 +167,11 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
 /// [`crate::mdds::wire_semantics::wire_strike_opt`] so the server applies
 /// its documented default.
 ///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is neither a
+/// wildcard form (`""` / `*` / `0`) nor a finite positive decimal.
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -170,6 +186,12 @@ pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), Endpo
     }
 }
 
+/// Validate a `symbol` parameter: accepts any non-empty string.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is empty.
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -204,6 +226,19 @@ const VALID_INTERVAL_PRESETS: &[&str] = &[
     "30m", "1h",
 ];
 
+/// Validate an `interval` parameter against the upstream enum and the
+/// millisecond-shorthand shape.
+///
+/// Accepts any preset in [`VALID_INTERVAL_PRESETS`] or a positive integer
+/// of milliseconds (snapped to the nearest preset downstream).
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is empty, names
+/// a bar size beyond the `1h` ceiling, or matches no accepted shape. The
+/// beyond-`1h` case carries a diagnostic pointing at `1h` / the
+/// `*_history_eod` endpoints.
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -249,6 +284,14 @@ fn is_beyond_hour_shorthand(value: &str) -> bool {
         .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
 }
 
+/// Validate a `right` parameter: accepts any form the canonical
+/// `parse_right` parser recognises.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is not one of
+/// `call` / `put` / `both` / `C` / `P` / `*` (case-insensitive).
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -264,6 +307,13 @@ pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), Endpoi
     })
 }
 
+/// Validate a `year` parameter: requires exactly four ASCII digits.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `value` is not exactly
+/// four digits (`YYYY`).
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_year(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -275,6 +325,8 @@ pub(crate) fn validate_year(value: &str, param_name: &str) -> Result<(), Endpoin
     Ok(())
 }
 
+/// Split a comma-separated `value` into trimmed, non-empty symbols.
+///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn parse_symbols(value: &str) -> Vec<String> {
@@ -286,6 +338,14 @@ pub(crate) fn parse_symbols(value: &str) -> Vec<String> {
         .collect()
 }
 
+/// Parse a boolean from the accepted textual forms (`true` / `false` /
+/// `1` / `0`, case-insensitive for the words).
+///
+/// # Errors
+///
+/// Returns a static message describing the accepted values when `value`
+/// matches none of them.
+///
 /// Only compiled under `__internal` — called from `parse_raw_arg_value` in
 /// `endpoint_args.rs` which is itself gated on `__internal`.
 #[cfg(feature = "__internal")]
@@ -312,6 +372,11 @@ pub(crate) fn parse_bool(value: &str) -> Result<bool, &'static str> {
 /// Wraps the two-arg canonical [`validate_date`] in the single-arg
 /// signature the `parsed_endpoint!` and streaming-builder macros
 /// expect (the param name is implicit at the call site).
+///
+/// # Errors
+///
+/// Returns [`Error`] (the converted [`EndpointError`]) when `date` fails
+/// the canonical date validation.
 pub(super) fn validate_date_required(date: &str) -> Result<(), Error> {
     validate_date(date, "date").map_err(Error::from)
 }
@@ -332,8 +397,8 @@ mod tests {
 
     #[test]
     fn validate_date_required_rejects_impossible_calendar_dates() {
-        // The exact garbage shapes that shape-only validation used to
-        // silently accept:
+        // The exact garbage shapes a shape-only check would silently
+        // accept:
         assert!(validate_date_required("00000000").is_err());
         assert!(validate_date_required("20260230").is_err()); // Feb 30
         assert!(validate_date_required("19990431").is_err()); // Apr 31
@@ -470,10 +535,9 @@ mod internal_tests {
 
     #[test]
     fn expiration_iso_dashed_form_enforces_calendar_bounds() {
-        // The previous code path checked only the textual shape of
-        // `YYYY-MM-DD` and accepted calendar-impossible inputs. Both
-        // forms now flow through the same Gregorian validator, so
-        // these inputs are rejected.
+        // Both textual forms flow through the same Gregorian validator,
+        // so calendar-impossible `YYYY-MM-DD` inputs are rejected — a
+        // shape-only check would accept them.
         for bad in [
             "2026-02-30", // Feb 30 — no such day
             "2026-13-01", // month 13 — out of range

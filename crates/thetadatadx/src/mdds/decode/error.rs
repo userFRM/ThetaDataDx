@@ -62,11 +62,10 @@ pub enum DecodeError {
         available: String,
     },
     /// A mid-stream gRPC chunk carries a header set that does not match the
-    /// header set established by the first chunk. The stream accumulator
-    /// used to silently retain the first header set and accumulate rows
-    /// from every chunk underneath it, which would transparently corrupt
-    /// a row set if the server's wire schema changed mid-response. This
-    /// variant surfaces the drift instead of hiding it.
+    /// header set established by the first chunk. Retaining the first chunk's
+    /// header set while accumulating rows from a diverging chunk would
+    /// transparently corrupt the row set, so the accumulator surfaces the
+    /// drift as this error rather than hiding it.
     #[error(
         "chunk {chunk_index} headers drifted from first-chunk schema; \
          first: [{first}]; chunk: [{chunk}]"
@@ -79,11 +78,10 @@ pub enum DecodeError {
     /// A `Text` cell in a date-typed column did not match the documented
     /// ISO `YYYY-MM-DD` or compact `YYYYMMDD` shapes. The v3 wire path
     /// publishes some date columns (notably `interest_rate_history_eod.created`,
-    /// `calendar_day.date`, and `OptionContract.expiration`) as text;
-    /// previously a malformed value coalesced silently to `0`. Surfacing
-    /// this as an error mirrors the strict-decode policy on every other
-    /// column type and prevents silent corruption of downstream
-    /// timestamps.
+    /// `calendar_day.date`, and `OptionContract.expiration`) as text.
+    /// Surfacing a malformed value as an error rather than coalescing it to
+    /// `0` mirrors the strict-decode policy on every other column type and
+    /// prevents silent corruption of downstream timestamps.
     #[error("invalid date text {raw:?} (expected YYYY-MM-DD or YYYYMMDD)")]
     InvalidDate {
         /// The exact text that failed to parse, captured verbatim from
@@ -92,8 +90,8 @@ pub enum DecodeError {
     },
     /// A `Text` cell in a time-typed column did not match the documented
     /// `HH:MM:SS` shape. Used on the v3 calendar `open` / `close`
-    /// columns. Previously a malformed value coalesced silently to `0`;
-    /// surfacing this prevents silent corruption of trading-session
+    /// columns. Surfacing a malformed value as an error rather than
+    /// coalescing it to `0` prevents silent corruption of trading-session
     /// timestamps in downstream consumers.
     #[error("invalid time text {raw:?} (expected HH:MM:SS)")]
     InvalidTime {
@@ -104,10 +102,10 @@ pub enum DecodeError {
     /// A `Text` cell in an enum-typed column carried a value outside the
     /// documented vendor vocabulary. Used on the v3 `right` (option
     /// CALL/PUT) and calendar `type` (open / early_close / full_close /
-    /// weekend) columns. Previously an unknown variant fell through to
-    /// `0` (right) or `CALENDAR_STATUS_UNKNOWN` (calendar), masking
-    /// schema drift from upstream. Surfacing this as an error matches
-    /// the strict-decode policy on every other typed column.
+    /// weekend) columns. Surfacing an unknown variant as an error rather
+    /// than folding it to a default (`0` for `right`, an unknown-status
+    /// sentinel for calendar) keeps upstream schema drift visible and
+    /// matches the strict-decode policy on every other typed column.
     #[error("unknown enum variant {raw:?} on field `{field}`")]
     UnknownEnumVariant {
         /// Static name of the wire column (`right`, `calendar.type`,

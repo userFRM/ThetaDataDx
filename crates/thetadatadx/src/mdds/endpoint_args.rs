@@ -117,6 +117,11 @@ impl EndpointArgs {
     }
 
     /// Parse a raw string according to registry metadata and insert it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EndpointError::InvalidParams`] when `raw` does not parse as
+    /// the type `param_type` requires.
     pub fn insert_raw(
         &mut self,
         key: &str,
@@ -511,6 +516,13 @@ pub enum EndpointOutput {
 /// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
 /// Subsequent calls on the same `MddsClient` succeed.
 ///
+/// # Errors
+///
+/// Returns [`EndpointError::UnknownEndpoint`] for an unrecognized `name`,
+/// [`EndpointError::InvalidParams`] for malformed `args`, and
+/// [`EndpointError::Server`] for transport, auth, or deadline failures
+/// (including `Error::Timeout` when `args.timeout_ms()` expires).
+///
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint(
@@ -549,6 +561,13 @@ pub async fn invoke_endpoint(
 /// `EndpointError::Server(Error::Timeout { duration_ms })`. The handler is
 /// guaranteed not to be invoked again once the deadline fires.
 ///
+/// # Errors
+///
+/// Same error surface as [`invoke_endpoint`]:
+/// [`EndpointError::UnknownEndpoint`] for an unrecognized `name`,
+/// [`EndpointError::InvalidParams`] for malformed `args`, and
+/// [`EndpointError::Server`] for transport, auth, or deadline failures.
+///
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint_stream(
@@ -570,6 +589,11 @@ pub async fn invoke_endpoint_stream(
 }
 
 /// Parse a raw string value according to registry metadata into a typed endpoint arg.
+///
+/// # Errors
+///
+/// Returns [`EndpointError::InvalidParams`] when `raw` cannot be parsed as the
+/// numeric or boolean shape `param_type` demands; string-typed params never error.
 ///
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
@@ -749,7 +773,7 @@ mod tests {
 
     #[test]
     fn required_expiration_rejects_invalid_formats() {
-        // ISO-dashed `YYYY-MM-DD` is now valid; assert on an actually-invalid form.
+        // ISO-dashed `YYYY-MM-DD` is accepted; assert on an actually-invalid form.
         let mut args = EndpointArgs::new();
         args.insert(
             "expiration".into(),

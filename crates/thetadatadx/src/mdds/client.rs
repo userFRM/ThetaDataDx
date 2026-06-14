@@ -93,7 +93,7 @@ impl MddsClient {
     /// 2. Opens a gRPC channel (TLS) to the MDDS server.
     ///
     /// The FPSS (real-time streaming) connection is not established here;
-    /// it will be added in a future release.
+    /// this constructor covers only the MDDS historical-data channel.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -323,10 +323,10 @@ impl MddsClient {
 ///
 /// ThetaData enforces a hard server-side cap on concurrent in-flight
 /// gRPC requests per tier (Free=1 / Value=2 / Standard=4 / Pro=8).
-/// A caller asking for `concurrent_requests = 32` on a Pro tier
-/// previously got 32 channels opened; the (Pro_cap + 1)-th RPC then
-/// failed with an upstream `ResourceExhausted` per-stream rejection,
-/// which the SDK retried on a different channel, producing a confusing
+/// Without the clamp, a caller asking for `concurrent_requests = 32`
+/// on a Pro tier opens 32 channels; the (Pro_cap + 1)-th RPC then
+/// fails with an upstream `ResourceExhausted` per-stream rejection,
+/// which the SDK retries on a different channel, producing a confusing
 /// "everything fails intermittently" symptom. Clamping locally
 /// surfaces the misconfiguration as a `tracing::warn!` on connect and
 /// keeps the live pool inside the tier's headroom.
@@ -388,9 +388,10 @@ fn effective_pool_size(
 /// layer rather than buffered past the configured bound.
 ///
 /// Per-chunk payload decode (zstd + protobuf) runs inline on each
-/// request's task — measured faster than a dedicated decode pool at
-/// every production-reachable concurrency, including multi-chunk
-/// fan-in.
+/// request's task rather than a dedicated decode pool, keeping each
+/// chunk on its producing connection and avoiding cross-thread
+/// hand-off at every production-reachable concurrency, including
+/// multi-chunk fan-in.
 async fn open_channel_pool(
     host: &str,
     port: u16,

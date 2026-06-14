@@ -36,6 +36,13 @@ impl MddsClient {
     /// which processes each chunk without materializing all rows in memory.
     ///
     /// [`for_each_chunk`]: Self::for_each_chunk
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when a chunk fails to decompress or decode, when a
+    /// chunk exceeds the channel's `max_message_size` ceiling, or when
+    /// mid-stream headers drift from the first chunk's schema
+    /// ([`decode::DecodeError::ChunkHeaderDrift`]).
     pub(crate) async fn collect_stream(
         &self,
         mut stream: ServerStreaming<proto::ResponseData>,
@@ -53,7 +60,7 @@ impl MddsClient {
             // Each DataValueList row is ~64 bytes on average (header-dependent),
             // so original_size / 64 gives a reasonable row-count estimate.
             //
-            // R1 bound: cap the hint at `max_message_size` so a hostile
+            // Cap the hint at `max_message_size` so a hostile
             // `original_size = i32::MAX` cannot inflate `all_rows`'
             // capacity past the channel's configured ceiling before the
             // decompression layer rejects the payload.
@@ -66,10 +73,10 @@ impl MddsClient {
             if headers.is_empty() {
                 headers = table.headers;
             } else if !table.headers.is_empty() && table.headers != headers {
-                // Mid-stream schema drift. The old accumulator silently kept
-                // the first chunk's headers and piled rows under them; surface
-                // the mismatch instead so downstream decoders do not read
-                // columns under the wrong names.
+                // Mid-stream schema drift: surface the mismatch so
+                // downstream decoders do not read columns under the wrong
+                // names. Silently keeping the first chunk's headers and
+                // piling later rows under them would mislabel the data.
                 return Err(decode::DecodeError::ChunkHeaderDrift {
                     chunk_index,
                     first: headers.join(","),
@@ -133,9 +140,9 @@ impl MddsClient {
     {
         // Preserve first-chunk headers across all chunks, matching
         // collect_stream behavior. Reject any mid-stream chunk whose
-        // non-empty headers disagree with the first-chunk schema: accepting
-        // them silently would let the callback read columns under the wrong
-        // names, which is the exact failure mode P13 asked to close.
+        // non-empty headers disagree with the first-chunk schema:
+        // accepting them silently would let the callback read columns
+        // under the wrong names.
         let mut saved_headers: Option<Vec<String>> = None;
         let mut chunk_index: usize = 0;
         let max_message_size = stream.max_message_size();
@@ -167,9 +174,9 @@ impl MddsClient {
 }
 
 /// Decode a single `ResponseData` chunk (zstd decompress + `DataTable`
-/// decode) inline on the caller's task — the measured-fastest shape
-/// for this workload at every production-reachable concurrency,
-/// including multi-chunk streams.
+/// decode) inline on the caller's task, keeping the chunk on its
+/// producing connection and avoiding cross-thread hand-off at every
+/// production-reachable concurrency, including multi-chunk streams.
 fn decode_chunk(
     response: proto::ResponseData,
     max_message_size: usize,
@@ -180,8 +187,8 @@ fn decode_chunk(
 
 #[cfg(test)]
 mod streaming_decode_contract {
-    //! Issue #565 contract pin: the chunk-by-chunk decode primitive that
-    //! the generated `.stream(handler)` method on every parsed builder
+    //! Contract pin: the chunk-by-chunk decode primitive that the
+    //! generated `.stream(handler)` method on every parsed builder
     //! routes through must surface chunks ONE AT A TIME and never carry
     //! a per-chunk `proto::DataTable` past its handler invocation.
     //!

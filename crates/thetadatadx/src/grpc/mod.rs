@@ -25,8 +25,9 @@
 //! - [`endpoints`] — a hand-written example RPC plus bench helpers.
 //!
 //! Per-chunk decode (zstd decompress + prost `DataTable` decode) runs
-//! inline on the request task — measured faster than handing chunks to
-//! a dedicated decoder pool at every production-reachable concurrency.
+//! inline on the request task rather than on a dedicated decoder pool,
+//! keeping each chunk on the connection that produced it and avoiding
+//! cross-thread hand-off at every production-reachable concurrency.
 //!
 //! # Surface hygiene
 //!

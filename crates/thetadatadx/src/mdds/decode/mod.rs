@@ -13,9 +13,8 @@
 //! | [`dual_type_columns`] | Hand-written parsers for columns that arrive as either `Number` or `Text` on the v3 wire (`parse_option_contracts_v3`, …) |
 //!
 //! Public API surface is preserved at `thetadatadx::decode::*` via the
-//! crate-root re-export of this module. Eastern-time / DST primitives
-//! previously living here have moved to [`crate::tdbe::time`] and are reused by
-//! the FPSS latency path.
+//! crate-root re-export of this module. Eastern-time / DST primitives live in
+//! [`crate::tdbe::time`] and are reused by the FPSS latency path.
 
 pub mod cell;
 pub(crate) mod column;
