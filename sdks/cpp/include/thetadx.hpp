@@ -117,15 +117,12 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 
 // ── FPSS event struct layout guards ──
 //
-// Field-level offsetof guards. These would have caught the pre-#??? bug
-// where the hand-written C++ `TdxFpssEvent` ordered its Data fields as
-// { quote, trade, open_interest, ohlcvc } while the Rust FFI emitted
-// { ohlcvc, open_interest, quote, trade } — every `event->quote.*` read
-// in the C++ SDK dereferenced memory belonging to a different struct.
-// The generator now owns both the Go and C++ C header, so field order
-// comes straight from `fpss_event_schema.toml`; these asserts catch any
-// ABI-level drift (padding, alignment, scalar widths) the schema alone
-// cannot express.
+// Field-level offsetof guards. The `TdxFpssEvent` data-variant field
+// order is generated from `fpss_event_schema.toml` — the same schema
+// the Rust FFI and the Go header are emitted from — so the C++ consumer
+// and the Rust producer agree on member order by construction rather
+// than by hand-kept convention. These asserts catch any ABI-level drift
+// (padding, alignment, scalar widths) the schema alone cannot express.
 
 // Every data variant carries an embedded `TdxContract contract` as
 // the first member. On LP64 (x86_64 / aarch64 Linux, macOS),
@@ -139,12 +136,11 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 //   bool has_strike          offset 22, size 1
 //   int32_t strike           offset 24, size 4 (1 byte tail pad)
 // }
-// Removed the wire-internal `contract_id` field from every
-// data variant; identity rides on `contract.symbol` (and the
-// option-only `expiration` / `strike` / `is_call` flags) instead.
-// Numbers below recomputed from the exact struct under `-O2` with the
-// generated `fpss_event_structs.h.inc` types on an LP64 host; CI
-// re-validates the asserts on every build.
+// Data variants carry no wire-internal `contract_id` field; identity
+// rides on `contract.symbol` (and the option-only `expiration` /
+// `strike` / `is_call` flags) instead. The numbers below are the exact
+// struct layout under `-O2` with the generated `fpss_event_structs.h.inc`
+// types on an LP64 host; CI re-validates the asserts on every build.
 
 // Generated layout guards for the FPSS event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
@@ -215,11 +211,11 @@ struct GreeksResult {
 // The dispatcher [`detail::throw_for_grpc_kind`] reads
 // `tdx_last_error_code()` (typed discriminant set inside the FFI
 // boundary) to pick the right leaf without parsing the formatted
-// message. Pre-B4 throw sites that still emit
-// `std::runtime_error("thetadatadx: ...")` are backward-compatible:
-// new typed-throw sites route through this hierarchy while legacy
-// sites stay as plain `runtime_error` and will be migrated as the
-// FFI surface expands.
+// message. Throw sites that emit a plain
+// `std::runtime_error("thetadatadx: ...")` remain compatible because
+// every leaf derives from `ThetaDataError` (a `std::runtime_error`):
+// a generic `catch (const std::runtime_error&)` observes both the
+// typed leaves and any plain-`runtime_error` site unchanged.
 
 /// gRPC canonical status kind. Mirror of [`Rust::GrpcStatusKind`].
 /// Enum values match the gRPC wire codes one-for-one (RFC 5234) so
@@ -442,11 +438,12 @@ static std::string last_ffi_error() {
 }
 
 /// Combined read-and-throw helper: snapshot the thread-local error
-/// string AND the typed code, then throw the matching leaf. Returns
-/// only if no error is set — the caller is responsible for proving
-/// it has an error to surface (typically a null return from an FFI
-/// call). Pre-B4 sites that throw `std::runtime_error` directly
-/// should migrate to this so the leaf set stays current.
+/// string AND the typed code, then throw the matching leaf. Always
+/// throws (never returns); the caller invokes it only after proving it
+/// has an error to surface (typically a null return from an FFI call).
+/// The canonical throw path so every failure surfaces as the typed
+/// leaf its error code selects rather than a plain
+/// `std::runtime_error`.
 [[noreturn]] inline void throw_last_ffi_error() {
     const std::string message = last_ffi_error();
     const int32_t code = tdx_last_error_code();
@@ -578,13 +575,22 @@ struct FpssHandleDeleter {
 /// automatically on destruction. Constructed via `from_file` or `from_email`.
 class Credentials {
 public:
-    /** Load credentials from a file (line 1 = email, line 2 = password). */
+    /** Load credentials from a file.
+     *  @param path File whose first line is the email and second line
+     *         the password.
+     *  @return An owning `Credentials` holder.
+     *  @throws tdx::ThetaDataError if the file is unreadable or malformed. */
     static Credentials from_file(const std::string& path);
 
-    /** Create credentials from email and password. */
+    /** Create credentials from an email and password pair.
+     *  @param email Account email.
+     *  @param password Account password.
+     *  @return An owning `Credentials` holder.
+     *  @throws tdx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_email(const std::string& email, const std::string& password);
 
-    /** Get the raw handle (for passing to MddsClient::connect). */
+    /** Borrow the underlying `TdxCredentials*` for a connect call.
+     *  @return A non-owning handle; ownership stays with this object. */
     TdxCredentials* get() const { return handle_.get(); }
 
 private:
@@ -600,13 +606,18 @@ private:
 /// metrics setters below.
 class Config {
 public:
-    /** Production config (ThetaData NJ datacenter). */
+    /** Build the production configuration (ThetaData NJ datacenter).
+     *  @return An owning `Config` holder seeded with production defaults. */
     static Config production();
 
-    /** Dev FPSS config (port 20200, infinite historical replay). */
+    /** Build the dev FPSS configuration (port 20200, infinite
+     *  historical replay).
+     *  @return An owning `Config` holder seeded with dev defaults. */
     static Config dev();
 
-    /** Stage FPSS config (port 20100, testing, unstable). */
+    /** Build the stage FPSS configuration (port 20100, testing,
+     *  unstable).
+     *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
     /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. Throws
@@ -620,7 +631,7 @@ public:
         }
     }
 
-    /** Set the per-class transient-failure attempt budget. Default 3. */
+    /** Set the per-class transient-failure attempt budget. Default 30. */
     void set_reconnect_max_attempts(uint32_t max_attempts) {
         tdx_config_set_reconnect_max_attempts(handle_.get(), max_attempts);
     }
@@ -639,12 +650,12 @@ public:
 
     /** Set the reconnect delay (ms) honoured for generic transient
      *  disconnects (TimedOut, ServerRestarting, Unspecified, ...).
-     *  Default 2_000. */
+     *  Default 250. */
     void set_reconnect_wait_ms(uint64_t ms) {
         tdx_config_set_reconnect_wait_ms(handle_.get(), ms);
     }
 
-    /** Current reconnect wait_ms (default 2_000). Returns the default on
+    /** Current reconnect wait_ms (default 250). Returns the default on
      *  a null config handle. */
     uint64_t get_reconnect_wait_ms() const {
         uint64_t out{};
@@ -1019,7 +1030,7 @@ public:
         return out;
     }
 
-    /** Total attempt budget. 1 disables retry. Default 5. */
+    /** Total attempt budget. 1 disables retry. Default 20. */
     void set_retry_max_attempts(uint32_t n) {
         tdx_config_set_retry_max_attempts(handle_.get(), n);
     }
@@ -1042,7 +1053,7 @@ public:
     // ── FlatFilesConfig field setters/getters ──
 
     /** Total attempt budget for the flatfile driver retry loop.
-     *  1 disables retry. Default 3. Validated to [1, 10]. */
+     *  1 disables retry. Default 10. Validated to [1, 100]. */
     void set_flatfiles_max_attempts(uint32_t n) {
         tdx_config_set_flatfiles_max_attempts(handle_.get(), n);
     }
@@ -1063,7 +1074,7 @@ public:
         return out;
     }
 
-    /** Upper-bound backoff delay (seconds). Default 4. Must be >=
+    /** Upper-bound backoff delay (seconds). Default 30. Must be >=
      *  initial_backoff_secs (rejected at connect-time validate). */
     void set_flatfiles_max_backoff_secs(uint64_t secs) {
         tdx_config_set_flatfiles_max_backoff_secs(handle_.get(), secs);
@@ -1288,15 +1299,24 @@ private:
 /// methods are mixed in from `historical.hpp.inc`.
 class MddsClient {
 public:
-    /** Connect a historical (MDDS) client to ThetaData servers. Throws on
-     *  failure. */
+    /** Connect a historical (MDDS) client to ThetaData servers.
+     *  @param creds Authenticated credentials.
+     *  @param config Client configuration.
+     *  @return A connected, owning `MddsClient`.
+     *  @throws tdx::ThetaDataError (or a typed leaf) on connection or
+     *          authentication failure. */
     static MddsClient connect(const Credentials& creds, const Config& config);
 
-    /** Connect a historical (MDDS) client, loading credentials from a file
-     *  (line 1 = email, line 2 = password). One-call equivalent of
-     *  `Credentials::from_file(path)` followed by `connect`, defaulting to
-     *  the production configuration. Throws on failure or an unreadable
-     *  credentials file. */
+    /** Connect a historical (MDDS) client, loading credentials from a
+     *  file. One-call equivalent of `Credentials::from_file(path)`
+     *  followed by `connect`.
+     *  @param path File whose first line is the email and second line
+     *         the password.
+     *  @param config Client configuration; defaults to the production
+     *         preset.
+     *  @return A connected, owning `MddsClient`.
+     *  @throws tdx::ThetaDataError (or a typed leaf) on an unreadable
+     *          credentials file or a connection / authentication failure. */
     static MddsClient from_file(const std::string& path, const Config& config = Config::production());
 
     #include "historical.hpp.inc"
@@ -1308,10 +1328,10 @@ private:
 
 // ── FPSS event types (re-exported from thetadx.h) ──
 //
-// Replaced the flat `TdxFpssControl { kind, id, detail }`
-// envelope with one typed C struct per `FpssControl::*` Rust variant.
-// Consumers dispatch via `event.kind` and read the matching
-// `event.<variant>` payload (`event.login_success.permissions`,
+// Each `FpssControl::*` Rust variant has its own typed C struct rather
+// than a single flat `{ kind, id, detail }` envelope. Consumers
+// dispatch via `event.kind` and read the matching `event.<variant>`
+// payload (`event.login_success.permissions`,
 // `event.disconnected.reason`, etc.). The aliases below mirror every
 // generated type so C++ users can stay in the `tdx::` namespace.
 
@@ -1734,7 +1754,13 @@ struct FullSubscription {
 /// point.
 class ThetaDataDxClient {
 public:
-    /// Connect a unified client. Throws on auth / handshake failure.
+    /// Connect a unified client (historical + streaming through one
+    /// handle).
+    /// @param creds Authenticated credentials.
+    /// @param config Client configuration.
+    /// @return A connected, owning `ThetaDataDxClient`.
+    /// @throws tdx::ThetaDataError (or a typed leaf) on an
+    ///         authentication or handshake failure.
     static ThetaDataDxClient connect(const Credentials& creds, const Config& config) {
         TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
         if (h == nullptr) {
@@ -1743,11 +1769,16 @@ public:
         return ThetaDataDxClient(h);
     }
 
-    /// Connect a unified client, loading credentials from a file (line 1 =
-    /// email, line 2 = password). One-call equivalent of
-    /// `Credentials::from_file(path)` followed by `connect`, defaulting to
-    /// the production configuration. Throws on auth / handshake failure or
-    /// an unreadable credentials file.
+    /// Connect a unified client, loading credentials from a file.
+    /// One-call equivalent of `Credentials::from_file(path)` followed
+    /// by `connect`.
+    /// @param path File whose first line is the email and second line
+    ///        the password.
+    /// @param config Client configuration; defaults to the production
+    ///        preset.
+    /// @return A connected, owning `ThetaDataDxClient`.
+    /// @throws tdx::ThetaDataError (or a typed leaf) on an unreadable
+    ///         credentials file or an authentication / handshake failure.
     static ThetaDataDxClient from_file(const std::string& path,
                                        const Config& config = Config::production()) {
         TdxUnified* h = tdx_unified_connect_from_file(path.c_str(), config.get());

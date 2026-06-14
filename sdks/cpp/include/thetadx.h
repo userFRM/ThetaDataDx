@@ -477,8 +477,7 @@ TDX_ALIGN64_BEGIN typedef struct {
 } TdxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
 
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
- * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html
- * verified against terminal jar build 202605221:
+ * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html:
  *   date  <- Text "YYYY-MM-DD" header `created`, parsed to YYYYMMDD i32
  *   rate  <- Number percent (e.g. 4.36 for SOFR 2025-04-28)
  */
@@ -960,7 +959,7 @@ int32_t tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
 
 /**
  * Set the per-class transient-failure attempt budget for the
- * auto-reconnect path. Default 3. No effect unless the reconnect
+ * auto-reconnect path. Default 30. No effect unless the reconnect
  * policy is Auto.
  */
 void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
@@ -985,7 +984,7 @@ void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
 /**
  * Set the reconnect delay (ms) honoured for generic transient
  * disconnects (TimedOut, ServerRestarting, Unspecified, ...). Plumbed
- * through to the streaming I/O loop at connect time. Default 2_000.
+ * through to the streaming I/O loop at connect time. Default 250.
  */
 void tdx_config_set_reconnect_wait_ms(TdxConfig* config, uint64_t ms);
 
@@ -998,8 +997,8 @@ int32_t tdx_config_get_reconnect_wait_ms(const TdxConfig* config, uint64_t* out_
 
 /**
  * Set the reconnect delay (ms) honoured for `TooManyRequests`
- * rate-limited disconnects. Default 130_000 (matches the Java
- * terminal's 130 s rate-limit cooldown).
+ * rate-limited disconnects. Default 130_000 (the upstream-instructed
+ * 130 s rate-limit cooldown).
  */
 void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t ms);
 
@@ -1330,7 +1329,7 @@ int32_t tdx_config_get_retry_max_delay_ms(const TdxConfig* config, uint64_t* out
 /**
  * Set the total attempt budget for the historical-channel retry policy. 1 disables
  * retry (single call only); higher values permit retries up to
- * max_attempts - 1 after the initial call. Default 5.
+ * max_attempts - 1 after the initial call. Default 20.
  */
 void tdx_config_set_retry_max_attempts(TdxConfig* config, uint32_t n);
 
@@ -1352,8 +1351,8 @@ int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
 /**
  * Set the total attempt budget for the flatfile driver retry loop.
  * 1 disables retry (single call only); higher values permit retries
- * up to max_attempts - 1 after the initial call. Default 3.
- * Validated to the range [1, 10] at connect time.
+ * up to max_attempts - 1 after the initial call. Default 10.
+ * Validated to the range [1, 100] at connect time.
  */
 void tdx_config_set_flatfiles_max_attempts(TdxConfig* config, uint32_t n);
 
@@ -1372,7 +1371,7 @@ int32_t tdx_config_get_flatfiles_initial_backoff_secs(const TdxConfig* config, u
 /**
  * Set the upper-bound backoff delay (seconds) for the flatfile
  * driver retry loop. The doubling schedule never exceeds this value
- * regardless of attempt number. Default 4. Must be >= initial_backoff
+ * regardless of attempt number. Default 30. Must be >= initial_backoff
  * (rejected at connect-time validate otherwise).
  */
 void tdx_config_set_flatfiles_max_backoff_secs(TdxConfig* config, uint64_t secs);
@@ -1576,13 +1575,31 @@ typedef void (*TdxTickChunkCallback)(const void* rows, size_t len, void* ctx);
 /*  Greeks (standalone)                                                   */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Compute all 23 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
- *  Returns heap-allocated TdxGreeksResult (or NULL on error). Caller must free with tdx_greeks_result_free. */
+/** Compute all 23 Greeks plus implied volatility for one option.
+ *  @param spot Underlying spot price.
+ *  @param strike Strike price.
+ *  @param rate Risk-free rate.
+ *  @param div_yield Continuous dividend yield.
+ *  @param tte Time to expiry in years.
+ *  @param option_price Observed option price for the IV solve.
+ *  @param right "C"/"P" or "call"/"put" (case-insensitive).
+ *  @return Heap-allocated TdxGreeksResult, or NULL on error (check
+ *          tdx_last_error()). The caller MUST free a non-NULL result
+ *          with tdx_greeks_result_free. */
 TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
                                 double tte, double option_price, const char* right);
 
-/** Compute implied volatility. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
- *  Returns 0 on success, -1 on failure. */
+/** Solve the Black-Scholes implied volatility for one option.
+ *  @param spot Underlying spot price.
+ *  @param strike Strike price.
+ *  @param rate Risk-free rate.
+ *  @param div_yield Continuous dividend yield.
+ *  @param tte Time to expiry in years.
+ *  @param option_price Observed option price.
+ *  @param right "C"/"P" or "call"/"put" (case-insensitive).
+ *  @param out_iv Receives the solved implied volatility on success.
+ *  @param out_error Receives the solver residual on success.
+ *  @return 0 on success, -1 on failure (check tdx_last_error()). */
 int tdx_implied_volatility(double spot, double strike, double rate, double div_yield,
                            double tte, double option_price, const char* right,
                            double* out_iv, double* out_error);
