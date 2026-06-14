@@ -38,12 +38,12 @@ use crate::errors::to_py_err;
 ///
 /// `convert` runs inside [`Python::attach`] on a thread from tokio's
 /// blocking pool (via [`tokio::task::spawn_blocking`]), NOT on the
-/// runtime worker thread that drove `fut` to completion. Prior to
-/// v8.0.4 the convert closure ran directly in the awaitable body, so
-/// heavy materialization work (e.g. building a 955 237-row
-/// `QuoteTickList` pyclass) parked the runtime worker under GIL
-/// contention and blocked every other async task scheduled on the
-/// same worker. Routing the conversion to the blocking pool keeps the
+/// runtime worker thread that drove `fut` to completion. Running the
+/// convert closure directly in the awaitable body would park the
+/// runtime worker under GIL contention for the duration of heavy
+/// materialization work (e.g. building a large `QuoteTickList`
+/// pyclass) and block every other async task scheduled on the same
+/// worker. Routing the conversion to the blocking pool keeps the
 /// runtime worker free to service other endpoints while the current
 /// call is synthesizing its Python payload.
 ///
@@ -85,7 +85,7 @@ where
         // the Python-object build. Two concurrent `*_async` calls on
         // the same worker thread would therefore serialize on the GIL
         // even though tokio has other workers free — heavy converts
-        // (e.g. building a 955 237-row `QuoteTickList` pyclass) are
+        // (e.g. building a large `QuoteTickList` pyclass) are
         // where this matters. Offload to tokio's blocking pool so the
         // runtime worker returns to its queue immediately after the
         // future resolves, and the GIL contention is confined to the
@@ -200,7 +200,7 @@ mod tests {
         // would need a full pyo3-async-runtimes module bootstrap) and
         // tests the single line we actually care about.
         //
-        // Note the `py.detach(|| block_on(...))` envelope: the post-fix
+        // Note the `py.detach(|| block_on(...))` envelope: the
         // `spawn_awaitable` body offloads `convert` onto a
         // `spawn_blocking` task that calls `Python::attach` from the
         // blocking-pool thread. If the outer test thread were still
@@ -274,12 +274,12 @@ mod tests {
 
     /// Concurrency regression test: two `spawn_awaitable` calls with
     /// slow convert closures must overlap in wall-clock time rather
-    /// than serialize. Pre-fix, convert ran on the runtime worker and
-    /// parked it under GIL for the duration of the conversion, so two
-    /// concurrent calls on the same worker serialized end-to-end.
-    /// Post-fix, convert runs on the blocking pool, so the runtime
-    /// worker is free to drive both futures concurrently and their
-    /// wall-clock durations overlap.
+    /// than serialize. Running convert on the runtime worker would park
+    /// it under GIL for the duration of the conversion, so two
+    /// concurrent calls on the same worker would serialize end-to-end.
+    /// Running convert on the blocking pool keeps the runtime worker
+    /// free to drive both futures concurrently, so their wall-clock
+    /// durations overlap.
     ///
     /// We measure overlap by the standard "total time < sum of
     /// individual times" test: if two 150ms tasks run in parallel the
@@ -320,8 +320,8 @@ mod tests {
                         // GIL released, two blocking-pool threads can
                         // run their sleeps in parallel. Without the
                         // detach they would serialize on the GIL,
-                        // which is exactly the contention the pre-fix
-                        // helper produced on the runtime worker.
+                        // which is exactly the contention that running
+                        // convert on the runtime worker would produce.
                         let t0 = std::time::Instant::now();
                         py.detach(|| std::thread::sleep(DELAY));
                         let obj = value.into_pyobject(py)?.unbind().into_any();
@@ -356,9 +356,9 @@ mod tests {
             }
 
             // Overlap assertion: parallel execution keeps combined
-            // wall-clock below 1.5 * DELAY. Serial execution (pre-fix
-            // behaviour, where convert ran on the runtime worker under
-            // GIL) would be ~ 2 * DELAY = 200ms. 1.5x = 150ms leaves
+            // wall-clock below 1.5 * DELAY. Serial execution (convert
+            // running on the runtime worker under GIL) would be
+            // ~ 2 * DELAY = 200ms. 1.5x = 150ms leaves
             // headroom for scheduler jitter while still catching a
             // full-serialize regression.
             let ceiling = DELAY.mul_f64(1.5);

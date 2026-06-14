@@ -96,6 +96,7 @@ impl FlatFileRowList {
         u32::try_from(self.rows.len()).unwrap_or(u32::MAX)
     }
 
+    /// Whether the decoded row vector is empty.
     #[napi(js_name = "isEmpty")]
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
@@ -169,60 +170,70 @@ pub struct FlatFilesNamespace {
 
 #[napi]
 impl FlatFilesNamespace {
+    /// Option quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionQuote")]
     pub fn option_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Quote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Option trade flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionTrade")]
     pub fn option_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Trade, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Option trade-with-quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionTradeQuote")]
     pub fn option_trade_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::TradeQuote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Option OHLC flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionOhlc")]
     pub fn option_ohlc(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Ohlc, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Option open-interest flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionOpenInterest")]
     pub fn option_open_interest(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::OpenInterest, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Option end-of-day flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionEod")]
     pub fn option_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Eod, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Stock quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockQuote")]
     pub fn stock_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Quote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Stock trade flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockTrade")]
     pub fn stock_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Trade, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Stock trade-with-quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockTradeQuote")]
     pub fn stock_trade_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::TradeQuote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
+    /// Stock end-of-day flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockEod")]
     pub fn stock_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Eod, &date)?;

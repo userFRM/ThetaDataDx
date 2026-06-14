@@ -56,12 +56,17 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 /// `PyErr` raised by Python (typically `KeyboardInterrupt`); the in-flight
 /// future is dropped and its gRPC channel is cancelled.
 ///
-/// The 20 ms cadence (vs. the pre-v8.0.6 100 ms) reduces first-tick jitter
-/// on sub-100 ms endpoint calls — an extra Python `check_signals()` call
-/// is ~1 µs, so driving the ticker 5× as often has negligible steady-state
-/// cost but collapses the worst-case select-wait on short calls from
-/// ~100 ms down to ~20 ms. Long-running endpoints see no behavioural
-/// change beyond a slightly finer-grained Ctrl+C cancellation window.
+/// # Errors
+///
+/// Returns the future's `thetadatadx::Error` mapped via [`to_py_err`], or
+/// the `PyErr` raised by a pending Python signal (e.g. `KeyboardInterrupt`).
+///
+/// The 20 ms cadence reduces first-tick jitter on sub-100 ms endpoint
+/// calls — an extra Python `check_signals()` call is ~1 µs, so driving
+/// the ticker more often has negligible steady-state cost but collapses
+/// the worst-case select-wait on short calls to ~20 ms. Long-running
+/// endpoints see no behavioural change beyond a slightly finer-grained
+/// Ctrl+C cancellation window.
 pub(crate) fn run_blocking<F, T>(py: Python<'_>, fut: F) -> PyResult<T>
 where
     F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send,
@@ -91,8 +96,7 @@ where
 /// `index_snapshot_*`, `calendar_*`) complete in under 200 ms on every
 /// observed production call; the 5-second upper bound is a liveness
 /// safeguard that adds zero steady-state cost. Dropping the `tokio::select!`
-/// ticker removes the +1-5 ms first-tick-jitter tax that closes the
-/// remaining latency gap vs. the vendor's v3 client on 90-100 ms calls.
+/// ticker removes the +1-5 ms first-tick-jitter tax on 90-100 ms calls.
 ///
 /// Ctrl+C during a snapshot call is still honoured after the future
 /// resolves or after the 5-second timeout fires, so the interpreter
@@ -152,11 +156,10 @@ impl Credentials {
 
     fn __repr__(&self) -> String {
         // Match the redacted Rust `Debug` impl on `auth::Credentials`
-        // (`crates/thetadatadx/src/auth/creds.rs`). The Python binding
-        // previously reached around the Debug impl by formatting
-        // `self.inner.email` directly — that leaked the email into
-        // Jupyter `repr()`, tracebacks, and any structured logger that
-        // captures pyclass reprs.
+        // (`crates/thetadatadx/src/auth/creds.rs`). Never interpolate
+        // `self.inner.email` here: a repr that prints the email leaks it
+        // into Jupyter `repr()`, tracebacks, and any structured logger
+        // that captures pyclass reprs.
         "Credentials(email=<redacted>)".to_string()
     }
 }
@@ -1170,7 +1173,7 @@ include!("_generated/utility_functions.rs");
 ///     tdx.subscribe(Contract.stock("AAPL").quote())
 ///     # ... events arrive on the dispatcher's drain thread ...
 ///     tdx.stop_streaming()
-// N5: `frozen` — every `#[pymethods]` entry on this pyclass takes
+// `frozen` — every `#[pymethods]` entry on this pyclass takes
 // `&self` (never `&mut self`). The inner `tdx: Arc<...>` carries its
 // own mutex / atomic state for transient surfaces; the pyclass shell
 // is immutable from Rust's perspective, which lets PyO3 elide the
@@ -1255,10 +1258,10 @@ impl ThetaDataDxClient {
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
-    /// The `config` kwarg is optional. The historical behaviour
-    /// (no kwarg = production endpoint) is preserved; tests and
-    /// dev / stage environments reach a single-arg constructor shape
-    /// via `ThetaDataDxClient.from_file("creds.txt", config=Config.dev())`.
+    /// The `config` kwarg is optional: with no kwarg the constructor
+    /// targets the production endpoint. Tests and dev / stage
+    /// environments reach a single-arg constructor shape via
+    /// `ThetaDataDxClient.from_file("creds.txt", config=Config.dev())`.
     /// Parity with `AsyncThetaDataDxClient.from_file()`,
     /// `MddsClient.from_file()`, and `FpssClient.from_file()` — every
     /// Python client exposes the same one-call file-construction shape.
@@ -1435,19 +1438,16 @@ impl ThetaDataDxClient {
 
 // `ThetaDataDxClient` is THE pyclass name. No alias, no compat wrapper.
 
-// ── AsyncThetaDataDxClient — async-only sibling (Phase 3b) ─────────────
+// ── AsyncThetaDataDxClient — async-only sibling ───────────────────────
 //
-// Minimum-viable async/sync split: the underlying `ThetaDataDxClient`
-// exposes both sync and `*_async` historical methods today. This thin
-// wrapper holds a `ThetaDataDxClient` handle and proxies attribute
-// access through `__getattr__`, but raises on access to non-`async_`
-// methods so users that opt into the async surface do not
-// accidentally call a blocking sync path.
+// The underlying `ThetaDataDxClient` exposes both sync and `*_async`
+// historical methods. This thin wrapper holds a `ThetaDataDxClient`
+// handle and proxies attribute access through `__getattr__`, but raises
+// on access to non-`async_` methods so users that opt into the async
+// surface do not accidentally call a blocking sync path.
 //
-// The full split (separate codegen pass that emits async-only
-// builders, no sync surface) lands in future release. Today the wrapper is a
-// disciplined façade — same Rust core, narrower public Python
-// surface.
+// The wrapper is a disciplined façade over the same Rust core, exposing
+// a narrower public Python surface.
 
 /// Async-only sibling of [`ThetaDataDxClient`].
 ///
@@ -1556,12 +1556,12 @@ const fn const_str_eq(a: &str, b: &str) -> bool {
     true
 }
 
-/// P3 compile-time assertion: every safelisted proxy name must
+/// Compile-time assertion: every safelisted proxy name must
 /// resolve to a real `#[pymethods]` entry on `ThetaDataDxClient`.
-/// Names that fail this check would previously have raised a
-/// confusing `AttributeError` from the inner `getattr` after the
-/// allowlist passed — pinning the inventory here makes the failure
-/// surface at compile time instead of runtime.
+/// Without this check a name that passes the allowlist but has no
+/// matching method would raise a confusing `AttributeError` from the
+/// inner `getattr` at call time — pinning the inventory here surfaces
+/// the mismatch at compile time instead.
 const _: () = {
     let mut i = 0;
     while i < ALLOWED_UNIFIED_PROXY_METHODS.len() {
@@ -1675,9 +1675,7 @@ mod streaming_session;
 use streaming_session::StreamingSession;
 
 // `start_streaming(cb)` plus the `StreamingSession` context manager is
-// the sole streaming surface on the bundled client. Async / Arrow-batched
-// surfaces will return on the unified poller backplane in a future
-// release.
+// the sole streaming surface on the bundled client.
 
 include!("_generated/historical_methods.rs");
 

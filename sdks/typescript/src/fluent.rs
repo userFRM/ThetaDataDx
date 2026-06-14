@@ -204,11 +204,14 @@ impl ContractRef {
         }
     }
 
+    /// Underlying symbol (e.g. `"AAPL"`, `"SPY"`).
     #[napi(getter)]
     pub fn symbol(&self) -> String {
         self.inner.symbol.to_string()
     }
 
+    /// Security type as an upper-case string (`"STOCK"`, `"OPTION"`,
+    /// `"INDEX"`).
     #[napi(getter, js_name = "secType")]
     pub fn sec_type(&self) -> String {
         format!("{:?}", self.inner.sec_type).to_uppercase()

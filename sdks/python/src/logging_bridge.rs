@@ -3,8 +3,7 @@
 //! Vendor parity: the upstream vendor Python SDK installs a
 //! `logging.NullHandler` at import time so Rust-side `tracing::info!` /
 //! `warn!` calls emitted by `thetadatadx` can flow into user-configured
-//! handlers. Prior to v8.0.2 the DX Python wheel silently swallowed every
-//! `tracing` event; after this bridge is installed, callers can write:
+//! handlers. With this bridge installed, callers can write:
 //!
 //! ```python
 //! import logging
@@ -128,14 +127,13 @@ where
         let target = meta.target();
         // Reason: Rust `tracing` targets are `::`-separated module paths
         // (`thetadatadx::auth::nexus`, `thetadatadx::fpss::io_loop`, …).
-        // Python's stdlib `logging` hierarchy is `.`-separated, so
-        // `logging.getLogger("thetadatadx").setLevel(DEBUG)` previously
-        // had NO effect on `thetadatadx::auth::nexus` events — Python
-        // treated those as unrelated top-level loggers with no parent.
-        // Normalize to the Python shape before dispatching so the
-        // documented parent-level filtering actually propagates through
-        // the stdlib `logging` hierarchy the way v8.0.2 release notes
-        // promised.
+        // Python's stdlib `logging` hierarchy is `.`-separated, so an
+        // un-normalized `thetadatadx::auth::nexus` target has NO
+        // parent-level relationship to `logging.getLogger("thetadatadx")`
+        // — Python treats it as an unrelated top-level logger.
+        // Normalize to the Python shape before dispatching so
+        // `logging.getLogger("thetadatadx").setLevel(DEBUG)` propagates
+        // through the stdlib `logging` hierarchy as documented.
         let python_target = target.replace("::", ".");
         let level = tracing_to_logging_level(meta.level());
 
@@ -315,9 +313,8 @@ mod tests {
     /// This test exercises Python itself — `logging.getLogger("a")
     /// .setLevel(WARNING)` suppresses `logging.getLogger("a.b.c")
     /// .info(...)` via the `.`-separated parent-level filter chain.
-    /// That's the contract v8.0.2 release notes promised, which the
-    /// pre-fix bridge silently broke because it never rewrote `::`
-    /// to `.`.
+    /// That parent-level filtering only works once the bridge rewrites
+    /// `::` to `.`; a target left as `::` would not be a descendant.
     #[test]
     fn python_logger_hierarchy_propagates_parent_level() {
         Python::initialize();
@@ -357,12 +354,11 @@ mod tests {
                 "child 'thetadatadx.auth.nexus' must be DISABLED for INFO when parent is WARN"
             );
 
-            // Negative: with the pre-fix bridge, the target on the wire
-            // was `thetadatadx::auth::nexus` (note `::`). Python treats
-            // that as a top-level sibling, NOT a descendant. So
-            // `isEnabledFor(INFO)` on that logger is TRUE — parent
-            // WARNING does not propagate. Asserting the broken behavior
-            // here documents why the fix is necessary.
+            // Negative: an un-normalized target `thetadatadx::auth::nexus`
+            // (note `::`) is treated by Python as a top-level sibling,
+            // NOT a descendant. So `isEnabledFor(INFO)` on that logger
+            // is TRUE — parent WARNING does not propagate. Asserting
+            // this documents why the `::` -> `.` rewrite is necessary.
             let broken_child = logging
                 .call_method1("getLogger", ("thetadatadx::auth::nexus",))
                 .expect("unnormalized logger");
@@ -387,8 +383,8 @@ mod tests {
                 !broken_name.starts_with("thetadatadx."),
                 "pre-fix logger name must not look like a descendant of `thetadatadx.` — that's the bug"
             );
-            // Sanity: the post-fix normalized name DOES look like a
-            // descendant, so setLevel on the parent propagates.
+            // Sanity: the normalized name DOES look like a descendant,
+            // so setLevel on the parent propagates.
             let fixed_name: String = dict_config
                 .getattr("name")
                 .and_then(|n| n.extract())

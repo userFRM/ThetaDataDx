@@ -1,7 +1,7 @@
 //! Date-range split math for the 365-day auto-chunk path.
 //!
 //! The ThetaData server rejects history ranges exceeding 365 calendar days
-//! with a raw gRPC `InvalidArgument`. v8.0.2 pre-flight splits the
+//! with a raw gRPC `InvalidArgument`. A pre-flight split divides the
 //! requested `(start, end)` span into ≤365-day chunks before dispatch so
 //! callers can ask for arbitrary multi-year ranges without hitting the
 //! server-side cap.
@@ -24,18 +24,22 @@
 //!    `Err`, NOT a panic — called from pre-flight code that already
 //!    validated, but the redundant validation is harmless here.
 
-// The `chunking` module is staged for the auto-chunk fan-out that lands
-// once the Rust-enhancements agent threads `DirectConfig::auto_chunk`
-// through `MddsClient`. The split math is correctness-critical, so the
-// date arithmetic + its tests ship in this branch; the orchestrator call
-// sites activate in a follow-up PR after coordination. We export the
-// split entry point from `lib.rs` so the symbol participates in the
-// public surface and does not trip dead-code lints.
+// The `chunking` module backs the auto-chunk fan-out activated once
+// `DirectConfig::auto_chunk` is threaded through `MddsClient`. The split
+// math is correctness-critical and self-contained, so it carries its own
+// tests independent of the orchestrator. The split entry point is
+// exported from `lib.rs` so the symbol participates in the public
+// surface and does not trip dead-code lints.
 
+/// Failure modes of the date-range split.
 #[derive(Debug, thiserror::Error)]
 pub enum ChunkError {
+    /// A boundary string is not a valid `YYYYMMDD` Gregorian date. The
+    /// first field is the offending input, the second a human-readable
+    /// reason.
     #[error("invalid YYYYMMDD date '{0}': {1}")]
     InvalidDate(String, String),
+    /// The requested range has its end before its start.
     #[error("end date {end} is before start date {start}")]
     EndBeforeStart { start: String, end: String },
 }
@@ -160,6 +164,12 @@ pub const MAX_SPAN_DAYS: i64 = 365;
 /// Split `(start, end)` (YYYYMMDD strings, inclusive on both ends) into
 /// chunks that each span at most `MAX_SPAN_DAYS` days. The returned
 /// chunks are contiguous and cover the full range exactly once.
+///
+/// # Errors
+///
+/// Returns [`ChunkError::InvalidDate`] when either boundary is not a
+/// valid `YYYYMMDD` Gregorian date, and [`ChunkError::EndBeforeStart`]
+/// when `end` precedes `start`.
 pub fn split_date_range(start: &str, end: &str) -> Result<Vec<(String, String)>, ChunkError> {
     let start_ord = Ymd::from_yyyymmdd(start)?.to_ord();
     let end_ord = Ymd::from_yyyymmdd(end)?.to_ord();
@@ -270,12 +280,12 @@ mod tests {
         assert_eq!(ymd.day, 29);
     }
 
-    // Gregorian-validation coverage added for v8.0.4. The pre-fix
-    // validator range-checked month 1..=12 and day 1..=31 in isolation
-    // and therefore accepted impossible Gregorian dates like 20230229
-    // (Feb 29 outside a leap year) and 20240231 (Feb 31). The fix
-    // delegates to `chrono::NaiveDate::parse_from_str(_, "%Y%m%d")` for
-    // canonical validity, and the tests below pin the contract.
+    // Gregorian-validation coverage. A validator that range-checks
+    // month 1..=12 and day 1..=31 in isolation accepts impossible
+    // Gregorian dates like 20230229 (Feb 29 outside a leap year) and
+    // 20240231 (Feb 31). `is_valid_ymd` checks the day against the
+    // month's actual length and the leap-year rule; the tests below pin
+    // that contract.
 
     /// Feb 29 in a non-leap year is Gregorian-impossible.
     #[test]
@@ -322,8 +332,8 @@ mod tests {
         );
     }
 
-    /// Feb 31 is Gregorian-impossible — the poster child for the
-    /// pre-fix bug (day <= 31 and month <= 12 passed isolated checks).
+    /// Feb 31 is Gregorian-impossible — the canonical case isolated
+    /// day <= 31 and month <= 12 checks would wrongly accept.
     #[test]
     fn feb_31_is_rejected() {
         let err = Ymd::from_yyyymmdd("20240231").unwrap_err();
@@ -347,8 +357,8 @@ mod tests {
         }
     }
 
-    /// 1900 is divisible by 100 but NOT by 400 — NOT a leap year.
-    /// The hand-rolled validator accepted 19000229; chrono rejects it.
+    /// 1900 is divisible by 100 but NOT by 400 — NOT a leap year, so
+    /// Feb 29 of 1900 must be rejected.
     #[test]
     fn century_non_leap_year_rejects_feb_29() {
         let err = Ymd::from_yyyymmdd("19000229").unwrap_err();

@@ -123,7 +123,7 @@ impl FpssParams {
 /// # ... events arrive on the event-dispatch consumer thread ...
 /// fpss.stop_streaming()
 /// ```
-// N5: `frozen` — every `#[pymethods]` entry takes `&self` (never
+// `frozen` — every `#[pymethods]` entry takes `&self` (never
 // `&mut self`). The inner `Arc<Mutex<Option<fpss::FpssClient>>>`
 // carries its own interior mutability; the pyclass shell is
 // immutable. A future `&mut self` regression surfaces as a

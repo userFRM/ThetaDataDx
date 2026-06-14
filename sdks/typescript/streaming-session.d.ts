@@ -1,14 +1,16 @@
-// TypeScript surface for the `await using` streaming wrapper.
-//
-// `await using session = await tdx.streaming(callback)` (TC39 explicit
-// resource management) registers the callback via `startStreaming`
-// and pairs `stopStreaming()` + `awaitDrain(5000)` on dispose, mirroring
-// the C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
-//
-// SSOT: the runtime wrapper proxies every attribute access to the
-// underlying `ThetaDataDxClient`, so the type surface here just extends
-// `ThetaDataDxClient` -- adding a `subscribeX` method to the napi binding
-// flows through to the session type with no drift.
+/**
+ * TypeScript surface for the `await using` streaming wrapper.
+ *
+ * `await using session = await tdx.streaming(callback)` (TC39 explicit
+ * resource management) registers the callback via `startStreaming`
+ * and pairs `stopStreaming()` + `awaitDrain(5000)` on dispose, mirroring
+ * the C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
+ *
+ * The runtime wrapper proxies every attribute access to the underlying
+ * `ThetaDataDxClient`, so the type surface here just extends
+ * `ThetaDataDxClient` -- adding a `subscribeX` method to the napi binding
+ * flows through to the session type with no drift.
+ */
 
 /* eslint-disable */
 
@@ -37,10 +39,15 @@ export type Contract = ContractRef;
 // Python additionally ships two back-compat aliases
 // (`NoDataFoundError` / `TimeoutError`) that have no equivalent here.
 
+/** Base class for every typed error this binding throws. */
 export class ThetaDataError extends Error {}
+/** Authentication failed against ThetaData Nexus. */
 export class AuthenticationError extends ThetaDataError {}
+/** Supplied credentials were rejected. */
 export class InvalidCredentialsError extends AuthenticationError {}
+/** Tier / plan does not cover the request (gRPC `PermissionDenied`). */
 export class SubscriptionError extends ThetaDataError {}
+/** Rate limit / quota exhausted (gRPC `ResourceExhausted`, HTTP 429). */
 export class RateLimitError extends ThetaDataError {
   /**
    * Server-supplied minimum back-off in seconds, parsed from the
@@ -49,13 +56,21 @@ export class RateLimitError extends ThetaDataError {
    */
   retryAfter: number | null;
 }
+/** A client-side parameter was rejected by input validation. */
 export class InvalidParameterError extends ThetaDataError {}
+/** Empty result / unknown contract (gRPC `NotFound`). */
 export class NotFoundError extends ThetaDataError {}
+/** Per-request deadline elapsed (gRPC `DeadlineExceeded`). */
 export class DeadlineExceededError extends ThetaDataError {}
+/** Upstream unavailable (gRPC `Unavailable`, often retryable). */
 export class UnavailableError extends ThetaDataError {}
+/** Transport-layer failure (TCP / TLS / IO) other than `Unavailable`. */
 export class NetworkError extends ThetaDataError {}
+/** Decoder schema mismatch — usually a server proto bump. */
 export class SchemaMismatchError extends ThetaDataError {}
+/** FPSS streaming protocol / state-machine failure. */
 export class StreamError extends ThetaDataError {}
+/** Configuration fault (config-file I/O, TOML parse). */
 export class ConfigError extends ThetaDataError {}
 
 /** Callback signature mirrored from the napi-generated

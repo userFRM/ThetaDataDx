@@ -20,56 +20,73 @@
 
 use napi::bindgen_prelude::BigInt;
 
+/// Cross-language lookup-table namespace. Exposes the static condition,
+/// exchange, calendar, timestamp, and sequence helpers as `Util.*` static
+/// methods so the JS surface mirrors the Python / C++ / C ABI utility sets.
 #[napi(js_name = "Util")]
 pub struct Util;
 
 #[napi]
 impl Util {
+    /// Symbolic name for a trade `condition` code (e.g. `0` -> `"REGULAR"`).
+    /// Returns `"UNKNOWN"` for codes outside the table.
     #[napi(js_name = "conditionName")]
     pub fn condition_name(code: i32) -> String {
         thetadatadx::utils::conditions::condition_name(code).to_string()
     }
 
+    /// Human-readable description for a trade `condition` code.
     #[napi(js_name = "conditionDescription")]
     pub fn condition_description(code: i32) -> String {
         thetadatadx::utils::conditions::condition_description(code).to_string()
     }
 
+    /// Whether a trade `condition` code marks a trade cancellation.
     #[napi(js_name = "isCancel")]
     pub fn is_cancel(code: i32) -> bool {
         thetadatadx::utils::conditions::is_cancel(code)
     }
 
+    /// Whether a trade with this `condition` code contributes to the
+    /// running session volume.
     #[napi(js_name = "updatesVolume")]
     pub fn updates_volume(code: i32) -> bool {
         thetadatadx::utils::conditions::updates_volume(code)
     }
 
+    /// Symbolic name for a quote `condition` code.
     #[napi(js_name = "quoteConditionName")]
     pub fn quote_condition_name(code: i32) -> String {
         thetadatadx::utils::conditions::quote_condition_name(code).to_string()
     }
 
+    /// Human-readable description for a quote `condition` code.
     #[napi(js_name = "quoteConditionDescription")]
     pub fn quote_condition_description(code: i32) -> String {
         thetadatadx::utils::conditions::quote_condition_description(code).to_string()
     }
 
+    /// Whether a quote `condition` code marks a firm (binding) quote.
     #[napi(js_name = "isFirm")]
     pub fn is_firm(code: i32) -> bool {
         thetadatadx::utils::conditions::is_firm(code)
     }
 
+    /// Whether a quote `condition` code marks a trading halt.
     #[napi(js_name = "isHalted")]
     pub fn is_halted(code: i32) -> bool {
         thetadatadx::utils::conditions::is_halted(code)
     }
 
+    /// Symbolic name for an `exchange` code (e.g. `3` ->
+    /// `"NewYorkStockExchange"`).
     #[napi(js_name = "exchangeName")]
     pub fn exchange_name(code: i32) -> String {
         thetadatadx::utils::exchange::exchange_name(code).to_string()
     }
 
+    /// Short ticker-tape symbol for an `exchange` code (e.g. `3` ->
+    /// `"NYSE"`).
     #[napi(js_name = "exchangeSymbol")]
     pub fn exchange_symbol(code: i32) -> String {
         thetadatadx::utils::exchange::exchange_symbol(code).to_string()

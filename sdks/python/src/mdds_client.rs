@@ -165,7 +165,7 @@ const _: () = {
 /// Calling streaming / subscribe methods on this pyclass raises
 /// `AttributeError` — use the standalone [`crate::FpssClient`] or the
 /// bundled [`crate::ThetaDataDxClient`] when you need both surfaces.
-// N5: `frozen` — every `#[pymethods]` entry takes `&self` (never
+// `frozen` — every `#[pymethods]` entry takes `&self` (never
 // `&mut self`). The wrapped `inner: Py<ThetaDataDxClient>` carries its
 // own interior state; the pyclass shell is immutable. A future
 // `&mut self` regression surfaces as a `cargo check` failure rather
@@ -201,10 +201,10 @@ impl MddsClient {
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
-    /// The `config` kwarg is optional. The historical behaviour
-    /// (no kwarg = production endpoint) is preserved; tests and
-    /// dev / stage environments reach a single-arg constructor shape
-    /// via `MddsClient.from_file("creds.txt", config=Config.dev())`.
+    /// The `config` kwarg is optional: with no kwarg the constructor
+    /// targets the production endpoint. Tests and dev / stage
+    /// environments reach a single-arg constructor shape via
+    /// `MddsClient.from_file("creds.txt", config=Config.dev())`.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
