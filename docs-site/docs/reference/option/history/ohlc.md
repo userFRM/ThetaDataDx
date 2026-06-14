@@ -11,7 +11,7 @@ description: "Fetch intraday OHLC bars for an option contract."
 
 Fetch intraday OHLC bars for an option contract.
 
-- Aggregated OHLC bars that use [SIP rules](https://docs.thetadata.us/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+- Aggregated OHLC bars that use SIP rules for each bar.
 - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar timestamp` <= `trade time` < `bar timestamp + interval`.
 - Multi-day requests are limited to 1 month of data.
 

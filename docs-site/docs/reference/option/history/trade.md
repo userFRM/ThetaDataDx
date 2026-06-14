@@ -11,9 +11,9 @@ description: "Fetch all trades for an option contract on a given date."
 
 Fetch all trades for an option contract on a given date.
 
-- Returns every trade reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html).
-- Trade condition mappings can be found [here](/articles/conditions).
-- Extended trade conditions are not reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+- Returns every trade reported by OPRA.
+- Trade condition mappings can be found here.
+- Extended trade conditions are not reported by OPRA for options, so they can be ignored.
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
 <SdkTabs>

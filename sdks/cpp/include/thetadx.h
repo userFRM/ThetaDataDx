@@ -2087,7 +2087,10 @@ typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
  *  This is intentionally stricter than tdx_unified_set_callback(), where
  *  set-after-stop is supported as a normal user flow.
  *
- *  Returns 0 on success, -1 on error (check tdx_last_error()). */
+ *  @param h        The streaming handle.
+ *  @param callback The callback invoked once per streaming event.
+ *  @param ctx      Opaque user pointer passed to every callback invocation.
+ *  @return 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
 /** Reconnect the streaming session using the previously-registered
@@ -2151,8 +2154,10 @@ char* tdx_fpss_last_connected_addr(const TdxFpssHandle* h);
  *  per-invocation isolation boundary since the current stream started. If
  *  the callback aborts on a given event, the failure is contained, recorded
  *  here, and does not stop event delivery — the next event continues
- *  normally. Returns 0 if the handle is null or no callback has been
- *  installed yet. Safe to call from any thread. */
+ *  normally. Safe to call from any thread.
+ *  @param h The streaming handle.
+ *  @return The contained-failure count, or 0 if the handle is null or no
+ *          callback has been installed yet. */
 uint64_t tdx_fpss_panic_count(const TdxFpssHandle* h);
 
 /** Shut down the streaming client. Terminal: every subsequent
@@ -2238,7 +2243,10 @@ TdxUnified* tdx_unified_connect_from_file(const char* path, const TdxConfig* con
  *  while streaming is already active returns -1 with "streaming already
  *  started".
  *
- *  Returns 0 on success, -1 on error. */
+ *  @param handle   The unified handle.
+ *  @param callback The callback invoked once per streaming event.
+ *  @param ctx      Opaque user pointer passed to every callback invocation.
+ *  @return 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
 
 /** Subscription request scope discriminator (TdxSubscriptionRequest.scope). */
@@ -2398,8 +2406,10 @@ char* tdx_unified_last_connected_addr(const TdxUnified* handle);
  *  per-invocation isolation boundary since the current stream started. If
  *  the callback aborts on a given event, the failure is contained, recorded
  *  here, and does not stop event delivery — the next event continues
- *  normally. Returns 0 if the handle is null or no callback has been
- *  installed yet. Safe to call from any thread. */
+ *  normally. Safe to call from any thread.
+ *  @param handle The unified handle.
+ *  @return The contained-failure count, or 0 if the handle is null or no
+ *          callback has been installed yet. */
 uint64_t tdx_unified_panic_count(const TdxUnified* handle);
 
 /** Free a unified client handle. Calls tdx_unified_stop_streaming

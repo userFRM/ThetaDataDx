@@ -11,7 +11,7 @@ description: "Fetch NBBO quotes for an option contract on a given date."
 
 Fetch NBBO quotes for an option contract on a given date.
 
-- Returns every NBBO quote reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html).
+- Returns every NBBO quote reported by OPRA.
 - If the `interval` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 

@@ -11,7 +11,7 @@ description: "Fetch end-of-day index data for a date range."
 
 Fetch end-of-day index data for a date range.
 
-- Since [the indices feeds](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+- Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
 
 <SdkTabs>
 

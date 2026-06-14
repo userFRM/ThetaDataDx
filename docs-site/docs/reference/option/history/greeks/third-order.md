@@ -12,8 +12,8 @@ description: "Fetch third-order Greeks history (intraday, sampled by interval)."
 Fetch third-order Greeks history (intraday, sampled by interval).
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
-- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](https://docs.thetadata.us/operations/option_history_quote.html) endpoint.
-- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks here.
 - Multi-day requests are limited to 1 month of data.
 
 <SdkTabs>

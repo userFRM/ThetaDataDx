@@ -11,8 +11,8 @@ description: "Fetch open interest history for an option contract."
 
 Fetch open interest history for an option contract.
 
-- Open Interest is normally reported once per day by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
-- A new open interest message might not be sent by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
+- Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+- A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
 - The reported open interest represents the open interest at the end of the previous trading day.
 
 <SdkTabs>

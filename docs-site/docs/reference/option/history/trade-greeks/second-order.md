@@ -12,8 +12,8 @@ description: "Fetch second-order Greeks on each trade for an option contract."
 Fetch second-order Greeks on each trade for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
-- Calculates greeks for every trade reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html).
-- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Calculates greeks for every trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks here.
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
 <SdkTabs>

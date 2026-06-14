@@ -11,9 +11,9 @@ description: "Fetch the trade at a specific time of day across a date range for 
 
 Fetch the trade at a specific time of day across a date range for an option.
 
-- Returns the last trade reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
-- Trade condition mappings can be found [here](/articles/conditions).
-- Extended trade conditions are not reported by [OPRA](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+- Returns the last trade reported by OPRA at a specified millisecond of the day.
+- Trade condition mappings can be found here.
+- Extended trade conditions are not reported by OPRA for options, so they can be ignored.
 - The `time_of_day`parameter represents the 00:00:00.000 ET that the trade should be provided for.
 
 <SdkTabs>

@@ -11,8 +11,8 @@ description: "Fetch intraday OHLC bars for a stock on a single date."
 
 Fetch intraday OHLC bars for a stock on a single date.
 
-- Aggregated OHLC bars that use [SIP rules](https://docs.thetadata.us/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar time` <= `trade time` < `bar timestamp + ivl`, where ivl is the specified interval size in milliseconds.
-- Set the `venue` parameter to `nqb` to access current-day real-time historic data from the [Nasdaq Basic feed](https://docs.thetadata.us/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar time` <= `trade time` < `bar timestamp + ivl`, where ivl is the specified interval size in milliseconds.
+- Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
 - Multi-day requests are limited to 1 month of data.
 
 <SdkTabs>
