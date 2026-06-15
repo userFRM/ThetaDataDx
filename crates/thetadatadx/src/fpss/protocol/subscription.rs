@@ -1,7 +1,6 @@
 //! Subscription kind classification for FPSS subscribe / unsubscribe paths.
 //!
-//! Source: `PacketStream.addQuote()` uses code 21, `addTrade()` uses 22,
-//! `addOpenInterest()` uses 23.
+//! Wire codes: quote subscriptions use code 21, trade 22, open interest 23.
 //!
 //! # Public surface
 //!

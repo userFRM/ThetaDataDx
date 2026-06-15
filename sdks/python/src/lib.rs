@@ -342,7 +342,7 @@ impl Config {
 
     /// Set the reconnect delay (ms) honoured for ``TooManyRequests``
     /// rate-limited disconnects. Default ``130_000`` (matches the
-    /// Java terminal's 130 s rate-limit cooldown).
+    /// JVM terminal's 130 s rate-limit cooldown).
     #[setter]
     fn set_reconnect_wait_rate_limited_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

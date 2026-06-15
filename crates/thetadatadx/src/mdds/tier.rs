@@ -1,7 +1,7 @@
 //! Typed subscription-tier enum for the MDDS client.
 //!
 //! ThetaData's Nexus auth response carries a small integer per asset class
-//! that encodes the customer's subscription level. The Java terminal uses
+//! that encodes the customer's subscription level. The JVM terminal uses
 //! it to size the concurrent-request semaphore as `2^tier`. We keep the
 //! same wire shape (the integer comes straight off the JSON response) but
 //! lift it into a typed enum the moment it crosses into Rust state, so

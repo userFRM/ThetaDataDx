@@ -34,13 +34,14 @@ pub struct MddsConfig {
 
     /// Max concurrent in-flight gRPC requests.
     ///
-    /// JVM equivalent: `2^subscription_tier` (Free=1, Value=2, Standard=4, Pro=8).
-    /// Set to 0 to auto-detect from the subscription tier returned by Nexus auth.
+    /// The JVM terminal caps this at `2^subscription_tier` (Free=1, Value=2,
+    /// Standard=4, Pro=8). Set to 0 to auto-detect from the subscription tier
+    /// returned by Nexus auth.
     pub concurrent_requests: usize,
 
     /// Max inbound gRPC message size in bytes.
     ///
-    /// JVM equivalent: `maxInboundMessageSize(0x100000 * config.messageSize())`,
+    /// Caps the gRPC inbound message size at `1 MiB * message_size`,
     /// default 4MB, max 10MB.
     pub max_message_size: usize,
 

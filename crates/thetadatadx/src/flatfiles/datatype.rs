@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn vendor_lowercase_naming_holds() {
-        // Sanity: every name is ASCII lowercase or underscore, never a Java
+        // Sanity: every name is ASCII lowercase or underscore, never a
         // CamelCase leak.
         for code in [1, 121, 0, 134, 138] {
             let n = DataType::from_code(code).name();

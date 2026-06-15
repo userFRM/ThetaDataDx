@@ -412,8 +412,8 @@ mod tests {
     }
 
     #[test]
-    fn connect_timeout_matches_java() {
-        // Java parity reference: terminal hardcodes `socket.connect(addr, 2000)`.
+    fn connect_timeout_matches_terminal() {
+        // Parity reference: the JVM terminal connects with a 2000 ms deadline.
         // Used as the default seed for `FpssConfig::connect_timeout_ms`; the
         // public knob now overrides this constant for callers who need to
         // dial in a different per-server connect deadline.

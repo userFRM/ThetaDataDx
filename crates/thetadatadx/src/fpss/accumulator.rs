@@ -102,12 +102,12 @@ impl OhlcvcAccumulator {
     }
 }
 
-/// Convert a price from one `price_type` to another (mirrors Java
-/// `PriceCalcUtils.changePriceType`). The JVM terminal performs `int * int`
-/// which silently wraps on overflow under Java's two's-complement semantics;
-/// downstream consumers depend on that exact wire-bit pattern, so we use
-/// `wrapping_mul` to reproduce it byte-for-byte. Plain `*` would panic in
-/// debug Rust on the same inputs that the JVM accepts without comment.
+/// Convert a price from one `price_type` to another. The JVM terminal
+/// performs `int * int` which silently wraps on overflow under 32-bit
+/// two's-complement semantics; downstream consumers depend on that exact
+/// wire-bit pattern, so we use `wrapping_mul` to reproduce it byte-for-byte.
+/// Plain `*` would panic in debug Rust on the same inputs the JVM terminal
+/// accepts without comment.
 pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32) -> i32 {
     const POW10: [i32; 10] = [
         1,
@@ -128,7 +128,7 @@ pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32
     if exp <= 0 {
         let idx = usize::try_from(-exp).unwrap_or(0);
         if idx < POW10.len() {
-            // Match Java terminal's `int * int` wrap; differs from Rust's
+            // Match the JVM terminal's `int * int` wrap; differs from Rust's
             // default `*` which panics in debug. wrapping_mul makes the
             // overflow contract explicit and debug-safe.
             price.wrapping_mul(POW10[idx])
@@ -139,7 +139,7 @@ pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32
         let idx = usize::try_from(exp).unwrap_or(0);
         if idx < POW10.len() {
             // Down-scale by integer division. |i32| / 10^k <= |i32|, so this
-            // never overflows; mirrors Java's `int / int` exactly.
+            // never overflows; mirrors the JVM terminal's `int / int` exactly.
             price / POW10[idx]
         } else {
             0
@@ -239,12 +239,12 @@ mod tests {
 
     /// One unit past the boundary: 2_148 * 10^6 = 2_148_000_000.
     ///
-    /// Java semantics: `int * int` wraps mod 2^32. Manual calculation:
+    /// Wire semantics: `int * int` wraps mod 2^32. Manual calculation:
     ///   2_148 * 1_000_000 = 2_148_000_000 (mathematical)
     ///   2_148_000_000 - 2^32 = 2_148_000_000 - 4_294_967_296 = -2_146_967_296
     /// JVM terminal emits -2_146_967_296 on the wire and we mirror it.
     #[test]
-    fn change_price_type_wraps_like_java_at_2148() {
+    fn change_price_type_wraps_at_2148() {
         assert_eq!(change_price_type(2_148, 6, 0), -2_146_967_296);
     }
 
@@ -256,13 +256,13 @@ mod tests {
     ///                            = 713_968_650_000 - 712_964_571_136
     ///                            = 1_004_078_864
     /// 1_004_078_864 < 2^31 so the signed result is +1_004_078_864.
-    /// This matches what `PriceCalcUtils.changePriceType` returns in the JVM.
+    /// This matches the value the JVM terminal emits on the wire.
     #[test]
-    fn change_price_type_brk_a_wraps_like_java() {
+    fn change_price_type_brk_a_wraps() {
         assert_eq!(change_price_type(71_396_865, 8, 4), 1_004_078_864);
     }
 
-    /// A second tick whose rescale wraps under Java semantics must produce
+    /// A second tick whose rescale wraps under 32-bit semantics must produce
     /// the same wrapped value the JVM terminal would compute, so accumulator
     /// state stays bit-identical to the reference implementation.
     /// 71_396_865 * 10_000 wraps to +1_004_078_864 (see test above).

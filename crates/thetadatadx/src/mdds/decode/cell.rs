@@ -79,14 +79,14 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
     }
 }
 
-/// Decode an `i32`-valued cell with Java-matching strict semantics.
+/// Decode an `i32`-valued cell with strict wire-matching semantics.
 ///
 /// Accepts:
 /// - `Number(n)` → `Ok(Some(n))` after bounds-checking the wire `int64`
 ///   against the destination `i32` range.
 /// - `Timestamp(ts)` → `Ok(Some(ms_of_day))` — v3 MDDS sends time columns as
 ///   proto `Timestamp`; the parser expects milliseconds-of-day in Eastern Time.
-/// - `NullValue` → `Ok(None)`, matching Java `null` return.
+/// - `NullValue` → `Ok(None)`, matching the wire's null sentinel.
 ///
 /// Any other variant produces [`DecodeError::TypeMismatch`], including the
 /// case where the `DataValue` arrived with its `data_type` oneof unset
@@ -190,7 +190,7 @@ pub(crate) fn row_price_type(
 /// [`DecodeError::MissingCell`] on a missing cell. Returns
 /// [`DecodeError::InvalidPriceType`] when the wire `price_type` falls
 /// outside `0..=crate::tdbe::types::price::MAX_PRICE_TYPE`.
-// Reason: protocol-defined integer widths from Java FPSS specification.
+// Reason: protocol-defined integer widths from the FPSS wire specification.
 #[allow(clippy::cast_possible_truncation)]
 #[inline]
 pub(crate) fn row_price_f64(

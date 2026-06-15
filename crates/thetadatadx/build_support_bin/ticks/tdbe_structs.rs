@@ -325,7 +325,7 @@ fn rewrite_count_phrase(line: &str, count: usize) -> String {
 /// the wire-column listings (Markdown tables, indented header dumps) those
 /// sentences introduce. Behavioral sentences sharing a paragraph with a
 /// provenance sentence are preserved.
-fn scrub_provenance(doc: &str) -> String {
+pub(super) fn scrub_provenance(doc: &str) -> String {
     let mut kept: Vec<String> = Vec::new();
 
     for paragraph in split_paragraphs(doc) {

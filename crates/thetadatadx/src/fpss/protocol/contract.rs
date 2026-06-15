@@ -50,17 +50,15 @@ pub struct OptionLeg<'a> {
 
 /// A contract identifier for FPSS subscriptions.
 ///
-/// Matches the wire format from `Contract.java`:
+/// Matches the FPSS contract wire format:
 /// - Stock/Index/Rate: root ticker + security type
 /// - Option: root ticker + security type + expiration + call/put + strike
-///
-/// Source: `Contract.java` — `toBytes()`, `fromBytes()`, constructor overloads.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Contract {
     /// Ticker symbol (ASCII, max ~6 chars in practice). Named `symbol` to
     /// match the v3 vendor surface; the wire codec still encodes it as the
-    /// root field per `Contract.toBytes()` parity.
+    /// root field per the contract wire format.
     ///
     /// Stored as `Arc<str>` so every `Arc<Contract>` clone that flows
     /// through the hot-path event ring pays only an atomic refcount
@@ -84,7 +82,7 @@ pub struct Contract {
 impl Contract {
     /// Create a stock contract.
     ///
-    /// Source: `Contract(String root)` constructor in `Contract.java` — defaults to STOCK.
+    /// A root with no security type defaults to STOCK on the wire.
     ///
     /// ```
     /// use thetadatadx::fpss::protocol::Contract;
@@ -494,7 +492,7 @@ impl Contract {
 
     /// Serialize to the wire format used in FPSS subscription messages.
     ///
-    /// # Wire format (from `Contract.toBytes()`)
+    /// # Wire format
     ///
     /// Stock/Index/Rate:
     /// ```text
@@ -507,18 +505,17 @@ impl Contract {
     /// [exp_date: i32 BE] [is_call: u8] [strike: i32 BE]
     /// ```
     ///
-    /// `total_size` counts the entire buffer including itself, matching Java's
-    /// `Contract.toBytes()` exactly:
+    /// `total_size` counts the entire buffer including itself:
     ///   - Stock: `3 + root.length()` = size(1) + `root_len(1)` + root(N) + `sec_type(1)`
     ///   - Option: `12 + root.length()` = size(1) + `root_len(1)` + root(N) + `sec_type(1)` + exp(4) + `is_call(1)` + strike(4)
     ///
-    /// Java's `fromBytes()` validates `len == size`, confirming the size byte
-    /// counts itself.
+    /// The decoder validates `len == size`, confirming the size byte counts
+    /// itself.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Config`] if the contract root exceeds 16 bytes,
-    /// which is the maximum length accepted by Java's `Contract.toBytes()`.
+    /// which is the maximum encoded root length the wire format accepts.
     /// All FPSS subscribe / unsubscribe paths surface this error to the
     /// caller; user input is never permitted to panic the encoder.
     pub fn try_to_bytes(&self) -> Result<Vec<u8>, Error> {
@@ -554,7 +551,7 @@ impl Contract {
     /// # Errors
     ///
     /// Returns [`Error::Config`] if the root is empty or longer than 16
-    /// bytes. The 16-byte limit matches Java's `Contract.toBytes()`.
+    /// bytes. The 16-byte limit is the wire format's maximum encoded root.
     pub fn validate(&self) -> Result<(), Error> {
         let len = self.symbol.len();
         if len == 0 {
@@ -564,7 +561,7 @@ impl Contract {
             return Err(Error::config_invalid(
                 "contract.symbol",
                 format!(
-                    "contract symbol too long: {len} bytes (max 16 to match Java Contract.toBytes())"
+                    "contract symbol too long: {len} bytes (wire format caps the encoded root at 16 bytes)"
                 ),
             ));
         }
@@ -572,10 +569,10 @@ impl Contract {
     }
 
     fn encode_unchecked(&self) -> Vec<u8> {
-        // Local names mirror the wire spec (`Contract.java::toBytes`):
-        // the wire field is "root_len / root", and keeping the byte-level
-        // codec named that way keeps this file diffing cleanly against the
-        // upstream binary protocol. The struct binding is `symbol`.
+        // Local names mirror the wire spec: the wire field is "root_len /
+        // root", and keeping the byte-level codec named that way keeps this
+        // file diffing cleanly against the binary protocol layout. The
+        // struct binding is `symbol`.
         let root_bytes = self.symbol.as_bytes();
         let root_len = u8::try_from(root_bytes.len()).expect("validate() bounds root_len to <= 16");
 
@@ -591,7 +588,7 @@ impl Contract {
 
         let mut buf = Vec::with_capacity(total_size);
 
-        // total_size byte (includes itself — matches Java's Contract.toBytes())
+        // total_size byte (includes itself per the wire format).
         // Max total_size = 12 + 16 = 28, safely fits u8.
         buf.push(u8::try_from(total_size).expect("total_size <= 28"));
         // root_len
@@ -615,9 +612,9 @@ impl Contract {
 
     /// Deserialize from the wire format.
     ///
-    /// Input starts at the `total_size` byte (the first byte of `Contract.toBytes()` output).
+    /// Input starts at the `total_size` byte (the first byte of the encoded
+    /// contract).
     ///
-    /// Source: `Contract.fromBytes()` in `Contract.java`.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -626,8 +623,9 @@ impl Contract {
             return Err(ContractParseError::TooShort);
         }
 
-        // Java's size byte counts itself: the total buffer length equals the size byte value.
-        // Java fromBytes: `if (len != size) throw ...` where len is the total span including size.
+        // The size byte counts itself: the total buffer length equals the
+        // size byte value. The decoder rejects `len != size`, where `len` is
+        // the total span including the size byte.
         let total_size = data[0] as usize;
         if data.len() < total_size {
             return Err(ContractParseError::TooShort);
@@ -1100,9 +1098,9 @@ mod tests {
     }
 
     #[test]
-    fn java_parity_single_char_root() {
+    fn wire_parity_single_char_root() {
         // Edge case: root="A" (1 byte), sec=STOCK
-        // Java allocates: 3 + 1 = 4 bytes
+        // Wire size: 3 + 1 = 4 bytes
         let c = Contract::stock("A");
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 4);
@@ -1294,8 +1292,8 @@ mod tests {
 
     // -- Contract::from_str wire-codec parity ---------------------------------
     //
-    // `to_bytes()` accepts roots up to 16 bytes (Java
-    // `Contract.toBytes()` matches); `from_bytes()` round-trips
+    // `to_bytes()` accepts roots up to 16 bytes (the wire format's
+    // encoded-root cap); `from_bytes()` round-trips
     // whatever the wire delivers. The bare-root parser must accept the
     // same 1..=16 range so `from_str` / `to_bytes` / `from_bytes`
     // round-trip symmetrically.

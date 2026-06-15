@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn socket_timeouts_match_policy() {
-        // socket.connect(addr, 2000), setSoTimeout(10000).
+        // Parity reference: 2000 ms connect deadline, 10000 ms read timeout.
         assert_eq!(CONNECT_TIMEOUT_MS, 2_000);
         assert_eq!(READ_TIMEOUT_MS, 10_000);
     }

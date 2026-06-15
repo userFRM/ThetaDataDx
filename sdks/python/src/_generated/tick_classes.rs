@@ -14,7 +14,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
 /// Calendar day. Market open/close schedule.
-/// 
+///
 /// `status` carries the vendor's own day-type vocabulary (`open` /
 /// `early_close` / `full_close` / `weekend`); unknown wire text fails
 /// decode loudly rather than degrading to a sentinel. `date` is `0` on
@@ -49,7 +49,7 @@ impl CalendarDay {
 }
 
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
-/// 
+///
 /// The two time columns carry the vendor's v3 field semantics under their
 /// v3 names: `created` is when the EOD report was generated (~17:15 ET,
 /// NOT a trade time) and `last_trade` is the time of the day's final
@@ -135,13 +135,13 @@ impl EodTick {
 
 /// Full union Greeks tick -- every Greek the v3 server publishes on the
 /// `option_*_greeks_all` and `option_*_greeks_eod` endpoints.
-/// 
+///
 /// The vendor's per-order endpoints (`option_*_greeks_first_order`,
 /// `_second_order`, `_third_order`) emit strict subsets of these columns
 /// and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick`,
 /// `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility`
 /// binds to `IvTick`.
-/// 
+///
 /// The wire-level `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
 /// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
 /// mappings are applied through `HEADER_ALIASES` in
@@ -250,27 +250,13 @@ impl GreeksAllTick {
 /// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
 /// `ask_exchange`, `ask_condition`) that identify the daily bar + closing
 /// NBBO snapshot the Greeks were calculated against.
-/// 
+///
 /// The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
 /// (28 fields) silently dropped those twelve EOD columns from the
 /// 39-column EOD response -- the same data-loss class as the per-trade
 /// Greeks endpoints. `GreeksEodTick` carries the full
 /// EOD wire shape end-to-end across every binding.
-/// 
-/// Wire layout verified-live against terminal jar build `202605221`
-/// (SPY 2024-06-21 expiration query on 2024-06-14):
-/// 
-///   symbol, expiration, strike, right,
-///   timestamp, open, high, low, close, volume, count,
-///   bid_size, bid_exchange, bid, bid_condition,
-///   ask_size, ask_exchange, ask, ask_condition,
-///   delta, theta, vega, rho, epsilon, lambda,
-///   gamma, vanna, charm, vomma, veta, vera,
-///   speed, zomma, color, ultima,
-///   d1, d2, dual_delta, dual_gamma,
-///   implied_vol, iv_error,
-///   underlying_timestamp, underlying_price
-/// 
+///
 /// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
 /// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
 /// mappings are applied through `HEADER_ALIASES`.
@@ -618,11 +604,7 @@ impl GreeksThirdOrderTick {
 /// `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
 /// columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
 /// `exchange` -- including the SIP-exchange attribution field.
-/// 
-/// Wire layout verified-live against terminal jar build `202605221`:
-/// 
-///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price
-/// 
+///
 /// The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
 /// applied through the existing `HEADER_ALIASES` rows in
 /// `crates/thetadatadx/src/mdds/decode/headers.rs`.
@@ -676,15 +658,7 @@ impl IndexPriceAtTimeTick {
 }
 
 /// Interest rate tick. End-of-day interest rate (percent).
-/// 
-/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
-/// and verified-live against terminal jar build `202605221`:
-/// 
-/// | Schema field | Wire header | Wire type        | Mapping                    |
-/// |--------------|-------------|------------------|----------------------------|
-/// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
-/// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
-/// 
+///
 /// The `date` decode flows through `thetadatadx::decode::row_date`, which
 /// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
 /// decodes either the documented Text-ISO shape or any future
@@ -712,24 +686,7 @@ impl InterestRateTick {
 }
 
 /// Implied volatility tick.
-/// 
-/// Wire layout verified-live against `option_history_greeks_implied_volatility`
-/// (terminal jar build `202605221`):
-/// 
-/// | Schema field                | Wire header               | Type   |
-/// |-----------------------------|---------------------------|--------|
-/// | `ms_of_day`                 | `timestamp`               | i32    |
-/// | `bid`                       | `bid`                     | price  |
-/// | `bid_implied_volatility`    | `bid_implied_vol`         | f64    |
-/// | `midpoint`                  | `midpoint`                | price  |
-/// | `implied_volatility`        | `implied_vol`             | f64    |
-/// | `ask`                       | `ask`                     | price  |
-/// | `ask_implied_volatility`    | `ask_implied_vol`         | f64    |
-/// | `iv_error`                  | `iv_error`                | f64    |
-/// | `underlying_ms_of_day`      | `underlying_timestamp`    | i32    |
-/// | `underlying_price`          | `underlying_price`        | price  |
-/// | `date`                      | `timestamp`               | i32    |
-/// 
+///
 /// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
 /// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
 /// generator's optional-column path defaults the missing fields to 0.0 so
@@ -843,14 +800,8 @@ impl MarketValueTick {
 }
 
 /// OHLC tick. Aggregated bar data including SIP-rule VWAP.
-/// 
-/// Wire layout verified-live (terminal jar build `202605221`) against
-/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`,
-/// which emit the same 8 data columns (`timestamp,open,high,low,close,
-/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
-/// `vwap`; the generated parser's optional-column path defaults the
-/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
-/// already zero-default on quote-only intraday bars.
+///
+/// The snapshot variants (`*_snapshot_ohlc`) omit `vwap`; the generated parser's optional-column path defaults the field to `0.0` for those endpoints, mirroring how `volume`/`count` already zero-default on quote-only intraday bars.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -943,7 +894,7 @@ impl OpenInterestTick {
 }
 
 /// Option contract. Contract specification.
-/// 
+///
 /// Cannot be `Copy` because of the `String` symbol field.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
@@ -1006,7 +957,7 @@ impl PriceTick {
 }
 
 /// Quote tick. NBBO quote data.
-/// 
+///
 /// Wire layout: the full shape is 11 columns (`ms_of_day`,
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
 /// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).
@@ -1077,18 +1028,7 @@ impl QuoteTick {
 /// columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
 /// `exchange`, `price`) that identify which OPRA print each Greek was
 /// calculated against.
-/// 
-/// Wire layout verified-live against terminal jar build `202605221`:
-/// 
-///   symbol, expiration, strike, right,
-///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price,
-///   delta, theta, vega, rho, epsilon, lambda,
-///   gamma, vanna, charm, vomma, veta, vera,
-///   speed, zomma, color, ultima,
-///   d1, d2, dual_delta, dual_gamma,
-///   implied_vol, iv_error,
-///   underlying_timestamp, underlying_price
-/// 
+///
 /// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
 /// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
 /// mappings are applied through `HEADER_ALIASES`.
@@ -1204,10 +1144,7 @@ impl TradeGreeksAllTick {
     }
 }
 
-/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
-/// / lambda) paired with the trade-side execution columns identifying the
-/// OPRA print each Greek was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1292,11 +1229,7 @@ impl TradeGreeksFirstOrderTick {
     }
 }
 
-/// Per-trade implied-volatility tick (single `implied_volatility` +
-/// `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
-/// `IvTick`) paired with the trade-side execution columns identifying the
-/// OPRA print the IV was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1369,10 +1302,7 @@ impl TradeGreeksImpliedVolatilityTick {
     }
 }
 
-/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
-/// veta) paired with the trade-side execution columns identifying the OPRA
-/// print each Greek was calculated against. Wire layout verified-live
-/// against terminal jar build `202605221`.
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1455,11 +1385,7 @@ impl TradeGreeksSecondOrderTick {
     }
 }
 
-/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
-/// paired with the trade-side execution columns identifying the OPRA print
-/// each Greek was calculated against. The vendor's third-order schema does
-/// not publish `vera`. Wire layout verified-live against terminal jar build
-/// `202605221`.
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]

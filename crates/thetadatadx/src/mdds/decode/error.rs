@@ -6,7 +6,7 @@
 //! [`DecodeError::ChunkHeaderDrift`] when a mid-stream chunk's header set
 //! diverges from the first chunk's schema.
 //!
-//! Behaviour mirrors the upstream Java terminal.
+//! Behaviour mirrors the JVM terminal.
 
 use crate::proto;
 use thiserror::Error as ThisError;

@@ -22,7 +22,7 @@ pub struct TradeSequence {
 
 impl TradeSequence {
     /// Create from a raw sequence value (absolute = raw as u64).
-    // Reason: protocol-level wrapping for Java i32 sequence interop.
+    // Reason: protocol-level wrapping for 32-bit sequence interop.
     #[allow(clippy::cast_sign_loss)]
     #[inline]
     #[must_use]
@@ -129,7 +129,7 @@ impl SequenceTracker {
     }
 
     /// Process a raw sequence value, returning the update details.
-    // Reason: protocol-level wrapping for Java i32 sequence overflow handling.
+    // Reason: protocol-level wrapping for 32-bit sequence overflow handling.
     #[allow(clippy::cast_sign_loss)]
     pub fn process(&mut self, raw: i64) -> SequenceUpdate {
         let mut is_overflow = false;
@@ -249,7 +249,7 @@ pub struct SequenceUpdate {
 }
 
 /// Convert a signed raw sequence to an unsigned absolute value.
-// Reason: protocol-level wrapping for Java i32 sequence interop.
+// Reason: protocol-level wrapping for 32-bit sequence interop.
 #[allow(clippy::cast_sign_loss)]
 #[inline]
 #[must_use]
@@ -262,7 +262,7 @@ pub const fn signed_to_unsigned(signed: i64) -> u64 {
 }
 
 /// Convert an unsigned absolute value back to a signed raw sequence.
-// Reason: protocol-level wrapping for Java i32 sequence interop.
+// Reason: protocol-level wrapping for 32-bit sequence interop.
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 #[inline]
 #[must_use]

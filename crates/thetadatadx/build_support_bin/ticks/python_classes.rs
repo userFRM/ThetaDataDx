@@ -427,10 +427,18 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
             combined.push('\n');
             combined.push_str(line);
         }
-        combined
+        // Drop wire-provenance prose so the rendered Python class doc
+        // describes only stable behavior, matching the Rust tick struct
+        // surface: the wire-column listings and the sentences recording
+        // where a layout was checked are removed, behavioral prose stays.
+        super::tdbe_structs::scrub_provenance(&combined)
     };
     for line in doc_text.lines() {
-        writeln!(out, "/// {line}").unwrap();
+        if line.is_empty() {
+            out.push_str("///\n");
+        } else {
+            writeln!(out, "/// {line}").unwrap();
+        }
     }
     // `#[must_use]` — these ticks come from expensive network calls; dropping
     // the result silently is a bug. `skip_from_py_object` opts out of the

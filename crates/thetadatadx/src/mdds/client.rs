@@ -28,7 +28,7 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// MDDS client for `ThetaData` server access.
 ///
-/// Connects to MDDS (gRPC, historical data) without requiring the Java
+/// Connects to MDDS (gRPC, historical data) without requiring the JVM
 /// terminal. Authenticates via the Nexus HTTP API, then issues gRPC
 /// requests to the upstream MDDS server.
 ///
@@ -70,7 +70,7 @@ pub struct MddsClient {
     client_type: String,
     /// Semaphore limiting concurrent in-flight gRPC requests.
     ///
-    /// The Java terminal limits concurrent requests to `2^subscription_tier`
+    /// The JVM terminal limits concurrent requests to `2^subscription_tier`
     /// (Free=1, Value=2, Standard=4, Pro=8). This semaphore enforces the same
     /// bound to prevent server-side rate limiting / 429 disconnects.
     pub(crate) request_semaphore: Arc<tokio::sync::Semaphore>,
@@ -195,10 +195,9 @@ impl MddsClient {
             auth_token: Some(proto::AuthToken { session_uuid: uuid }),
             query_parameters: self.query_parameters.clone(),
             client_type: self.client_type.clone(),
-            // Intentional divergence from Java (see jvm-deviations.md):
-            // Java fills this with the terminal's build git commit hash.
-            // We are not the Java terminal and have no git commit to report,
-            // so we leave it empty. The server accepts empty strings here.
+            // The JVM terminal fills this with its own build git commit
+            // hash. This SDK has no such commit to report, so we leave it
+            // empty; the server accepts empty strings here.
             terminal_git_commit: String::new(),
             terminal_version: TERMINAL_VERSION.to_string(),
         }

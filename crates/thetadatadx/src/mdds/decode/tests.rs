@@ -832,7 +832,7 @@ fn parse_trade_ticks_errors_on_unset_injected_right() {
 fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
     // Regression: an earlier strict decode rejected Price cells for Greek
     // columns, but the v3 MDDS server sends Greeks as Price-encoded
-    // values (mirroring Java's `dataValue2Object` -> BigDecimal path).
+    // values (decoded through the decimal-cell path, not the integer one).
     // Pins Price-cell decoding for both IV and a Greek.
     let table = proto::DataTable {
         headers: vec![
@@ -899,7 +899,7 @@ fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases(
 #[test]
 fn parse_greeks_all_ticks_still_decodes_number_cells() {
     // Companion to the Price-cell regression test: Number cells must
-    // still decode, matching Java's dispatch-on-wire-type semantics.
+    // still decode, matching the dispatch-on-wire-type semantics.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "implied_volatility".into()],
         data_table: vec![row_of(vec![dv_number(34_200_000), dv_number(0)])],
