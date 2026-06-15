@@ -1051,6 +1051,24 @@ class StreamView:
         session across auto-reconnects."""
         ...
 
+    def active_full_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active full-stream subscriptions
+        (e.g. ``SecType.OPTION.full_trades()``).
+
+        Returns the same typed :class:`Subscription` values passed to
+        :meth:`subscribe`. Empty when streaming has not started.
+        """
+        ...
+
+    def panic_count(self) -> int:
+        """Cumulative count of user-callback panics caught by the
+        streaming consumer's panic boundary.
+
+        Each exception raised inside the registered callback is caught,
+        reported through the unraisable hook, and counted here.
+        """
+        ...
+
 
 @final
 class Client:
@@ -1121,13 +1139,6 @@ class Client:
         ``client.stream.subscribe(...)``. Shares the unified client's
         callback registration so the lifecycle observed through the view
         is the one the client manages.
-        """
-        ...
-
-    def active_full_subscriptions(self) -> List[Subscription]:
-        """Return a snapshot of the active full-stream subscriptions.
-
-        Empty when streaming has not started.
         """
         ...
 

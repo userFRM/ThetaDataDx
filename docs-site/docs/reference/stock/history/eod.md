@@ -31,7 +31,7 @@ Execute with `.await` → `Result<Vec<EodTick>, Error>`, or decode chunk-by-chun
 **Example**
 
 ```rust
-let rows = tdx.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
+let rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
 for t in &rows {
     println!("date={} open={} close={} volume={}", t.date, t.open, t.close, t.volume);
 }
@@ -54,7 +54,7 @@ Client.historical.stock_history_eod(
 **Example**
 
 ```python
-rows = tdx.historical.stock_history_eod("AAPL", "20250303", "20250306")
+rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
     print(t.date, t.open, t.close, t.volume)
 ```
@@ -75,7 +75,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
+const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }

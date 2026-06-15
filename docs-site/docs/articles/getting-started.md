@@ -100,9 +100,9 @@ use thetadatadx::{Credentials, DirectConfig, Client};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
-    let rows = tdx.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
+    let rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
     for t in &rows {
         println!("{}: open={} close={} volume={}", t.date, t.open, t.close, t.volume);
     }
@@ -118,9 +118,9 @@ async fn main() -> Result<(), thetadatadx::Error> {
 from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
-rows = tdx.historical.stock_history_eod("AAPL", "20250303", "20250306")
+rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
     print(t.date, t.open, t.close, t.volume)
 ```
@@ -132,9 +132,9 @@ for t in rows:
 ```typescript
 import { Client } from 'thetadatadx';
 
-const tdx = Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 
-const rows = await tdx.stockHistoryEOD('AAPL', '20250303', '20250306');
+const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }

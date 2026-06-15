@@ -29,7 +29,7 @@ Optional parameters chain on the builder: `.venue(&str)`, `.min_time(&str)`. Exe
 **Example**
 
 ```rust
-let rows = tdx.historical().stock_snapshot_ohlc(&["AAPL"]).await?;
+let rows = client.historical().stock_snapshot_ohlc(&["AAPL"]).await?;
 for t in &rows {
     println!("date={} open={} high={} low={} close={}", t.date, t.open, t.high, t.low, t.close);
 }
@@ -52,7 +52,7 @@ Client.historical.stock_snapshot_ohlc(
 **Example**
 
 ```python
-rows = tdx.historical.stock_snapshot_ohlc(["AAPL"])
+rows = client.historical.stock_snapshot_ohlc(["AAPL"])
 for t in rows:
     print(t.date, t.open, t.high, t.low, t.close)
 ```
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = await tdx.historical.stockSnapshotOHLC(['AAPL']);
+const rows = await client.historical.stockSnapshotOHLC(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

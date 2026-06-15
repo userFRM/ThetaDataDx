@@ -29,7 +29,7 @@ Optional parameters chain on the builder: `.interval(&str)`, `.start_time(&str)`
 **Example**
 
 ```rust
-let rows = tdx
+let rows = client
     .historical()
     .stock_history_ohlc_range("AAPL", "20250303", "20250306")
     .interval("1m")
@@ -56,7 +56,7 @@ Client.historical.stock_history_ohlc_range(
 **Example**
 
 ```python
-rows = tdx.historical.stock_history_ohlc_range(
+rows = client.historical.stock_history_ohlc_range(
     "AAPL",
     "20250303",
     "20250306",
@@ -82,7 +82,7 @@ Optional parameters ride in a single trailing options object: `interval?: string
 **Example**
 
 ```typescript
-const rows = await tdx.historical.stockHistoryOHLCRange('AAPL', '20250303', '20250306', { interval: '1m' });
+const rows = await client.historical.stockHistoryOHLCRange('AAPL', '20250303', '20250306', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

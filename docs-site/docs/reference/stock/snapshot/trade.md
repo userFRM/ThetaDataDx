@@ -28,7 +28,7 @@ Optional parameters chain on the builder: `.venue(&str)`, `.min_time(&str)`. Exe
 **Example**
 
 ```rust
-let rows = tdx.historical().stock_snapshot_trade(&["AAPL"]).await?;
+let rows = client.historical().stock_snapshot_trade(&["AAPL"]).await?;
 for t in &rows {
     println!("date={} ms_of_day={} price={} size={}", t.date, t.ms_of_day, t.price, t.size);
 }
@@ -51,7 +51,7 @@ Client.historical.stock_snapshot_trade(
 **Example**
 
 ```python
-rows = tdx.historical.stock_snapshot_trade(["AAPL"])
+rows = client.historical.stock_snapshot_trade(["AAPL"])
 for t in rows:
     print(t.date, t.ms_of_day, t.price, t.size)
 ```
@@ -69,7 +69,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = await tdx.historical.stockSnapshotTrade(['AAPL']);
+const rows = await client.historical.stockSnapshotTrade(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }

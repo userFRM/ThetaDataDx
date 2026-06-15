@@ -11,10 +11,10 @@
 import { Client } from "thetadatadx";
 import { tableFromIPC } from "apache-arrow";
 
-const tdx = Client.connectFromFile("creds.txt");
+const client = Client.connectFromFile("creds.txt");
 
 // Whole-universe option quotes for one trading day.
-const rows = tdx.flatFiles.optionQuote("20260428");
+const rows = client.flatFiles.optionQuote("20260428");
 console.log(`option_quote rows: ${rows.len()}`);
 
 // Apache Arrow table -- one column per vendor field plus the contract
@@ -25,11 +25,11 @@ const table = tableFromIPC(ipc);
 console.log(table.schema.fields.map((f) => `${f.name}:${f.type}`).join(", "));
 
 // Same path, dispatched dynamically.
-const oi = tdx.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
+const oi = client.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
 console.log(`open_interest rows: ${oi.len()}`);
 
 // Drop raw vendor CSV bytes to disk without materialising rows.
-const path = tdx.flatFileToPath(
+const path = client.flatFileToPath(
   "OPTION",
   "QUOTE",
   "20260428",

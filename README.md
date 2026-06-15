@@ -54,10 +54,10 @@ C++ ships as a single header plus a prebuilt library — see the [C++ guide](sdk
 ```python
 from thetadatadx import Client, Credentials, Config
 
-tdx = Client(Credentials.from_file("creds.txt"), Config.production())
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
+greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -96,7 +96,7 @@ def on_event(event):
 
 spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
 
-with tdx.streaming(on_event) as session:
+with client.streaming(on_event) as session:
     session.subscribe_many([spy_call.quote(), spy_call.trade(), spy_call.market_value()])
     time.sleep(60)   # park the main thread while events flow into on_event
 ```
@@ -173,9 +173,10 @@ use thetadatadx::{Client, Credentials, DirectConfig};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
-    let greeks = tdx
+    let greeks = client
+        .historical()
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
 
@@ -209,7 +210,7 @@ contracts with the fluent `Contract` API, or take a whole-market feed — every
 option trade across the universe, no per-contract setup:
 
 ```python
-with tdx.streaming(on_event) as session:
+with client.streaming(on_event) as session:
     session.subscribe(SecType.OPTION.full_trades())
     time.sleep(60)   # the callback runs on the streaming thread — keep it fast
 ```

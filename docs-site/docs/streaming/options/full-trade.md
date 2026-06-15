@@ -20,17 +20,17 @@ use thetadatadx::fpss::protocol::SecTypeExt;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
-tdx.stream().start_streaming(|event: &StreamEvent| {
+client.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
         println!("{} price={price} size={size}", contract.symbol);
     }
 })?;
 
 let sub = SecType::Option.full_trades();
-tdx.stream().subscribe(sub.clone())?;
+client.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.stream().unsubscribe(sub)?;
+client.stream().unsubscribe(sub)?;
 ```
 
 </template>
@@ -44,13 +44,13 @@ def on_event(event):
     if event.kind == "trade":
         print(event.contract.symbol, event.price, event.size)
 
-tdx.stream.start_streaming(on_event)
+client.stream.start_streaming(on_event)
 
 sub = SecType.OPTION.full_trades()
-tdx.stream.subscribe(sub)
+client.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
-tdx.stream.unsubscribe(sub)
+client.stream.unsubscribe(sub)
 ```
 
 </template>
@@ -60,7 +60,7 @@ tdx.stream.unsubscribe(sub)
 ```typescript
 import { SecType } from 'thetadatadx';
 
-tdx.stream.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'trade') {
     const e = event.trade!;
     console.log(e.contract.symbol, e.price, e.size);
@@ -68,10 +68,10 @@ tdx.stream.startStreaming((event) => {
 });
 
 const sub = SecType.option().fullTrades();
-tdx.stream.subscribe(sub);
+client.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.stream.unsubscribe(sub);
+client.stream.unsubscribe(sub);
 ```
 
 </template>

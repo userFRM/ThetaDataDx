@@ -1744,7 +1744,7 @@ struct UnifiedDeleter {
 };
 
 /// Full-stream subscription descriptor returned by
-/// `Client::active_full_subscriptions`. `sec_type` carries the
+/// `Stream::active_full_subscriptions`. `sec_type` carries the
 /// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
 /// full-stream subscription is bound to; `kind` is the snake_case
 /// full-stream kind label (`"full_trades"` / `"full_open_interest"`),
@@ -1992,6 +1992,41 @@ public:
         return out;
     }
 
+    /// Cumulative count of user-callback failures contained by the
+    /// per-invocation isolation boundary since the current stream started.
+    /// If the callback aborts on a given event, the failure is contained,
+    /// recorded here, and does not stop event delivery — the next event
+    /// continues normally. Returns 0 when no callback has been installed
+    /// yet. Safe to call from any thread without blocking. Mirrors the
+    /// Python / TypeScript `client.stream.panic_count` placement.
+    uint64_t panic_count() const {
+        return handle_ ? tdx_client_panic_count(handle_) : 0;
+    }
+
+    /// Snapshot the currently-active full-stream subscriptions (the entire
+    /// universe for a given sec_type + kind, not bound to a single
+    /// contract). Throws on FFI error. Mirrors the Python / TypeScript
+    /// `client.stream.active_full_subscriptions` placement.
+    std::vector<FullSubscription> active_full_subscriptions() const {
+        TdxSubscriptionArray* arr = tdx_client_active_full_subscriptions(handle_);
+        if (arr == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        std::vector<FullSubscription> out;
+        if (arr->data != nullptr && arr->len > 0) {
+            out.reserve(arr->len);
+            for (size_t i = 0; i < arr->len; ++i) {
+                const TdxSubscription& s = arr->data[i];
+                out.push_back(FullSubscription{
+                    s.kind ? std::string(s.kind) : std::string(),
+                    s.contract ? std::string(s.contract) : std::string(),
+                });
+            }
+        }
+        tdx_subscription_array_free(arr);
+        return out;
+    }
+
 private:
     friend class Client;
     Stream(const TdxClient* h,
@@ -2122,41 +2157,6 @@ public:
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const TdxClient* get() const noexcept { return handle_.get(); }
-
-    /// Cumulative count of user-callback failures contained by the
-    /// per-invocation isolation boundary since the current stream started.
-    /// If the callback aborts on a given event, the failure is contained,
-    /// recorded here, and does not stop event delivery — the next event
-    /// continues normally. Returns 0 when no callback has been installed
-    /// yet. Safe to call from any thread without blocking. Mirrors the
-    /// Python / TypeScript `Client.panic_count` placement.
-    uint64_t panic_count() const {
-        return handle_ ? tdx_client_panic_count(handle_.get()) : 0;
-    }
-
-    /// Snapshot the currently-active full-stream subscriptions (the entire
-    /// universe for a given sec_type + kind, not bound to a single
-    /// contract). Throws on FFI error. Mirrors the Python / TypeScript
-    /// `Client.active_full_subscriptions` placement.
-    std::vector<FullSubscription> active_full_subscriptions() const {
-        TdxSubscriptionArray* arr = tdx_client_active_full_subscriptions(handle_.get());
-        if (arr == nullptr) {
-            detail::throw_last_ffi_error();
-        }
-        std::vector<FullSubscription> out;
-        if (arr->data != nullptr && arr->len > 0) {
-            out.reserve(arr->len);
-            for (size_t i = 0; i < arr->len; ++i) {
-                const TdxSubscription& s = arr->data[i];
-                out.push_back(FullSubscription{
-                    s.kind ? std::string(s.kind) : std::string(),
-                    s.contract ? std::string(s.contract) : std::string(),
-                });
-            }
-        }
-        tdx_subscription_array_free(arr);
-        return out;
-    }
 
 private:
     explicit Client(TdxClient* h) : handle_(h) {}

@@ -35,7 +35,7 @@ Execute with `.await` → `Result<Vec<InterestRateTick>, Error>`, or decode chun
 **Example**
 
 ```rust
-let rows = tdx.historical().interest_rate_history_eod("SOFR", "20250303", "20250306").await?;
+let rows = client.historical().interest_rate_history_eod("SOFR", "20250303", "20250306").await?;
 for t in &rows {
     println!("date={} rate={}", t.date, t.rate);
 }
@@ -58,7 +58,7 @@ Client.historical.interest_rate_history_eod(
 **Example**
 
 ```python
-rows = tdx.historical.interest_rate_history_eod("SOFR", "20250303", "20250306")
+rows = client.historical.interest_rate_history_eod("SOFR", "20250303", "20250306")
 for t in rows:
     print(t.date, t.rate)
 ```
@@ -79,7 +79,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.historical.interestRateHistoryEOD('SOFR', '20250303', '20250306');
+const rows = await client.historical.interestRateHistoryEOD('SOFR', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.rate);
 }

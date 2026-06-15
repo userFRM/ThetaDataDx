@@ -16,7 +16,7 @@ from thetadatadx import Config, Contract, Credentials, Client
 WATCHLIST = ["AAPL", "MSFT", "NVDA", "SPY", "TSLA"]
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
 last_quote = {}
 trade_count = defaultdict(int)
@@ -27,8 +27,8 @@ def on_event(event):
     elif event.kind == "trade":
         trade_count[event.contract.symbol] += 1
 
-with tdx.streaming(on_event):
-    tdx.stream.subscribe_many(
+with client.streaming(on_event):
+    client.stream.subscribe_many(
         [Contract.stock(s).quote() for s in WATCHLIST]
         + [Contract.stock(s).trade() for s in WATCHLIST]
     )
@@ -38,7 +38,7 @@ with tdx.streaming(on_event):
         for sym in WATCHLIST:
             bid, ask = last_quote.get(sym, (None, None))
             print(f"{sym:6} bid={bid} ask={ask} trades={trade_count[sym]}")
-        print("dropped:", tdx.stream.dropped_event_count())
+        print("dropped:", client.stream.dropped_event_count())
 ```
 
 Keep the callback to dictionary writes and counters — heavy work belongs on another thread feeding from these structures. `dropped_event_count()` staying at zero is the proof your callback keeps up; see [Reconnection & Monitoring](/streaming/reliability).

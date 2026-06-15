@@ -137,9 +137,9 @@ pub enum ConnectionStatus {
 ///
 /// The data surfaces are sub-namespace accessors:
 /// `client.historical().<query>(..)` exposes the same method set as the
-/// standalone [`HistoricalClient`]; `client.stream().<op>(..)` exposes
-/// the streaming lifecycle. The FLATFILES bulk-download methods stay on
-/// the client directly.
+/// standalone historical client; `client.stream().<op>(..)` exposes the
+/// streaming lifecycle. The FLATFILES bulk-download methods stay on the
+/// client directly.
 pub struct Client {
     historical: HistoricalClient,
     creds: Credentials,
@@ -1492,7 +1492,7 @@ impl Client {
     ///
     /// Borrowed view over the unified client's already-open MDDS
     /// channel. Exposes the exact same method set as the standalone
-    /// [`HistoricalClient`], so `client.historical().stock_history_eod(..)`
+    /// historical client, so `client.historical().stock_history_eod(..)`
     /// and a standalone `HistoricalClient::stock_history_eod(..)` are one
     /// surface.
     ///

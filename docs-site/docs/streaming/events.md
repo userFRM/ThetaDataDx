@@ -16,7 +16,7 @@ Every streaming update reaches your callback as one typed event. There are four 
 ```rust
 use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};
 
-tdx.stream().start_streaming(|event: &StreamEvent| {
+client.stream().start_streaming(|event: &StreamEvent| {
     match event {
         StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) => {
             println!("{} bid={bid} ask={ask}", contract.symbol);
@@ -46,7 +46,7 @@ def on_event(event):
     elif event.kind == "disconnected":
         print("disconnected; automatic reconnect underway")
 
-tdx.stream.start_streaming(on_event)
+client.stream.start_streaming(on_event)
 ```
 
 `match event: case Quote(): ...` works too — the event classes (`Quote`, `Trade`, `OpenInterest`, `Ohlcvc`, …) are importable from `thetadatadx`.
@@ -56,7 +56,7 @@ tdx.stream.start_streaming(on_event)
 <template #typescript>
 
 ```typescript
-tdx.stream.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   switch (event.kind) {
     case 'quote': {
       const q = event.quote!;

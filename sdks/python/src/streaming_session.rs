@@ -1,7 +1,7 @@
 //! Hand-written Python context manager that mirrors the C++ RAII
 //! lifecycle for FPSS streaming.
 //!
-//! `with tdx.streaming(callback) as session:` enters by calling
+//! `with client.streaming(callback) as session:` enters by calling
 //! `start_streaming(callback)` and exits by calling `stop_streaming()`
 //! followed by `await_drain(5_000)`. The drain barrier matches the
 //! C ABI / C++ wrapper contract: by the time control returns to the
@@ -193,9 +193,9 @@ impl StreamingSession {
         // The unified client's subscription / diagnostic surface moved onto
         // the `client.stream` `StreamView`, so the `Tdx` session arm resolves
         // a name there first (e.g. `session.subscribe(...)`,
-        // `session.active_subscriptions`) before falling back to the methods
-        // that stay on `Client` (`session_uuid`, `subscription_info`,
-        // `active_full_subscriptions`, `panic_count`). The standalone
+        // `session.active_subscriptions`, `session.active_full_subscriptions`,
+        // `session.panic_count`) before falling back to the methods that stay
+        // on `Client` (`session_uuid`, `subscription_info`). The standalone
         // `StreamingClient` arm keeps its flat surface and has no `stream`
         // accessor, so the fallback path handles it unchanged.
         if let Ok(stream) = bound.getattr("stream") {
@@ -217,7 +217,7 @@ impl StreamingSession {
 impl crate::Client {
     /// Open a context-managed streaming session.
     ///
-    /// `with tdx.streaming(callback) as session:` registers `callback`
+    /// `with client.streaming(callback) as session:` registers `callback`
     /// via `start_streaming` on enter and pairs `stop_streaming()` +
     /// `await_drain(5_000)` on exit, mirroring the C++ RAII destructor
     /// in `sdks/cpp/src/thetadx.cpp`. Subscription methods on the bound
@@ -242,54 +242,6 @@ impl crate::Client {
                 callback: Some(callback),
             },
         )
-    }
-
-    /// Snapshot of full-stream subscriptions (e.g.
-    /// `SecType.OPTION.full_trades()`).
-    ///
-    /// Returns the same typed `Subscription` values the caller passes
-    /// to `subscribe()`. Quote is never a valid full-stream kind on
-    /// the FPSS wire, so any such row from the core is dropped from
-    /// the projection. Empty list when streaming has not started.
-    ///
-    /// Mirrors the cross-binding contract on the C++
-    /// `UnifiedClient::active_full_subscriptions` (see
-    /// `sdks/cpp/include/thetadx.hpp`) and the standalone
-    /// [`crate::fpss_client::StreamingClient::active_full_subscriptions`].
-    fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
-        use crate::errors::to_py_err;
-        use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-        self.tdx
-            .stream()
-            .active_full_subscriptions()
-            .map(|subs| {
-                subs.into_iter()
-                    .filter_map(|(kind, sec_type)| {
-                        let full_kind = match kind {
-                            SubscriptionKind::Trade => FullSubscriptionKind::Trades,
-                            SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
-                            SubscriptionKind::Quote => return None,
-                            _ => return None,
-                        };
-                        Some(crate::fluent::PySubscription {
-                            inner: thetadatadx::fpss::protocol::Subscription::Full {
-                                sec_type,
-                                kind: full_kind,
-                            },
-                        })
-                    })
-                    .collect()
-            })
-            .map_err(to_py_err)
-    }
-
-    /// Cumulative count of user-callback panics caught by the
-    /// Disruptor consumer's `catch_unwind` boundary. Mirrors the
-    /// `panic_count()` getter on the standalone
-    /// [`crate::fpss_client::StreamingClient`] and the upstream
-    /// [`thetadatadx::Client::panic_count`].
-    fn panic_count(&self) -> u64 {
-        self.tdx.stream().panic_count()
     }
 
     /// Current MDDS session UUID. Reads through the shared session

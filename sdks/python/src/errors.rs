@@ -7,7 +7,7 @@
 //!
 //! ```python
 //! try:
-//!     tdx.stock_history_eod("AAPL", "20240101", "20240301")
+//!     client.historical.stock_history_eod("AAPL", "20240101", "20240301")
 //! except thetadatadx.InvalidCredentialsError:
 //!     refresh_session()
 //! except thetadatadx.RateLimitError:

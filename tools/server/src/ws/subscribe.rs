@@ -312,12 +312,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         }
     };
 
-    let tdx = state.tdx();
-    if tdx.is_streaming() {
+    let stream = state.tdx().stream();
+    if stream.is_streaming() {
         let result = if is_add {
-            tdx.subscribe_many(subscriptions)
+            stream.subscribe_many(subscriptions)
         } else {
-            tdx.unsubscribe_many(subscriptions)
+            stream.unsubscribe_many(subscriptions)
         };
 
         let resp = match result {

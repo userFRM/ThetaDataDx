@@ -261,7 +261,7 @@ impl AppState {
 
     /// Signal graceful server shutdown. Stops FPSS streaming if active.
     pub fn shutdown(&self) {
-        self.inner.tdx.stop_streaming();
+        self.inner.tdx.stream().stop_streaming();
         self.inner.shutdown.notify_waiters();
     }
 

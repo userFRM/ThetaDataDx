@@ -24,10 +24,10 @@ That means the idiomatic pattern is simply to launch your whole batch:
 import asyncio
 from thetadatadx import AsyncClient
 
-tdx = AsyncClient.from_file("creds.txt")
+client = AsyncClient.from_file("creds.txt")
 
 async def pull(day):
-    return await tdx.historical.stock_history_trade_async("AAPL", day)
+    return await client.historical.stock_history_trade_async("AAPL", day)
 
 results = asyncio.run(asyncio.gather(*(pull(d) for d in days)))
 ```

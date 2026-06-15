@@ -311,7 +311,7 @@ fn rust_tab(spec: &StreamSpec) -> String {
         other => panic!("no Rust callback template for event {other}"),
     };
     format!(
-        "```rust\n{imports}\n\ntdx.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;\n\nlet sub = {};\ntdx.stream().subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\ntdx.stream().unsubscribe(sub)?;\n```\n",
+        "```rust\n{imports}\n\nclient.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;\n\nlet sub = {};\nclient.stream().subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub)?;\n```\n",
         spec.rust_sub
     )
 }
@@ -338,7 +338,7 @@ fn python_tab(spec: &StreamSpec) -> String {
         other => panic!("no Python callback template for event {other}"),
     };
     format!(
-        "```python\n{import}\n\ndef on_event(event):\n    if event.kind == \"{kind}\":\n        {print}\n\ntdx.stream.start_streaming(on_event)\n\nsub = {}\ntdx.stream.subscribe(sub)\n\n# Remove this stream; the session stays open for other subscriptions.\ntdx.stream.unsubscribe(sub)\n```\n",
+        "```python\n{import}\n\ndef on_event(event):\n    if event.kind == \"{kind}\":\n        {print}\n\nclient.stream.start_streaming(on_event)\n\nsub = {}\nclient.stream.subscribe(sub)\n\n# Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub)\n```\n",
         spec.python_sub
     )
 }
@@ -368,7 +368,7 @@ fn typescript_tab(spec: &StreamSpec) -> String {
         other => panic!("no TypeScript callback template for event {other}"),
     };
     format!(
-        "```typescript\n{import}\n\ntdx.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});\n\nconst sub = {};\ntdx.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\ntdx.stream.unsubscribe(sub);\n```\n",
+        "```typescript\n{import}\n\nclient.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
         spec.ts_sub
     )
 }

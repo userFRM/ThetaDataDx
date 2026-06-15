@@ -49,13 +49,19 @@ class TestPanicCountApiSurface:
             "StreamingClient.panic_count must be callable"
         )
 
-    def test_panic_count_present_on_unified_client(self) -> None:
-        """Client.panic_count() must exist and be callable."""
-        assert hasattr(tdx.Client, "panic_count"), (
-            "Client must expose panic_count()"
+    def test_panic_count_present_on_stream_view(self) -> None:
+        """panic_count() lives on the `client.stream` StreamView, not on the
+        unified Client directly: every streaming diagnostic is reached through
+        the stream sub-namespace."""
+        assert hasattr(tdx.StreamView, "panic_count"), (
+            "StreamView must expose panic_count()"
         )
-        assert callable(getattr(tdx.Client, "panic_count")), (
-            "Client.panic_count must be callable"
+        assert callable(getattr(tdx.StreamView, "panic_count")), (
+            "StreamView.panic_count must be callable"
+        )
+        assert not hasattr(tdx.Client, "panic_count"), (
+            "panic_count() must NOT be on the unified Client; it lives on "
+            "client.stream (StreamView)"
         )
 
     def test_panic_count_api_surface_smoke(self) -> None:

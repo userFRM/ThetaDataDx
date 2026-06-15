@@ -89,11 +89,14 @@ TEST_CASE("Stream binds the full FPSS surface",
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SV&>().active_subscriptions()),
         std::vector<thetadatadx::Subscription>>);
-    // active_full_subscriptions() stays on the unified `Client` (mirrors
-    // the Python / TypeScript placement) -> std::vector<FullSubscription>
+    // active_full_subscriptions() lives on the `client.stream()` view
+    // (mirrors the Python / TypeScript placement) -> std::vector<FullSubscription>
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const thetadatadx::Client&>().active_full_subscriptions()),
+        decltype(std::declval<const SV&>().active_full_subscriptions()),
         std::vector<thetadatadx::FullSubscription>>);
+    // panic_count() lives on the `client.stream()` view -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SV&>().panic_count()), uint64_t>);
 }
 
 TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
@@ -126,14 +129,16 @@ TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     std::this_thread::sleep_for(std::chrono::seconds(1));
     REQUIRE(stream.is_streaming());
 
-    // active_subscriptions reflects the subscribe call.
+    // active_subscriptions reflects the subscribe call. `contract` is the
+    // canonical contract Display (root + sec_type), so a stock subscription
+    // renders as "SPY STOCK".
     const auto subs = stream.active_subscriptions();
     REQUIRE(subs.size() == 1);
-    REQUIRE(subs.front().contract == "SPY");
+    REQUIRE(subs.front().contract == "SPY STOCK");
 
     // active_full_subscriptions starts empty (we did not full-subscribe).
-    // It stays on the unified `Client`, mirroring Python / TypeScript.
-    REQUIRE(client.active_full_subscriptions().empty());
+    // It lives on the `client.stream()` view, mirroring Python / TypeScript.
+    REQUIRE(stream.active_full_subscriptions().empty());
 
     // Reconnect exercises the C ABI reconnect path + the wrapper's
     // saved-subscription re-registration.

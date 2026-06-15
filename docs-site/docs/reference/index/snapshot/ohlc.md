@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.min_time(&str)`. Execute with `.awai
 **Example**
 
 ```rust
-let rows = tdx.historical().index_snapshot_ohlc(&["SPX"]).await?;
+let rows = client.historical().index_snapshot_ohlc(&["SPX"]).await?;
 for t in &rows {
     println!("date={} open={} high={} low={} close={}", t.date, t.open, t.high, t.low, t.close);
 }
@@ -50,7 +50,7 @@ Client.historical.index_snapshot_ohlc(
 **Example**
 
 ```python
-rows = tdx.historical.index_snapshot_ohlc(["SPX"])
+rows = client.historical.index_snapshot_ohlc(["SPX"])
 for t in rows:
     print(t.date, t.open, t.high, t.low, t.close)
 ```
@@ -68,7 +68,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = await tdx.historical.indexSnapshotOHLC(['SPX']);
+const rows = await client.historical.indexSnapshotOHLC(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }

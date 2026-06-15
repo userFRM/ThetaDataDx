@@ -46,10 +46,10 @@ use thetadatadx::{Client, Credentials, DirectConfig};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     // EOD Greeks for a SPY option chain across Q1 2024.
-    let chain = tdx
+    let chain = client
         .historical()
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
@@ -88,7 +88,7 @@ fn format_contract(contract: &Contract) -> String {
     label
 }
 
-tdx.stream().start_streaming(|event: &StreamEvent| {
+client.stream().start_streaming(|event: &StreamEvent| {
     match event {
         StreamEvent::Data(StreamData::Trade {
             contract,
@@ -125,14 +125,14 @@ tdx.stream().start_streaming(|event: &StreamEvent| {
     }
 })?;
 
-tdx.stream().subscribe(Contract::stock("AAPL").quote())?;
-tdx.stream().subscribe(
+client.stream().subscribe(Contract::stock("AAPL").quote())?;
+client.stream().subscribe(
     Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?
         .trade(),
 )?;
 
 // Or a whole-market feed — every option trade across the universe.
-tdx.stream().subscribe(SecType::Option.full_trades())?;
+client.stream().subscribe(SecType::Option.full_trades())?;
 ```
 
 On an involuntary disconnect the client recovers on its own — exponential backoff with jitter, host failover, then a paced re-subscribe of every active contract.
@@ -186,7 +186,7 @@ A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver 
 With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface — zero-copy, no row-by-row iteration:
 
 ```rust
-let df = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
+let df = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
 ```
 
 ## Errors

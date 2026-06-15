@@ -29,7 +29,7 @@ Execute with `.await` → `Result<Vec<CalendarDay>, Error>`, or decode chunk-by-
 **Example**
 
 ```rust
-let rows = tdx.historical().calendar_year("2025").await?;
+let rows = client.historical().calendar_year("2025").await?;
 for t in &rows {
     println!("date={} is_open={} status={}", t.date, t.is_open, t.status);
 }
@@ -48,7 +48,7 @@ Client.historical.calendar_year(year, *, timeout_ms=None) -> list[CalendarDay]
 **Example**
 
 ```python
-rows = tdx.historical.calendar_year("2025")
+rows = client.historical.calendar_year("2025")
 for t in rows:
     print(t.date, t.is_open, t.status)
 ```
@@ -66,7 +66,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.historical.calendarYear('2025');
+const rows = await client.historical.calendarYear('2025');
 for (const t of rows) {
   console.log(t.date, t.isOpen, t.status);
 }

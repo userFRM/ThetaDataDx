@@ -19,17 +19,17 @@ The snippets below assume a connected client with streaming started — see [Get
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 
-tdx.stream().start_streaming(|event: &StreamEvent| {
+client.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. }) = event {
         println!("{} oi={open_interest}", contract.symbol);
     }
 })?;
 
 let sub = Contract::option("SPY", OptionLeg { expiration: "20260618", strike: "570", right: "C" })?.open_interest();
-tdx.stream().subscribe(sub.clone())?;
+client.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.stream().unsubscribe(sub)?;
+client.stream().unsubscribe(sub)?;
 ```
 
 </template>
@@ -43,13 +43,13 @@ def on_event(event):
     if event.kind == "open_interest":
         print(event.contract.symbol, event.open_interest)
 
-tdx.stream.start_streaming(on_event)
+client.stream.start_streaming(on_event)
 
 sub = Contract.option("SPY", expiration="20260618", strike="570", right="C").open_interest()
-tdx.stream.subscribe(sub)
+client.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
-tdx.stream.unsubscribe(sub)
+client.stream.unsubscribe(sub)
 ```
 
 </template>
@@ -59,7 +59,7 @@ tdx.stream.unsubscribe(sub)
 ```typescript
 import { Contract } from 'thetadatadx';
 
-tdx.stream.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'open_interest') {
     const e = event.openInterest!;
     console.log(e.contract.symbol, e.openInterest);
@@ -67,10 +67,10 @@ tdx.stream.startStreaming((event) => {
 });
 
 const sub = Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).openInterest();
-tdx.stream.subscribe(sub);
+client.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.stream.unsubscribe(sub);
+client.stream.unsubscribe(sub);
 ```
 
 </template>
