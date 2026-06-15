@@ -92,10 +92,10 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // Update connection status.
             match event {
                 StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {
-                    state_for_cb.set_fpss_connected(true);
+                    state_for_cb.set_streaming_connected(true);
                 }
                 StreamEvent::Control(StreamControl::Disconnected { .. }) => {
-                    state_for_cb.set_fpss_connected(false);
+                    state_for_cb.set_streaming_connected(false);
                 }
                 _ => {}
             }
@@ -137,7 +137,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             }
         })?;
 
-    state.set_fpss_connected(true);
+    state.set_streaming_connected(true);
     Ok(())
 }
 

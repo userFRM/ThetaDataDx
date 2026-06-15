@@ -24,7 +24,7 @@ cfg.flush_mode = "immediate"
 client = Client(creds, cfg)
 ```
 
-In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.fpss.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
+In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.streaming.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
 
 ## The knobs that matter
 
@@ -34,7 +34,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient historical-request faults. |
 | Concurrency | `concurrent_requests` | Parallel historical requests; auto-set from your tier. See [Concurrent Requests](/articles/concurrent-requests). |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
-| Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `fpss_ring_size`, `fpss_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
+| Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
 | Observability | `metrics_port` | Optional local Prometheus exporter port (off by default). |
 | Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |

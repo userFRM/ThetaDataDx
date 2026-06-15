@@ -601,7 +601,7 @@ private:
 
 /// RAII holder for a client configuration handle (`ThetaDataDxConfig*`), freed
 /// automatically on destruction. Built from a named preset (`production` /
-/// `dev` / `stage`) and tuned through the reconnect, FPSS, retry, MDDS, and
+/// `dev` / `stage`) and tuned through the reconnect, streaming, retry, historical, and
 /// metrics setters below.
 class Config {
 public:
@@ -609,17 +609,17 @@ public:
      *  @return An owning `Config` holder seeded with production defaults. */
     static Config production();
 
-    /** Build the dev FPSS configuration (port 20200, infinite
+    /** Build the dev streaming configuration (port 20200, infinite
      *  historical replay).
      *  @return An owning `Config` holder seeded with dev defaults. */
     static Config dev();
 
-    /** Build the stage FPSS configuration (port 20100, testing,
+    /** Build the stage streaming configuration (port 20100, testing,
      *  unstable).
      *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
-    /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. Throws
+    /** Set streaming reconnect policy. 0=Auto (default), 1=Manual. Throws
      *  @c thetadatadx::InvalidParameterError when @p policy is outside the
      *  documented `{0, 1}` set, matching the Python `ValueError` /
      *  TypeScript `InvalidParameterError` rather than silently coercing
@@ -809,158 +809,158 @@ public:
         return thetadatadx_config_set_reconnect_callback(handle_.get(), cb, user_data);
     }
 
-    /** Set the FPSS read timeout (ms): the no-frames deadline after
+    /** Set the streaming read timeout (ms): the no-frames deadline after
      *  which the streaming I/O loop reconnects. Default 3_000;
      *  validated to [100, 60_000] at connect. */
-    void set_fpss_timeout_ms(uint64_t ms) {
-        thetadatadx_config_set_fpss_timeout_ms(handle_.get(), ms);
+    void set_streaming_timeout_ms(uint64_t ms) {
+        thetadatadx_config_set_streaming_timeout_ms(handle_.get(), ms);
     }
 
-    /** Current fpss timeout_ms (default 3_000). */
-    uint64_t get_fpss_timeout_ms() const {
+    /** Current streaming timeout_ms (default 3_000). */
+    uint64_t get_streaming_timeout_ms() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_timeout_ms(handle_.get(), &out);
+        thetadatadx_config_get_streaming_timeout_ms(handle_.get(), &out);
         return out;
     }
 
     /** Set the per-server connect timeout (ms) for the streaming
      *  connection. Default 2_000; validated to [1_000, 60_000] at
      *  connect. */
-    void set_fpss_connect_timeout_ms(uint64_t ms) {
-        thetadatadx_config_set_fpss_connect_timeout_ms(handle_.get(), ms);
+    void set_streaming_connect_timeout_ms(uint64_t ms) {
+        thetadatadx_config_set_streaming_connect_timeout_ms(handle_.get(), ms);
     }
 
-    /** Current fpss connect_timeout_ms (default 2_000). */
-    uint64_t get_fpss_connect_timeout_ms() const {
+    /** Current streaming connect_timeout_ms (default 2_000). */
+    uint64_t get_streaming_connect_timeout_ms() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_connect_timeout_ms(handle_.get(), &out);
+        thetadatadx_config_get_streaming_connect_timeout_ms(handle_.get(), &out);
         return out;
     }
 
-    /** Set the FPSS heartbeat ping interval (ms). Default 250;
+    /** Set the streaming heartbeat ping interval (ms). Default 250;
      *  validated to [100, 300_000] at connect. */
-    void set_fpss_ping_interval_ms(uint64_t ms) {
-        thetadatadx_config_set_fpss_ping_interval_ms(handle_.get(), ms);
+    void set_streaming_ping_interval_ms(uint64_t ms) {
+        thetadatadx_config_set_streaming_ping_interval_ms(handle_.get(), ms);
     }
 
-    /** Current fpss ping_interval_ms (default 250). */
-    uint64_t get_fpss_ping_interval_ms() const {
+    /** Current streaming ping_interval_ms (default 250). */
+    uint64_t get_streaming_ping_interval_ms() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_ping_interval_ms(handle_.get(), &out);
+        thetadatadx_config_get_streaming_ping_interval_ms(handle_.get(), &out);
         return out;
     }
 
     /** Set the per-iteration blocking-read slice (ms) for the
      *  streaming I/O loop. Default 25; validated to [10, 500]. */
-    void set_fpss_io_read_slice_ms(uint64_t ms) {
-        thetadatadx_config_set_fpss_io_read_slice_ms(handle_.get(), ms);
+    void set_streaming_io_read_slice_ms(uint64_t ms) {
+        thetadatadx_config_set_streaming_io_read_slice_ms(handle_.get(), ms);
     }
 
-    /** Current fpss io_read_slice_ms (default 25). */
-    uint64_t get_fpss_io_read_slice_ms() const {
+    /** Current streaming io_read_slice_ms (default 25). */
+    uint64_t get_streaming_io_read_slice_ms() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_io_read_slice_ms(handle_.get(), &out);
+        thetadatadx_config_get_streaming_io_read_slice_ms(handle_.get(), &out);
         return out;
     }
 
     /** Set the last-frame watchdog (ms); 0 disables. Default 30_000. */
-    void set_fpss_data_watchdog_ms(uint64_t ms) {
-        thetadatadx_config_set_fpss_data_watchdog_ms(handle_.get(), ms);
+    void set_streaming_data_watchdog_ms(uint64_t ms) {
+        thetadatadx_config_set_streaming_data_watchdog_ms(handle_.get(), ms);
     }
 
-    /** Current fpss data_watchdog_ms (default 30_000; 0 = disabled). */
-    uint64_t get_fpss_data_watchdog_ms() const {
+    /** Current streaming data_watchdog_ms (default 30_000; 0 = disabled). */
+    uint64_t get_streaming_data_watchdog_ms() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_data_watchdog_ms(handle_.get(), &out);
+        thetadatadx_config_get_streaming_data_watchdog_ms(handle_.get(), &out);
         return out;
     }
 
     /** Set the TCP keepalive idle time (seconds). Default 5; validated
      *  to [1, 7_200] at connect. */
-    void set_fpss_keepalive_idle_secs(uint64_t secs) {
-        thetadatadx_config_set_fpss_keepalive_idle_secs(handle_.get(), secs);
+    void set_streaming_keepalive_idle_secs(uint64_t secs) {
+        thetadatadx_config_set_streaming_keepalive_idle_secs(handle_.get(), secs);
     }
 
-    /** Current fpss keepalive_idle_secs (default 5). */
-    uint64_t get_fpss_keepalive_idle_secs() const {
+    /** Current streaming keepalive_idle_secs (default 5). */
+    uint64_t get_streaming_keepalive_idle_secs() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_keepalive_idle_secs(handle_.get(), &out);
+        thetadatadx_config_get_streaming_keepalive_idle_secs(handle_.get(), &out);
         return out;
     }
 
     /** Set the TCP keepalive probe interval (seconds). Default 2;
      *  validated to [1, 75] at connect. */
-    void set_fpss_keepalive_interval_secs(uint64_t secs) {
-        thetadatadx_config_set_fpss_keepalive_interval_secs(handle_.get(), secs);
+    void set_streaming_keepalive_interval_secs(uint64_t secs) {
+        thetadatadx_config_set_streaming_keepalive_interval_secs(handle_.get(), secs);
     }
 
-    /** Current fpss keepalive_interval_secs (default 2). */
-    uint64_t get_fpss_keepalive_interval_secs() const {
+    /** Current streaming keepalive_interval_secs (default 2). */
+    uint64_t get_streaming_keepalive_interval_secs() const {
         uint64_t out{};
-        thetadatadx_config_get_fpss_keepalive_interval_secs(handle_.get(), &out);
+        thetadatadx_config_get_streaming_keepalive_interval_secs(handle_.get(), &out);
         return out;
     }
 
     /** Set the TCP keepalive probe count before the kernel declares
      *  the peer dead. Default 2; validated to [1, 10] at connect. */
-    void set_fpss_keepalive_retries(uint32_t n) {
-        thetadatadx_config_set_fpss_keepalive_retries(handle_.get(), n);
+    void set_streaming_keepalive_retries(uint32_t n) {
+        thetadatadx_config_set_streaming_keepalive_retries(handle_.get(), n);
     }
 
-    /** Current fpss keepalive_retries (default 2). */
-    uint32_t get_fpss_keepalive_retries() const {
+    /** Current streaming keepalive_retries (default 2). */
+    uint32_t get_streaming_keepalive_retries() const {
         uint32_t out{};
-        thetadatadx_config_get_fpss_keepalive_retries(handle_.get(), &out);
+        thetadatadx_config_get_streaming_keepalive_retries(handle_.get(), &out);
         return out;
     }
 
-    /** Set the FPSS event ring size (slots). Must be a power of two
+    /** Set the streaming event ring size (slots). Must be a power of two
      *  >= 64; invalid values are rejected (thetadatadx_last_error). Default
      *  131_072. */
-    void set_fpss_ring_size(size_t n) {
-        thetadatadx_config_set_fpss_ring_size(handle_.get(), n);
+    void set_streaming_ring_size(size_t n) {
+        thetadatadx_config_set_streaming_ring_size(handle_.get(), n);
     }
 
-    /** Current fpss ring_size (default 131_072). */
-    size_t get_fpss_ring_size() const {
+    /** Current streaming ring_size (default 131_072). */
+    size_t get_streaming_ring_size() const {
         size_t out{};
-        thetadatadx_config_get_fpss_ring_size(handle_.get(), &out);
+        thetadatadx_config_get_streaming_ring_size(handle_.get(), &out);
         return out;
     }
 
-    /** Set the FPSS host-selection policy: 0=Shuffled (default),
+    /** Set the streaming host-selection policy: 0=Shuffled (default),
      *  1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
      *  out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
      *  handle), routing through the typed leaf the FFI error code
      *  selects. */
-    void set_fpss_host_selection(int32_t policy) {
-        if (thetadatadx_config_set_fpss_host_selection(handle_.get(), policy) != 0) {
+    void set_streaming_host_selection(int32_t policy) {
+        if (thetadatadx_config_set_streaming_host_selection(handle_.get(), policy) != 0) {
             detail::throw_last_ffi_error();
         }
     }
 
-    /** Current FPSS host-selection policy (same encoding as the
+    /** Current streaming host-selection policy (same encoding as the
      *  setter). */
-    int32_t get_fpss_host_selection() const {
+    int32_t get_streaming_host_selection() const {
         int32_t out{};
-        thetadatadx_config_get_fpss_host_selection(handle_.get(), &out);
+        thetadatadx_config_get_streaming_host_selection(handle_.get(), &out);
         return out;
     }
 
-    /** Set the FPSS host-shuffle seed using the (has_value, seed)
+    /** Set the streaming host-shuffle seed using the (has_value, seed)
      *  shape. has_value=false derives a fresh per-client seed;
      *  has_value=true makes the shuffled order deterministic. */
-    int32_t set_fpss_host_shuffle_seed(bool has_value, uint64_t seed) {
-        return thetadatadx_config_set_fpss_host_shuffle_seed(handle_.get(), has_value, seed);
+    int32_t set_streaming_host_shuffle_seed(bool has_value, uint64_t seed) {
+        return thetadatadx_config_set_streaming_host_shuffle_seed(handle_.get(), has_value, seed);
     }
 
-    /** Read the FPSS host-shuffle seed back. Returns @c std::nullopt for
+    /** Read the streaming host-shuffle seed back. Returns @c std::nullopt for
      *  the per-client-entropy sentinel (no pinned seed); returns the
      *  wrapped seed when the shuffled order is deterministic. */
-    std::optional<uint64_t> get_fpss_host_shuffle_seed() const {
+    std::optional<uint64_t> get_streaming_host_shuffle_seed() const {
         bool has_value = false;
         uint64_t seed = 0;
-        thetadatadx_config_get_fpss_host_shuffle_seed(handle_.get(), &has_value, &seed);
+        thetadatadx_config_get_streaming_host_shuffle_seed(handle_.get(), &has_value, &seed);
         return has_value ? std::optional<uint64_t>{seed} : std::nullopt;
     }
 
@@ -1013,7 +1013,7 @@ public:
 
     // ── RetryPolicy field setters/getters ──
 
-    /** Initial backoff delay (ms) for the MDDS retry policy. Default 250. */
+    /** Initial backoff delay (ms) for the historical retry policy. Default 250. */
     void set_retry_initial_delay_ms(uint64_t ms) {
         thetadatadx_config_set_retry_initial_delay_ms(handle_.get(), ms);
     }
@@ -1169,7 +1169,7 @@ public:
         return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
     }
 
-    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. Throws
+    /** Set streaming flush mode. 0=Batched (default), 1=Immediate. Throws
      *  @c thetadatadx::InvalidParameterError when @p mode is outside the
      *  documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
      *  handle), routing through the typed leaf the FFI error code
@@ -1180,7 +1180,7 @@ public:
         }
     }
 
-    /** Read the current FPSS flush mode. Same encoding as
+    /** Read the current streaming flush mode. Same encoding as
      *  @c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
      *  (Batched) on a null handle (matching the C ABI's `-1` failure
      *  mapping at the boundary). */
@@ -1202,39 +1202,39 @@ public:
         return enabled;
     }
 
-    // ── MDDS endpoint ──
+    // ── Historical endpoint ──
 
-    /** Set the historical (MDDS) gRPC host. Defaults to the upstream
+    /** Set the historical gRPC host. Defaults to the upstream
      *  production endpoint; redirect the historical channel at a known
      *  host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
      *  rejects the value (null handle or non-UTF-8 input). */
-    void set_mdds_host(const std::string& host) {
-        if (thetadatadx_config_set_mdds_host(handle_.get(), host.c_str()) != 0) {
+    void set_historical_host(const std::string& host) {
+        if (thetadatadx_config_set_historical_host(handle_.get(), host.c_str()) != 0) {
             detail::throw_last_ffi_error();
         }
     }
 
-    /** Current historical (MDDS) gRPC host. Returns an empty string if
+    /** Current historical gRPC host. Returns an empty string if
      *  the FFI getter returns null (null handle or interior-NUL value). */
-    std::string get_mdds_host() const {
-        detail::FfiString s(thetadatadx_config_get_mdds_host(handle_.get()));
+    std::string get_historical_host() const {
+        detail::FfiString s(thetadatadx_config_get_historical_host(handle_.get()));
         return s.str();
     }
 
-    /** Set the historical (MDDS) gRPC port. Companion to
-     *  @c set_mdds_host. */
-    void set_mdds_port(std::uint16_t port) {
-        thetadatadx_config_set_mdds_port(handle_.get(), port);
+    /** Set the historical gRPC port. Companion to
+     *  @c set_historical_host. */
+    void set_historical_port(std::uint16_t port) {
+        thetadatadx_config_set_historical_port(handle_.get(), port);
     }
 
-    /** Current historical (MDDS) gRPC port. Returns 0 on a null handle. */
-    std::uint16_t get_mdds_port() const {
+    /** Current historical gRPC port. Returns 0 on a null handle. */
+    std::uint16_t get_historical_port() const {
         std::uint16_t port = 0;
-        thetadatadx_config_get_mdds_port(handle_.get(), &port);
+        thetadatadx_config_get_historical_port(handle_.get(), &port);
         return port;
     }
 
-    // ── MDDS pool sizing ──
+    // ── Historical pool sizing ──
 
     /**
      * Set the number of concurrent in-flight gRPC requests.
@@ -1296,13 +1296,13 @@ private:
 
 // ── HistoricalClient ──
 
-/// RAII wrapper around a historical (MDDS) gRPC client handle
+/// RAII wrapper around a historical gRPC client handle
 /// (`ThetaDataDxHistoricalClient*`), freed automatically on destruction. The recommended
 /// entry point for pure-historical access; the generated historical query
 /// methods are mixed in from `historical.hpp.inc`.
 class HistoricalClient {
 public:
-    /** Connect a historical (MDDS) client to ThetaData servers.
+    /** Connect a historical client to ThetaData servers.
      *  @param creds Authenticated credentials.
      *  @param config Client configuration.
      *  @return A connected, owning `HistoricalClient`.
@@ -1310,7 +1310,7 @@ public:
      *          authentication failure. */
     static HistoricalClient connect(const Credentials& creds, const Config& config);
 
-    /** Connect a historical (MDDS) client, loading credentials from a
+    /** Connect a historical client, loading credentials from a
      *  file. One-call equivalent of `Credentials::from_file(path)`
      *  followed by `connect`.
      *  @param path File whose first line is the email and second line
@@ -1519,7 +1519,7 @@ public:
     }
 
     /** Configured capacity of the streaming event ring in slots (the
-     *  fpss_ring_size setting, a power of two) — the fixed
+     *  streaming_ring_size setting, a power of two) — the fixed
      *  denominator for ring_occupancy(). Returns 0 when no session is
      *  live. Safe to call on a moved-from client. */
     uint64_t ring_capacity() const {
@@ -1931,7 +1931,7 @@ public:
     }
 
     /// Configured capacity of the streaming event ring in slots (the
-    /// fpss_ring_size setting, a power of two) — the fixed denominator for
+    /// streaming_ring_size setting, a power of two) — the fixed denominator for
     /// ring_occupancy(). Returns 0 when no callback has been installed yet.
     uint64_t ring_capacity() const {
         return handle_ ? thetadatadx_client_ring_capacity(handle_) : 0;

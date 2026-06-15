@@ -253,28 +253,28 @@ python = true
 typescript = true
 cpp = true
 
-# ─── MddsConfig cross-binding setters ──────────────────────────────────
+# ─── HistoricalConfig cross-binding setters ────────────────────────────
 #
-# Tuning knobs on the MDDS sub-config exposed across every binding.
+# Tuning knobs on the historical sub-config exposed across every binding.
 # `concurrent_requests` / `warn_on_buffered_threshold_bytes` are bound
 # via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
 # `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
 
 [[class]]
-name = "MddsConfig.concurrent_requests"
+name = "HistoricalConfig.concurrent_requests"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "MddsConfig.warn_on_buffered_threshold_bytes"
+name = "HistoricalConfig.warn_on_buffered_threshold_bytes"
 python = true
 typescript = true
 cpp = true
 
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #
-# FPSS reconnect policy + per-class attempt budgets + stable-window
+# Streaming reconnect policy + per-class attempt budgets + stable-window
 # timer. Bound on every binding: Python via `Config.reconnect_*`
 # setters, TypeScript via `Config.setReconnect*`, C++ via
 # `thetadatadx::Config::set_reconnect_*` (which forwards to the FFI
@@ -470,44 +470,44 @@ python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAt
 typescript = true   # `IndexPriceAtTimeTick` napi class
 cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataDxIndexPriceAtTimeTick`
 
-# ─── Rust-only MDDS / FPSS knobs (Gate 2 tightening / #595) ─────────────
+# ─── Rust-only historical / streaming knobs (Gate 2 tightening / #595) ──
 #
-# Pub fields on `MddsConfig` / `FpssConfig` that the binding sweep has
-# not yet exposed on Python / TypeScript / C++. These are deliberately
-# Rust-only today — embedders that own the runtime can mutate the
-# field directly through the `DirectConfig` struct, but the
+# Pub fields on `HistoricalConfig` / `StreamingConfig` that the binding
+# sweep has not yet exposed on Python / TypeScript / C++. These are
+# deliberately Rust-only today — embedders that own the runtime can
+# mutate the field directly through the `DirectConfig` struct, but the
 # higher-level bindings do not expose a setter. The
 # `rust_only = true` flag + `issue = "#595"` citation discloses the
 # tracked-work status: #595 (the Gate 2 per-field granularity
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
 #
-# Two `MddsConfig` advanced overrides (`mdds_host` / `mdds_port`):
-# point the historical channel at a known host (e.g. a refused endpoint
-# in structural tests that prove the streaming surface never opens it).
-# MDDS is a vendor protocol name, kept verbatim. Exposed on every
-# binding: Python (`Config.mdds_host` / `.mdds_port`), TypeScript
-# (`Config.setMddsHost` / `.setMddsPort`), and C++ (`set_mdds_host` /
-# `set_mdds_port` over the FFI `thetadatadx_config_set_mdds_host` /
-# `thetadatadx_config_set_mdds_port`). The dotted rows below capture the
-# binding state via the `setter = "..."` override.
+# Two `HistoricalConfig` advanced overrides (`historical_host` /
+# `historical_port`): point the historical channel at a known host (e.g.
+# a refused endpoint in structural tests that prove the streaming surface
+# never opens it). Exposed on every binding: Python (`Config.historical_host`
+# / `.historical_port`), TypeScript (`Config.setHistoricalHost` /
+# `.setHistoricalPort`), and C++ (`set_historical_host` /
+# `set_historical_port` over the FFI `thetadatadx_config_set_historical_host` /
+# `thetadatadx_config_set_historical_port`). The dotted rows below capture
+# the binding state via the `setter = "..."` override.
 
 [[class]]
-name = "MddsConfig.host"
-python = true       # `Config.mdds_host` advanced override
-typescript = true   # `Config.setMddsHost` / `mddsHost` napi setter+getter
-cpp = true          # `Config::set_mdds_host` over `thetadatadx_config_set_mdds_host`
-setter = "mdds_host"
+name = "HistoricalConfig.host"
+python = true       # `Config.historical_host` advanced override
+typescript = true   # `Config.setHistoricalHost` / `historicalHost` napi setter+getter
+cpp = true          # `Config::set_historical_host` over `thetadatadx_config_set_historical_host`
+setter = "historical_host"
 
 [[class]]
-name = "MddsConfig.port"
-python = true       # `Config.mdds_port` advanced override
-typescript = true   # `Config.setMddsPort` / `mddsPort` napi setter+getter
-cpp = true          # `Config::set_mdds_port` over `thetadatadx_config_set_mdds_port`
-setter = "mdds_port"
+name = "HistoricalConfig.port"
+python = true       # `Config.historical_port` advanced override
+typescript = true   # `Config.setHistoricalPort` / `historicalPort` napi setter+getter
+cpp = true          # `Config::set_historical_port` over `thetadatadx_config_set_historical_port`
+setter = "historical_port"
 
 [[class]]
-name = "MddsConfig.tls"
+name = "HistoricalConfig.tls"
 python = false
 typescript = false
 cpp = false
@@ -515,7 +515,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.max_message_size"
+name = "HistoricalConfig.max_message_size"
 python = false
 typescript = false
 cpp = false
@@ -523,7 +523,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.keepalive_secs"
+name = "HistoricalConfig.keepalive_secs"
 python = false
 typescript = false
 cpp = false
@@ -531,7 +531,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.keepalive_timeout_secs"
+name = "HistoricalConfig.keepalive_timeout_secs"
 python = false
 typescript = false
 cpp = false
@@ -539,7 +539,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.window_size_kb"
+name = "HistoricalConfig.window_size_kb"
 python = false
 typescript = false
 cpp = false
@@ -547,7 +547,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.connection_window_size_kb"
+name = "HistoricalConfig.connection_window_size_kb"
 python = false
 typescript = false
 cpp = false
@@ -555,7 +555,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.connect_timeout_secs"
+name = "HistoricalConfig.connect_timeout_secs"
 python = false
 typescript = false
 cpp = false
@@ -563,7 +563,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MddsConfig.override_tier_clamp"
+name = "HistoricalConfig.override_tier_clamp"
 python = false
 typescript = false
 cpp = false
@@ -571,102 +571,103 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "FpssConfig.hosts"
+name = "StreamingConfig.hosts"
 python = false
 typescript = false
 cpp = false
 rust_only = true
 issue = "#595"
 
-# FPSS transport knobs are bound on every binding under `fpss_`-prefixed
-# canonical names (Python `Config.fpss_*`, TypeScript `Config.setFpss*`,
-# C++ `set_fpss_*`, FFI `thetadatadx_config_set_fpss_*`). The prefix
-# disambiguates the generic field names (`timeout_ms`, `ring_size`)
-# against sibling sub-configs at the binding surface.
+# Streaming transport knobs are bound on every binding under
+# `streaming_`-prefixed canonical names (Python `Config.streaming_*`,
+# TypeScript `Config.setStreaming*`, C++ `set_streaming_*`, FFI
+# `thetadatadx_config_set_streaming_*`). The prefix disambiguates the
+# generic field names (`timeout_ms`, `ring_size`) against sibling
+# sub-configs at the binding surface.
 
 [[class]]
-name = "FpssConfig.fpss_timeout_ms"
+name = "StreamingConfig.streaming_timeout_ms"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_ring_size"
+name = "StreamingConfig.streaming_ring_size"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_ping_interval_ms"
+name = "StreamingConfig.streaming_ping_interval_ms"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_connect_timeout_ms"
+name = "StreamingConfig.streaming_connect_timeout_ms"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_io_read_slice_ms"
+name = "StreamingConfig.streaming_io_read_slice_ms"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_data_watchdog_ms"
+name = "StreamingConfig.streaming_data_watchdog_ms"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_keepalive_idle_secs"
+name = "StreamingConfig.streaming_keepalive_idle_secs"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_keepalive_interval_secs"
+name = "StreamingConfig.streaming_keepalive_interval_secs"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_keepalive_retries"
+name = "StreamingConfig.streaming_keepalive_retries"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_host_selection"
+name = "StreamingConfig.streaming_host_selection"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "FpssConfig.fpss_host_shuffle_seed"
+name = "StreamingConfig.streaming_host_shuffle_seed"
 python = true
 typescript = true
 cpp = true
 
-# `FpssConfig.flush_mode` is exposed on every binding:
+# `StreamingConfig.flush_mode` is exposed on every binding:
 # C ABI (`thetadatadx_config_set_flush_mode`), C++ (`set_flush_mode`),
 # Python (`Config.flush_mode` getter + setter accepting
 # `"batched"` / `"immediate"`), TypeScript (`Config.flushMode`
 # getter + `setFlushMode` accepting the same strings).
 [[class]]
-name = "FpssConfig.flush_mode"
+name = "StreamingConfig.flush_mode"
 python = true
 typescript = true
 cpp = true
 
-# `FpssConfig.derive_ohlcvc` is exposed on every binding: the C ABI
+# `StreamingConfig.derive_ohlcvc` is exposed on every binding: the C ABI
 # (`thetadatadx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
 # C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
 # / `deriveOhlcvc`).
 [[class]]
-name = "FpssConfig.derive_ohlcvc"
+name = "StreamingConfig.derive_ohlcvc"
 python = true
 typescript = true
 cpp = true
@@ -1312,8 +1313,8 @@ cpp = true
 # (pyo3 strips it so the Python property name stays bare); the parity
 # gate accepts that per-language convention against the bare row. The
 # matching setters are tracked by the dotted `[[class]]` rows
-# `FpssConfig.flush_mode` / `FpssConfig.derive_ohlcvc` /
-# `MddsConfig.concurrent_requests`.
+# `StreamingConfig.flush_mode` / `StreamingConfig.derive_ohlcvc` /
+# `HistoricalConfig.concurrent_requests`.
 [[method]]
 class = "Config"
 name = "deriveOhlcvc"

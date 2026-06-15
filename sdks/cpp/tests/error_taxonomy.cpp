@@ -207,8 +207,8 @@ TEST_CASE("config enum setters reject an out-of-domain value with InvalidParamet
     REQUIRE_NOTHROW(cfg.set_reconnect_jitter(2));
     REQUIRE_THROWS_AS(cfg.set_reconnect_jitter(9), thetadatadx::InvalidParameterError);
 
-    REQUIRE_NOTHROW(cfg.set_fpss_host_selection(1));
-    REQUIRE_THROWS_AS(cfg.set_fpss_host_selection(5), thetadatadx::InvalidParameterError);
+    REQUIRE_NOTHROW(cfg.set_streaming_host_selection(1));
+    REQUIRE_THROWS_AS(cfg.set_streaming_host_selection(5), thetadatadx::InvalidParameterError);
 }
 
 TEST_CASE("sequence converters reject out-of-wire-range inputs with InvalidParameterError",

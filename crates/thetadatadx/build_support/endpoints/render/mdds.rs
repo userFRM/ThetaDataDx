@@ -103,7 +103,7 @@ Streaming yields chunks via `handler(&[Tick])`, capping per-request\n\
 RSS at ~150 MiB regardless of response size.\n\
 \n\
 When the buffered path returns a response whose estimated size\n\
-exceeds [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]\n\
+exceeds [`crate::config::HistoricalConfig::warn_on_buffered_threshold_bytes`]\n\
 (default 100 MiB), a single `tracing::warn!` event fires with\n\
 `endpoint`, `row_count`, and `bytes_est` fields.\n\
 \n\

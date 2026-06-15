@@ -1,8 +1,8 @@
-"""MDDS pool-sizing setter on `Config`.
+"""Historical pool-sizing setter on `Config`.
 
 Locks the contract that the ``concurrent_requests`` property exposed
 by ``Config`` round-trips through the pyo3 binding to the underlying
-Rust ``MddsConfig`` correctly.
+Rust ``HistoricalConfig`` correctly.
 
 Live behaviour (the tier clamp at connect time, the auto-detect
 default = 0 sentinels) is covered by the Rust unit tests under

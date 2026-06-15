@@ -97,9 +97,9 @@ struct Args {
     #[arg(long, value_enum, default_value_t = logging::LogFormat::Text)]
     log_format: logging::LogFormat,
 
-    /// Skip FPSS (streaming) connection at startup.
+    /// Skip the streaming connection at startup.
     #[arg(long)]
-    no_fpss: bool,
+    no_streaming: bool,
 
     /// Disable OHLCVC bar derivation from trades on the FPSS stream.
     #[arg(long)]
@@ -224,7 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(client, shutdown_token);
 
     // Step 5: Start FPSS streaming bridge.
-    if !args.no_fpss {
+    if !args.no_streaming {
         match ws::start_fpss_bridge(state.clone()) {
             Ok(()) => {
                 tracing::info!("FPSS bridge connected");
@@ -234,7 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     } else {
-        tracing::info!("FPSS bridge skipped (--no-fpss)");
+        tracing::info!("FPSS bridge skipped (--no-streaming)");
     }
 
     // Step 6: Build HTTP REST server with CORS.

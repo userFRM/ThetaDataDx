@@ -57,8 +57,8 @@ use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
 use crate::config::{
-    FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass, ReconnectAttemptLimits,
-    ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
+    HostSelectionPolicy, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
+    StreamingFlushMode, RATE_LIMITED_JITTER_WINDOW,
 };
 use crate::error::Error;
 
@@ -106,7 +106,7 @@ type ActiveFullSubs = Arc<
 /// Argument bundle for [`io_loop`].
 ///
 /// `connect_timeout` and `read_timeout` plumb the user-supplied
-/// [`crate::config::FpssConfig`] tuning into the auto-reconnect path
+/// [`crate::config::StreamingConfig`] tuning into the auto-reconnect path
 /// (so manual [`std::net::TcpStream::connect_timeout`] re-attempts and
 /// the framing-layer mid-frame stall budget honour the configured
 /// values, not the parity-reference hardcoded defaults).
@@ -127,7 +127,7 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub permissions: String,
     pub pending_control: Vec<StreamControl>,
     pub derive_ohlcvc: bool,
-    pub flush_mode: FpssFlushMode,
+    pub flush_mode: StreamingFlushMode,
     pub policy: ReconnectPolicy,
     /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]: the
     /// initial delay of the generic-transient exponential ladder the
@@ -163,10 +163,10 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     /// Per-iteration blocking-read slice. Mirrors
-    /// [`crate::config::FpssConfig::io_read_slice_ms`].
+    /// [`crate::config::StreamingConfig::io_read_slice_ms`].
     pub io_read_slice: Duration,
     /// Last-frame watchdog deadline; [`Duration::ZERO`] disables.
-    /// Mirrors [`crate::config::FpssConfig::data_watchdog_ms`].
+    /// Mirrors [`crate::config::StreamingConfig::data_watchdog_ms`].
     pub data_watchdog: Duration,
     /// Keepalive schedule for reconnect-time socket construction.
     pub keepalive: connection::TcpKeepaliveSpec,
@@ -528,7 +528,7 @@ where
                     Ok(IoCommand::WriteFrame { code, payload }) => {
                         let writer = reader.get_mut();
                         let result = if code == StreamMsgType::Ping
-                            || flush_mode == FpssFlushMode::Immediate
+                            || flush_mode == StreamingFlushMode::Immediate
                         {
                             write_raw_frame(writer, code, &payload)
                         } else {
@@ -1057,12 +1057,13 @@ where
             match cmd_rx.try_recv() {
                 Ok(IoCommand::WriteFrame { code, payload }) => {
                     let writer = reader.get_mut();
-                    let result =
-                        if code == StreamMsgType::Ping || flush_mode == FpssFlushMode::Immediate {
-                            write_raw_frame(writer, code, &payload)
-                        } else {
-                            write_raw_frame_no_flush(writer, code, &payload)
-                        };
+                    let result = if code == StreamMsgType::Ping
+                        || flush_mode == StreamingFlushMode::Immediate
+                    {
+                        write_raw_frame(writer, code, &payload)
+                    } else {
+                        write_raw_frame_no_flush(writer, code, &payload)
+                    };
                     if let Err(e) = result {
                         tracing::warn!(error = %e, "failed to write queued frame on reconnect");
                     }

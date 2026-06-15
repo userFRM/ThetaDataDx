@@ -3,8 +3,8 @@
 # Copy this file to `config.toml` and edit as needed.
 # All time values are in milliseconds unless noted otherwise.
 
-# ── MDDS (Historical Data via gRPC) ──────────────────────────────────────────
-# The v3 terminal connects to MDDS via gRPC over TLS (not raw TCP).
+# ── Historical Data (gRPC) ───────────────────────────────────────────────────
+# Historical data is served via gRPC over TLS (not raw TCP).
 
 [mdds]
 host = "mdds-01.thetadata.us"
@@ -18,7 +18,7 @@ keepalive_timeout_secs = 10
 # Max inbound gRPC message size (bytes). Default 4MB.
 max_message_size = 4194304
 
-# ── FPSS (Real-Time Streaming via TLS/TCP) ───────────────────────────────────
+# ── Real-Time Streaming (TLS/TCP) ────────────────────────────────────────────
 # The client tries each host in order until one connects.
 
 [fpss]
@@ -36,7 +36,7 @@ connect_timeout = 2000
 # Read timeout — how long to wait for data before considering disconnected (ms)
 read_timeout = 10000
 
-# Heartbeat interval (ms). The FPSS protocol requires pings every 100ms.
+# Heartbeat interval (ms). The streaming protocol requires pings every 100ms.
 ping_interval = 100
 
 # Reconnect wait after involuntary disconnect (ms)

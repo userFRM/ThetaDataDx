@@ -1242,21 +1242,21 @@ int32_t thetadatadx_config_set_reconnect_callback(ThetaDataDxConfig* config, The
                                           void* user_data);
 
 /**
- * Set the FPSS read timeout (ms): the no-frames deadline after which
+ * Set the streaming read timeout (ms): the no-frames deadline after which
  * the streaming session is declared dead and reconnects. Default 3_000;
  * validated to [100, 60_000] at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Read timeout in milliseconds.
  */
-void thetadatadx_config_set_fpss_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss timeout_ms setting (default 3_000).
+ * Read the current streaming timeout_ms setting (default 3_000).
  * @param config Config handle to read.
  * @param out Receives the timeout in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the per-server connect timeout (ms) for the streaming
@@ -1264,31 +1264,31 @@ int32_t thetadatadx_config_get_fpss_timeout_ms(const ThetaDataDxConfig* config, 
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Connect timeout in milliseconds.
  */
-void thetadatadx_config_set_fpss_connect_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_connect_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss connect_timeout_ms setting (default 2_000).
+ * Read the current streaming connect_timeout_ms setting (default 2_000).
  * @param config Config handle to read.
  * @param out Receives the timeout in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_connect_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_connect_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
- * Set the FPSS heartbeat ping interval (ms). Default 250; validated to
+ * Set the streaming heartbeat ping interval (ms). Default 250; validated to
  * [100, 300_000] at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Ping interval in milliseconds.
  */
-void thetadatadx_config_set_fpss_ping_interval_ms(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_ping_interval_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss ping_interval_ms setting (default 250).
+ * Read the current streaming ping_interval_ms setting (default 250).
  * @param config Config handle to read.
  * @param out Receives the interval in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_ping_interval_ms(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_ping_interval_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the per-iteration blocking-read slice (ms) for the streaming
@@ -1296,15 +1296,15 @@ int32_t thetadatadx_config_get_fpss_ping_interval_ms(const ThetaDataDxConfig* co
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Read slice in milliseconds.
  */
-void thetadatadx_config_set_fpss_io_read_slice_ms(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_io_read_slice_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss io_read_slice_ms setting (default 25).
+ * Read the current streaming io_read_slice_ms setting (default 25).
  * @param config Config handle to read.
  * @param out Receives the read slice in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_io_read_slice_ms(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_io_read_slice_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the last-frame watchdog (ms): when no frame of any kind has
@@ -1313,32 +1313,32 @@ int32_t thetadatadx_config_get_fpss_io_read_slice_ms(const ThetaDataDxConfig* co
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Watchdog interval in milliseconds (0 disables).
  */
-void thetadatadx_config_set_fpss_data_watchdog_ms(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_data_watchdog_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss data_watchdog_ms setting (default 30_000; 0 = disabled).
+ * Read the current streaming data_watchdog_ms setting (default 30_000; 0 = disabled).
  * @param config Config handle to read.
  * @param out Receives the watchdog interval in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_data_watchdog_ms(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_data_watchdog_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the TCP keepalive idle time (seconds) before the first kernel
- * probe on a silent FPSS socket. Default 5; validated to [1, 7_200]
+ * probe on a silent streaming socket. Default 5; validated to [1, 7_200]
  * at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive idle time in seconds.
  */
-void thetadatadx_config_set_fpss_keepalive_idle_secs(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_keepalive_idle_secs(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss keepalive_idle_secs setting (default 5).
+ * Read the current streaming keepalive_idle_secs setting (default 5).
  * @param config Config handle to read.
  * @param out Receives the idle time in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_keepalive_idle_secs(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_keepalive_idle_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the interval (seconds) between TCP keepalive probes. Default 2;
@@ -1346,52 +1346,52 @@ int32_t thetadatadx_config_get_fpss_keepalive_idle_secs(const ThetaDataDxConfig*
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive probe interval in seconds.
  */
-void thetadatadx_config_set_fpss_keepalive_interval_secs(ThetaDataDxConfig* config, uint64_t v);
+void thetadatadx_config_set_streaming_keepalive_interval_secs(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current fpss keepalive_interval_secs setting (default 2).
+ * Read the current streaming keepalive_interval_secs setting (default 2).
  * @param config Config handle to read.
  * @param out Receives the probe interval in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_keepalive_interval_secs(const ThetaDataDxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_streaming_keepalive_interval_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the number of unanswered TCP keepalive probes after which the
- * kernel declares the FPSS connection dead (where the platform exposes
+ * kernel declares the streaming connection dead (where the platform exposes
  * the knob). Default 2; validated to [1, 10] at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive probe-failure count.
  */
-void thetadatadx_config_set_fpss_keepalive_retries(ThetaDataDxConfig* config, uint32_t v);
+void thetadatadx_config_set_streaming_keepalive_retries(ThetaDataDxConfig* config, uint32_t v);
 
 /**
- * Read the current fpss keepalive_retries setting (default 2).
+ * Read the current streaming keepalive_retries setting (default 2).
  * @param config Config handle to read.
  * @param out Receives the probe-failure count on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_keepalive_retries(const ThetaDataDxConfig* config, uint32_t* out);
+int32_t thetadatadx_config_get_streaming_keepalive_retries(const ThetaDataDxConfig* config, uint32_t* out);
 
 /**
- * Set the FPSS event ring buffer size (slots). Must be a power of two
+ * Set the streaming event ring buffer size (slots). Must be a power of two
  * >= 64; invalid values are rejected at the setter (thetadatadx_last_error).
  * Default 131_072.
  * @param config Config handle to mutate; no-op when NULL.
  * @param n Ring buffer size in slots (power of two, >= 64).
  */
-void thetadatadx_config_set_fpss_ring_size(ThetaDataDxConfig* config, size_t n);
+void thetadatadx_config_set_streaming_ring_size(ThetaDataDxConfig* config, size_t n);
 
 /**
- * Read the current fpss ring_size setting (default 131_072).
+ * Read the current streaming ring_size setting (default 131_072).
  * @param config Config handle to read.
  * @param out Receives the ring buffer size in slots on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_ring_size(const ThetaDataDxConfig* config, size_t* out);
+int32_t thetadatadx_config_get_streaming_ring_size(const ThetaDataDxConfig* config, size_t* out);
 
 /**
- * Set the FPSS host-selection policy.
+ * Set the streaming host-selection policy.
  *   policy=0: Shuffled (default) -- fault-domain-aware per-client
  *             shuffle; a fleet spreads across hosts and consecutive
  *             failover attempts cross physical machines.
@@ -1400,19 +1400,19 @@ int32_t thetadatadx_config_get_fpss_ring_size(const ThetaDataDxConfig* config, s
  * @param policy Host-selection policy selector (0 = Shuffled, 1 = FixedOrder).
  * @return 0 on success, -1 on an invalid policy or null config.
  */
-int32_t thetadatadx_config_set_fpss_host_selection(ThetaDataDxConfig* config, int32_t policy);
+int32_t thetadatadx_config_set_streaming_host_selection(ThetaDataDxConfig* config, int32_t policy);
 
 /**
- * Read the configured FPSS host-selection policy. Same encoding as
- * thetadatadx_config_set_fpss_host_selection.
+ * Read the configured streaming host-selection policy. Same encoding as
+ * thetadatadx_config_set_streaming_host_selection.
  * @param config Config handle to read.
  * @param out_policy Receives the host-selection policy on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_host_selection(const ThetaDataDxConfig* config, int32_t* out_policy);
+int32_t thetadatadx_config_get_streaming_host_selection(const ThetaDataDxConfig* config, int32_t* out_policy);
 
 /**
- * Set the FPSS host-shuffle seed using the (has_value, seed) widened
+ * Set the streaming host-shuffle seed using the (has_value, seed) widened
  * shape. Ignored under the FixedOrder policy.
  * @param config Config handle to mutate.
  * @param has_value false (default) derives a fresh per-client seed so a
@@ -1421,17 +1421,17 @@ int32_t thetadatadx_config_get_fpss_host_selection(const ThetaDataDxConfig* conf
  * @param seed The deterministic seed, honoured only when has_value is true.
  * @return 0 on success, -1 if config is null.
  */
-int32_t thetadatadx_config_set_fpss_host_shuffle_seed(ThetaDataDxConfig* config, bool has_value, uint64_t seed);
+int32_t thetadatadx_config_set_streaming_host_shuffle_seed(ThetaDataDxConfig* config, bool has_value, uint64_t seed);
 
 /**
- * Read the current FPSS host-shuffle seed.
+ * Read the current streaming host-shuffle seed.
  * @param config Config handle to read.
  * @param out_has_value Receives false for the per-client-entropy sentinel,
  *                      true when an explicit seed is set.
  * @param out_seed Receives the seed when out_has_value is true.
  * @return 0 on success, -1 if any pointer is null.
  */
-int32_t thetadatadx_config_get_fpss_host_shuffle_seed(const ThetaDataDxConfig* config, bool* out_has_value,
+int32_t thetadatadx_config_get_streaming_host_shuffle_seed(const ThetaDataDxConfig* config, bool* out_has_value,
                                               uint64_t* out_seed);
 
 /**
@@ -1725,37 +1725,37 @@ int32_t thetadatadx_config_get_derive_ohlcvc(const ThetaDataDxConfig* config, bo
 /* ── Decode pool sizing ── */
 
 /**
- * Set the historical (MDDS) gRPC host.
+ * Set the historical gRPC host.
  * @param config Config handle to mutate.
  * @param host Non-null, NUL-terminated, valid-UTF-8 C string.
  * @return 0 on success, -1 if config is null or host is null / not valid
  *         UTF-8.
  */
-int32_t thetadatadx_config_set_mdds_host(ThetaDataDxConfig* config, const char* host);
+int32_t thetadatadx_config_set_historical_host(ThetaDataDxConfig* config, const char* host);
 
 /**
- * Read the configured historical (MDDS) gRPC host.
+ * Read the configured historical gRPC host.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null or the value contains
  *         an interior NUL.
  */
-char* thetadatadx_config_get_mdds_host(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_historical_host(const ThetaDataDxConfig* config);
 
 /**
- * Set the historical (MDDS) gRPC port.
+ * Set the historical gRPC port.
  * @param config Config handle to mutate; no-op when NULL.
  * @param port The gRPC port.
  */
-void thetadatadx_config_set_mdds_port(ThetaDataDxConfig* config, uint16_t port);
+void thetadatadx_config_set_historical_port(ThetaDataDxConfig* config, uint16_t port);
 
 /**
- * Read the configured historical (MDDS) gRPC port.
+ * Read the configured historical gRPC port.
  * @param config Config handle to read.
  * @param out_port Receives the gRPC port on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_mdds_port(const ThetaDataDxConfig* config, uint16_t* out_port);
+int32_t thetadatadx_config_get_historical_port(const ThetaDataDxConfig* config, uint16_t* out_port);
 
 /**
  * Set the number of concurrent in-flight gRPC requests.
@@ -1797,7 +1797,7 @@ int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataD
 
 /* ── HistoricalClient ── */
 
-/** Connect a historical (MDDS) client to ThetaData servers.
+/** Connect a historical client to ThetaData servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
@@ -1805,7 +1805,7 @@ int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataD
  *          (check thetadatadx_last_error()). */
 ThetaDataDxHistoricalClient* thetadatadx_historical_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
-/** Connect a historical (MDDS) client, reading credentials from a file
+/** Connect a historical client, reading credentials from a file
  *  (line 1 = email, line 2 = password). One-call equivalent of
  *  thetadatadx_credentials_from_file + thetadatadx_historical_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
@@ -1815,7 +1815,7 @@ ThetaDataDxHistoricalClient* thetadatadx_historical_connect(const ThetaDataDxCre
  *          failure (check thetadatadx_last_error()). */
 ThetaDataDxHistoricalClient* thetadatadx_historical_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
-/** Release a historical (MDDS) client handle.
+/** Release a historical client handle.
  *  @param client Handle from a thetadatadx_historical_connect* call; no-op when
  *                NULL. Call exactly once. */
 void thetadatadx_historical_free(ThetaDataDxHistoricalClient* client);
@@ -2125,7 +2125,7 @@ uint64_t thetadatadx_streaming_dropped_events(const ThetaDataDxStreamHandle* h);
 uint64_t thetadatadx_streaming_ring_occupancy(const ThetaDataDxStreamHandle* h);
 
 /** Configured capacity of the streaming event ring in slots (the
- *  fpss_ring_size setting, a power of two) — the fixed denominator for
+ *  streaming_ring_size setting, a power of two) — the fixed denominator for
  *  thetadatadx_streaming_ring_occupancy.
  *  @param h The streaming handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or has
@@ -2376,7 +2376,7 @@ uint64_t thetadatadx_client_dropped_events(const ThetaDataDxClient* handle);
 uint64_t thetadatadx_client_ring_occupancy(const ThetaDataDxClient* handle);
 
 /** Configured capacity of the streaming event ring in slots (the
- *  fpss_ring_size setting, a power of two) — the fixed denominator for
+ *  streaming_ring_size setting, a power of two) — the fixed denominator for
  *  thetadatadx_client_ring_occupancy.
  *  @param handle The unified handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or no

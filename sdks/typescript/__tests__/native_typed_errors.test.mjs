@@ -208,27 +208,27 @@ describe('Config setter input-validation parity (native)', () => {
     );
   });
 
-  it('setFpssRingSize rejects a non-power-of-two as InvalidParameterError', async () => {
+  it('setStreamingRingSize rejects a non-power-of-two as InvalidParameterError', async () => {
     const mod = await loadWrapped();
     if (!mod) return;
 
     // The setter rejects eagerly with the typed class; the core's
-    // connect-time validation of `fpss.ring_size` is unchanged.
+    // connect-time validation of `streaming.ring_size` is unchanged.
     const cfg = mod.Config.production();
     assert.throws(
-      () => cfg.setFpssRingSize(100),
+      () => cfg.setStreamingRingSize(100),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'a non-power-of-two ring size must reclassify to InvalidParameterError',
     );
   });
 
-  it('setFpssRingSize accepts a valid power-of-two >= 64', async () => {
+  it('setStreamingRingSize accepts a valid power-of-two >= 64', async () => {
     const mod = await loadWrapped();
     if (!mod) return;
 
     const cfg = mod.Config.production();
     assert.doesNotThrow(
-      () => cfg.setFpssRingSize(65536),
+      () => cfg.setStreamingRingSize(65536),
       'a valid power-of-two ring size must be accepted',
     );
   });

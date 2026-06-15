@@ -1,4 +1,4 @@
-//! MDDS (gRPC) sub-configuration.
+//! Historical (gRPC) sub-configuration.
 //!
 //! `concurrent_requests` is the throughput knob for large historical
 //! pulls (multi-day backfills, wide `strike_range`, `interval = 1s` /
@@ -18,17 +18,17 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// MDDS client tuning.
+/// Historical client tuning.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct MddsConfig {
-    /// MDDS hostname (v3 path).
+pub struct HistoricalConfig {
+    /// Historical hostname (v3 path).
     pub host: String,
 
-    /// MDDS port (443 for TLS in production).
+    /// Historical port (443 for TLS in production).
     pub port: u16,
 
-    /// Whether to use TLS for the MDDS connection.
+    /// Whether to use TLS for the historical connection.
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
 
@@ -47,7 +47,7 @@ pub struct MddsConfig {
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
     ///
-    /// Sets the HTTP/2 keepalive PING cadence on every MDDS channel.
+    /// Sets the HTTP/2 keepalive PING cadence on every historical channel.
     pub keepalive_secs: u64,
 
     /// gRPC keepalive timeout in seconds (`keepAliveTimeout(10, SECONDS)`).
@@ -58,7 +58,7 @@ pub struct MddsConfig {
 
     /// gRPC flow control: initial stream window size in KB.
     ///
-    /// Sets the per-stream HTTP/2 flow-control window on every MDDS
+    /// Sets the per-stream HTTP/2 flow-control window on every historical
     /// channel. Default 64 KB matches the HTTP/2 spec default;
     /// validation clamps to `[64, 1024]`.
     pub window_size_kb: usize,
@@ -66,11 +66,11 @@ pub struct MddsConfig {
     /// gRPC flow control: initial connection window size in KB.
     ///
     /// Sets the connection-level HTTP/2 flow-control window on every
-    /// MDDS channel. Default 64 KB; validation clamps to `[64, 1024]`.
+    /// Historical channel. Default 64 KB; validation clamps to `[64, 1024]`.
     /// Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
-    /// TCP connect timeout for the MDDS channel, in seconds.
+    /// TCP connect timeout for the historical channel, in seconds.
     ///
     /// Bounds the time the transport will spend establishing a TCP +
     /// TLS handshake before failing fast. Default `10s` matches the upper
@@ -123,7 +123,7 @@ pub struct MddsConfig {
     pub override_tier_clamp: bool,
 }
 
-impl MddsConfig {
+impl HistoricalConfig {
     /// Production defaults.
     #[must_use]
     pub fn production_defaults() -> Self {
@@ -150,7 +150,7 @@ impl MddsConfig {
     }
 }
 
-impl Default for MddsConfig {
+impl Default for HistoricalConfig {
     fn default() -> Self {
         Self::production_defaults()
     }

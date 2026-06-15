@@ -9,7 +9,7 @@ everywhere, and read 0 when streaming has not started.
 The pair is the leading back-pressure signal: occupancy is a
 point-in-time sample of events published into the streaming event
 ring but not yet drained into the callback, and capacity is the
-configured ``fpss_ring_size``. ``dropped_event_count()`` only moves
+configured ``streaming_ring_size``. ``dropped_event_count()`` only moves
 AFTER data has been lost; a rising occupancy approaching capacity
 predicts those drops. Both forward through
 ``thetadatadx::Client`` so the values match every other

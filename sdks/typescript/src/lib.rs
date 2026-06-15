@@ -559,7 +559,7 @@ impl StreamView {
     }
 
     /// Configured capacity of the streaming event ring in slots (the
-    /// `fpssRingSize` setting, a power of two).
+    /// `streamingRingSize` setting, a power of two).
     ///
     /// The fixed denominator for `ringOccupancy()`: when the
     /// occupancy sample approaches this value the ring is saturating
@@ -664,7 +664,7 @@ impl StreamView {
 
 // ── Standalone HistoricalClient (historical-only) ──
 
-/// Standalone MDDS-only historical client.
+/// Standalone historical-only client.
 ///
 /// Opens ONLY the historical data channel and the Nexus authentication
 /// flow — no real-time streaming connection or streaming state machine.
@@ -673,17 +673,17 @@ impl StreamView {
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
-/// is identical to the unified client, so `mddsClient.stockHistoryEod(...)`
+/// is identical to the unified client, so `historicalClient.stockHistoryEod(...)`
 /// behaves exactly like `client.stockHistoryEod(...)`. The streaming and
 /// subscription methods are simply not present: there is no
-/// `startStreaming` / `subscribe` on this class, so an MDDS-only handle
+/// `startStreaming` / `subscribe` on this class, so a historical-only handle
 /// cannot open a streaming slot. Use `StreamingClient` for streaming, or the
 /// unified `Client` when you need both surfaces.
 ///
 /// ```js
 /// const { HistoricalClient, Config } = require("@thetadatadx/sdk");
-/// const mdds = HistoricalClient.connectFromFile("creds.txt");
-/// const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
+/// const historical = HistoricalClient.connectFromFile("creds.txt");
+/// const eod = await historical.stockHistoryEod("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
 pub struct HistoricalClient {

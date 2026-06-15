@@ -4,7 +4,7 @@ with TypeScript / C++ / FFI.
 Pins the Python surface for the reconnect cadence ladder
 (``reconnect_wait_max_ms`` / ``reconnect_wait_server_restart_ms``),
 the jitter mode, the wall-clock envelope and per-class budgets, the
-subscription-replay pacing knobs, the FPSS transport knobs (timeouts,
+subscription-replay pacing knobs, the streaming transport knobs (timeouts,
 ping cadence, ring size, read slice, watchdog, keepalive schedule,
 host selection + shuffle seed), the historical-channel retry envelope,
 the flatfile jitter toggle, and the custom reconnect callback
@@ -91,61 +91,61 @@ def test_reconnect_callback_registration_switches_policy():
     assert cfg.reconnect_policy == "auto"
 
 
-# ─── FPSS transport ─────────────────────────────────────────────────
+# ─── Streaming transport ─────────────────────────────────────────────────
 
 
-def test_fpss_transport_defaults_and_round_trip():
+def test_streaming_transport_defaults_and_round_trip():
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.fpss_timeout_ms == 3_000
-    assert cfg.fpss_connect_timeout_ms == 2_000
-    assert cfg.fpss_ping_interval_ms == 250
-    assert cfg.fpss_ring_size == 131_072
-    assert cfg.fpss_io_read_slice_ms == 25
-    assert cfg.fpss_data_watchdog_ms == 30_000
-    assert cfg.fpss_keepalive_idle_secs == 5
-    assert cfg.fpss_keepalive_interval_secs == 2
-    assert cfg.fpss_keepalive_retries == 2
-    cfg.fpss_timeout_ms = 10_000
-    cfg.fpss_connect_timeout_ms = 5_000
-    cfg.fpss_ping_interval_ms = 1_000
-    cfg.fpss_ring_size = 8_192
-    cfg.fpss_io_read_slice_ms = 50
-    cfg.fpss_data_watchdog_ms = 0  # disables the watchdog
-    cfg.fpss_keepalive_idle_secs = 10
-    cfg.fpss_keepalive_interval_secs = 5
-    cfg.fpss_keepalive_retries = 4
-    assert cfg.fpss_timeout_ms == 10_000
-    assert cfg.fpss_connect_timeout_ms == 5_000
-    assert cfg.fpss_ping_interval_ms == 1_000
-    assert cfg.fpss_ring_size == 8_192
-    assert cfg.fpss_io_read_slice_ms == 50
-    assert cfg.fpss_data_watchdog_ms == 0
-    assert cfg.fpss_keepalive_idle_secs == 10
-    assert cfg.fpss_keepalive_interval_secs == 5
-    assert cfg.fpss_keepalive_retries == 4
+    assert cfg.streaming_timeout_ms == 3_000
+    assert cfg.streaming_connect_timeout_ms == 2_000
+    assert cfg.streaming_ping_interval_ms == 250
+    assert cfg.streaming_ring_size == 131_072
+    assert cfg.streaming_io_read_slice_ms == 25
+    assert cfg.streaming_data_watchdog_ms == 30_000
+    assert cfg.streaming_keepalive_idle_secs == 5
+    assert cfg.streaming_keepalive_interval_secs == 2
+    assert cfg.streaming_keepalive_retries == 2
+    cfg.streaming_timeout_ms = 10_000
+    cfg.streaming_connect_timeout_ms = 5_000
+    cfg.streaming_ping_interval_ms = 1_000
+    cfg.streaming_ring_size = 8_192
+    cfg.streaming_io_read_slice_ms = 50
+    cfg.streaming_data_watchdog_ms = 0  # disables the watchdog
+    cfg.streaming_keepalive_idle_secs = 10
+    cfg.streaming_keepalive_interval_secs = 5
+    cfg.streaming_keepalive_retries = 4
+    assert cfg.streaming_timeout_ms == 10_000
+    assert cfg.streaming_connect_timeout_ms == 5_000
+    assert cfg.streaming_ping_interval_ms == 1_000
+    assert cfg.streaming_ring_size == 8_192
+    assert cfg.streaming_io_read_slice_ms == 50
+    assert cfg.streaming_data_watchdog_ms == 0
+    assert cfg.streaming_keepalive_idle_secs == 10
+    assert cfg.streaming_keepalive_interval_secs == 5
+    assert cfg.streaming_keepalive_retries == 4
 
 
-def test_fpss_host_selection_round_trips_and_rejects_unknown():
+def test_streaming_host_selection_round_trips_and_rejects_unknown():
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.fpss_host_selection == "shuffled"
-    cfg.fpss_host_selection = "fixed_order"
-    assert cfg.fpss_host_selection == "fixed_order"
-    cfg.fpss_host_selection = "SHUFFLED"
-    assert cfg.fpss_host_selection == "shuffled"
-    with pytest.raises(ValueError, match=r"fpss_host_selection"):
-        cfg.fpss_host_selection = "round_robin"
+    assert cfg.streaming_host_selection == "shuffled"
+    cfg.streaming_host_selection = "fixed_order"
+    assert cfg.streaming_host_selection == "fixed_order"
+    cfg.streaming_host_selection = "SHUFFLED"
+    assert cfg.streaming_host_selection == "shuffled"
+    with pytest.raises(ValueError, match=r"streaming_host_selection"):
+        cfg.streaming_host_selection = "round_robin"
 
 
-def test_fpss_host_shuffle_seed_round_trips_none_sentinel():
+def test_streaming_host_shuffle_seed_round_trips_none_sentinel():
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.fpss_host_shuffle_seed is None
-    cfg.fpss_host_shuffle_seed = 42
-    assert cfg.fpss_host_shuffle_seed == 42
-    cfg.fpss_host_shuffle_seed = None
-    assert cfg.fpss_host_shuffle_seed is None
+    assert cfg.streaming_host_shuffle_seed is None
+    cfg.streaming_host_shuffle_seed = 42
+    assert cfg.streaming_host_shuffle_seed == 42
+    cfg.streaming_host_shuffle_seed = None
+    assert cfg.streaming_host_shuffle_seed is None
 
 
 # ─── Historical retry envelope + flatfile jitter ────────────────────

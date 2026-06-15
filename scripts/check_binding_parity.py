@@ -112,7 +112,7 @@ def _surface_token_hit(identifier: str) -> str | None:
     `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in a
     word-boundary text rule. Vendor protocol names
     (`mdds`, `fpss`) are intentionally absent from the token list, so a
-    `MddsConfig` / `setFpssRingSize` identifier is never flagged.
+    `mdds_client` / `fpss` engine stem is never flagged.
     """
     lowered = identifier.lower()
     for token in BANNED_SURFACE_TOKENS:
@@ -271,8 +271,8 @@ def _is_implicitly_tracked(name: str) -> bool:
 # resolves to Python `set_reconnect_wait_ms`, TS `setReconnectWaitMs`,
 # C++ `set_reconnect_wait_ms`, FFI `thetadatadx_config_set_reconnect_wait_ms`.
 STRUCT_TO_PREFIX: dict[str, str] = {
-    "MddsConfig": "",
-    "FpssConfig": "",
+    "HistoricalConfig": "",
+    "StreamingConfig": "",
     "FlatFilesConfig": "flatfiles_",
     "ReconnectConfig": "reconnect_",
     "RuntimeConfig": "",
@@ -402,7 +402,7 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
     h_setters: set[str] = set()
     if cpp_h.is_file():
         text = cpp_h.read_text(encoding="utf-8")
-        for m in re.finditer(r"\btdx_config_set_(\w+)\s*\(", text):
+        for m in re.finditer(r"\bthetadatadx_config_set_(\w+)\s*\(", text):
             h_setters.add(m.group(1))
     return cpp_setters & h_setters
 
@@ -580,9 +580,9 @@ def _normalize_setter(name: str) -> str:
 # reason. This is the documented per-language-idiom carve-out the gate
 # tolerates — every entry is a reviewed decision, not a silencer.
 #
-# Empty today: the `mdds_host` / `mdds_port` advanced endpoint overrides
-# are now bound on every binding (Python / TypeScript / C++ / the C
-# ABI), so no carve-out is required. Add an entry here only when a
+# Empty today: the `historical_host` / `historical_port` advanced endpoint
+# overrides are now bound on every binding (Python / TypeScript / C++ /
+# the C ABI), so no carve-out is required. Add an entry here only when a
 # setter is intentionally exposed on a strict subset of bindings.
 SETTER_PARITY_EXEMPT: dict[str, str] = {}
 
@@ -791,8 +791,8 @@ def _check_public_surface_vocab(
 # write through to it). The parity-toml rows under `ReconnectConfig.*`
 # already cover the cross-binding contract for those fields.
 SCOPED_STRUCTS: tuple[str, ...] = (
-    "MddsConfig",
-    "FpssConfig",
+    "HistoricalConfig",
+    "StreamingConfig",
     "FlatFilesConfig",
     "ReconnectConfig",
     "RuntimeConfig",
@@ -877,20 +877,20 @@ RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     ("RetryPolicy", "initial_delay"): "initial_delay_ms",
     ("RetryPolicy", "max_delay"): "max_delay_ms",
     ("RetryPolicy", "max_elapsed"): "max_elapsed_secs",
-    # FpssConfig scalar knobs carry an `fpss_` prefix at the binding
-    # surface so the generic field names (`timeout_ms`, `ring_size`)
+    # StreamingConfig scalar knobs carry a `streaming_` prefix at the
+    # binding surface so the generic field names (`timeout_ms`, `ring_size`)
     # stay unambiguous against sibling sub-configs.
-    ("FpssConfig", "timeout_ms"): "fpss_timeout_ms",
-    ("FpssConfig", "ring_size"): "fpss_ring_size",
-    ("FpssConfig", "ping_interval_ms"): "fpss_ping_interval_ms",
-    ("FpssConfig", "connect_timeout_ms"): "fpss_connect_timeout_ms",
-    ("FpssConfig", "io_read_slice_ms"): "fpss_io_read_slice_ms",
-    ("FpssConfig", "data_watchdog_ms"): "fpss_data_watchdog_ms",
-    ("FpssConfig", "keepalive_idle_secs"): "fpss_keepalive_idle_secs",
-    ("FpssConfig", "keepalive_interval_secs"): "fpss_keepalive_interval_secs",
-    ("FpssConfig", "keepalive_retries"): "fpss_keepalive_retries",
-    ("FpssConfig", "host_selection"): "fpss_host_selection",
-    ("FpssConfig", "host_shuffle_seed"): "fpss_host_shuffle_seed",
+    ("StreamingConfig", "timeout_ms"): "streaming_timeout_ms",
+    ("StreamingConfig", "ring_size"): "streaming_ring_size",
+    ("StreamingConfig", "ping_interval_ms"): "streaming_ping_interval_ms",
+    ("StreamingConfig", "connect_timeout_ms"): "streaming_connect_timeout_ms",
+    ("StreamingConfig", "io_read_slice_ms"): "streaming_io_read_slice_ms",
+    ("StreamingConfig", "data_watchdog_ms"): "streaming_data_watchdog_ms",
+    ("StreamingConfig", "keepalive_idle_secs"): "streaming_keepalive_idle_secs",
+    ("StreamingConfig", "keepalive_interval_secs"): "streaming_keepalive_interval_secs",
+    ("StreamingConfig", "keepalive_retries"): "streaming_keepalive_retries",
+    ("StreamingConfig", "host_selection"): "streaming_host_selection",
+    ("StreamingConfig", "host_shuffle_seed"): "streaming_host_shuffle_seed",
 }
 
 
@@ -2482,9 +2482,9 @@ def _check_dotted_rows(
             continue
         # Allow rows to override the auto-derived setter name. Used
         # when a single struct has a mix of prefixed / unprefixed
-        # binding-side names (e.g. `MddsConfig.host` binds as
-        # `mdds_host` because the bare `host` name would collide with
-        # nothing meaningful and the `mdds_` prefix clarifies intent).
+        # binding-side names (e.g. `HistoricalConfig.host` binds as
+        # `historical_host` because the bare `host` name would collide with
+        # nothing meaningful and the `historical_` prefix clarifies intent).
         canonical = row.get("setter") or f"{prefix}{suffix}"
 
         rust_only = bool(row.get("rust_only", False))
@@ -3190,7 +3190,7 @@ def _run_selftest() -> int:
         """
         rows = [
             {
-                "name": "MddsConfig.host",
+                "name": "HistoricalConfig.host",
                 "python": True,
                 "typescript": False,
                 "cpp": False,
@@ -3229,7 +3229,7 @@ def _run_selftest() -> int:
     def _case_negative_rust_only_without_issue() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -3244,7 +3244,7 @@ def _run_selftest() -> int:
     def _case_negative_issue_without_rust_only() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -3259,7 +3259,7 @@ def _run_selftest() -> int:
     def _case_negative_rust_only_with_binding_true() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": True,  # contradicts rust_only
                 "typescript": False,
                 "cpp": False,
@@ -3998,15 +3998,15 @@ def _run_selftest() -> int:
 
     def _case_surface_vocab_allows_vendor_protocol_names() -> None:
         """Vendor protocol names (mdds / fpss) are allow-listed and must
-        NEVER trip — `HistoricalClient`, `mdds_host`, `setFpssRingSize`,
-        `fpss_ring_size` are all clean.
+        NEVER trip — `HistoricalClient`, `historical_host`,
+        `setStreamingRingSize`, `streaming_ring_size` are all clean.
         """
         errors = _check_public_surface_vocab(
             {"HistoricalClient", "StreamingClient", "StreamEvent"},
             set(),
             set(),
-            {"mdds_host", "mdds_port", "fpss_ring_size", "fpss_host_selection"},
-            {"fpss_ring_size"},
+            {"historical_host", "historical_port", "streaming_ring_size", "streaming_host_selection"},
+            {"streaming_ring_size"},
             set(),
             set(),
             {"StreamingClient": {"subscribe"}},
@@ -4051,7 +4051,7 @@ def _run_selftest() -> int:
         assert _normalize_setter("worker_threads") == "worker_threads"
         assert _normalize_setter("flat_files_max_attempts") == "flatfiles_max_attempts"
         assert _normalize_setter("flatfiles_max_attempts") == "flatfiles_max_attempts"
-        assert _normalize_setter("fpss_host_shuffle_seed_explicit") == "fpss_host_shuffle_seed"
+        assert _normalize_setter("streaming_host_shuffle_seed_explicit") == "streaming_host_shuffle_seed"
 
     def _case_setter_set_parity_positive_after_normalize() -> None:
         """The four sets, spelled in their per-binding idioms, compare
@@ -4083,12 +4083,12 @@ def _run_selftest() -> int:
         """A Python-only knob listed in the exemption map does NOT trip
         — the documented per-language-idiom carve-out.
         """
-        py = {"mdds_host", "shared"}
+        py = {"historical_host", "shared"}
         ts = {"shared"}
         cpp = {"shared"}
         ffi = {"shared"}
         errors = _check_setter_set_parity(
-            py, ts, cpp, ffi, exempt={"mdds_host": "Python-only advanced override"}
+            py, ts, cpp, ffi, exempt={"historical_host": "Python-only advanced override"}
         )
         assert errors == [], (
             f"exempted Python-only knob must not trip; got {errors!r}"
@@ -4098,23 +4098,23 @@ def _run_selftest() -> int:
         """An exempted knob that is now uniformly bound on every binding
         is a stale carve-out and trips so the list never rots.
         """
-        allfour = {"mdds_host"}
+        allfour = {"historical_host"}
         errors = _check_setter_set_parity(
             allfour,
             allfour,
             allfour,
             allfour,
-            exempt={"mdds_host": "Python-only advanced override"},
+            exempt={"historical_host": "Python-only advanced override"},
         )
-        assert any("mdds_host" in e and "stale" in e for e in errors), (
+        assert any("historical_host" in e and "stale" in e for e in errors), (
             f"uniformly-bound exemption must surface as stale; got {errors!r}"
         )
 
     def _case_setter_set_parity_shipped_exemption_is_live() -> None:
         """The shipped `SETTER_PARITY_EXEMPT` carve-outs must be live
-        against the real binding sources — `mdds_host` / `mdds_port`
-        present on Python alone, so neither flags as stale and the live
-        gate stays silent on them.
+        against the real binding sources — `historical_host` /
+        `historical_port` present on every binding, so the carve-out map
+        stays empty and the live gate stays silent on them.
         """
         py = _collect_python_setters(PY_SRC)
         ts = _collect_typescript_setters(TS_SRC)
@@ -4152,13 +4152,13 @@ def _run_selftest() -> int:
         ABI trips — the read-side of the missing-binding defect class.
         """
         errors = _check_getter_set_parity(
-            {"fpss_ring_size"},
-            {"fpss_ring_size"},
-            {"fpss_ring_size"},
+            {"streaming_ring_size"},
+            {"streaming_ring_size"},
+            {"streaming_ring_size"},
             set(),
             exempt={},
         )
-        assert any("fpss_ring_size" in e and "ffi" in e for e in errors), (
+        assert any("streaming_ring_size" in e and "ffi" in e for e in errors), (
             f"getter missing on FFI must trip; got {errors!r}"
         )
 
@@ -4180,12 +4180,12 @@ def _run_selftest() -> int:
         Config knob roster.
         """
         py_text = (
-            "#[pymethods]\nimpl Config {\n    #[getter] fn get_fpss_ring_size(&self) -> usize { 0 }\n}\n"
+            "#[pymethods]\nimpl Config {\n    #[getter] fn get_streaming_ring_size(&self) -> usize { 0 }\n}\n"
             "#[pymethods]\nimpl QuoteTick {\n    #[getter] fn bid_price(&self) -> f64 { 0.0 }\n}\n"
         )
         bodies = _iter_impl_config_bodies(py_text)
         assert len(bodies) == 1, f"only the Config impl body must be picked; got {bodies!r}"
-        assert "get_fpss_ring_size" in bodies[0]
+        assert "get_streaming_ring_size" in bodies[0]
         assert "bid_price" not in bodies[0]
 
     _case("getter-set — normalized-equal sets are silent", _case_getter_set_parity_positive)

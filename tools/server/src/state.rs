@@ -136,8 +136,8 @@ impl AppState {
         }
     }
 
-    /// Mark FPSS as connected or disconnected.
-    pub fn set_fpss_connected(&self, connected: bool) {
+    /// Mark the streaming connection as connected or disconnected.
+    pub fn set_streaming_connected(&self, connected: bool) {
         self.inner
             .fpss_connected
             .store(connected, Ordering::Release);

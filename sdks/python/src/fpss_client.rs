@@ -60,7 +60,7 @@ struct FpssParams {
     creds: RustCredentials,
     hosts: Vec<(String, u16)>,
     ring_size: usize,
-    flush_mode: thetadatadx::config::FpssFlushMode,
+    flush_mode: thetadatadx::config::StreamingFlushMode,
     policy: thetadatadx::config::ReconnectPolicy,
     wait_ms: u64,
     wait_rate_limited_ms: u64,
@@ -74,16 +74,16 @@ impl FpssParams {
     fn from_config(creds: &RustCredentials, config: &DirectConfig) -> Self {
         Self {
             creds: creds.clone(),
-            hosts: config.fpss.hosts.clone(),
-            ring_size: config.fpss.ring_size,
-            flush_mode: config.fpss.flush_mode,
+            hosts: config.streaming.hosts.clone(),
+            ring_size: config.streaming.ring_size,
+            flush_mode: config.streaming.flush_mode,
             policy: config.reconnect.policy.clone(),
             wait_ms: config.reconnect.wait_ms,
             wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
-            derive_ohlcvc: config.fpss.derive_ohlcvc,
-            connect_timeout_ms: config.fpss.connect_timeout_ms,
-            read_timeout_ms: config.fpss.timeout_ms,
-            ping_interval_ms: config.fpss.ping_interval_ms,
+            derive_ohlcvc: config.streaming.derive_ohlcvc,
+            connect_timeout_ms: config.streaming.connect_timeout_ms,
+            read_timeout_ms: config.streaming.timeout_ms,
+            ping_interval_ms: config.streaming.ping_interval_ms,
         }
     }
 
@@ -238,9 +238,9 @@ impl StreamingClient {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
-        if direct.fpss.hosts.is_empty() {
+        if direct.streaming.hosts.is_empty() {
             return Err(PyValueError::new_err(
-                "StreamingClient: config.fpss.hosts is empty (set THETADATA_FPSS_HOSTS or use Config::production())",
+                "StreamingClient: config.streaming.hosts is empty (set THETADATA_STREAMING_HOSTS or use Config::production())",
             ));
         }
         // Seed the process-global runtime from this client's runtime config
@@ -545,7 +545,7 @@ impl StreamingClient {
     }
 
     /// Configured capacity of the event ring in slots (the
-    /// ``fpss_ring_size`` setting, a power of two) — the fixed
+    /// ``streaming_ring_size`` setting, a power of two) — the fixed
     /// denominator for :meth:`ring_occupancy`. Returns 0 when no
     /// session is live.
     fn ring_capacity(&self) -> usize {

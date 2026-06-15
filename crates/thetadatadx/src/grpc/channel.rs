@@ -54,17 +54,17 @@ const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 #[derive(Debug, Clone, Copy)]
 pub struct ChannelTuning {
     /// Initial per-stream flow-control window, in bytes. Mirrors
-    /// `MddsConfig::window_size_kb`.
+    /// `HistoricalConfig::window_size_kb`.
     pub initial_stream_window_size: u32,
     /// Initial connection-level flow-control window, in bytes.
-    /// Mirrors `MddsConfig::connection_window_size_kb`.
+    /// Mirrors `HistoricalConfig::connection_window_size_kb`.
     pub initial_connection_window_size: u32,
     /// Interval between HTTP/2 keepalive PING frames. Mirrors
-    /// `MddsConfig::keepalive_secs`.
+    /// `HistoricalConfig::keepalive_secs`.
     pub keepalive_interval: Duration,
     /// How long to wait for a keepalive PING acknowledgement before
     /// declaring the connection dead. Mirrors
-    /// `MddsConfig::keepalive_timeout_secs`.
+    /// `HistoricalConfig::keepalive_timeout_secs`.
     pub keepalive_timeout: Duration,
 }
 

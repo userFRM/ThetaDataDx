@@ -82,7 +82,7 @@ class Credentials:
 
 @final
 class Config:
-    """Connection configuration: MDDS host / FPSS hosts / reconnect policy."""
+    """Connection configuration: historical host / streaming hosts / reconnect policy."""
 
     @staticmethod
     def production() -> Config:
@@ -99,9 +99,9 @@ class Config:
         """Return the stage configuration (port 20100, testing, unstable)."""
         ...
 
-    mdds_host: str
+    historical_host: str
     """Hostname of the historical-data server."""
-    mdds_port: int
+    historical_port: int
     """TCP port of the historical-data server."""
     concurrent_requests: int
     """Maximum in-flight historical requests. ``0`` auto-detects the cap from the subscription tier; explicit values above the tier cap are clamped at connect time with a warning."""
@@ -161,27 +161,27 @@ class Config:
     """Client-type identifier sent during authentication (defaults to ``"rust-thetadatadx"``)."""
     metrics_port: Optional[int]
     """Prometheus exporter port. ``None`` (the default) leaves the exporter disabled even when the metrics feature is compiled in; an ``int`` binds an HTTP listener on ``0.0.0.0:<port>``. The setter raises ``ValueError`` for values outside ``0..=65535``."""
-    fpss_timeout_ms: int
+    streaming_timeout_ms: int
     """No-frames deadline, in milliseconds, for the streaming connection (default 3_000)."""
-    fpss_connect_timeout_ms: int
+    streaming_connect_timeout_ms: int
     """Connect timeout, in milliseconds, for opening a streaming connection."""
-    fpss_ping_interval_ms: int
+    streaming_ping_interval_ms: int
     """Interval, in milliseconds, between client-side streaming heartbeats."""
-    fpss_ring_size: int
+    streaming_ring_size: int
     """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
-    fpss_io_read_slice_ms: int
+    streaming_io_read_slice_ms: int
     """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
-    fpss_data_watchdog_ms: int
-    """Hard wall-clock backstop, in milliseconds, above :attr:`fpss_timeout_ms` that tears down a silent stream (default 30_000; ``0`` disables)."""
-    fpss_keepalive_idle_secs: int
+    streaming_data_watchdog_ms: int
+    """Hard wall-clock backstop, in milliseconds, above :attr:`streaming_timeout_ms` that tears down a silent stream (default 30_000; ``0`` disables)."""
+    streaming_keepalive_idle_secs: int
     """Idle time, in seconds, before kernel-side TCP keepalive probing begins on the streaming socket (default 5)."""
-    fpss_keepalive_interval_secs: int
+    streaming_keepalive_interval_secs: int
     """Interval, in seconds, between kernel-side TCP keepalive probes on the streaming socket (default 2)."""
-    fpss_keepalive_retries: int
+    streaming_keepalive_retries: int
     """Number of unanswered kernel-side TCP keepalive probes before the streaming socket is declared dead (default 2)."""
-    fpss_host_selection: Literal["shuffled", "fixed_order"]
-    """Streaming host-selection order: ``"shuffled"`` (fault-domain-aware per-client shuffle, seedable via :attr:`fpss_host_shuffle_seed`) or ``"fixed_order"``."""
-    fpss_host_shuffle_seed: Optional[int]
+    streaming_host_selection: Literal["shuffled", "fixed_order"]
+    """Streaming host-selection order: ``"shuffled"`` (fault-domain-aware per-client shuffle, seedable via :attr:`streaming_host_shuffle_seed`) or ``"fixed_order"``."""
+    streaming_host_shuffle_seed: Optional[int]
     """Seed for the per-client streaming host shuffle; ``None`` draws a fresh seed each connect."""
     derive_ohlcvc: bool
     """Whether OHLCVC bars are derived locally from the trade stream and delivered as :class:`Ohlcvc` events."""
@@ -200,7 +200,7 @@ class Config:
 
 @final
 class Contract:
-    """Per-contract identity (stock or option) for FPSS subscriptions.
+    """Per-contract identity (stock or option) for streaming subscriptions.
 
     ``strike`` is the price in dollars on both sides of the builder:
     ``option(strike=550)``, ``option(strike=550.0)``, and
@@ -290,7 +290,7 @@ class Contract:
 
 @final
 class ContractRef:
-    """Read-only contract identifier surfaced on every FPSS event.
+    """Read-only contract identifier surfaced on every streaming event.
 
     Distinct from the fluent `Contract` builder — `ContractRef` is what
     `event.contract` returns inside a streaming callback, with the
@@ -402,7 +402,7 @@ class Subscription:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# FPSS event classes — delivered to the streaming callback. The
+# Streaming event classes — delivered to the streaming callback. The
 # dispatcher fires exactly one of these per event; narrow on the
 # concrete class (`match event: case Quote(): ...`) or read `event.kind`.
 # ─────────────────────────────────────────────────────────────────────
@@ -1735,7 +1735,7 @@ class NotFoundError(ThetaDataError):
 
 @final
 class StreamError(ThetaDataError):
-    """FPSS streaming protocol / state-machine failure."""
+    """Streaming protocol / state-machine failure."""
 
     ...
 

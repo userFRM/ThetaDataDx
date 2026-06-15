@@ -151,7 +151,7 @@ def test_missing_on_ffi_under_cpp_true_trips() -> None:
 def test_python_only_no_ffi_required() -> None:
     rows = [
         {
-            "name": "MddsConfig.host",
+            "name": "HistoricalConfig.host",
             "python": True,
             "typescript": False,
             "cpp": False,
@@ -168,7 +168,7 @@ def test_python_only_no_ffi_required() -> None:
 def test_rust_only_without_issue_trips() -> None:
     rows = [
         {
-            "name": "FpssConfig.timeout_ms",
+            "name": "StreamingConfig.timeout_ms",
             "python": False,
             "typescript": False,
             "cpp": False,
@@ -187,7 +187,7 @@ def test_rust_only_without_issue_trips() -> None:
 def test_issue_without_rust_only_trips() -> None:
     rows = [
         {
-            "name": "FpssConfig.timeout_ms",
+            "name": "StreamingConfig.timeout_ms",
             "python": False,
             "typescript": False,
             "cpp": False,
@@ -206,7 +206,7 @@ def test_issue_without_rust_only_trips() -> None:
 def test_rust_only_with_binding_true_trips() -> None:
     rows = [
         {
-            "name": "FpssConfig.timeout_ms",
+            "name": "StreamingConfig.timeout_ms",
             "python": True,
             "typescript": False,
             "cpp": False,
@@ -286,20 +286,21 @@ def test_explicit_widened_abi_accepted() -> None:
 
 
 def test_setter_override_resolves_alternate_name(tmpdir: pathlib.Path) -> None:
-    """`MddsConfig.host` binds on Python as `set_mdds_host` (with the
-    `mdds_` prefix). The row's `setter = "mdds_host"` field overrides
-    the default `host` derivation and the gate accepts the binding.
+    """`HistoricalConfig.host` binds on Python as `set_historical_host`
+    (with the `historical_` prefix). The row's `setter = "historical_host"`
+    field overrides the default `host` derivation and the gate accepts
+    the binding.
     """
     rows = [
         {
-            "name": "MddsConfig.host",
+            "name": "HistoricalConfig.host",
             "python": True,
             "typescript": False,
             "cpp": False,
-            "setter": "mdds_host",
+            "setter": "historical_host",
         }
     ]
-    py_setters = {"mdds_host"}
+    py_setters = {"historical_host"}
     errors = cbp._check_dotted_rows(rows, py_setters, set(), set(), set())
     assert errors == [], f"setter override must resolve; got {errors!r}"
 
@@ -345,12 +346,12 @@ def test_surface_vocab_flags_embedded_impl_token() -> None:
 
 def test_surface_vocab_allows_vendor_protocol_names() -> None:
     """Vendor protocol names (mdds / fpss) are allow-listed; the
-    `HistoricalClient` class and `mdds_host` / `fpss_ring_size` setters must
-    NOT trip.
+    `HistoricalClient` class and `historical_host` / `streaming_ring_size`
+    setters must NOT trip.
     """
     errors = cbp._check_public_surface_vocab(
         {"HistoricalClient", "StreamingClient"}, set(), set(),
-        {"mdds_host", "mdds_port", "fpss_ring_size"}, set(), set(), set(),
+        {"historical_host", "historical_port", "streaming_ring_size"}, set(), set(), set(),
         {}, {}, {},
     )
     assert errors == [], f"vendor protocol names must be clean; got {errors!r}"
@@ -397,8 +398,8 @@ def test_setter_set_parity_missing_on_ts_trips() -> None:
 def test_setter_set_parity_exemption_honoured() -> None:
     """A Python-only knob in the exemption map does NOT trip."""
     errors = cbp._check_setter_set_parity(
-        {"mdds_host", "shared"}, {"shared"}, {"shared"}, {"shared"},
-        exempt={"mdds_host": "Python-only advanced override"},
+        {"historical_host", "shared"}, {"shared"}, {"shared"}, {"shared"},
+        exempt={"historical_host": "Python-only advanced override"},
     )
     assert errors == [], f"exempted Python-only knob must not trip; got {errors!r}"
 
@@ -433,9 +434,9 @@ def test_getter_set_parity_missing_on_ffi_trips() -> None:
     ABI trips — the read-side missing-binding defect class.
     """
     errors = cbp._check_getter_set_parity(
-        {"fpss_ring_size"}, {"fpss_ring_size"}, {"fpss_ring_size"}, set(), exempt={}
+        {"streaming_ring_size"}, {"streaming_ring_size"}, {"streaming_ring_size"}, set(), exempt={}
     )
-    assert any("fpss_ring_size" in e and "ffi" in e for e in errors), (
+    assert any("streaming_ring_size" in e and "ffi" in e for e in errors), (
         f"getter missing on FFI must trip; got {errors!r}"
     )
 
@@ -457,12 +458,12 @@ def test_getter_collectors_scope_to_config() -> None:
     getter on an unrelated pyclass is not swept into the knob roster.
     """
     text = (
-        "#[pymethods]\nimpl Config {\n    #[getter] fn get_fpss_ring_size(&self) -> usize { 0 }\n}\n"
+        "#[pymethods]\nimpl Config {\n    #[getter] fn get_streaming_ring_size(&self) -> usize { 0 }\n}\n"
         "#[pymethods]\nimpl QuoteTick {\n    #[getter] fn bid_price(&self) -> f64 { 0.0 }\n}\n"
     )
     bodies = cbp._iter_impl_config_bodies(text)
     assert len(bodies) == 1, f"only the Config impl body must be picked; got {bodies!r}"
-    assert "get_fpss_ring_size" in bodies[0] and "bid_price" not in bodies[0]
+    assert "get_streaming_ring_size" in bodies[0] and "bid_price" not in bodies[0]
 
 
 # ─── Subscription-kind label parity ────────────────────────────────

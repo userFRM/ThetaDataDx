@@ -43,7 +43,7 @@
 //!
 //! # fn doc() -> Result<(), thetadatadx::fpss::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = DirectConfig::production().fpss.hosts;
+//! let hosts = DirectConfig::production().streaming.hosts;
 //!
 //! let client = StreamingClient::builder(&creds, &hosts)
 //!     .ring_size(8192)
@@ -250,8 +250,8 @@ pub use auth::Credentials;
 pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
 pub use config::{
-    DirectConfig, FlatFilesConfig, FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass,
-    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
+    DirectConfig, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,

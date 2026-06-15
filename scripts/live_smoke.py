@@ -240,7 +240,7 @@ def _smoke_server(creds: pathlib.Path) -> None:
             server,
             "--creds",
             str(creds),
-            "--no-fpss",
+            "--no-streaming",
             "--http-port",
             str(http_port),
             "--ws-port",

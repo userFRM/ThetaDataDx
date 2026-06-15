@@ -183,7 +183,7 @@ def check_static_docs() -> None:
     # ThetaDataDxSubscriptionRequest. The contract here is "the standalone
     # streaming row leads with thetadatadx_streaming_connect" — exact wording
     # sufficient.
-    expect_contains(sdk_overview, "**Standalone FPSS** | `thetadatadx_streaming_connect`")
+    expect_contains(sdk_overview, "**Standalone streaming** | `thetadatadx_streaming_connect`")
 
     # Strikes are dollars on every public surface; the scaled-integer
     # vocabulary must never reappear (the WebSocket envelope's

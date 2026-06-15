@@ -444,7 +444,7 @@ pub fn read_frame_into<R: Read>(
 /// Like [`read_frame_into`] but takes the per-stall mid-frame timeout
 /// from the caller instead of the parity-reference [`READ_TIMEOUT_MS`]
 /// default. The I/O loop threads the user-supplied
-/// [`crate::config::FpssConfig::timeout_ms`] through this entry point
+/// [`crate::config::StreamingConfig::timeout_ms`] through this entry point
 /// so the public knob actually controls the framing stall budget.
 ///
 /// # Errors

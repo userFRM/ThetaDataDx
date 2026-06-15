@@ -578,193 +578,193 @@ impl Config {
         Ok(())
     }
 
-    // ── FPSS transport knobs ──────────────────────────────────────────
+    // ── Streaming transport knobs ─────────────────────────────────────
     //
-    // Scalar tuning on ``DirectConfig.fpss`` mirroring the FFI / C++ /
-    // TypeScript surface. Out-of-range values are rejected by the core
-    // validator at connect time.
+    // Scalar tuning on ``DirectConfig.streaming`` mirroring the FFI /
+    // C++ / TypeScript surface. Out-of-range values are rejected by the
+    // core validator at connect time.
 
-    /// Set the FPSS read timeout (ms): the no-frames deadline after
+    /// Set the streaming read timeout (ms): the no-frames deadline after
     /// which the streaming I/O loop declares the session dead and
     /// reconnects. Default ``3_000``; validated to ``[100, 60_000]``.
     #[setter]
-    fn set_fpss_timeout_ms(&self, ms: u64) {
+    fn set_streaming_timeout_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.timeout_ms = ms;
+        guard.streaming.timeout_ms = ms;
     }
 
-    /// Current ``fpss.timeout_ms`` value (default ``3_000``).
+    /// Current ``streaming.timeout_ms`` value (default ``3_000``).
     #[getter]
-    fn get_fpss_timeout_ms(&self) -> u64 {
+    fn get_streaming_timeout_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.timeout_ms
+        guard.streaming.timeout_ms
     }
 
     /// Set the per-server connect timeout (ms) for the streaming
     /// connection. Default
     /// ``2_000``; validated to ``[1_000, 60_000]``.
     #[setter]
-    fn set_fpss_connect_timeout_ms(&self, ms: u64) {
+    fn set_streaming_connect_timeout_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.connect_timeout_ms = ms;
+        guard.streaming.connect_timeout_ms = ms;
     }
 
-    /// Current ``fpss.connect_timeout_ms`` value (default ``2_000``).
+    /// Current ``streaming.connect_timeout_ms`` value (default ``2_000``).
     #[getter]
-    fn get_fpss_connect_timeout_ms(&self) -> u64 {
+    fn get_streaming_connect_timeout_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.connect_timeout_ms
+        guard.streaming.connect_timeout_ms
     }
 
-    /// Set the FPSS heartbeat ping interval (ms). Default ``250``;
+    /// Set the streaming heartbeat ping interval (ms). Default ``250``;
     /// validated to ``[100, 300_000]``.
     #[setter]
-    fn set_fpss_ping_interval_ms(&self, ms: u64) {
+    fn set_streaming_ping_interval_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ping_interval_ms = ms;
+        guard.streaming.ping_interval_ms = ms;
     }
 
-    /// Current ``fpss.ping_interval_ms`` value (default ``250``).
+    /// Current ``streaming.ping_interval_ms`` value (default ``250``).
     #[getter]
-    fn get_fpss_ping_interval_ms(&self) -> u64 {
+    fn get_streaming_ping_interval_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ping_interval_ms
+        guard.streaming.ping_interval_ms
     }
 
-    /// Set the FPSS event ring buffer size (slots). Must be a power of
-    /// two ``>= 64`` (rejected at connect otherwise). Default
+    /// Set the streaming event ring buffer size (slots). Must be a power
+    /// of two ``>= 64`` (rejected at connect otherwise). Default
     /// ``131_072``.
     #[setter]
-    fn set_fpss_ring_size(&self, n: usize) {
+    fn set_streaming_ring_size(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ring_size = n;
+        guard.streaming.ring_size = n;
     }
 
-    /// Current ``fpss.ring_size`` value (default ``131_072``).
+    /// Current ``streaming.ring_size`` value (default ``131_072``).
     #[getter]
-    fn get_fpss_ring_size(&self) -> usize {
+    fn get_streaming_ring_size(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ring_size
+        guard.streaming.ring_size
     }
 
     /// Set the per-iteration blocking-read slice (ms) for the
     /// streaming I/O loop. Default ``25``; validated to ``[10, 500]``.
     #[setter]
-    fn set_fpss_io_read_slice_ms(&self, ms: u64) {
+    fn set_streaming_io_read_slice_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.io_read_slice_ms = ms;
+        guard.streaming.io_read_slice_ms = ms;
     }
 
-    /// Current ``fpss.io_read_slice_ms`` value (default ``25``).
+    /// Current ``streaming.io_read_slice_ms`` value (default ``25``).
     #[getter]
-    fn get_fpss_io_read_slice_ms(&self) -> u64 {
+    fn get_streaming_io_read_slice_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.io_read_slice_ms
+        guard.streaming.io_read_slice_ms
     }
 
     /// Set the last-frame watchdog (ms): when no frame of any kind has
     /// arrived for this long the I/O loop force-reconnects. ``0``
     /// disables. Default ``30_000``.
     #[setter]
-    fn set_fpss_data_watchdog_ms(&self, ms: u64) {
+    fn set_streaming_data_watchdog_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.data_watchdog_ms = ms;
+        guard.streaming.data_watchdog_ms = ms;
     }
 
-    /// Current ``fpss.data_watchdog_ms`` value (default ``30_000``;
+    /// Current ``streaming.data_watchdog_ms`` value (default ``30_000``;
     /// ``0`` = disabled).
     #[getter]
-    fn get_fpss_data_watchdog_ms(&self) -> u64 {
+    fn get_streaming_data_watchdog_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.data_watchdog_ms
+        guard.streaming.data_watchdog_ms
     }
 
     /// Set the TCP keepalive idle time (seconds) before the first
-    /// kernel probe on a silent FPSS socket. Default ``5``; validated
-    /// to ``[1, 7_200]``.
+    /// kernel probe on a silent streaming socket. Default ``5``;
+    /// validated to ``[1, 7_200]``.
     #[setter]
-    fn set_fpss_keepalive_idle_secs(&self, secs: u64) {
+    fn set_streaming_keepalive_idle_secs(&self, secs: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_idle_secs = secs;
+        guard.streaming.keepalive_idle_secs = secs;
     }
 
-    /// Current ``fpss.keepalive_idle_secs`` value (default ``5``).
+    /// Current ``streaming.keepalive_idle_secs`` value (default ``5``).
     #[getter]
-    fn get_fpss_keepalive_idle_secs(&self) -> u64 {
+    fn get_streaming_keepalive_idle_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_idle_secs
+        guard.streaming.keepalive_idle_secs
     }
 
     /// Set the interval (seconds) between TCP keepalive probes.
     /// Default ``2``; validated to ``[1, 75]``.
     #[setter]
-    fn set_fpss_keepalive_interval_secs(&self, secs: u64) {
+    fn set_streaming_keepalive_interval_secs(&self, secs: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_interval_secs = secs;
+        guard.streaming.keepalive_interval_secs = secs;
     }
 
-    /// Current ``fpss.keepalive_interval_secs`` value (default ``2``).
+    /// Current ``streaming.keepalive_interval_secs`` value (default ``2``).
     #[getter]
-    fn get_fpss_keepalive_interval_secs(&self) -> u64 {
+    fn get_streaming_keepalive_interval_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_interval_secs
+        guard.streaming.keepalive_interval_secs
     }
 
     /// Set the number of unanswered TCP keepalive probes after which
-    /// the kernel declares the FPSS connection dead (where the
+    /// the kernel declares the streaming connection dead (where the
     /// platform exposes the knob). Default ``2``; validated to
     /// ``[1, 10]``.
     #[setter]
-    fn set_fpss_keepalive_retries(&self, n: u32) {
+    fn set_streaming_keepalive_retries(&self, n: u32) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_retries = n;
+        guard.streaming.keepalive_retries = n;
     }
 
-    /// Current ``fpss.keepalive_retries`` value (default ``2``).
+    /// Current ``streaming.keepalive_retries`` value (default ``2``).
     #[getter]
-    fn get_fpss_keepalive_retries(&self) -> u32 {
+    fn get_streaming_keepalive_retries(&self) -> u32 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_retries
+        guard.streaming.keepalive_retries
     }
 
-    /// Set the FPSS host-selection policy. Accepts ``"shuffled"``
+    /// Set the streaming host-selection policy. Accepts ``"shuffled"``
     /// (default — fault-domain-aware per-client shuffle) or
     /// ``"fixed_order"`` (declared order verbatim), case-insensitive.
     #[setter]
-    fn set_fpss_host_selection(&self, policy: &str) -> PyResult<()> {
+    fn set_streaming_host_selection(&self, policy: &str) -> PyResult<()> {
         let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
             PyValueError::new_err(format!(
-                "unknown fpss_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
+                "unknown streaming_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
             ))
         })?;
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_selection = parsed;
+        guard.streaming.host_selection = parsed;
         Ok(())
     }
 
-    /// Current FPSS host-selection policy as a lowercase string.
+    /// Current streaming host-selection policy as a lowercase string.
     #[getter]
-    fn get_fpss_host_selection(&self) -> &'static str {
+    fn get_streaming_host_selection(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_selection.as_str()
+        guard.streaming.host_selection.as_str()
     }
 
-    /// Set the FPSS host-shuffle seed. ``None`` (default) derives a
+    /// Set the streaming host-shuffle seed. ``None`` (default) derives a
     /// fresh per-client seed so a fleet shuffles independently; an
     /// explicit value makes the shuffled order deterministic — useful
     /// for fleet sharding and tests. Ignored under ``"fixed_order"``.
     #[setter]
-    fn set_fpss_host_shuffle_seed(&self, seed: Option<u64>) {
+    fn set_streaming_host_shuffle_seed(&self, seed: Option<u64>) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_shuffle_seed = seed;
+        guard.streaming.host_shuffle_seed = seed;
     }
 
-    /// Current ``fpss.host_shuffle_seed`` value (``None`` = per-client
+    /// Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
     /// entropy).
     #[getter]
-    fn get_fpss_host_shuffle_seed(&self) -> Option<u64> {
+    fn get_streaming_host_shuffle_seed(&self) -> Option<u64> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_shuffle_seed
+        guard.streaming.host_shuffle_seed
     }
 
     /// Set the wall-clock envelope (seconds) for one
@@ -1036,14 +1036,14 @@ impl Config {
     #[setter]
     fn set_derive_ohlcvc(&self, enabled: bool) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.derive_ohlcvc = enabled;
+        guard.streaming.derive_ohlcvc = enabled;
     }
 
     /// Get the current OHLCVC derivation setting.
     #[getter]
     fn get_derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.derive_ohlcvc
+        guard.streaming.derive_ohlcvc
     }
 
     /// Set the streaming write-flush policy.
@@ -1055,8 +1055,8 @@ impl Config {
     #[setter]
     fn set_flush_mode(&self, mode: &str) -> pyo3::PyResult<()> {
         let parsed = match mode.to_ascii_lowercase().as_str() {
-            "batched" => config::FpssFlushMode::Batched,
-            "immediate" => config::FpssFlushMode::Immediate,
+            "batched" => config::StreamingFlushMode::Batched,
+            "immediate" => config::StreamingFlushMode::Immediate,
             other => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "flush_mode must be \"batched\" or \"immediate\"; got {other:?}"
@@ -1064,7 +1064,7 @@ impl Config {
             }
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.flush_mode = parsed;
+        guard.streaming.flush_mode = parsed;
         Ok(())
     }
 
@@ -1073,9 +1073,9 @@ impl Config {
     #[getter]
     fn get_flush_mode(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.fpss.flush_mode {
-            config::FpssFlushMode::Batched => "batched",
-            config::FpssFlushMode::Immediate => "immediate",
+        match guard.streaming.flush_mode {
+            config::StreamingFlushMode::Batched => "batched",
+            config::StreamingFlushMode::Immediate => "immediate",
             _ => "unknown",
         }
     }
@@ -1085,31 +1085,31 @@ impl Config {
     /// to prove the streaming-only surface never opens it; production
     /// code paths should keep the `Config::production()` default.
     #[setter]
-    fn set_mdds_host(&self, host: String) {
+    fn set_historical_host(&self, host: String) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.host = host;
+        guard.historical.host = host;
     }
 
     /// Current historical gRPC host.
     #[getter]
-    fn get_mdds_host(&self) -> String {
+    fn get_historical_host(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.host.clone()
+        guard.historical.host.clone()
     }
 
-    /// Override the historical gRPC port. Companion to `mdds_host` —
+    /// Override the historical gRPC port. Companion to `historical_host` —
     /// same rationale and same test-only usage.
     #[setter]
-    fn set_mdds_port(&self, port: u16) {
+    fn set_historical_port(&self, port: u16) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.port = port;
+        guard.historical.port = port;
     }
 
     /// Current historical gRPC port.
     #[getter]
-    fn get_mdds_port(&self) -> u16 {
+    fn get_historical_port(&self) -> u16 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.port
+        guard.historical.port
     }
 
     // ── Historical pool sizing ─────────────────────────────────────
@@ -1132,14 +1132,14 @@ impl Config {
     #[setter]
     fn set_concurrent_requests(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.concurrent_requests = n;
+        guard.historical.concurrent_requests = n;
     }
 
     /// Current `concurrent_requests` setting (``0`` = auto-detect).
     #[getter]
     fn get_concurrent_requests(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.concurrent_requests
+        guard.historical.concurrent_requests
     }
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -1156,23 +1156,23 @@ impl Config {
     #[setter]
     fn set_warn_on_buffered_threshold_bytes(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.warn_on_buffered_threshold_bytes = n;
+        guard.historical.warn_on_buffered_threshold_bytes = n;
     }
 
     /// Current ``warn_on_buffered_threshold_bytes`` setting (bytes).
     #[getter]
     fn get_warn_on_buffered_threshold_bytes(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.warn_on_buffered_threshold_bytes
+        guard.historical.warn_on_buffered_threshold_bytes
     }
 
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
-            "Config(mdds={}:{}, fpss_hosts={})",
-            guard.mdds.host,
-            guard.mdds.port,
-            guard.fpss.hosts.len()
+            "Config(historical={}:{}, streaming_hosts={})",
+            guard.historical.host,
+            guard.historical.port,
+            guard.streaming.hosts.len()
         )
     }
 }

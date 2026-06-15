@@ -1053,7 +1053,7 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client, name, &converted_args).await {
+    let output = match endpoint::invoke_endpoint(client.historical(), name, &converted_args).await {
         Ok(output) => output,
         Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));

@@ -246,8 +246,8 @@ def test_fpss_client_no_mdds_channel() -> None:
     # immediately. A wildly off port (e.g. 1) keeps the failure
     # synchronous — a regular bogus hostname would impose a DNS
     # resolution timeout on the test runtime.
-    config.mdds_host = "127.0.0.1"
-    config.mdds_port = 1
+    config.historical_host = "127.0.0.1"
+    config.historical_port = 1
 
     creds = mod.Credentials("user@example.com", "pw")
 

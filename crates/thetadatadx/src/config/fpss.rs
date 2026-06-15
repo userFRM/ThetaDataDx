@@ -1,9 +1,9 @@
-//! FPSS (TCP streaming) sub-configuration.
+//! Streaming (TCP) sub-configuration.
 
-/// Controls when the FPSS write buffer is flushed.
+/// Controls when the streaming write buffer is flushed.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum FpssFlushMode {
+pub enum StreamingFlushMode {
     /// Flush only on PING frames. Lower syscall overhead, up to one
     /// ping interval of additional latency.
     #[default]
@@ -12,7 +12,7 @@ pub enum FpssFlushMode {
     Immediate,
 }
 
-/// How the streaming client orders the configured FPSS hosts for the
+/// How the streaming client orders the configured streaming hosts for the
 /// initial connect and every reconnect.
 ///
 /// The production host list spans two physical machines with two ports
@@ -62,7 +62,7 @@ impl HostSelectionPolicy {
     }
 }
 
-/// FPSS streaming client tuning.
+/// Streaming client tuning.
 ///
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
 /// `connect_timeout_ms`, `io_read_slice_ms`, `data_watchdog_ms`, the
@@ -73,8 +73,8 @@ impl HostSelectionPolicy {
 /// the connect attempt.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct FpssConfig {
-    /// FPSS hosts.
+pub struct StreamingConfig {
+    /// Streaming hosts.
     ///
     /// The connection layer iterates through these on connection
     /// failure, in the order produced by [`Self::host_selection`].
@@ -96,7 +96,7 @@ pub struct FpssConfig {
     /// [`HostSelectionPolicy::FixedOrder`].
     pub host_shuffle_seed: Option<u64>,
 
-    /// FPSS read timeout in milliseconds.
+    /// Streaming read timeout in milliseconds.
     ///
     /// Drives the per-connection initial socket read timeout, the framing
     /// layer's mid-frame stall budget, and the I/O loop's overall
@@ -108,7 +108,7 @@ pub struct FpssConfig {
     /// 10 s default. Validated to the range `[100, 60_000]` ms.
     pub timeout_ms: u64,
 
-    /// FPSS event ring buffer size (slots).
+    /// Streaming event ring buffer size (slots).
     ///
     /// MUST be a power of two (the ring wraps the index with
     /// `i & (cap - 1)`) and at least `64`. `StreamingClient::connect`
@@ -119,9 +119,9 @@ pub struct FpssConfig {
     /// memory (~`ring_size * sizeof(Option<StreamEvent>)`).
     pub ring_size: usize,
 
-    /// FPSS heartbeat ping interval in milliseconds.
+    /// Streaming heartbeat ping interval in milliseconds.
     ///
-    /// The FPSS server expects a heartbeat at this cadence and may
+    /// The streaming server expects a heartbeat at this cadence and may
     /// disconnect if it falls silent. Default `250` — the server's own
     /// ~100 ms heartbeat is the primary liveness signal in the
     /// reverse direction; the client ping mainly proves write-side
@@ -167,7 +167,7 @@ pub struct FpssConfig {
     pub data_watchdog_ms: u64,
 
     /// TCP keepalive idle time (seconds) before the kernel sends the
-    /// first probe on an otherwise-silent FPSS socket. Default `5`.
+    /// first probe on an otherwise-silent streaming socket. Default `5`.
     /// Validated to `[1, 7_200]` s.
     ///
     /// Keepalive is transport-level defence-in-depth below the
@@ -189,23 +189,23 @@ pub struct FpssConfig {
     /// does not expose the knob the idle/interval pair still applies.
     pub keepalive_retries: u32,
 
-    /// Controls when the FPSS write buffer is flushed.
+    /// Controls when the streaming write buffer is flushed.
     ///
-    /// - [`FpssFlushMode::Batched`] (default): only flush on PING frames.
+    /// - [`StreamingFlushMode::Batched`] (default): only flush on PING frames.
     ///   Lower syscall overhead.
-    /// - [`FpssFlushMode::Immediate`]: flush after every frame write. Lowest
+    /// - [`StreamingFlushMode::Immediate`]: flush after every frame write. Lowest
     ///   latency, higher syscall overhead.
-    pub flush_mode: FpssFlushMode,
+    pub flush_mode: StreamingFlushMode,
 
     /// Whether to derive OHLCVC bars locally from trade events.
     ///
-    /// When `true` (default), the FPSS client emits derived `StreamData::Ohlcvc`
+    /// When `true` (default), the streaming client emits derived `StreamData::Ohlcvc`
     /// events after each trade. When `false`, only server-sent OHLCVC frames
     /// (wire code 24) are emitted, reducing per-trade throughput overhead.
     pub derive_ohlcvc: bool,
 }
 
-impl FpssConfig {
+impl StreamingConfig {
     /// Production defaults for ThetaData's NJ datacenter.
     #[must_use]
     pub fn production_defaults() -> Self {
@@ -227,32 +227,32 @@ impl FpssConfig {
             keepalive_idle_secs: 5,
             keepalive_interval_secs: 2,
             keepalive_retries: 2,
-            flush_mode: FpssFlushMode::Batched,
+            flush_mode: StreamingFlushMode::Batched,
             derive_ohlcvc: true,
         }
     }
 }
 
-/// Validation bounds for the wired FPSS knobs. Out-of-range values
+/// Validation bounds for the wired streaming knobs. Out-of-range values
 /// are rejected at config-load time by [`crate::config::DirectConfig::validate`].
 pub mod bounds {
-    /// Allowed range for [`super::FpssConfig::timeout_ms`], in milliseconds.
+    /// Allowed range for [`super::StreamingConfig::timeout_ms`], in milliseconds.
     pub const TIMEOUT_MS: std::ops::RangeInclusive<u64> = 100..=60_000;
-    /// Allowed range for [`super::FpssConfig::connect_timeout_ms`], in milliseconds.
+    /// Allowed range for [`super::StreamingConfig::connect_timeout_ms`], in milliseconds.
     pub const CONNECT_TIMEOUT_MS: std::ops::RangeInclusive<u64> = 1_000..=60_000;
-    /// Allowed range for [`super::FpssConfig::ping_interval_ms`], in milliseconds.
+    /// Allowed range for [`super::StreamingConfig::ping_interval_ms`], in milliseconds.
     pub const PING_INTERVAL_MS: std::ops::RangeInclusive<u64> = 100..=300_000;
-    /// Allowed range for [`super::FpssConfig::io_read_slice_ms`], in milliseconds.
+    /// Allowed range for [`super::StreamingConfig::io_read_slice_ms`], in milliseconds.
     pub const IO_READ_SLICE_MS: std::ops::RangeInclusive<u64> = 10..=500;
-    /// Allowed range for [`super::FpssConfig::keepalive_idle_secs`], in seconds.
+    /// Allowed range for [`super::StreamingConfig::keepalive_idle_secs`], in seconds.
     pub const KEEPALIVE_IDLE_SECS: std::ops::RangeInclusive<u64> = 1..=7_200;
-    /// Allowed range for [`super::FpssConfig::keepalive_interval_secs`], in seconds.
+    /// Allowed range for [`super::StreamingConfig::keepalive_interval_secs`], in seconds.
     pub const KEEPALIVE_INTERVAL_SECS: std::ops::RangeInclusive<u64> = 1..=75;
-    /// Allowed range for [`super::FpssConfig::keepalive_retries`].
+    /// Allowed range for [`super::StreamingConfig::keepalive_retries`].
     pub const KEEPALIVE_RETRIES: std::ops::RangeInclusive<u32> = 1..=10;
 }
 
-impl Default for FpssConfig {
+impl Default for StreamingConfig {
     fn default() -> Self {
         Self::production_defaults()
     }
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn production_defaults_resilience_shape() {
-        let cfg = FpssConfig::production_defaults();
+        let cfg = StreamingConfig::production_defaults();
         assert_eq!(cfg.timeout_ms, 3_000);
         assert_eq!(cfg.ping_interval_ms, 250);
         assert_eq!(cfg.io_read_slice_ms, 25);

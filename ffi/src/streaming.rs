@@ -135,7 +135,7 @@ pub struct ThetaDataDxStreamHandle {
     inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::StreamingClient>>>>,
     /// Saved connection parameters used at `set_callback` time and on
     /// every subsequent `thetadatadx_streaming_reconnect`.
-    connect_params: FpssConnectParams,
+    connect_params: StreamingConnectParams,
     /// User callback recorded at `thetadatadx_streaming_set_callback` time. Stored
     /// on the handle so `thetadatadx_streaming_reconnect` can re-register the same
     /// callback on the new FPSS connection without forcing the caller
@@ -170,27 +170,29 @@ pub struct ThetaDataDxStreamHandle {
 }
 
 /// Saved FPSS connection parameters for FFI-safe (re)connection.
-struct FpssConnectParams {
+struct StreamingConnectParams {
     creds: thetadatadx::Credentials,
-    /// Snapshot of `DirectConfig.fpss` at handle-construction time —
+    /// Snapshot of `DirectConfig.streaming` at handle-construction time —
     /// hosts, ring size, timeouts, keepalive schedule, host-selection
     /// policy, watchdog, flush mode.
-    fpss: thetadatadx::config::FpssConfig,
+    streaming: thetadatadx::config::StreamingConfig,
     /// Snapshot of `DirectConfig.reconnect` at handle-construction
     /// time — policy, per-class cadences, jitter, replay pacing.
     reconnect: thetadatadx::config::ReconnectConfig,
 }
 
-/// Thread every connection-side knob from a [`FpssConnectParams`]
+/// Thread every connection-side knob from a [`StreamingConnectParams`]
 /// snapshot into an [`thetadatadx::fpss::StreamingClientBuilder`].
 ///
 /// The single source of truth for the FFI's two build sites (initial
 /// `set_callback` connect and `thetadatadx_streaming_reconnect`) so a future knob
 /// cannot be wired into one and silently dropped from the other.
-fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
-    thetadatadx::fpss::StreamingClient::builder(&params.creds, &params.fpss.hosts)
-        .ring_size(params.fpss.ring_size)
-        .flush_mode(params.fpss.flush_mode)
+fn streaming_builder(
+    params: &StreamingConnectParams,
+) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
+    thetadatadx::fpss::StreamingClient::builder(&params.creds, &params.streaming.hosts)
+        .ring_size(params.streaming.ring_size)
+        .flush_mode(params.streaming.flush_mode)
         .reconnect_policy(params.reconnect.policy.clone())
         .reconnect_wait_ms(params.reconnect.wait_ms)
         .reconnect_wait_max_ms(params.reconnect.wait_max_ms)
@@ -199,17 +201,17 @@ fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::StreamingClien
         .reconnect_jitter(params.reconnect.jitter)
         .reconnect_replay_burst_size(params.reconnect.replay_burst_size)
         .reconnect_replay_pace_ms(params.reconnect.replay_pace_ms)
-        .derive_ohlcvc(params.fpss.derive_ohlcvc)
-        .connect_timeout_ms(params.fpss.connect_timeout_ms)
-        .read_timeout_ms(params.fpss.timeout_ms)
-        .ping_interval_ms(params.fpss.ping_interval_ms)
-        .io_read_slice_ms(params.fpss.io_read_slice_ms)
-        .data_watchdog_ms(params.fpss.data_watchdog_ms)
-        .keepalive_idle_secs(params.fpss.keepalive_idle_secs)
-        .keepalive_interval_secs(params.fpss.keepalive_interval_secs)
-        .keepalive_retries(params.fpss.keepalive_retries)
-        .host_selection(params.fpss.host_selection)
-        .host_shuffle_seed(params.fpss.host_shuffle_seed)
+        .derive_ohlcvc(params.streaming.derive_ohlcvc)
+        .connect_timeout_ms(params.streaming.connect_timeout_ms)
+        .read_timeout_ms(params.streaming.timeout_ms)
+        .ping_interval_ms(params.streaming.ping_interval_ms)
+        .io_read_slice_ms(params.streaming.io_read_slice_ms)
+        .data_watchdog_ms(params.streaming.data_watchdog_ms)
+        .keepalive_idle_secs(params.streaming.keepalive_idle_secs)
+        .keepalive_interval_secs(params.streaming.keepalive_interval_secs)
+        .keepalive_retries(params.streaming.keepalive_retries)
+        .host_selection(params.streaming.host_selection)
+        .host_shuffle_seed(params.streaming.host_shuffle_seed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1434,9 +1436,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
 
         Box::into_raw(Box::new(ThetaDataDxStreamHandle {
             inner: Arc::new(Mutex::new(None)),
-            connect_params: FpssConnectParams {
+            connect_params: StreamingConnectParams {
                 creds: creds.inner.clone(),
-                fpss: config.inner.fpss.clone(),
+                streaming: config.inner.streaming.clone(),
                 reconnect: config.inner.reconnect.clone(),
             },
             callback: Mutex::new(None),
@@ -1562,7 +1564,7 @@ where
         );
         return Err(());
     }
-    let build_result = fpss_builder(&handle.connect_params).build();
+    let build_result = streaming_builder(&handle.connect_params).build();
     match build_result {
         Ok(client) => {
             let client_arc = std::sync::Arc::new(client);
@@ -2032,7 +2034,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
 
         // 3. Build the new client + spawn a fresh dispatcher thread
         // bound to the same C callback.
-        let connect_result = fpss_builder(params).build();
+        let connect_result = streaming_builder(params).build();
 
         let new_client = match connect_result {
             Ok(c) => Arc::new(c),

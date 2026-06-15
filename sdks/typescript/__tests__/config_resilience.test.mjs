@@ -1,7 +1,7 @@
 // Connection-resilience knobs on `Config` — TypeScript binding parity
 // with Python / C++ / FFI. Pins defaults and setter/getter round-trips
 // for the reconnect cadence ladder, jitter, budgets + wall-clock
-// envelope, replay pacing, the FPSS transport knobs, the historical
+// envelope, replay pacing, the streaming transport knobs, the historical
 // retry envelope, the flatfile jitter toggle, and the custom reconnect
 // callback registration.
 import { test } from "node:test";
@@ -65,50 +65,50 @@ test("reconnect callback registration switches policy", () => {
   assert.equal(cfg.reconnectPolicy, "auto");
 });
 
-test("fpss transport defaults and round-trip", () => {
+test("streaming transport defaults and round-trip", () => {
   const cfg = Config.production();
-  assert.equal(cfg.fpssTimeoutMs, 3_000n);
-  assert.equal(cfg.fpssConnectTimeoutMs, 2_000n);
-  assert.equal(cfg.fpssPingIntervalMs, 250n);
-  assert.equal(cfg.fpssRingSize, 131_072);
-  assert.equal(cfg.fpssIoReadSliceMs, 25n);
-  assert.equal(cfg.fpssDataWatchdogMs, 30_000n);
-  assert.equal(cfg.fpssKeepaliveIdleSecs, 5n);
-  assert.equal(cfg.fpssKeepaliveIntervalSecs, 2n);
-  assert.equal(cfg.fpssKeepaliveRetries, 2);
-  cfg.setFpssTimeoutMs(10_000n);
-  cfg.setFpssDataWatchdogMs(0n); // disables the watchdog
-  cfg.setFpssKeepaliveIdleSecs(10n);
-  assert.equal(cfg.fpssTimeoutMs, 10_000n);
-  assert.equal(cfg.fpssDataWatchdogMs, 0n);
-  assert.equal(cfg.fpssKeepaliveIdleSecs, 10n);
+  assert.equal(cfg.streamingTimeoutMs, 3_000n);
+  assert.equal(cfg.streamingConnectTimeoutMs, 2_000n);
+  assert.equal(cfg.streamingPingIntervalMs, 250n);
+  assert.equal(cfg.streamingRingSize, 131_072);
+  assert.equal(cfg.streamingIoReadSliceMs, 25n);
+  assert.equal(cfg.streamingDataWatchdogMs, 30_000n);
+  assert.equal(cfg.streamingKeepaliveIdleSecs, 5n);
+  assert.equal(cfg.streamingKeepaliveIntervalSecs, 2n);
+  assert.equal(cfg.streamingKeepaliveRetries, 2);
+  cfg.setStreamingTimeoutMs(10_000n);
+  cfg.setStreamingDataWatchdogMs(0n); // disables the watchdog
+  cfg.setStreamingKeepaliveIdleSecs(10n);
+  assert.equal(cfg.streamingTimeoutMs, 10_000n);
+  assert.equal(cfg.streamingDataWatchdogMs, 0n);
+  assert.equal(cfg.streamingKeepaliveIdleSecs, 10n);
 });
 
-test("fpss ring size rejects non-power-of-two", () => {
+test("streaming ring size rejects non-power-of-two", () => {
   const cfg = Config.production();
-  cfg.setFpssRingSize(8_192);
-  assert.equal(cfg.fpssRingSize, 8_192);
-  assert.throws(() => cfg.setFpssRingSize(5_000), /power of two/);
-  assert.equal(cfg.fpssRingSize, 8_192, "rejected value leaves config unchanged");
+  cfg.setStreamingRingSize(8_192);
+  assert.equal(cfg.streamingRingSize, 8_192);
+  assert.throws(() => cfg.setStreamingRingSize(5_000), /power of two/);
+  assert.equal(cfg.streamingRingSize, 8_192, "rejected value leaves config unchanged");
 });
 
-test("fpss host selection round-trips and rejects unknown", () => {
+test("streaming host selection round-trips and rejects unknown", () => {
   const cfg = Config.production();
-  assert.equal(cfg.fpssHostSelection, "shuffled");
-  cfg.setFpssHostSelection("fixed_order");
-  assert.equal(cfg.fpssHostSelection, "fixed_order");
-  cfg.setFpssHostSelection("SHUFFLED");
-  assert.equal(cfg.fpssHostSelection, "shuffled");
-  assert.throws(() => cfg.setFpssHostSelection("round_robin"), /shuffled/);
+  assert.equal(cfg.streamingHostSelection, "shuffled");
+  cfg.setStreamingHostSelection("fixed_order");
+  assert.equal(cfg.streamingHostSelection, "fixed_order");
+  cfg.setStreamingHostSelection("SHUFFLED");
+  assert.equal(cfg.streamingHostSelection, "shuffled");
+  assert.throws(() => cfg.setStreamingHostSelection("round_robin"), /shuffled/);
 });
 
-test("fpss host shuffle seed round-trips the null sentinel", () => {
+test("streaming host shuffle seed round-trips the null sentinel", () => {
   const cfg = Config.production();
-  assert.equal(cfg.fpssHostShuffleSeed, null);
-  cfg.setFpssHostShuffleSeed(42n);
-  assert.equal(cfg.fpssHostShuffleSeed, 42n);
-  cfg.setFpssHostShuffleSeed(null);
-  assert.equal(cfg.fpssHostShuffleSeed, null);
+  assert.equal(cfg.streamingHostShuffleSeed, null);
+  cfg.setStreamingHostShuffleSeed(42n);
+  assert.equal(cfg.streamingHostShuffleSeed, 42n);
+  cfg.setStreamingHostShuffleSeed(null);
+  assert.equal(cfg.streamingHostShuffleSeed, null);
 });
 
 test("retry envelope defaults and round-trip", () => {

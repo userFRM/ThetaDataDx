@@ -100,7 +100,7 @@ pub extern "C" fn thetadatadx_config_production() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Create a dev config (FPSS dev servers, port 20200, infinite replay).
+/// Create a dev config (streaming dev servers, port 20200, infinite replay).
 #[no_mangle]
 pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
@@ -110,7 +110,7 @@ pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Create a stage config (FPSS stage servers, port 20100, unstable).
+/// Create a stage config (streaming stage servers, port 20100, unstable).
 #[no_mangle]
 pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
     })
 }
 
-/// Set FPSS flush mode on a config handle.
+/// Set streaming flush mode on a config handle.
 ///
 /// - `mode = 0`: Batched (default) -- flush only on PING every 100ms
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
@@ -156,8 +156,8 @@ pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
             return -1;
         }
         let value = match mode {
-            0 => thetadatadx::FpssFlushMode::Batched,
-            1 => thetadatadx::FpssFlushMode::Immediate,
+            0 => thetadatadx::StreamingFlushMode::Batched,
+            1 => thetadatadx::StreamingFlushMode::Immediate,
             other => {
                 crate::error::set_error_with_code(
                     &format!(
@@ -174,12 +174,12 @@ pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
         // the Box and the FFI contract forbids concurrent calls on the same
         // handle.
         let config = unsafe { &mut *config };
-        config.inner.fpss.flush_mode = value;
+        config.inner.streaming.flush_mode = value;
         0
     })
 }
 
-/// Read the configured FPSS flush mode. Same encoding as
+/// Read the configured streaming flush mode. Same encoding as
 /// `thetadatadx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
 /// (`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
 /// either pointer is null.
@@ -195,9 +195,9 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        let value = match config.inner.fpss.flush_mode {
-            thetadatadx::FpssFlushMode::Batched => 0,
-            thetadatadx::FpssFlushMode::Immediate => 1,
+        let value = match config.inner.streaming.flush_mode {
+            thetadatadx::StreamingFlushMode::Batched => 0,
+            thetadatadx::StreamingFlushMode::Immediate => 1,
             _ => 0,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
     })
 }
 
-/// Set FPSS reconnect policy on a config handle.
+/// Set streaming reconnect policy on a config handle.
 ///
 /// - `policy = 0`: Auto (default) -- auto-reconnect with split per-class
 ///   attempt budgets (see `thetadatadx_config_set_reconnect_max_attempts`,
@@ -309,7 +309,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_stable_window_secs(
 
 /// Set the reconnect delay (ms) honoured for generic transient
 /// disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
-/// through to the FPSS I/O loop at connect time and consumed by the
+/// through to the streaming I/O loop at connect time and consumed by the
 /// `Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms(
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_ms(
 }
 
 /// Set the reconnect delay (ms) honoured for `TooManyRequests`
-/// rate-limited disconnects. Plumbed through to the FPSS I/O loop at
+/// rate-limited disconnects. Plumbed through to the streaming I/O loop at
 /// connect time and consumed by the `Auto` reconnect arm via
 /// `reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
 /// 130 s rate-limit cooldown).
@@ -828,33 +828,33 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_pace_ms(
     })
 }
 
-// ── FPSS transport knobs ────────────────────────────────────────────
+// ── Streaming transport knobs ────────────────────────────────────────────
 //
-// Scalar tuning on `FpssConfig` exposed for embedded callers: read
+// Scalar tuning on `StreamingConfig` exposed for embedded callers: read
 // timeout, connect timeout, ping cadence, ring size, the I/O read
 // slice, the last-frame watchdog, the TCP keepalive schedule, and the
 // host-selection policy. Out-of-range values are rejected at connect
 // time by the core validator; the setters here store verbatim so the
 // rejection carries the canonical bounds message.
 
-/// Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
+/// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_timeout_ms(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.timeout_ms = v;
+        config.inner.streaming.timeout_ms = v;
     })
 }
 
-/// Read the current FPSS `timeout_ms` setting (default `3_000`).
+/// Read the current streaming `timeout_ms` setting (default `3_000`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_timeout_ms(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_timeout_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -867,30 +867,30 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_timeout_ms(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.timeout_ms;
+            *out = config.inner.streaming.timeout_ms;
         }
         0
     })
 }
 
-/// Set the per-server FPSS TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
+/// Set the per-server streaming TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_connect_timeout_ms(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_connect_timeout_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.connect_timeout_ms = v;
+        config.inner.streaming.connect_timeout_ms = v;
     })
 }
 
-/// Read the current FPSS `connect_timeout_ms` setting (default `2_000`).
+/// Read the current streaming `connect_timeout_ms` setting (default `2_000`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_connect_timeout_ms(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_connect_timeout_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -903,30 +903,30 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_connect_timeout_ms(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.connect_timeout_ms;
+            *out = config.inner.streaming.connect_timeout_ms;
         }
         0
     })
 }
 
-/// Set the FPSS heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
+/// Set the streaming heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_ping_interval_ms(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_ping_interval_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.ping_interval_ms = v;
+        config.inner.streaming.ping_interval_ms = v;
     })
 }
 
-/// Read the current FPSS `ping_interval_ms` setting (default `250`).
+/// Read the current streaming `ping_interval_ms` setting (default `250`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_ping_interval_ms(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_ping_interval_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -939,7 +939,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_ping_interval_ms(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.ping_interval_ms;
+            *out = config.inner.streaming.ping_interval_ms;
         }
         0
     })
@@ -947,22 +947,22 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_ping_interval_ms(
 
 /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_io_read_slice_ms(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_io_read_slice_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.io_read_slice_ms = v;
+        config.inner.streaming.io_read_slice_ms = v;
     })
 }
 
-/// Read the current FPSS `io_read_slice_ms` setting (default `25`).
+/// Read the current streaming `io_read_slice_ms` setting (default `25`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_io_read_slice_ms(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_io_read_slice_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -975,7 +975,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_io_read_slice_ms(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.io_read_slice_ms;
+            *out = config.inner.streaming.io_read_slice_ms;
         }
         0
     })
@@ -983,22 +983,22 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_io_read_slice_ms(
 
 /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects, regardless of the read-timeout accounting. `0` disables. Default `30_000`.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_data_watchdog_ms(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_data_watchdog_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.data_watchdog_ms = v;
+        config.inner.streaming.data_watchdog_ms = v;
     })
 }
 
-/// Read the current FPSS `data_watchdog_ms` setting (default `30_000`; `0` = disabled).
+/// Read the current streaming `data_watchdog_ms` setting (default `30_000`; `0` = disabled).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_data_watchdog_ms(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_data_watchdog_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -1011,30 +1011,30 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_data_watchdog_ms(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.data_watchdog_ms;
+            *out = config.inner.streaming.data_watchdog_ms;
         }
         0
     })
 }
 
-/// Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent FPSS socket. Default `5`; validated to `[1, 7_200]` at connect.
+/// Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_idle_secs(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_idle_secs(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.keepalive_idle_secs = v;
+        config.inner.streaming.keepalive_idle_secs = v;
     })
 }
 
-/// Read the current FPSS `keepalive_idle_secs` setting (default `5`).
+/// Read the current streaming `keepalive_idle_secs` setting (default `5`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_idle_secs(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_idle_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -1047,7 +1047,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_idle_secs(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.keepalive_idle_secs;
+            *out = config.inner.streaming.keepalive_idle_secs;
         }
         0
     })
@@ -1055,22 +1055,22 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_idle_secs(
 
 /// Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_interval_secs(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_interval_secs(
     config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.keepalive_interval_secs = v;
+        config.inner.streaming.keepalive_interval_secs = v;
     })
 }
 
-/// Read the current FPSS `keepalive_interval_secs` setting (default `2`).
+/// Read the current streaming `keepalive_interval_secs` setting (default `2`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_interval_secs(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_interval_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
@@ -1083,30 +1083,30 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_interval_secs(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.keepalive_interval_secs;
+            *out = config.inner.streaming.keepalive_interval_secs;
         }
         0
     })
 }
 
-/// Set the number of unanswered TCP keepalive probes after which the kernel declares the FPSS connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
+/// Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_retries(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_retries(
     config: *mut ThetaDataDxConfig,
     v: u32,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.keepalive_retries = v;
+        config.inner.streaming.keepalive_retries = v;
     })
 }
 
-/// Read the current FPSS `keepalive_retries` setting (default `2`).
+/// Read the current streaming `keepalive_retries` setting (default `2`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_retries(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_retries(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
@@ -1119,20 +1119,20 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_retries(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.keepalive_retries;
+            *out = config.inner.streaming.keepalive_retries;
         }
         0
     })
 }
 
-/// Set the FPSS event ring buffer size (slots).
+/// Set the streaming event ring buffer size (slots).
 ///
 /// Must be a power of two `>= 64`. Invalid values are rejected at the
 /// setter boundary: the config is left unchanged and the failure
 /// reason is written to thread-local storage retrievable via
 /// `thetadatadx_last_error()`. Default is `131_072`.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_ring_size(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
     config: *mut ThetaDataDxConfig,
     n: usize,
 ) {
@@ -1145,26 +1145,26 @@ pub unsafe extern "C" fn thetadatadx_config_set_fpss_ring_size(
         // setter rather than at connect.
         if n == 0 || !n.is_power_of_two() {
             set_error(&format!(
-                "fpss_ring_size must be a power of two >= 64; got {n}"
+                "streaming_ring_size must be a power of two >= 64; got {n}"
             ));
             return;
         }
         if n < 64 {
-            set_error(&format!("fpss_ring_size must be >= 64; got {n}"));
+            set_error(&format!("streaming_ring_size must be >= 64; got {n}"));
             return;
         }
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
-        config.inner.fpss.ring_size = n;
+        config.inner.streaming.ring_size = n;
     })
 }
 
-/// Read the current FPSS `ring_size` setting (default `131_072`).
+/// Read the current streaming `ring_size` setting (default `131_072`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_ring_size(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
     config: *const ThetaDataDxConfig,
     out: *mut usize,
 ) -> i32 {
@@ -1177,13 +1177,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_ring_size(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.fpss.ring_size;
+            *out = config.inner.streaming.ring_size;
         }
         0
     })
 }
 
-/// Set the FPSS host-selection policy.
+/// Set the streaming host-selection policy.
 ///
 /// - `policy = 0`: Shuffled (default) — fault-domain-aware per-client
 ///   shuffle; a fleet spreads across hosts and consecutive failover
@@ -1196,13 +1196,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_ring_size(
 /// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_selection(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_selection(
     config: *mut ThetaDataDxConfig,
     policy: i32,
 ) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
-            set_error("thetadatadx_config_set_fpss_host_selection: config handle is null");
+            set_error("thetadatadx_config_set_streaming_host_selection: config handle is null");
             return -1;
         }
         let value = match policy {
@@ -1211,7 +1211,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_selection(
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "thetadatadx_config_set_fpss_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
+                        "thetadatadx_config_set_streaming_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
                     ),
                     crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
@@ -1220,16 +1220,16 @@ pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_selection(
         };
         // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
-        config.inner.fpss.host_selection = value;
+        config.inner.streaming.host_selection = value;
         0
     })
 }
 
-/// Read the configured FPSS host-selection policy. Same encoding as
-/// `thetadatadx_config_set_fpss_host_selection`. Returns `0` on success, `-1`
+/// Read the configured streaming host-selection policy. Same encoding as
+/// `thetadatadx_config_set_streaming_host_selection`. Returns `0` on success, `-1`
 /// if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_selection(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_host_selection(
     config: *const ThetaDataDxConfig,
     out_policy: *mut i32,
 ) -> i32 {
@@ -1240,7 +1240,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_selection(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        let value = match config.inner.fpss.host_selection {
+        let value = match config.inner.streaming.host_selection {
             thetadatadx::HostSelectionPolicy::Shuffled => 0,
             _ => 1,
         };
@@ -1252,7 +1252,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_selection(
     })
 }
 
-/// Set the FPSS host-shuffle seed using the `(has_value, seed)`
+/// Set the streaming host-shuffle seed using the `(has_value, seed)`
 /// widened ABI shape that preserves the `None` sentinel across the C
 /// boundary.
 ///
@@ -1265,7 +1265,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_selection(
 /// Ignored under the `FixedOrder` host-selection policy. Returns `0`
 /// on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_shuffle_seed(
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_shuffle_seed(
     config: *mut ThetaDataDxConfig,
     has_value: bool,
     seed: u64,
@@ -1277,20 +1277,20 @@ pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_shuffle_seed(
         }
         // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
-        config.inner.fpss.host_shuffle_seed = if has_value { Some(seed) } else { None };
+        config.inner.streaming.host_shuffle_seed = if has_value { Some(seed) } else { None };
         0
     })
 }
 
-/// Read the current FPSS host-shuffle seed. Same `(has_value, seed)`
-/// ABI as `thetadatadx_config_set_fpss_host_shuffle_seed`:
+/// Read the current streaming host-shuffle seed. Same `(has_value, seed)`
+/// ABI as `thetadatadx_config_set_streaming_host_shuffle_seed`:
 ///
 /// * `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
 /// * `*out_has_value = true` → `Some(*out_seed)`.
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_shuffle_seed(
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_host_shuffle_seed(
     config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
     out_seed: *mut u64,
@@ -1304,7 +1304,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_shuffle_seed(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            match config.inner.fpss.host_shuffle_seed {
+            match config.inner.streaming.host_shuffle_seed {
                 Some(seed) => {
                     *out_has_value = true;
                     *out_seed = seed;
@@ -1555,7 +1555,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
 // Rust-only — they are method-shape helpers that bindings can
 // reproduce on top of the four field setters if needed.
 
-/// Set the initial backoff delay (ms) for the MDDS retry policy.
+/// Set the initial backoff delay (ms) for the historical retry policy.
 /// Default `250`. Subsequent retries double from here, capped at
 /// `thetadatadx_config_set_retry_max_delay_ms`.
 #[no_mangle]
@@ -1595,7 +1595,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_initial_delay_ms(
     })
 }
 
-/// Set the upper-bound backoff delay (ms) for the MDDS retry policy.
+/// Set the upper-bound backoff delay (ms) for the historical retry policy.
 /// Default `30_000` (30 s). The exponential schedule never exceeds
 /// this value regardless of attempt number.
 #[no_mangle]
@@ -1633,7 +1633,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_delay_ms(
     })
 }
 
-/// Set the total attempt budget for the MDDS retry policy. `1`
+/// Set the total attempt budget for the historical retry policy. `1`
 /// disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default
 /// `20`.
@@ -1669,7 +1669,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_attempts(
     })
 }
 
-/// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+/// Toggle AWS-style full-jitter on the historical retry policy. Default
 /// `true`. With `jitter=false` the backoff schedule is deterministic
 /// (`min(max_delay, initial * 2^attempt)`), which is useful for tests
 /// that need to assert exact timings.
@@ -1705,7 +1705,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_jitter(
     })
 }
 
-/// Set FPSS OHLCVC derivation on a config handle.
+/// Set streaming OHLCVC derivation on a config handle.
 ///
 /// - `enabled = true` (default): derive OHLCVC bars locally from trade events
 /// - `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
@@ -1716,11 +1716,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_derive_ohlcvc(
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.fpss.derive_ohlcvc = enabled;
+        config.inner.streaming.derive_ohlcvc = enabled;
     })
 }
 
-/// Read the configured FPSS OHLCVC-derivation flag. Writes `true` /
+/// Read the configured streaming OHLCVC-derivation flag. Writes `true` /
 /// `false` into `*out_enabled`. Returns `0` on success, `-1` if either
 /// pointer is null.
 #[no_mangle]
@@ -1737,7 +1737,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_derive_ohlcvc(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
-            *out_enabled = config.inner.fpss.derive_ohlcvc;
+            *out_enabled = config.inner.streaming.derive_ohlcvc;
         }
         0
     })
@@ -2082,23 +2082,23 @@ pub unsafe extern "C" fn thetadatadx_config_get_metrics_port(
     })
 }
 
-// ── MDDS endpoint ──────────────────────────────────────────────────
+// ── Historical endpoint ──────────────────────────────────────────────────
 //
-// The historical (MDDS) gRPC host / port advanced overrides. Both
+// The historical gRPC host / port advanced overrides. Both
 // default to the upstream production endpoint; point them at a known
 // host to redirect the historical channel (e.g. a refused endpoint in
 // structural tests that prove the streaming-only surface never opens
 // it). The host crosses the ABI as a `*const c_char` (validated non-null
 // + UTF-8); the port is a bare `u16`.
 
-/// Set the historical (MDDS) gRPC host on a config handle.
+/// Set the historical gRPC host on a config handle.
 ///
 /// `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
 /// Returns `0` on success, `-1` if `config` is null or `host` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
 /// storage retrievable via `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_mdds_host(
+pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
     config: *mut ThetaDataDxConfig,
     host: *const c_char,
 ) -> i32 {
@@ -2111,29 +2111,29 @@ pub unsafe extern "C" fn thetadatadx_config_set_mdds_host(
         let host = match unsafe { cstr_to_str(host) } {
             Ok(Some(s)) => s,
             Ok(None) => {
-                set_error("mdds_host is null");
+                set_error("historical_host is null");
                 return -1;
             }
             Err(e) => {
-                set_error(&format!("mdds_host is not valid UTF-8: {e}"));
+                set_error(&format!("historical_host is not valid UTF-8: {e}"));
                 return -1;
             }
         };
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
-        config.inner.mdds.host = host.to_string();
+        config.inner.historical.host = host.to_string();
         0
     })
 }
 
-/// Read the current historical (MDDS) gRPC host.
+/// Read the current historical gRPC host.
 ///
 /// On success, returns a heap-owned NUL-terminated C string the caller
 /// MUST release with `thetadatadx_string_free`. Returns null if `config` is
 /// null or the stored value contains an interior NUL (the diagnostic is
 /// written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_mdds_host(
+pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
@@ -2143,33 +2143,33 @@ pub unsafe extern "C" fn thetadatadx_config_get_mdds_host(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        match std::ffi::CString::new(config.inner.mdds.host.as_str()) {
+        match std::ffi::CString::new(config.inner.historical.host.as_str()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
-                set_error(&format!("mdds_host contains an interior NUL: {e}"));
+                set_error(&format!("historical_host contains an interior NUL: {e}"));
                 ptr::null_mut()
             }
         }
     })
 }
 
-/// Set the historical (MDDS) gRPC port on a config handle.
+/// Set the historical gRPC port on a config handle.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_mdds_port(
+pub unsafe extern "C" fn thetadatadx_config_set_historical_port(
     config: *mut ThetaDataDxConfig,
     port: u16,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.mdds.port = port;
+        config.inner.historical.port = port;
     })
 }
 
-/// Read the configured historical (MDDS) gRPC port. Writes the value
+/// Read the configured historical gRPC port. Writes the value
 /// into `*out_port`. Returns `0` on success, `-1` if either pointer is
 /// null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_mdds_port(
+pub unsafe extern "C" fn thetadatadx_config_get_historical_port(
     config: *const ThetaDataDxConfig,
     out_port: *mut u16,
 ) -> i32 {
@@ -2182,13 +2182,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_mdds_port(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
-            *out_port = config.inner.mdds.port;
+            *out_port = config.inner.historical.port;
         }
         0
     })
 }
 
-// ── MDDS pool sizing ───────────────────────────────────────────────
+// ── Historical pool sizing ───────────────────────────────────────────────
 
 /// Set the number of concurrent in-flight gRPC requests on a config
 /// handle.
@@ -2203,7 +2203,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_concurrent_requests(
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.mdds.concurrent_requests = n as usize;
+        config.inner.historical.concurrent_requests = n as usize;
     })
 }
 
@@ -2223,7 +2223,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_concurrent_requests(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        let value = u32::try_from(config.inner.mdds.concurrent_requests).unwrap_or(u32::MAX);
+        let value = u32::try_from(config.inner.historical.concurrent_requests).unwrap_or(u32::MAX);
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
             *out_n = value;
@@ -2247,7 +2247,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_warn_on_buffered_threshold_bytes
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.mdds.warn_on_buffered_threshold_bytes = n;
+        config.inner.historical.warn_on_buffered_threshold_bytes = n;
     })
 }
 
@@ -2269,7 +2269,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
         let config = unsafe { &*config };
         // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
         unsafe {
-            *out_n = config.inner.mdds.warn_on_buffered_threshold_bytes;
+            *out_n = config.inner.historical.warn_on_buffered_threshold_bytes;
         }
         0
     })
@@ -2277,7 +2277,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
 
 // ── HistoricalClient ──
 
-/// Connect a historical (MDDS) client to `ThetaData` servers
+/// Connect a historical client to `ThetaData` servers
 /// (authenticates via Nexus API).
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
@@ -2312,7 +2312,7 @@ pub unsafe extern "C" fn thetadatadx_historical_connect(
     })
 }
 
-/// Connect a historical (MDDS) client, loading credentials from a file
+/// Connect a historical client, loading credentials from a file
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
 /// One-call equivalent of `thetadatadx_credentials_from_file` followed by
@@ -2348,7 +2348,7 @@ pub unsafe extern "C" fn thetadatadx_historical_connect_from_file(
     })
 }
 
-/// Free a historical (MDDS) client handle.
+/// Free a historical client handle.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_historical_free(client: *mut ThetaDataDxHistoricalClient) {
     ffi_boundary!((), {
@@ -2361,11 +2361,11 @@ pub unsafe extern "C" fn thetadatadx_historical_free(client: *mut ThetaDataDxHis
 
 #[cfg(test)]
 mod pool_sizing_tests {
-    //! Offline tests for the MDDS pool-sizing setter.
+    //! Offline tests for the historical pool-sizing setter.
     //!
     //! Each test allocates a fresh `ThetaDataDxConfig` via `thetadatadx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
-    //! `MddsConfig` to confirm the value round-tripped.
+    //! `HistoricalConfig` to confirm the value round-tripped.
 
     #[test]
     fn concurrent_requests_round_trips() {
@@ -2375,14 +2375,14 @@ mod pool_sizing_tests {
         unsafe {
             let mut current: u32 = 99;
             super::thetadatadx_config_set_concurrent_requests(cfg, 8);
-            assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
+            assert_eq!((*cfg).inner.historical.concurrent_requests, 8);
             assert_eq!(
                 super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
                 0
             );
             assert_eq!(current, 8);
             super::thetadatadx_config_set_concurrent_requests(cfg, 0);
-            assert_eq!((*cfg).inner.mdds.concurrent_requests, 0);
+            assert_eq!((*cfg).inner.historical.concurrent_requests, 0);
             assert_eq!(
                 super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
                 0
@@ -2456,7 +2456,7 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Default seeded at 100 MiB by `MddsConfig::default()`.
+            // Default seeded at 100 MiB by `HistoricalConfig::default()`.
             let mut current: usize = 0;
             assert_eq!(
                 super::thetadatadx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
@@ -2466,7 +2466,7 @@ mod pool_sizing_tests {
             // Override.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 50 * 1024 * 1024);
             assert_eq!(
-                (*cfg).inner.mdds.warn_on_buffered_threshold_bytes,
+                (*cfg).inner.historical.warn_on_buffered_threshold_bytes,
                 50 * 1024 * 1024
             );
             assert_eq!(
@@ -2476,7 +2476,7 @@ mod pool_sizing_tests {
             assert_eq!(current, 50 * 1024 * 1024);
             // Disable.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 0);
-            assert_eq!((*cfg).inner.mdds.warn_on_buffered_threshold_bytes, 0);
+            assert_eq!((*cfg).inner.historical.warn_on_buffered_threshold_bytes, 0);
             // Null-pointer guards: setter is a no-op (matches the
             // ffi_boundary `()` return); getter returns -1.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(std::ptr::null_mut(), 4);
@@ -2504,7 +2504,7 @@ mod pool_sizing_tests {
 
 #[cfg(test)]
 mod reconnect_setter_tests {
-    //! Offline tests for the FPSS ReconnectConfig setters on the FFI
+    //! Offline tests for the streaming ReconnectConfig setters on the FFI
     //! surface — cross-binding parity with Python / TypeScript / C++.
     //!
     //! Each test allocates a fresh `ThetaDataDxConfig` via
@@ -2681,7 +2681,7 @@ mod reconnect_setter_tests {
             super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 60);
 
             // Pool-sizing mutations survived the reconnect setter sequence.
-            let mdds = &(*cfg).inner.mdds;
+            let mdds = &(*cfg).inner.historical;
             assert_eq!(mdds.concurrent_requests, 8);
 
             // Reconnect mutations landed on `Auto(limits)`.
@@ -3312,7 +3312,7 @@ mod auth_metrics_setter_tests {
 mod resilience_knob_tests {
     //! Round-trip coverage for the connection-resilience knobs across
     //! the C ABI: every setter/getter pair added for the reconnect
-    //! engine, the FPSS transport, the historical retry envelope, and
+    //! engine, the streaming transport, the historical retry envelope, and
     //! the flatfile jitter toggle.
 
     #[test]
@@ -3551,77 +3551,77 @@ mod resilience_knob_tests {
         unsafe {
             let mut got: u64 = 0;
             assert_eq!(
-                super::thetadatadx_config_get_fpss_timeout_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_timeout_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 3_000);
-            super::thetadatadx_config_set_fpss_timeout_ms(cfg, 9_000);
+            super::thetadatadx_config_set_streaming_timeout_ms(cfg, 9_000);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_timeout_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_timeout_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 9_000);
 
             assert_eq!(
-                super::thetadatadx_config_get_fpss_connect_timeout_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_connect_timeout_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 2_000);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_ping_interval_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_ping_interval_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 250);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_io_read_slice_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_io_read_slice_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 25);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 30_000);
-            super::thetadatadx_config_set_fpss_data_watchdog_ms(cfg, 0);
+            super::thetadatadx_config_set_streaming_data_watchdog_ms(cfg, 0);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 0, "0 (watchdog disabled) round-trips");
 
             assert_eq!(
-                super::thetadatadx_config_get_fpss_keepalive_idle_secs(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_keepalive_idle_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 5);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_keepalive_interval_secs(cfg, &mut got),
+                super::thetadatadx_config_get_streaming_keepalive_interval_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 2);
             let mut got_u32: u32 = 0;
             assert_eq!(
-                super::thetadatadx_config_get_fpss_keepalive_retries(cfg, &mut got_u32),
+                super::thetadatadx_config_get_streaming_keepalive_retries(cfg, &mut got_u32),
                 0
             );
             assert_eq!(got_u32, 2);
 
             let mut got_usize: usize = 0;
             assert_eq!(
-                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
                 0
             );
             assert_eq!(got_usize, 131_072);
-            super::thetadatadx_config_set_fpss_ring_size(cfg, 4_096);
+            super::thetadatadx_config_set_streaming_ring_size(cfg, 4_096);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
                 0
             );
             assert_eq!(got_usize, 4_096);
             // Non-power-of-two rejected at the setter; value unchanged.
-            super::thetadatadx_config_set_fpss_ring_size(cfg, 5_000);
+            super::thetadatadx_config_set_streaming_ring_size(cfg, 5_000);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
                 0
             );
             assert_eq!(got_usize, 4_096);
@@ -3637,18 +3637,21 @@ mod resilience_knob_tests {
         unsafe {
             let mut policy: i32 = -1;
             assert_eq!(
-                super::thetadatadx_config_get_fpss_host_selection(cfg, &mut policy),
+                super::thetadatadx_config_get_streaming_host_selection(cfg, &mut policy),
                 0
             );
             assert_eq!(policy, 0, "default host selection is Shuffled");
-            assert_eq!(super::thetadatadx_config_set_fpss_host_selection(cfg, 1), 0);
             assert_eq!(
-                super::thetadatadx_config_get_fpss_host_selection(cfg, &mut policy),
+                super::thetadatadx_config_set_streaming_host_selection(cfg, 1),
+                0
+            );
+            assert_eq!(
+                super::thetadatadx_config_get_streaming_host_selection(cfg, &mut policy),
                 0
             );
             assert_eq!(policy, 1);
             assert_eq!(
-                super::thetadatadx_config_set_fpss_host_selection(cfg, 5),
+                super::thetadatadx_config_set_streaming_host_selection(cfg, 5),
                 -1,
                 "invalid policy rejected"
             );
@@ -3661,7 +3664,7 @@ mod resilience_knob_tests {
             let mut has_value = true;
             let mut seed: u64 = 7;
             assert_eq!(
-                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                super::thetadatadx_config_get_streaming_host_shuffle_seed(
                     cfg,
                     &mut has_value,
                     &mut seed
@@ -3674,11 +3677,11 @@ mod resilience_knob_tests {
             );
             assert_eq!(seed, 0);
             assert_eq!(
-                super::thetadatadx_config_set_fpss_host_shuffle_seed(cfg, true, 42),
+                super::thetadatadx_config_set_streaming_host_shuffle_seed(cfg, true, 42),
                 0
             );
             assert_eq!(
-                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                super::thetadatadx_config_get_streaming_host_shuffle_seed(
                     cfg,
                     &mut has_value,
                     &mut seed
@@ -3688,11 +3691,11 @@ mod resilience_knob_tests {
             assert!(has_value);
             assert_eq!(seed, 42);
             assert_eq!(
-                super::thetadatadx_config_set_fpss_host_shuffle_seed(cfg, false, 0),
+                super::thetadatadx_config_set_streaming_host_shuffle_seed(cfg, false, 0),
                 0
             );
             assert_eq!(
-                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                super::thetadatadx_config_get_streaming_host_shuffle_seed(
                     cfg,
                     &mut has_value,
                     &mut seed

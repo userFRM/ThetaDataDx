@@ -69,7 +69,7 @@ struct FpssParams {
     creds: RustCredentials,
     hosts: Vec<(String, u16)>,
     ring_size: usize,
-    flush_mode: thetadatadx::config::FpssFlushMode,
+    flush_mode: thetadatadx::config::StreamingFlushMode,
     policy: thetadatadx::config::ReconnectPolicy,
     wait_ms: u64,
     wait_rate_limited_ms: u64,
@@ -83,16 +83,16 @@ impl FpssParams {
     fn from_config(creds: &RustCredentials, config: &DirectConfig) -> Self {
         Self {
             creds: creds.clone(),
-            hosts: config.fpss.hosts.clone(),
-            ring_size: config.fpss.ring_size,
-            flush_mode: config.fpss.flush_mode,
+            hosts: config.streaming.hosts.clone(),
+            ring_size: config.streaming.ring_size,
+            flush_mode: config.streaming.flush_mode,
             policy: config.reconnect.policy.clone(),
             wait_ms: config.reconnect.wait_ms,
             wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
-            derive_ohlcvc: config.fpss.derive_ohlcvc,
-            connect_timeout_ms: config.fpss.connect_timeout_ms,
-            read_timeout_ms: config.fpss.timeout_ms,
-            ping_interval_ms: config.fpss.ping_interval_ms,
+            derive_ohlcvc: config.streaming.derive_ohlcvc,
+            connect_timeout_ms: config.streaming.connect_timeout_ms,
+            read_timeout_ms: config.streaming.timeout_ms,
+            ping_interval_ms: config.streaming.ping_interval_ms,
         }
     }
 
@@ -114,9 +114,9 @@ impl FpssParams {
 /// with no FPSS hosts before any TLS work begins. Mirrors the Python
 /// `StreamingClient.__new__` empty-hosts guard.
 fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::Result<FpssParams> {
-    if direct.fpss.hosts.is_empty() {
+    if direct.streaming.hosts.is_empty() {
         return Err(crate::invalid_parameter_err(
-            "StreamingClient: config.fpss.hosts is empty (use Config.production() or set the FPSS hosts)",
+            "StreamingClient: config.streaming.hosts is empty (use Config.production() or set the streaming hosts)",
         ));
     }
     Ok(FpssParams::from_config(creds, direct))

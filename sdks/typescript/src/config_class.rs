@@ -99,7 +99,7 @@ impl Config {
         guard.clone()
     }
 
-    // ── MDDS pool sizing ───────────────────────────────────────────
+    // ── historical pool sizing ───────────────────────────────────────────
 
     /// Set the number of concurrent in-flight gRPC requests.
     ///
@@ -112,7 +112,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.concurrent_requests = n as usize;
+        guard.historical.concurrent_requests = n as usize;
         Ok(())
     }
 
@@ -123,7 +123,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.mdds.concurrent_requests).unwrap_or(u32::MAX))
+        Ok(u32::try_from(guard.historical.concurrent_requests).unwrap_or(u32::MAX))
     }
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -152,7 +152,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.warn_on_buffered_threshold_bytes = value;
+        guard.historical.warn_on_buffered_threshold_bytes = value;
         Ok(())
     }
 
@@ -165,7 +165,7 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.mdds.warn_on_buffered_threshold_bytes as u64,
+            guard.historical.warn_on_buffered_threshold_bytes as u64,
         ))
     }
 
@@ -664,300 +664,313 @@ impl Config {
         Ok(())
     }
 
-    // ── FPSS transport knobs — parity with Python / C++ / FFI ──────
+    // ── streaming transport knobs — parity with Python / C++ / FFI ──────
 
-    /// Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
-    #[napi(js_name = "setFpssTimeoutMs")]
-    pub fn set_fpss_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssTimeoutMs", &ms)?;
+    /// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
+    #[napi(js_name = "setStreamingTimeoutMs")]
+    pub fn set_streaming_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingTimeoutMs", &ms)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.timeout_ms = value;
+        guard.streaming.timeout_ms = value;
         Ok(())
     }
 
-    /// Current `fpss.timeout_ms` value (default `3_000n`).
-    #[napi(getter, js_name = "fpssTimeoutMs")]
-    pub fn fpss_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.fpss.timeout_ms))
-    }
-
-    /// Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.
-    #[napi(js_name = "setFpssConnectTimeoutMs")]
-    pub fn set_fpss_connect_timeout_ms(
-        &self,
-        ms: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssConnectTimeoutMs", &ms)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.connect_timeout_ms = value;
-        Ok(())
-    }
-
-    /// Current `fpss.connect_timeout_ms` value (default `2_000n`).
-    #[napi(getter, js_name = "fpssConnectTimeoutMs")]
-    pub fn fpss_connect_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    /// Current `streaming.timeout_ms` value (default `3_000n`).
+    #[napi(getter, js_name = "streamingTimeoutMs")]
+    pub fn streaming_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.connect_timeout_ms,
+            guard.streaming.timeout_ms,
         ))
     }
 
-    /// Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
-    #[napi(js_name = "setFpssPingIntervalMs")]
-    pub fn set_fpss_ping_interval_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssPingIntervalMs", &ms)?;
+    /// Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.
+    #[napi(js_name = "setStreamingConnectTimeoutMs")]
+    pub fn set_streaming_connect_timeout_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingConnectTimeoutMs", &ms)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.ping_interval_ms = value;
+        guard.streaming.connect_timeout_ms = value;
         Ok(())
     }
 
-    /// Current `fpss.ping_interval_ms` value (default `250n`).
-    #[napi(getter, js_name = "fpssPingIntervalMs")]
-    pub fn fpss_ping_interval_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    /// Current `streaming.connect_timeout_ms` value (default `2_000n`).
+    #[napi(getter, js_name = "streamingConnectTimeoutMs")]
+    pub fn streaming_connect_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.ping_interval_ms,
+            guard.streaming.connect_timeout_ms,
+        ))
+    }
+
+    /// Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
+    #[napi(js_name = "setStreamingPingIntervalMs")]
+    pub fn set_streaming_ping_interval_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingPingIntervalMs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.ping_interval_ms = value;
+        Ok(())
+    }
+
+    /// Current `streaming.ping_interval_ms` value (default `250n`).
+    #[napi(getter, js_name = "streamingPingIntervalMs")]
+    pub fn streaming_ping_interval_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.streaming.ping_interval_ms,
         ))
     }
 
     /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect.
-    #[napi(js_name = "setFpssIoReadSliceMs")]
-    pub fn set_fpss_io_read_slice_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssIoReadSliceMs", &ms)?;
+    #[napi(js_name = "setStreamingIoReadSliceMs")]
+    pub fn set_streaming_io_read_slice_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingIoReadSliceMs", &ms)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.io_read_slice_ms = value;
+        guard.streaming.io_read_slice_ms = value;
         Ok(())
     }
 
-    /// Current `fpss.io_read_slice_ms` value (default `25n`).
-    #[napi(getter, js_name = "fpssIoReadSliceMs")]
-    pub fn fpss_io_read_slice_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    /// Current `streaming.io_read_slice_ms` value (default `25n`).
+    #[napi(getter, js_name = "streamingIoReadSliceMs")]
+    pub fn streaming_io_read_slice_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.io_read_slice_ms,
+            guard.streaming.io_read_slice_ms,
         ))
     }
 
     /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`.
-    #[napi(js_name = "setFpssDataWatchdogMs")]
-    pub fn set_fpss_data_watchdog_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssDataWatchdogMs", &ms)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.data_watchdog_ms = value;
-        Ok(())
-    }
-
-    /// Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled).
-    #[napi(getter, js_name = "fpssDataWatchdogMs")]
-    pub fn fpss_data_watchdog_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.data_watchdog_ms,
-        ))
-    }
-
-    /// Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect.
-    #[napi(js_name = "setFpssKeepaliveIdleSecs")]
-    pub fn set_fpss_keepalive_idle_secs(
+    #[napi(js_name = "setStreamingDataWatchdogMs")]
+    pub fn set_streaming_data_watchdog_ms(
         &self,
         ms: napi::bindgen_prelude::BigInt,
     ) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssKeepaliveIdleSecs", &ms)?;
+        let value = bigint_to_u64("setStreamingDataWatchdogMs", &ms)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.keepalive_idle_secs = value;
+        guard.streaming.data_watchdog_ms = value;
         Ok(())
     }
 
-    /// Current `fpss.keepalive_idle_secs` value (default `5n`).
-    #[napi(getter, js_name = "fpssKeepaliveIdleSecs")]
-    pub fn fpss_keepalive_idle_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    /// Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled).
+    #[napi(getter, js_name = "streamingDataWatchdogMs")]
+    pub fn streaming_data_watchdog_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.keepalive_idle_secs,
+            guard.streaming.data_watchdog_ms,
+        ))
+    }
+
+    /// Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect.
+    #[napi(js_name = "setStreamingKeepaliveIdleSecs")]
+    pub fn set_streaming_keepalive_idle_secs(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingKeepaliveIdleSecs", &ms)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.keepalive_idle_secs = value;
+        Ok(())
+    }
+
+    /// Current `streaming.keepalive_idle_secs` value (default `5n`).
+    #[napi(getter, js_name = "streamingKeepaliveIdleSecs")]
+    pub fn streaming_keepalive_idle_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.streaming.keepalive_idle_secs,
         ))
     }
 
     /// Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.
-    #[napi(js_name = "setFpssKeepaliveIntervalSecs")]
-    pub fn set_fpss_keepalive_interval_secs(
+    #[napi(js_name = "setStreamingKeepaliveIntervalSecs")]
+    pub fn set_streaming_keepalive_interval_secs(
         &self,
         ms: napi::bindgen_prelude::BigInt,
     ) -> napi::Result<()> {
-        let value = bigint_to_u64("setFpssKeepaliveIntervalSecs", &ms)?;
+        let value = bigint_to_u64("setStreamingKeepaliveIntervalSecs", &ms)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.keepalive_interval_secs = value;
+        guard.streaming.keepalive_interval_secs = value;
         Ok(())
     }
 
-    /// Current `fpss.keepalive_interval_secs` value (default `2n`).
-    #[napi(getter, js_name = "fpssKeepaliveIntervalSecs")]
-    pub fn fpss_keepalive_interval_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+    /// Current `streaming.keepalive_interval_secs` value (default `2n`).
+    #[napi(getter, js_name = "streamingKeepaliveIntervalSecs")]
+    pub fn streaming_keepalive_interval_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(napi::bindgen_prelude::BigInt::from(
-            guard.fpss.keepalive_interval_secs,
+            guard.streaming.keepalive_interval_secs,
         ))
     }
 
     /// Set the number of unanswered TCP keepalive probes after which
-    /// the kernel declares the FPSS connection dead (where the
+    /// the kernel declares the streaming connection dead (where the
     /// platform exposes the knob). Default `2`; validated to `[1, 10]`
     /// at connect.
-    #[napi(js_name = "setFpssKeepaliveRetries")]
-    pub fn set_fpss_keepalive_retries(&self, n: u32) -> napi::Result<()> {
+    #[napi(js_name = "setStreamingKeepaliveRetries")]
+    pub fn set_streaming_keepalive_retries(&self, n: u32) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.keepalive_retries = n;
+        guard.streaming.keepalive_retries = n;
         Ok(())
     }
 
-    /// Current `fpss.keepalive_retries` value (default `2`).
-    #[napi(getter, js_name = "fpssKeepaliveRetries")]
-    pub fn fpss_keepalive_retries(&self) -> napi::Result<u32> {
+    /// Current `streaming.keepalive_retries` value (default `2`).
+    #[napi(getter, js_name = "streamingKeepaliveRetries")]
+    pub fn streaming_keepalive_retries(&self) -> napi::Result<u32> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.fpss.keepalive_retries)
+        Ok(guard.streaming.keepalive_retries)
     }
 
-    /// Set the FPSS event ring buffer size (slots). Must be a power of
+    /// Set the streaming event ring buffer size (slots). Must be a power of
     /// two `>= 64`; invalid values are rejected immediately. Default
     /// `131_072`.
-    #[napi(js_name = "setFpssRingSize")]
-    pub fn set_fpss_ring_size(&self, n: u32) -> napi::Result<()> {
+    #[napi(js_name = "setStreamingRingSize")]
+    pub fn set_streaming_ring_size(&self, n: u32) -> napi::Result<()> {
         if n == 0 || !n.is_power_of_two() {
             return Err(crate::invalid_parameter_err(format!(
-                "fpss_ring_size must be a power of two >= 64; got {n}"
+                "streaming_ring_size must be a power of two >= 64; got {n}"
             )));
         }
         if n < 64 {
             return Err(crate::invalid_parameter_err(format!(
-                "fpss_ring_size must be >= 64; got {n}"
+                "streaming_ring_size must be >= 64; got {n}"
             )));
         }
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.ring_size = n as usize;
+        guard.streaming.ring_size = n as usize;
         Ok(())
     }
 
-    /// Current `fpss.ring_size` value (default `131_072`).
-    #[napi(getter, js_name = "fpssRingSize")]
-    pub fn fpss_ring_size(&self) -> napi::Result<u32> {
+    /// Current `streaming.ring_size` value (default `131_072`).
+    #[napi(getter, js_name = "streamingRingSize")]
+    pub fn streaming_ring_size(&self) -> napi::Result<u32> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.fpss.ring_size).unwrap_or(u32::MAX))
+        Ok(u32::try_from(guard.streaming.ring_size).unwrap_or(u32::MAX))
     }
 
-    /// Set the FPSS host-selection policy. Accepts `"shuffled"`
+    /// Set the streaming host-selection policy. Accepts `"shuffled"`
     /// (default — fault-domain-aware per-client shuffle) or
     /// `"fixed_order"` (declared order verbatim), case-insensitive.
-    #[napi(js_name = "setFpssHostSelection")]
-    pub fn set_fpss_host_selection(&self, policy: String) -> napi::Result<()> {
+    #[napi(js_name = "setStreamingHostSelection")]
+    pub fn set_streaming_host_selection(&self, policy: String) -> napi::Result<()> {
         let parsed = config::HostSelectionPolicy::parse(&policy).ok_or_else(|| {
             crate::invalid_parameter_err(format!(
-                "setFpssHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
+                "setStreamingHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
             ))
         })?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.host_selection = parsed;
+        guard.streaming.host_selection = parsed;
         Ok(())
     }
 
-    /// Current FPSS host-selection policy as a lowercase string.
-    #[napi(getter, js_name = "fpssHostSelection")]
-    pub fn fpss_host_selection(&self) -> napi::Result<&'static str> {
+    /// Current streaming host-selection policy as a lowercase string.
+    #[napi(getter, js_name = "streamingHostSelection")]
+    pub fn streaming_host_selection(&self) -> napi::Result<&'static str> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.fpss.host_selection.as_str())
+        Ok(guard.streaming.host_selection.as_str())
     }
 
-    /// Set the FPSS host-shuffle seed. `null` (default) derives a
+    /// Set the streaming host-shuffle seed. `null` (default) derives a
     /// fresh per-client seed so a fleet shuffles independently; an
     /// explicit `bigint` makes the shuffled order deterministic —
     /// useful for fleet sharding and tests. Ignored under
     /// `"fixed_order"`.
-    #[napi(js_name = "setFpssHostShuffleSeed")]
-    pub fn set_fpss_host_shuffle_seed(
+    #[napi(js_name = "setStreamingHostShuffleSeed")]
+    pub fn set_streaming_host_shuffle_seed(
         &self,
         seed: Option<napi::bindgen_prelude::BigInt>,
     ) -> napi::Result<()> {
         let resolved = match seed {
-            Some(v) => Some(bigint_to_u64("setFpssHostShuffleSeed", &v)?),
+            Some(v) => Some(bigint_to_u64("setStreamingHostShuffleSeed", &v)?),
             None => None,
         };
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.host_shuffle_seed = resolved;
+        guard.streaming.host_shuffle_seed = resolved;
         Ok(())
     }
 
-    /// Current `fpss.host_shuffle_seed` value (`null` = per-client
+    /// Current `streaming.host_shuffle_seed` value (`null` = per-client
     /// entropy).
-    #[napi(getter, js_name = "fpssHostShuffleSeed")]
-    pub fn fpss_host_shuffle_seed(&self) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
+    #[napi(getter, js_name = "streamingHostShuffleSeed")]
+    pub fn streaming_host_shuffle_seed(
+        &self,
+    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard
-            .fpss
+            .streaming
             .host_shuffle_seed
             .map(napi::bindgen_prelude::BigInt::from))
     }
@@ -1091,7 +1104,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(ms))
     }
 
-    /// Set the upper-bound backoff delay (ms) for the MDDS retry
+    /// Set the upper-bound backoff delay (ms) for the historical retry
     /// policy. Default `30_000n` (30 s).
     #[napi(js_name = "setRetryMaxDelayMs")]
     pub fn set_retry_max_delay_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
@@ -1317,64 +1330,64 @@ impl Config {
         Ok(guard.auth.client_type.clone())
     }
 
-    // ── MddsConfig advanced endpoint overrides ────────────────────
+    // ── HistoricalConfig advanced endpoint overrides ────────────────────
     //
-    // `mdds_host` / `mdds_port` point the historical gRPC channel at an
+    // `historical_host` / `historical_port` point the historical gRPC channel at an
     // explicit endpoint. Used by structural tests that need to aim the
     // historical channel at a known-refused endpoint to prove the
     // streaming-only surface never opens it; production code paths keep
     // the `Config.production()` default. Mirrors the Python
-    // `Config.mdds_host` / `.mdds_port`, the C++ `set_mdds_host` /
-    // `set_mdds_port`, and the C ABI `thetadatadx_config_set_mdds_host` /
-    // `thetadatadx_config_set_mdds_port`.
+    // `Config.historical_host` / `.historical_port`, the C++ `set_historical_host` /
+    // `set_historical_port`, and the C ABI `thetadatadx_config_set_historical_host` /
+    // `thetadatadx_config_set_historical_port`.
 
-    /// Override the historical gRPC host. Companion to `setMddsPort`.
-    #[napi(js_name = "setMddsHost")]
-    pub fn set_mdds_host(&self, host: String) -> napi::Result<()> {
+    /// Override the historical gRPC host. Companion to `setHistoricalPort`.
+    #[napi(js_name = "setHistoricalHost")]
+    pub fn set_historical_host(&self, host: String) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.host = host;
+        guard.historical.host = host;
         Ok(())
     }
 
     /// Current historical gRPC host.
-    #[napi(getter, js_name = "mddsHost")]
-    pub fn mdds_host(&self) -> napi::Result<String> {
+    #[napi(getter, js_name = "historicalHost")]
+    pub fn historical_host(&self) -> napi::Result<String> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.mdds.host.clone())
+        Ok(guard.historical.host.clone())
     }
 
-    /// Override the historical data port. Companion to `setMddsHost` —
+    /// Override the historical data port. Companion to `setHistoricalHost` —
     /// same test-only rationale. Rejects values outside the `0..=65535`
     /// port range.
-    #[napi(js_name = "setMddsPort")]
-    pub fn set_mdds_port(&self, port: u32) -> napi::Result<()> {
+    #[napi(js_name = "setHistoricalPort")]
+    pub fn set_historical_port(&self, port: u32) -> napi::Result<()> {
         let resolved = u16::try_from(port).map_err(|_| {
             crate::invalid_parameter_err(format!(
-                "setMddsPort: port must be in the u16 range 0..=65535; got {port}"
+                "setHistoricalPort: port must be in the u16 range 0..=65535; got {port}"
             ))
         })?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.port = resolved;
+        guard.historical.port = resolved;
         Ok(())
     }
 
     /// Current historical gRPC port.
-    #[napi(getter, js_name = "mddsPort")]
-    pub fn mdds_port(&self) -> napi::Result<u32> {
+    #[napi(getter, js_name = "historicalPort")]
+    pub fn historical_port(&self) -> napi::Result<u32> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::from(guard.mdds.port))
+        Ok(u32::from(guard.historical.port))
     }
 
     // ── MetricsConfig field setter/getter ─────────────────────────
@@ -1423,8 +1436,8 @@ impl Config {
     #[napi(js_name = "setFlushMode")]
     pub fn set_flush_mode(&self, mode: String) -> napi::Result<()> {
         let parsed = match mode.to_ascii_lowercase().as_str() {
-            "batched" => config::FpssFlushMode::Batched,
-            "immediate" => config::FpssFlushMode::Immediate,
+            "batched" => config::StreamingFlushMode::Batched,
+            "immediate" => config::StreamingFlushMode::Immediate,
             other => {
                 return Err(crate::invalid_parameter_err(format!(
                     "setFlushMode: mode must be \"batched\" or \"immediate\"; got {other:?}"
@@ -1435,7 +1448,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.flush_mode = parsed;
+        guard.streaming.flush_mode = parsed;
         Ok(())
     }
 
@@ -1447,9 +1460,9 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match guard.fpss.flush_mode {
-            config::FpssFlushMode::Batched => "batched",
-            config::FpssFlushMode::Immediate => "immediate",
+        Ok(match guard.streaming.flush_mode {
+            config::StreamingFlushMode::Batched => "batched",
+            config::StreamingFlushMode::Immediate => "immediate",
             _ => "unknown",
         })
     }
@@ -1463,7 +1476,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.fpss.derive_ohlcvc = enabled;
+        guard.streaming.derive_ohlcvc = enabled;
         Ok(())
     }
 
@@ -1474,6 +1487,6 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.fpss.derive_ohlcvc)
+        Ok(guard.streaming.derive_ohlcvc)
     }
 }

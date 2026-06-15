@@ -30,9 +30,9 @@ use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::FpssFlushMode;
 use crate::config::HostSelectionPolicy;
 use crate::config::ReconnectPolicy;
+use crate::config::StreamingFlushMode;
 
 use super::pinning::PinnedVerifier;
 #[cfg(test)]
@@ -43,7 +43,7 @@ pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
 
 /// TCP keepalive schedule applied to every FPSS socket.
 ///
-/// Mirrors the three `FpssConfig` keepalive knobs; bundled so the
+/// Mirrors the three `StreamingConfig` keepalive knobs; bundled so the
 /// connect path takes one argument instead of three loose integers.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TcpKeepaliveSpec {
@@ -73,7 +73,7 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub host_shuffle_seed: u64,
     pub ring_size: usize,
     pub derive_ohlcvc: bool,
-    pub flush_mode: FpssFlushMode,
+    pub flush_mode: StreamingFlushMode,
     pub policy: ReconnectPolicy,
     /// Initial reconnect delay (ms) for generic transient drops;
     /// doubles per attempt up to `wait_max_ms`. Mirrors
@@ -100,10 +100,10 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     /// Per-iteration blocking-read slice for the I/O loop. Mirrors
-    /// [`crate::config::FpssConfig::io_read_slice_ms`].
+    /// [`crate::config::StreamingConfig::io_read_slice_ms`].
     pub io_read_slice: Duration,
     /// Last-frame watchdog deadline; `Duration::ZERO` disables.
-    /// Mirrors [`crate::config::FpssConfig::data_watchdog_ms`].
+    /// Mirrors [`crate::config::StreamingConfig::data_watchdog_ms`].
     pub data_watchdog: Duration,
     /// Keepalive schedule for reconnect-time socket construction.
     pub keepalive: TcpKeepaliveSpec,
@@ -392,21 +392,21 @@ mod tests {
     #[test]
     fn production_config_has_four_fpss_hosts() {
         let config = crate::config::DirectConfig::production();
-        assert_eq!(config.fpss.hosts.len(), 4);
+        assert_eq!(config.streaming.hosts.len(), 4);
         assert_eq!(
-            config.fpss.hosts[0],
+            config.streaming.hosts[0],
             ("nj-a.thetadata.us".to_string(), 20000)
         );
         assert_eq!(
-            config.fpss.hosts[1],
+            config.streaming.hosts[1],
             ("nj-a.thetadata.us".to_string(), 20001)
         );
         assert_eq!(
-            config.fpss.hosts[2],
+            config.streaming.hosts[2],
             ("nj-b.thetadata.us".to_string(), 20000)
         );
         assert_eq!(
-            config.fpss.hosts[3],
+            config.streaming.hosts[3],
             ("nj-b.thetadata.us".to_string(), 20001)
         );
     }
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn connect_timeout_matches_terminal() {
         // Parity reference: the JVM terminal connects with a 2000 ms deadline.
-        // Used as the default seed for `FpssConfig::connect_timeout_ms`; the
+        // Used as the default seed for `StreamingConfig::connect_timeout_ms`; the
         // public knob now overrides this constant for callers who need to
         // dial in a different per-server connect deadline.
         assert_eq!(CONNECT_TIMEOUT_MS, 2_000);
