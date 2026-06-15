@@ -9,17 +9,17 @@
 //! Tool naming (matches the Rust `flatfile_*` helper methods on
 //! `Client`):
 //!
-//!   tdx_flatfile_request                     (generic)
-//!   tdx_flatfile_option_quote
-//!   tdx_flatfile_option_trade
-//!   tdx_flatfile_option_trade_quote
-//!   tdx_flatfile_option_ohlc
-//!   tdx_flatfile_option_open_interest
-//!   tdx_flatfile_option_eod
-//!   tdx_flatfile_stock_quote
-//!   tdx_flatfile_stock_trade
-//!   tdx_flatfile_stock_trade_quote
-//!   tdx_flatfile_stock_eod
+//!   thetadatadx_flatfile_request                     (generic)
+//!   thetadatadx_flatfile_option_quote
+//!   thetadatadx_flatfile_option_trade
+//!   thetadatadx_flatfile_option_trade_quote
+//!   thetadatadx_flatfile_option_ohlc
+//!   thetadatadx_flatfile_option_open_interest
+//!   thetadatadx_flatfile_option_eod
+//!   thetadatadx_flatfile_stock_quote
+//!   thetadatadx_flatfile_stock_trade
+//!   thetadatadx_flatfile_stock_trade_quote
+//!   thetadatadx_flatfile_stock_eod
 //!
 //! All ten convenience tools take `(date, output_path?, format?)`. The
 //! generic tool takes `(sec_type, req_type, date, output_path, format)`
@@ -51,43 +51,43 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
 
     let convenience = [
         (
-            "tdx_flatfile_option_quote",
+            "thetadatadx_flatfile_option_quote",
             "Whole-universe option-quote flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_option_trade",
+            "thetadatadx_flatfile_option_trade",
             "Whole-universe option-trade flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_option_trade_quote",
+            "thetadatadx_flatfile_option_trade_quote",
             "Whole-universe option trade-quote flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_option_ohlc",
+            "thetadatadx_flatfile_option_ohlc",
             "Whole-universe option-OHLC flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_option_open_interest",
+            "thetadatadx_flatfile_option_open_interest",
             "Whole-universe option open-interest flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_option_eod",
+            "thetadatadx_flatfile_option_eod",
             "Whole-universe option end-of-day flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_stock_quote",
+            "thetadatadx_flatfile_stock_quote",
             "Whole-universe stock-quote flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_stock_trade",
+            "thetadatadx_flatfile_stock_trade",
             "Whole-universe stock-trade flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_stock_trade_quote",
+            "thetadatadx_flatfile_stock_trade_quote",
             "Whole-universe stock trade-quote flat file for a single date. Returns the written file path.",
         ),
         (
-            "tdx_flatfile_stock_eod",
+            "thetadatadx_flatfile_stock_eod",
             "Whole-universe stock end-of-day flat file for a single date. Returns the written file path.",
         ),
     ];
@@ -109,7 +109,7 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
     }
 
     tools.push(json!({
-        "name": "tdx_flatfile_request",
+        "name": "thetadatadx_flatfile_request",
         "description": "Generic flat-file request. Pull a whole-universe daily blob for any \
                         (sec_type, req_type) combination supported by ThetaData. Returns the \
                         written file path.",
@@ -183,19 +183,21 @@ fn arg_str_opt(args: &Value, key: &str) -> Option<String> {
 }
 
 /// Map a tool-name suffix to a `(SecType, ReqType)` pair, e.g.
-/// `"tdx_flatfile_option_quote"` -> `Some((Option, Quote))`.
+/// `"thetadatadx_flatfile_option_quote"` -> `Some((Option, Quote))`.
 fn convenience_pair(tool_name: &str) -> Option<(SecType, ReqType)> {
     match tool_name {
-        "tdx_flatfile_option_quote" => Some((SecType::Option, ReqType::Quote)),
-        "tdx_flatfile_option_trade" => Some((SecType::Option, ReqType::Trade)),
-        "tdx_flatfile_option_trade_quote" => Some((SecType::Option, ReqType::TradeQuote)),
-        "tdx_flatfile_option_ohlc" => Some((SecType::Option, ReqType::Ohlc)),
-        "tdx_flatfile_option_open_interest" => Some((SecType::Option, ReqType::OpenInterest)),
-        "tdx_flatfile_option_eod" => Some((SecType::Option, ReqType::Eod)),
-        "tdx_flatfile_stock_quote" => Some((SecType::Stock, ReqType::Quote)),
-        "tdx_flatfile_stock_trade" => Some((SecType::Stock, ReqType::Trade)),
-        "tdx_flatfile_stock_trade_quote" => Some((SecType::Stock, ReqType::TradeQuote)),
-        "tdx_flatfile_stock_eod" => Some((SecType::Stock, ReqType::Eod)),
+        "thetadatadx_flatfile_option_quote" => Some((SecType::Option, ReqType::Quote)),
+        "thetadatadx_flatfile_option_trade" => Some((SecType::Option, ReqType::Trade)),
+        "thetadatadx_flatfile_option_trade_quote" => Some((SecType::Option, ReqType::TradeQuote)),
+        "thetadatadx_flatfile_option_ohlc" => Some((SecType::Option, ReqType::Ohlc)),
+        "thetadatadx_flatfile_option_open_interest" => {
+            Some((SecType::Option, ReqType::OpenInterest))
+        }
+        "thetadatadx_flatfile_option_eod" => Some((SecType::Option, ReqType::Eod)),
+        "thetadatadx_flatfile_stock_quote" => Some((SecType::Stock, ReqType::Quote)),
+        "thetadatadx_flatfile_stock_trade" => Some((SecType::Stock, ReqType::Trade)),
+        "thetadatadx_flatfile_stock_trade_quote" => Some((SecType::Stock, ReqType::TradeQuote)),
+        "thetadatadx_flatfile_stock_eod" => Some((SecType::Stock, ReqType::Eod)),
         _ => None,
     }
 }
@@ -214,7 +216,7 @@ pub(crate) async fn try_execute_flatfile_tool(
     name: &str,
     args: &Value,
 ) -> Option<Result<Value, ToolError>> {
-    let (sec_type, req_type) = if name == "tdx_flatfile_request" {
+    let (sec_type, req_type) = if name == "thetadatadx_flatfile_request" {
         let sec_str = match arg_str(args, "sec_type") {
             Ok(s) => s,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
@@ -248,7 +250,7 @@ pub(crate) async fn try_execute_flatfile_tool(
     let output_path = arg_str_opt(args, "output_path").map_or_else(
         || {
             std::env::temp_dir().join(format!(
-                "tdx_flatfile_{sec_type}_{}_{date}.{}",
+                "thetadatadx_flatfile_{sec_type}_{}_{date}.{}",
                 req_type as u32,
                 format.extension(),
             ))

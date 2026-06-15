@@ -68,7 +68,7 @@ impl StreamView {
         // call `record_panic()` when the Python callback raises an exception.
         // A `PyErr` is not a Rust panic; it does not unwind through
         // `catch_unwind`, so the core counter is only bumped here.
-        let panic_recorder = Arc::clone(&self.tdx);
+        let panic_recorder = Arc::clone(&self.client);
 
         // GIL once per batch, not per event. `start_streaming_scoped`
         // brackets each consumer batch drain in the `Python::attach`
@@ -90,7 +90,7 @@ impl StreamView {
         // Python exceptions raised by the callback are caught via `call1`
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
-        self.tdx
+        self.client
             .stream()
             .start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
@@ -135,12 +135,12 @@ impl StreamView {
 
     /// Whether the streaming connection is active.
     fn is_streaming(&self) -> bool {
-        self.tdx.stream().is_streaming()
+        self.client.stream().is_streaming()
     }
 
     /// Get a snapshot of currently active subscriptions.
     fn active_subscriptions(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {
-        self.tdx
+        self.client
             .stream()
             .active_subscriptions()
             .map(|subs| {
@@ -197,13 +197,13 @@ impl StreamView {
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
-        let panic_recorder = Arc::clone(&self.tdx);
+        let panic_recorder = Arc::clone(&self.client);
 
         // GIL once per batch, not per event — see `start_streaming`. The
         // scope holds the GIL across each batch drain and releases it
         // across the idle wait; the per-event `Python::attach` is the
         // cheap reentrant fast path.
-        self.tdx
+        self.client
             .stream()
             .reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
@@ -243,7 +243,7 @@ impl StreamView {
     ///
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
-        py.detach(|| self.tdx.stream().stop_streaming());
+        py.detach(|| self.client.stream().stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -252,7 +252,7 @@ impl StreamView {
     ///
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     pub(crate) fn shutdown(&self, py: Python<'_>) {
-        py.detach(|| self.tdx.stream().stop_streaming());
+        py.detach(|| self.client.stream().stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -260,7 +260,7 @@ impl StreamView {
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         py.detach(|| {
-            self.tdx.stream().await_drain(std::time::Duration::from_millis(timeout_ms))
+            self.client.stream().await_drain(std::time::Duration::from_millis(timeout_ms))
         })
     }
 

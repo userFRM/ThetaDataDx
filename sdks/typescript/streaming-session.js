@@ -1,5 +1,5 @@
 /**
- * `await using session = await tdx.streaming(callback)` (TC39 explicit
+ * `await using session = await client.streaming(callback)` (TC39 explicit
  * resource management) wrapper for the Client FPSS streaming
  * lifecycle.
  *
@@ -32,7 +32,7 @@ const native = require('./index.js');
 // surfaces every `thetadatadx::Error` as a `napi::Error` whose
 // `reason` carries a `[ClassName] ...` prefix. The JS interceptor
 // below parses that prefix and re-throws the matching subclass so
-// callers can write `catch (e) { if (e instanceof tdx.SubscriptionError)
+// callers can write `catch (e) { if (e instanceof thetadatadx.SubscriptionError)
 // { ... } }` rather than substring-matching the message.
 //
 // The canonical leaf set (`NotFoundError`, `DeadlineExceededError`,
@@ -196,7 +196,7 @@ const EXIT_DRAIN_TIMEOUT_MS = 5000;
 // session itself; everything else proxies to the underlying
 // `Client`. Symbol.asyncDispose is included so `await using`
 // finds the wrapper's dispose, not anything on the native binding.
-const WRAPPER_OWN = new Set(['_tdx', 'constructor']);
+const WRAPPER_OWN = new Set(['_client', 'constructor']);
 
 class StreamingSession {
   /**
@@ -205,14 +205,14 @@ class StreamingSession {
    * underlying instance, so adding a `subscribe_X` method to the napi
    * binding makes it callable through the session with no drift.
    *
-   * @param {InstanceType<typeof native.Client>} tdx
+   * @param {InstanceType<typeof native.Client>} client
    * @returns {StreamingSession}
    */
-  constructor(tdx) {
-    this._tdx = tdx;
+  constructor(client) {
+    this._client = client;
     return new Proxy(this, {
       get(target, prop, receiver) {
-        // Wrapper-defined members (Symbol.asyncDispose, _tdx,
+        // Wrapper-defined members (Symbol.asyncDispose, _client,
         // constructor) take precedence; everything else forwards to
         // the underlying Client instance.
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) {
@@ -228,28 +228,28 @@ class StreamingSession {
           }
           return own;
         }
-        const tdx = target._tdx;
+        const client = target._client;
         // The unified client's streaming surface (subscribe, diagnostics,
         // lifecycle) moved onto the `client.stream` sub-namespace view.
         // Resolve a name there first so `session.subscribe(...)` and
         // `session.activeSubscriptions()` keep working, then fall back to
         // the methods that stay on `Client` (e.g. `sessionUuid`,
         // `subscriptionInfo`, `activeFullSubscriptions`).
-        const stream = tdx.stream;
+        const stream = client.stream;
         if (stream && prop in stream) {
           const value = stream[prop];
           return typeof value === 'function' ? value.bind(stream) : value;
         }
-        const value = tdx[prop];
+        const value = client[prop];
         // Bind methods to the underlying instance so `this` resolves
         // correctly when the caller invokes them.
-        return typeof value === 'function' ? value.bind(tdx) : value;
+        return typeof value === 'function' ? value.bind(client) : value;
       },
       has(target, prop) {
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) return true;
-        const tdx = target._tdx;
-        const stream = tdx.stream;
-        return (stream && prop in stream) || prop in tdx;
+        const client = target._client;
+        const stream = client.stream;
+        return (stream && prop in stream) || prop in client;
       },
     });
   }
@@ -269,8 +269,8 @@ class StreamingSession {
    * @returns {Promise<void>}
    */
   async [Symbol.asyncDispose]() {
-    this._tdx.stream.stopStreaming();
-    const drained = await this._tdx.stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+    this._client.stream.stopStreaming();
+    const drained = await this._client.stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
     if (!drained) {
       console.warn(
         `Client streaming drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
@@ -283,7 +283,7 @@ class StreamingSession {
 
 // Monkey-patch `streaming(callback)` onto the napi-generated
 // `Client` class. Returning a `Promise<StreamingSession>` matches
-// the spec example (`await using session = await tdx.streaming(cb)`)
+// the spec example (`await using session = await client.streaming(cb)`)
 // and leaves room for an async startup path in the future without an
 // API break.
 if (

@@ -3,7 +3,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX};
+use thetadatadx::fpss::{
+    StreamControl, StreamData, StreamEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX,
+};
 
 /// Total events dropped because their JSON serialization failed.
 ///

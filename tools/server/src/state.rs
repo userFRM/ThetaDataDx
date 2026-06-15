@@ -50,7 +50,7 @@ pub struct AppState {
 
 struct Inner {
     /// Unified client (historical via Deref to HistoricalClient, streaming via start_streaming).
-    tdx: Client,
+    client: Client,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,
     /// Whether FPSS is connected (set by the FPSS bridge callback).
@@ -80,10 +80,10 @@ struct Inner {
 
 impl AppState {
     /// Create new app state wrapping a connected `Client`.
-    pub fn new(tdx: Client, shutdown_token: String) -> Self {
+    pub fn new(client: Client, shutdown_token: String) -> Self {
         Self {
             inner: Arc::new(Inner {
-                tdx,
+                client,
                 mdds_connected: AtomicBool::new(true),
                 fpss_connected: AtomicBool::new(false),
                 ws_clients: Arc::new(RwLock::new(Vec::new())),
@@ -114,8 +114,8 @@ impl AppState {
     }
 
     /// Borrow the unified `Client` client.
-    pub fn tdx(&self) -> &Client {
-        &self.inner.tdx
+    pub fn client(&self) -> &Client {
+        &self.inner.client
     }
 
     /// MDDS connection status string matching the Java terminal.
@@ -261,7 +261,7 @@ impl AppState {
 
     /// Signal graceful server shutdown. Stops FPSS streaming if active.
     pub fn shutdown(&self) {
-        self.inner.tdx.stream().stop_streaming();
+        self.inner.client.stream().stop_streaming();
         self.inner.shutdown.notify_waiters();
     }
 

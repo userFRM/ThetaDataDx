@@ -43,7 +43,7 @@ import { existsSync } from 'node:fs';
 const wrapperImportPath = '../streaming-session.js';
 
 // Optional credentials file for the FLATFILES enum-parse block. The
-// parsers live on `tdx.flat_files` / `tdx.flatFileToPath`, which require
+// parsers live on `client.flat_files` / `client.flatFileToPath`, which require
 // a built client; the enum parse itself is synchronous and runs before
 // any network I/O, so a connected client is enough to exercise it. When
 // no credentials file is present the block skips, keeping the suite
@@ -294,14 +294,14 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
   it('flatFiles.request with an unknown sec_type throws InvalidParameterError', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const tdx = tryConnect(mod);
-    if (!tdx) {
+    const client = tryConnect(mod);
+    if (!client) {
       t.skip('no credentials available to build a client for the FLATFILES surface');
       return;
     }
 
     assert.throws(
-      () => tdx.flatFiles.request('BOGUS', 'QUOTE', '20260102'),
+      () => client.flatFiles.request('BOGUS', 'QUOTE', '20260102'),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'an unknown flat-file sec_type must reclassify to InvalidParameterError, matching the Python ValueError',
     );
@@ -310,14 +310,14 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
   it('flatFileToPath with an unknown req_type throws InvalidParameterError', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const tdx = tryConnect(mod);
-    if (!tdx) {
+    const client = tryConnect(mod);
+    if (!client) {
       t.skip('no credentials available to build a client for the FLATFILES surface');
       return;
     }
 
     assert.throws(
-      () => tdx.flatFileToPath('OPTION', 'BOGUS', '20260102', '/tmp/thetadatadx-test.csv'),
+      () => client.flatFileToPath('OPTION', 'BOGUS', '20260102', '/tmp/thetadatadx-test.csv'),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'an unknown flat-file req_type must reclassify to InvalidParameterError',
     );
@@ -354,14 +354,14 @@ describe('timeoutMs input-validation parity (native)', () => {
     it(`stockSnapshotQuote rejects ${label} timeoutMs as InvalidParameterError`, async (t) => {
       const mod = await loadWrapped();
       if (!mod) return;
-      const tdx = tryConnect(mod);
-      if (!tdx) {
+      const client = tryConnect(mod);
+      if (!client) {
         t.skip('no credentials available to build a client for the endpoint surface');
         return;
       }
 
       await assert.rejects(
-        () => tdx.historical.stockSnapshotQuote('AAPL', { timeoutMs: value }),
+        () => client.historical.stockSnapshotQuote('AAPL', { timeoutMs: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} timeoutMs must reject as InvalidParameterError, not coerce`,
       );
@@ -371,14 +371,14 @@ describe('timeoutMs input-validation parity (native)', () => {
   it('stockListSymbols rejects a negative timeoutMs on the string-list path', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const tdx = tryConnect(mod);
-    if (!tdx) {
+    const client = tryConnect(mod);
+    if (!client) {
       t.skip('no credentials available to build a client for the endpoint surface');
       return;
     }
 
     await assert.rejects(
-      () => tdx.historical.stockListSymbols({ timeoutMs: -1 }),
+      () => client.historical.stockListSymbols({ timeoutMs: -1 }),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'a negative timeoutMs must reject on the string-list path too',
     );
@@ -387,8 +387,8 @@ describe('timeoutMs input-validation parity (native)', () => {
   it('stockSnapshotQuote accepts a valid whole-millisecond timeoutMs', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const tdx = tryConnect(mod);
-    if (!tdx) {
+    const client = tryConnect(mod);
+    if (!client) {
       t.skip('no credentials available to build a client for the endpoint surface');
       return;
     }
@@ -397,7 +397,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     // client. The round-trip may surface a data/network error, but it must
     // never be an InvalidParameterError from the deadline guard.
     try {
-      await tdx.historical.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
+      await client.historical.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
     } catch (err) {
       assert.ok(
         !(err instanceof mod.InvalidParameterError),

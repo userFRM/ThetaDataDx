@@ -78,17 +78,17 @@ fn tools_list_includes_flatfile_tools() {
     let response = tools_response.expect("MCP server should respond to tools/list");
 
     for tool in [
-        "tdx_flatfile_request",
-        "tdx_flatfile_option_quote",
-        "tdx_flatfile_option_trade",
-        "tdx_flatfile_option_trade_quote",
-        "tdx_flatfile_option_ohlc",
-        "tdx_flatfile_option_open_interest",
-        "tdx_flatfile_option_eod",
-        "tdx_flatfile_stock_quote",
-        "tdx_flatfile_stock_trade",
-        "tdx_flatfile_stock_trade_quote",
-        "tdx_flatfile_stock_eod",
+        "thetadatadx_flatfile_request",
+        "thetadatadx_flatfile_option_quote",
+        "thetadatadx_flatfile_option_trade",
+        "thetadatadx_flatfile_option_trade_quote",
+        "thetadatadx_flatfile_option_ohlc",
+        "thetadatadx_flatfile_option_open_interest",
+        "thetadatadx_flatfile_option_eod",
+        "thetadatadx_flatfile_stock_quote",
+        "thetadatadx_flatfile_stock_trade",
+        "thetadatadx_flatfile_stock_trade_quote",
+        "thetadatadx_flatfile_stock_eod",
     ] {
         assert!(
             response.contains(tool),

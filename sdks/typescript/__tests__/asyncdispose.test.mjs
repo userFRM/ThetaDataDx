@@ -1,4 +1,4 @@
-// `await using session = await tdx.streaming(callback)` lifecycle
+// `await using session = await client.streaming(callback)` lifecycle
 // tests. Pins the contract that the wrapper:
 //   * exists on the package's CJS entry point
 //   * defines a `Symbol.asyncDispose` slot
@@ -56,7 +56,7 @@ describe('streaming-session wrapper', () => {
     };
     const session = new mod.StreamingSession(fakeTdx);
 
-    // Proxy SSOT: `subscribe(sub)` proxies through to the wrapped tdx.
+    // Proxy SSOT: `subscribe(sub)` proxies through to the wrapped client.
     const fakeSub = { kind: 'quote', isFull: false };
     session.subscribe(fakeSub);
     assert.deepEqual(calls.shift(), ['subscribe', fakeSub]);
@@ -88,9 +88,9 @@ describe('streaming-session wrapper', () => {
     assert.match(warned[0], /5000ms/, 'warning text should include the 5000ms timeout');
   });
 
-  it('Proxy forwards arbitrary method calls to the underlying tdx', () => {
+  it('Proxy forwards arbitrary method calls to the underlying client', () => {
     // Method that does NOT exist on StreamingSession itself but should
-    // proxy through to the tdx. This is the SSOT property: adding a new
+    // proxy through to the client. This is the SSOT property: adding a new
     // method to the napi binding makes it reachable on the session
     // automatically without a wrapper-side mirror.
     const fakeTdx = {

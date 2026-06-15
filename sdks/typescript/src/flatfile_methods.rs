@@ -64,15 +64,15 @@ fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
 }
 
 fn pull_decoded(
-    tdx: &Arc<thetadatadx::Client>,
+    client: &Arc<thetadatadx::Client>,
     sec: SecType,
     req: ReqType,
     date: &str,
 ) -> napi::Result<Vec<FlatFileRow>> {
-    let tdx = Arc::clone(tdx);
+    let client = Arc::clone(client);
     let date = date.to_string();
     runtime()
-        .block_on(async move { tdx.flatfile_request_decoded(sec, req, &date).await }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+        .block_on(async move { client.flatfile_request_decoded(sec, req, &date).await }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
         .map_err(to_napi_err)
 }
 
@@ -160,11 +160,11 @@ impl FlatFileRowList {
 
 // ── FlatFilesNamespace ─────────────────────────────────────────────────
 
-/// JS class returned from `tdx.flatFiles`. Each method maps to one
+/// JS class returned from `client.flatFiles`. Each method maps to one
 /// (security type, request type) pair and returns a `FlatFileRowList`.
 #[napi]
 pub struct FlatFilesNamespace {
-    pub(crate) tdx: Arc<thetadatadx::Client>,
+    pub(crate) client: Arc<thetadatadx::Client>,
 }
 
 #[napi]
@@ -172,70 +172,70 @@ impl FlatFilesNamespace {
     /// Option quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionQuote")]
     pub fn option_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Quote, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Quote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Option trade flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionTrade")]
     pub fn option_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Trade, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Trade, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Option trade-with-quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionTradeQuote")]
     pub fn option_trade_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::TradeQuote, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::TradeQuote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Option OHLC flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionOhlc")]
     pub fn option_ohlc(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Ohlc, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Ohlc, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Option open-interest flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionOpenInterest")]
     pub fn option_open_interest(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::OpenInterest, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::OpenInterest, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Option end-of-day flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionEod")]
     pub fn option_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Option, ReqType::Eod, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Eod, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Stock quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockQuote")]
     pub fn stock_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Quote, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::Quote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Stock trade flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockTrade")]
     pub fn stock_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Trade, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::Trade, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Stock trade-with-quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockTradeQuote")]
     pub fn stock_trade_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::TradeQuote, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::TradeQuote, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
     /// Stock end-of-day flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "stockEod")]
     pub fn stock_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.tdx, SecType::Stock, ReqType::Eod, &date)?;
+        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::Eod, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
@@ -250,7 +250,7 @@ impl FlatFilesNamespace {
     ) -> napi::Result<FlatFileRowList> {
         let sec = parse_flatfile_sec_type(&sec_type)?;
         let req = parse_flatfile_req_type(&req_type)?;
-        let rows = pull_decoded(&self.tdx, sec, req, &date)?;
+        let rows = pull_decoded(&self.client, sec, req, &date)?;
         Ok(FlatFileRowList { rows })
     }
 }
@@ -265,7 +265,7 @@ impl Client {
     #[napi(getter, js_name = "flatFiles")]
     pub fn flat_files(&self) -> FlatFilesNamespace {
         FlatFilesNamespace {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
         }
     }
 
@@ -284,10 +284,14 @@ impl Client {
         let sec = parse_flatfile_sec_type(&sec_type)?;
         let req = parse_flatfile_req_type(&req_type)?;
         let fmt = parse_flatfile_format(format.as_deref())?;
-        let tdx = Arc::clone(&self.tdx);
+        let client = Arc::clone(&self.client);
         let path_buf = std::path::PathBuf::from(path);
         let final_path = runtime()
-            .block_on(async move { tdx.flatfile_request(sec, req, &date, &path_buf, fmt).await }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+            .block_on(async move {
+                client
+                    .flatfile_request(sec, req, &date, &path_buf, fmt)
+                    .await
+            }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
             .map_err(to_napi_err)?;
         Ok(final_path.to_string_lossy().into_owned())
     }

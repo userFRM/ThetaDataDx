@@ -5,13 +5,13 @@
  * Used by both the C++ wrapper and any other C-compatible language.
  *
  * Memory model:
- * - Opaque handles (TdxCredentials*, TdxHistoricalClient*, TdxConfig*) are heap-allocated
- *   by the library and MUST be freed with the corresponding tdx_*_free function.
+ * - Opaque handles (ThetaDataDxCredentials*, ThetaDataDxHistoricalClient*, ThetaDataDxConfig*) are heap-allocated
+ *   by the library and MUST be freed with the corresponding thetadatadx_*_free function.
  * - Tick data is returned as fixed-layout struct arrays. Each array type has a
- *   corresponding tdx_*_array_free function that MUST be called.
- * - String arrays (TdxStringArray) must be freed with tdx_string_array_free.
+ *   corresponding thetadatadx_*_array_free function that MUST be called.
+ * - String arrays (ThetaDataDxStringArray) must be freed with thetadatadx_string_array_free.
  * - Functions that can fail return empty arrays (data=NULL, len=0) and set a
- *   thread-local error string retrievable via tdx_last_error().
+ *   thread-local error string retrievable via thetadatadx_last_error().
  */
 
 #ifndef THETADX_H
@@ -36,11 +36,11 @@ extern "C" {
 #endif
 
 /* ── Opaque handle types ── */
-typedef struct TdxCredentials TdxCredentials;
-typedef struct TdxHistoricalClient TdxHistoricalClient;
-typedef struct TdxConfig TdxConfig;
-typedef struct TdxStreamHandle TdxStreamHandle;
-typedef struct TdxClient TdxClient;
+typedef struct ThetaDataDxCredentials ThetaDataDxCredentials;
+typedef struct ThetaDataDxHistoricalClient ThetaDataDxHistoricalClient;
+typedef struct ThetaDataDxConfig ThetaDataDxConfig;
+typedef struct ThetaDataDxStreamHandle ThetaDataDxStreamHandle;
+typedef struct ThetaDataDxClient ThetaDataDxClient;
 
 /* Generated request-options bridge shared with the FFI surface. */
 #include "endpoint_request_options.h.inc"
@@ -53,9 +53,9 @@ typedef struct TdxClient TdxClient;
  * part of the ABI contract, so C/C++ array stepping stays byte-for-byte
  * compatible with the wire layout. Price fields are 64-bit doubles. */
 
-/* Calendar day-type codes carried by TdxCalendarDay.status — the
+/* Calendar day-type codes carried by ThetaDataDxCalendarDay.status — the
  * vendor's own vocabulary. Resolve the text form with
- * tdx_calendar_status_name(). */
+ * thetadatadx_calendar_status_name(). */
 #define TDX_CALENDAR_STATUS_OPEN 0
 #define TDX_CALENDAR_STATUS_EARLY_CLOSE 1
 #define TDX_CALENDAR_STATUS_FULL_CLOSE 2
@@ -71,10 +71,10 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t open_time;
     int32_t close_time;
     /* One of the TDX_CALENDAR_STATUS_* codes; string form via
-     * tdx_calendar_status_name(). */
+     * thetadatadx_calendar_status_name(). */
     int32_t status;
     uint8_t _tail_padding[44];
-} TdxCalendarDay TDX_ALIGN64_END;
+} ThetaDataDxCalendarDay TDX_ALIGN64_END;
 
 /* End-of-day OHLC + closing-quote tick (*_history_eod) -- one row per
  * trading day fusing the day's open/high/low/close, volume/count, and
@@ -111,7 +111,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} TdxEodTick TDX_ALIGN64_END;
+} ThetaDataDxEodTick TDX_ALIGN64_END;
 
 /* Full-union Greeks tick (option_*_greeks_all, interval-sampled). */
 TDX_ALIGN64_BEGIN typedef struct {
@@ -152,7 +152,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[20];
-} TdxGreeksAllTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksAllTick TDX_ALIGN64_END;
 
 /* End-of-day Greeks tick (option_history_greeks_eod) -- fuses every
  * Greek with the twelve EOD trade/quote columns (open/high/low/close,
@@ -210,7 +210,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} TdxGreeksEodTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksEodTick TDX_ALIGN64_END;
 
 /* First-order Greeks subset tick (option_*_greeks_first_order). */
 TDX_ALIGN64_BEGIN typedef struct {
@@ -237,7 +237,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} TdxGreeksFirstOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksFirstOrderTick TDX_ALIGN64_END;
 
 /* Second-order Greeks subset tick (option_*_greeks_second_order). */
 TDX_ALIGN64_BEGIN typedef struct {
@@ -263,7 +263,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[12];
-} TdxGreeksSecondOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksSecondOrderTick TDX_ALIGN64_END;
 
 /* Third-order Greeks subset tick (option_*_greeks_third_order). The
  * vendor's third-order schema does not publish `vera`. */
@@ -289,12 +289,12 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[20];
-} TdxGreeksThirdOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksThirdOrderTick TDX_ALIGN64_END;
 
 /* Per-OPRA-trade union Greeks tick (option_history_trade_greeks_all).
  * Carries the nine trade-side execution columns alongside every Greek
  * the server publishes -- distinct from the interval-sampled
- * TdxGreeksAllTick whose rows carry the bid/ask quote pair instead. */
+ * ThetaDataDxGreeksAllTick whose rows carry the bid/ask quote pair instead. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
@@ -340,7 +340,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[60];
-} TdxTradeGreeksAllTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksAllTick TDX_ALIGN64_END;
 
 /* Per-OPRA-trade first-order Greeks tick
  * (option_history_trade_greeks_first_order). */
@@ -375,7 +375,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[44];
-} TdxTradeGreeksFirstOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksFirstOrderTick TDX_ALIGN64_END;
 
 /* Per-OPRA-trade second-order Greeks tick
  * (option_history_trade_greeks_second_order). */
@@ -409,7 +409,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[52];
-} TdxTradeGreeksSecondOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksSecondOrderTick TDX_ALIGN64_END;
 
 /* Per-OPRA-trade third-order Greeks tick
  * (option_history_trade_greeks_third_order). The vendor's third-order
@@ -443,12 +443,12 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[60];
-} TdxTradeGreeksThirdOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksThirdOrderTick TDX_ALIGN64_END;
 
 /* Per-OPRA-trade implied-volatility tick
  * (option_history_trade_greeks_implied_volatility). Carries only the
  * single `implied_volatility` + `iv_error` pair (NOT the bid/mid/ask IV
- * triple of the interval-sampled TdxIvTick). */
+ * triple of the interval-sampled ThetaDataDxIvTick). */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
@@ -474,7 +474,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[28];
-} TdxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
 
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
  * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html:
@@ -486,7 +486,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double rate;
     uint8_t _tail_padding[48];
-} TdxInterestRateTick TDX_ALIGN64_END;
+} ThetaDataDxInterestRateTick TDX_ALIGN64_END;
 
 /* Interval-sampled implied-volatility tick (option_*_implied_volatility):
  * the bid/mid/ask quote with its bid/mid/ask IV triple. */
@@ -511,7 +511,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[28];
-} TdxIvTick TDX_ALIGN64_END;
+} ThetaDataDxIvTick TDX_ALIGN64_END;
 
 /* Settlement market-value tick (option_*_market_value): the contract's
  * bid/ask and reference price used for daily mark-to-market. */
@@ -529,7 +529,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[8];
-} TdxMarketValueTick TDX_ALIGN64_END;
+} ThetaDataDxMarketValueTick TDX_ALIGN64_END;
 
 /* OHLCVC bar tick (*_history_ohlc): one aggregated bar with
  * open/high/low/close, volume/count, and a SIP-rule VWAP. */
@@ -555,7 +555,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[44];
-} TdxOhlcTick TDX_ALIGN64_END;
+} ThetaDataDxOhlcTick TDX_ALIGN64_END;
 
 /* Open-interest tick (option_*_open_interest): the outstanding contract
  * count reported for the contract. */
@@ -570,7 +570,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[32];
-} TdxOpenInterestTick TDX_ALIGN64_END;
+} ThetaDataDxOpenInterestTick TDX_ALIGN64_END;
 
 /* Bare index price tick (index_*_price): a single price stamped with
  * time and date, carrying no trade-side execution columns. */
@@ -580,11 +580,11 @@ TDX_ALIGN64_BEGIN typedef struct {
     double price;
     int32_t date;
     uint8_t _tail_padding[40];
-} TdxPriceTick TDX_ALIGN64_END;
+} ThetaDataDxPriceTick TDX_ALIGN64_END;
 
 /* Trade-shaped index price tick (index_at_time_price) -- carries the
  * seven trade-side execution columns (sequence, ext_condition1..4,
- * condition, size, exchange) the bare TdxPriceTick silently dropped,
+ * condition, size, exchange) the bare ThetaDataDxPriceTick silently dropped,
  * including the SIP-exchange attribution field. */
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
@@ -600,7 +600,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     double price;
     int32_t date;
     uint8_t _tail_padding[12];
-} TdxIndexPriceAtTimeTick TDX_ALIGN64_END;
+} ThetaDataDxIndexPriceAtTimeTick TDX_ALIGN64_END;
 
 /* NBBO quote tick (*_history_quote): the bid/ask quote with sizes,
  * exchanges, conditions, and a derived midpoint. */
@@ -627,7 +627,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double midpoint;
     uint8_t _tail_padding[40];
-} TdxQuoteTick TDX_ALIGN64_END;
+} ThetaDataDxQuoteTick TDX_ALIGN64_END;
 
 /* Trade-with-quote tick (*_history_trade_quote): each trade print fused
  * with the bid/ask quote prevailing at execution time. */
@@ -667,7 +667,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[48];
-} TdxTradeQuoteTick TDX_ALIGN64_END;
+} ThetaDataDxTradeQuoteTick TDX_ALIGN64_END;
 
 /* Single trade-print tick (*_history_trade): one OPRA/SIP execution with
  * price, size, exchange, sequence, and condition codes. */
@@ -695,60 +695,60 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[40];
-} TdxTradeTick TDX_ALIGN64_END;
+} ThetaDataDxTradeTick TDX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Typed array return types                                              */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 /* Owned tick-array views: { const T* data; size_t len; }. Returned by the
- * matching tdx_* data call; each MUST be freed with its tdx_*_array_free
+ * matching thetadatadx_* data call; each MUST be freed with its thetadatadx_*_array_free
  * (below). An empty result is data=NULL, len=0. */
-typedef struct { const TdxEodTick* data; size_t len; } TdxEodTickArray;
-typedef struct { const TdxOhlcTick* data; size_t len; } TdxOhlcTickArray;
-typedef struct { const TdxTradeTick* data; size_t len; } TdxTradeTickArray;
-typedef struct { const TdxQuoteTick* data; size_t len; } TdxQuoteTickArray;
-typedef struct { const TdxGreeksAllTick* data; size_t len; } TdxGreeksAllTickArray;
-typedef struct { const TdxGreeksEodTick* data; size_t len; } TdxGreeksEodTickArray;
-typedef struct { const TdxGreeksFirstOrderTick* data; size_t len; } TdxGreeksFirstOrderTickArray;
-typedef struct { const TdxGreeksSecondOrderTick* data; size_t len; } TdxGreeksSecondOrderTickArray;
-typedef struct { const TdxGreeksThirdOrderTick* data; size_t len; } TdxGreeksThirdOrderTickArray;
-typedef struct { const TdxTradeGreeksAllTick* data; size_t len; } TdxTradeGreeksAllTickArray;
-typedef struct { const TdxTradeGreeksFirstOrderTick* data; size_t len; } TdxTradeGreeksFirstOrderTickArray;
-typedef struct { const TdxTradeGreeksSecondOrderTick* data; size_t len; } TdxTradeGreeksSecondOrderTickArray;
-typedef struct { const TdxTradeGreeksThirdOrderTick* data; size_t len; } TdxTradeGreeksThirdOrderTickArray;
-typedef struct { const TdxTradeGreeksImpliedVolatilityTick* data; size_t len; } TdxTradeGreeksImpliedVolatilityTickArray;
-typedef struct { const TdxIvTick* data; size_t len; } TdxIvTickArray;
-typedef struct { const TdxPriceTick* data; size_t len; } TdxPriceTickArray;
-typedef struct { const TdxIndexPriceAtTimeTick* data; size_t len; } TdxIndexPriceAtTimeTickArray;
-typedef struct { const TdxOpenInterestTick* data; size_t len; } TdxOpenInterestTickArray;
-typedef struct { const TdxMarketValueTick* data; size_t len; } TdxMarketValueTickArray;
-typedef struct { const TdxCalendarDay* data; size_t len; } TdxCalendarDayArray;
-typedef struct { const TdxInterestRateTick* data; size_t len; } TdxInterestRateTickArray;
-typedef struct { const TdxTradeQuoteTick* data; size_t len; } TdxTradeQuoteTickArray;
+typedef struct { const ThetaDataDxEodTick* data; size_t len; } ThetaDataDxEodTickArray;
+typedef struct { const ThetaDataDxOhlcTick* data; size_t len; } ThetaDataDxOhlcTickArray;
+typedef struct { const ThetaDataDxTradeTick* data; size_t len; } ThetaDataDxTradeTickArray;
+typedef struct { const ThetaDataDxQuoteTick* data; size_t len; } ThetaDataDxQuoteTickArray;
+typedef struct { const ThetaDataDxGreeksAllTick* data; size_t len; } ThetaDataDxGreeksAllTickArray;
+typedef struct { const ThetaDataDxGreeksEodTick* data; size_t len; } ThetaDataDxGreeksEodTickArray;
+typedef struct { const ThetaDataDxGreeksFirstOrderTick* data; size_t len; } ThetaDataDxGreeksFirstOrderTickArray;
+typedef struct { const ThetaDataDxGreeksSecondOrderTick* data; size_t len; } ThetaDataDxGreeksSecondOrderTickArray;
+typedef struct { const ThetaDataDxGreeksThirdOrderTick* data; size_t len; } ThetaDataDxGreeksThirdOrderTickArray;
+typedef struct { const ThetaDataDxTradeGreeksAllTick* data; size_t len; } ThetaDataDxTradeGreeksAllTickArray;
+typedef struct { const ThetaDataDxTradeGreeksFirstOrderTick* data; size_t len; } ThetaDataDxTradeGreeksFirstOrderTickArray;
+typedef struct { const ThetaDataDxTradeGreeksSecondOrderTick* data; size_t len; } ThetaDataDxTradeGreeksSecondOrderTickArray;
+typedef struct { const ThetaDataDxTradeGreeksThirdOrderTick* data; size_t len; } ThetaDataDxTradeGreeksThirdOrderTickArray;
+typedef struct { const ThetaDataDxTradeGreeksImpliedVolatilityTick* data; size_t len; } ThetaDataDxTradeGreeksImpliedVolatilityTickArray;
+typedef struct { const ThetaDataDxIvTick* data; size_t len; } ThetaDataDxIvTickArray;
+typedef struct { const ThetaDataDxPriceTick* data; size_t len; } ThetaDataDxPriceTickArray;
+typedef struct { const ThetaDataDxIndexPriceAtTimeTick* data; size_t len; } ThetaDataDxIndexPriceAtTimeTickArray;
+typedef struct { const ThetaDataDxOpenInterestTick* data; size_t len; } ThetaDataDxOpenInterestTickArray;
+typedef struct { const ThetaDataDxMarketValueTick* data; size_t len; } ThetaDataDxMarketValueTickArray;
+typedef struct { const ThetaDataDxCalendarDay* data; size_t len; } ThetaDataDxCalendarDayArray;
+typedef struct { const ThetaDataDxInterestRateTick* data; size_t len; } ThetaDataDxInterestRateTickArray;
+typedef struct { const ThetaDataDxTradeQuoteTick* data; size_t len; } ThetaDataDxTradeQuoteTickArray;
 
 /* ── OptionContract (has heap-allocated symbol string) ── */
 
 typedef struct {
-    const char* symbol;     /* heap-allocated, freed with tdx_option_contract_array_free */
+    const char* symbol;     /* heap-allocated, freed with thetadatadx_option_contract_array_free */
     int32_t expiration;     /* YYYYMMDD */
     /* 4 bytes padding before the double field */
     double strike;          /* dollars */
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put. Cast to char for display. */
     uint32_t right;
-} TdxOptionContract;
+} ThetaDataDxOptionContract;
 
-typedef struct { const TdxOptionContract* data; size_t len; } TdxOptionContractArray;
+typedef struct { const ThetaDataDxOptionContract* data; size_t len; } ThetaDataDxOptionContractArray;
 
 /* ── String array (for list endpoints) ── */
 
 typedef struct {
     const char* const* data;  /* array of NUL-terminated C strings */
     size_t len;
-} TdxStringArray;
+} ThetaDataDxStringArray;
 
-/* ── Greeks result (standalone tdx_all_greeks) ── */
+/* ── Greeks result (standalone thetadatadx_all_greeks) ── */
 
 typedef struct {
     double value;
@@ -774,70 +774,70 @@ typedef struct {
     double d2;
     double dual_delta;
     double dual_gamma;
-} TdxGreeksResult;
+} ThetaDataDxGreeksResult;
 
 /* ── Subscription types (active_subscriptions) ── */
 
 typedef struct {
     const char* kind;      /* snake_case: per-contract "quote"/"trade"/"open_interest"/"market_value", full-stream "full_trades"/"full_open_interest" */
     const char* contract;  /* "SPY" or "SPY 20260417 550 C" */
-} TdxSubscription;
+} ThetaDataDxSubscription;
 
 typedef struct {
-    const TdxSubscription* data;
+    const ThetaDataDxSubscription* data;
     size_t len;
-} TdxSubscriptionArray;
+} ThetaDataDxSubscriptionArray;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Free functions for typed arrays                                       */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Each frees the array returned by its matching tdx_* data call and
+/** Each frees the array returned by its matching thetadatadx_* data call and
  *  releases the backing allocation.
  *  @param arr The array returned by the matching data call; a NULL/empty
  *             (data=NULL, len=0) array is a no-op.
  *  @note Call exactly once per returned array. */
-void tdx_eod_tick_array_free(TdxEodTickArray arr);
-void tdx_ohlc_tick_array_free(TdxOhlcTickArray arr);
-void tdx_trade_tick_array_free(TdxTradeTickArray arr);
-void tdx_quote_tick_array_free(TdxQuoteTickArray arr);
-void tdx_greeks_all_tick_array_free(TdxGreeksAllTickArray arr);
-void tdx_greeks_eod_tick_array_free(TdxGreeksEodTickArray arr);
-void tdx_greeks_first_order_tick_array_free(TdxGreeksFirstOrderTickArray arr);
-void tdx_greeks_second_order_tick_array_free(TdxGreeksSecondOrderTickArray arr);
-void tdx_greeks_third_order_tick_array_free(TdxGreeksThirdOrderTickArray arr);
-void tdx_trade_greeks_all_tick_array_free(TdxTradeGreeksAllTickArray arr);
-void tdx_trade_greeks_first_order_tick_array_free(TdxTradeGreeksFirstOrderTickArray arr);
-void tdx_trade_greeks_second_order_tick_array_free(TdxTradeGreeksSecondOrderTickArray arr);
-void tdx_trade_greeks_third_order_tick_array_free(TdxTradeGreeksThirdOrderTickArray arr);
-void tdx_trade_greeks_implied_volatility_tick_array_free(TdxTradeGreeksImpliedVolatilityTickArray arr);
-void tdx_iv_tick_array_free(TdxIvTickArray arr);
-void tdx_price_tick_array_free(TdxPriceTickArray arr);
-void tdx_index_price_at_time_tick_array_free(TdxIndexPriceAtTimeTickArray arr);
-void tdx_open_interest_tick_array_free(TdxOpenInterestTickArray arr);
-void tdx_market_value_tick_array_free(TdxMarketValueTickArray arr);
-void tdx_calendar_day_array_free(TdxCalendarDayArray arr);
-void tdx_interest_rate_tick_array_free(TdxInterestRateTickArray arr);
-void tdx_trade_quote_tick_array_free(TdxTradeQuoteTickArray arr);
-void tdx_option_contract_array_free(TdxOptionContractArray arr);
-void tdx_string_array_free(TdxStringArray arr);
-/** Free a result handle returned by tdx_all_greeks.
- *  @param result Handle from tdx_all_greeks; no-op when NULL. Call exactly once. */
-void tdx_greeks_result_free(TdxGreeksResult* result);
+void thetadatadx_eod_tick_array_free(ThetaDataDxEodTickArray arr);
+void thetadatadx_ohlc_tick_array_free(ThetaDataDxOhlcTickArray arr);
+void thetadatadx_trade_tick_array_free(ThetaDataDxTradeTickArray arr);
+void thetadatadx_quote_tick_array_free(ThetaDataDxQuoteTickArray arr);
+void thetadatadx_greeks_all_tick_array_free(ThetaDataDxGreeksAllTickArray arr);
+void thetadatadx_greeks_eod_tick_array_free(ThetaDataDxGreeksEodTickArray arr);
+void thetadatadx_greeks_first_order_tick_array_free(ThetaDataDxGreeksFirstOrderTickArray arr);
+void thetadatadx_greeks_second_order_tick_array_free(ThetaDataDxGreeksSecondOrderTickArray arr);
+void thetadatadx_greeks_third_order_tick_array_free(ThetaDataDxGreeksThirdOrderTickArray arr);
+void thetadatadx_trade_greeks_all_tick_array_free(ThetaDataDxTradeGreeksAllTickArray arr);
+void thetadatadx_trade_greeks_first_order_tick_array_free(ThetaDataDxTradeGreeksFirstOrderTickArray arr);
+void thetadatadx_trade_greeks_second_order_tick_array_free(ThetaDataDxTradeGreeksSecondOrderTickArray arr);
+void thetadatadx_trade_greeks_third_order_tick_array_free(ThetaDataDxTradeGreeksThirdOrderTickArray arr);
+void thetadatadx_trade_greeks_implied_volatility_tick_array_free(ThetaDataDxTradeGreeksImpliedVolatilityTickArray arr);
+void thetadatadx_iv_tick_array_free(ThetaDataDxIvTickArray arr);
+void thetadatadx_price_tick_array_free(ThetaDataDxPriceTickArray arr);
+void thetadatadx_index_price_at_time_tick_array_free(ThetaDataDxIndexPriceAtTimeTickArray arr);
+void thetadatadx_open_interest_tick_array_free(ThetaDataDxOpenInterestTickArray arr);
+void thetadatadx_market_value_tick_array_free(ThetaDataDxMarketValueTickArray arr);
+void thetadatadx_calendar_day_array_free(ThetaDataDxCalendarDayArray arr);
+void thetadatadx_interest_rate_tick_array_free(ThetaDataDxInterestRateTickArray arr);
+void thetadatadx_trade_quote_tick_array_free(ThetaDataDxTradeQuoteTickArray arr);
+void thetadatadx_option_contract_array_free(ThetaDataDxOptionContractArray arr);
+void thetadatadx_string_array_free(ThetaDataDxStringArray arr);
+/** Free a result handle returned by thetadatadx_all_greeks.
+ *  @param result Handle from thetadatadx_all_greeks; no-op when NULL. Call exactly once. */
+void thetadatadx_greeks_result_free(ThetaDataDxGreeksResult* result);
 /** Free a subscription array returned by an active-subscriptions query.
- *  @param arr Array from tdx_*_active_subscriptions; no-op when NULL.
+ *  @param arr Array from thetadatadx_*_active_subscriptions; no-op when NULL.
  *             Call exactly once. */
-void tdx_subscription_array_free(TdxSubscriptionArray* arr);
+void thetadatadx_subscription_array_free(ThetaDataDxSubscriptionArray* arr);
 
 /* ── Arrow IPC terminal for history tick rows ── */
 
 /* Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
- * tdx_*_to_arrow_ipc terminals. Caller MUST free with tdx_arrow_bytes_free.
- * Layout-identical to TdxFlatFileBytes. */
-typedef struct TdxArrowBytes {
+ * thetadatadx_*_to_arrow_ipc terminals. Caller MUST free with thetadatadx_arrow_bytes_free.
+ * Layout-identical to ThetaDataDxFlatFileBytes. */
+typedef struct ThetaDataDxArrowBytes {
     const uint8_t* data;
     size_t len;
-} TdxArrowBytes;
+} ThetaDataDxArrowBytes;
 
 /** Serialise a span of history tick rows as an Arrow IPC stream — the same
  *  columnar exit Python exposes via <TickName>List.to_arrow(). The element
@@ -847,35 +847,35 @@ typedef struct TdxArrowBytes {
  *              len is 0 (a valid zero-row stream).
  *  @param len Number of rows referenced by rows.
  *  @return An Arrow IPC byte buffer on success that the caller MUST free with
- *          tdx_arrow_bytes_free, or (data=NULL, len=0) on error with
- *          tdx_last_error() set. */
-TdxArrowBytes tdx_eod_ticks_to_arrow_ipc(const TdxEodTick* rows, size_t len);
-TdxArrowBytes tdx_ohlc_ticks_to_arrow_ipc(const TdxOhlcTick* rows, size_t len);
-TdxArrowBytes tdx_trade_ticks_to_arrow_ipc(const TdxTradeTick* rows, size_t len);
-TdxArrowBytes tdx_quote_ticks_to_arrow_ipc(const TdxQuoteTick* rows, size_t len);
-TdxArrowBytes tdx_greeks_all_ticks_to_arrow_ipc(const TdxGreeksAllTick* rows, size_t len);
-TdxArrowBytes tdx_greeks_eod_ticks_to_arrow_ipc(const TdxGreeksEodTick* rows, size_t len);
-TdxArrowBytes tdx_greeks_first_order_ticks_to_arrow_ipc(const TdxGreeksFirstOrderTick* rows, size_t len);
-TdxArrowBytes tdx_greeks_second_order_ticks_to_arrow_ipc(const TdxGreeksSecondOrderTick* rows, size_t len);
-TdxArrowBytes tdx_greeks_third_order_ticks_to_arrow_ipc(const TdxGreeksThirdOrderTick* rows, size_t len);
-TdxArrowBytes tdx_trade_greeks_all_ticks_to_arrow_ipc(const TdxTradeGreeksAllTick* rows, size_t len);
-TdxArrowBytes tdx_trade_greeks_first_order_ticks_to_arrow_ipc(const TdxTradeGreeksFirstOrderTick* rows, size_t len);
-TdxArrowBytes tdx_trade_greeks_second_order_ticks_to_arrow_ipc(const TdxTradeGreeksSecondOrderTick* rows, size_t len);
-TdxArrowBytes tdx_trade_greeks_third_order_ticks_to_arrow_ipc(const TdxTradeGreeksThirdOrderTick* rows, size_t len);
-TdxArrowBytes tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(const TdxTradeGreeksImpliedVolatilityTick* rows, size_t len);
-TdxArrowBytes tdx_iv_ticks_to_arrow_ipc(const TdxIvTick* rows, size_t len);
-TdxArrowBytes tdx_price_ticks_to_arrow_ipc(const TdxPriceTick* rows, size_t len);
-TdxArrowBytes tdx_index_price_at_time_ticks_to_arrow_ipc(const TdxIndexPriceAtTimeTick* rows, size_t len);
-TdxArrowBytes tdx_open_interest_ticks_to_arrow_ipc(const TdxOpenInterestTick* rows, size_t len);
-TdxArrowBytes tdx_market_value_ticks_to_arrow_ipc(const TdxMarketValueTick* rows, size_t len);
-TdxArrowBytes tdx_calendar_days_to_arrow_ipc(const TdxCalendarDay* rows, size_t len);
-TdxArrowBytes tdx_interest_rate_ticks_to_arrow_ipc(const TdxInterestRateTick* rows, size_t len);
-TdxArrowBytes tdx_trade_quote_ticks_to_arrow_ipc(const TdxTradeQuoteTick* rows, size_t len);
+ *          thetadatadx_arrow_bytes_free, or (data=NULL, len=0) on error with
+ *          thetadatadx_last_error() set. */
+ThetaDataDxArrowBytes thetadatadx_eod_ticks_to_arrow_ipc(const ThetaDataDxEodTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_ohlc_ticks_to_arrow_ipc(const ThetaDataDxOhlcTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_ticks_to_arrow_ipc(const ThetaDataDxTradeTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_quote_ticks_to_arrow_ipc(const ThetaDataDxQuoteTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_greeks_all_ticks_to_arrow_ipc(const ThetaDataDxGreeksAllTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_greeks_eod_ticks_to_arrow_ipc(const ThetaDataDxGreeksEodTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_greeks_first_order_ticks_to_arrow_ipc(const ThetaDataDxGreeksFirstOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_greeks_second_order_ticks_to_arrow_ipc(const ThetaDataDxGreeksSecondOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_greeks_third_order_ticks_to_arrow_ipc(const ThetaDataDxGreeksThirdOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_all_ticks_to_arrow_ipc(const ThetaDataDxTradeGreeksAllTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc(const ThetaDataDxTradeGreeksFirstOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc(const ThetaDataDxTradeGreeksSecondOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc(const ThetaDataDxTradeGreeksThirdOrderTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(const ThetaDataDxTradeGreeksImpliedVolatilityTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_iv_ticks_to_arrow_ipc(const ThetaDataDxIvTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_price_ticks_to_arrow_ipc(const ThetaDataDxPriceTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_index_price_at_time_ticks_to_arrow_ipc(const ThetaDataDxIndexPriceAtTimeTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_open_interest_ticks_to_arrow_ipc(const ThetaDataDxOpenInterestTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc(const ThetaDataDxMarketValueTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc(const ThetaDataDxCalendarDay* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc(const ThetaDataDxInterestRateTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc(const ThetaDataDxTradeQuoteTick* rows, size_t len);
 
-/** Free a byte buffer returned by any tdx_*_to_arrow_ipc terminal.
- *  @param bytes Buffer from a tdx_*_to_arrow_ipc call; a (data=NULL, len=0)
+/** Free a byte buffer returned by any thetadatadx_*_to_arrow_ipc terminal.
+ *  @param bytes Buffer from a thetadatadx_*_to_arrow_ipc call; a (data=NULL, len=0)
  *               buffer is a no-op. Call exactly once. */
-void tdx_arrow_bytes_free(TdxArrowBytes bytes);
+void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
 
 /* ── Error ── */
 
@@ -884,23 +884,23 @@ void tdx_arrow_bytes_free(TdxArrowBytes bytes);
  *          valid only until the next FFI call on the same thread; do NOT
  *          free it.
  *  @note Thread-local: each thread observes only its own last error. */
-const char* tdx_last_error(void);
+const char* thetadatadx_last_error(void);
 
 /** Clear the thread-local error string.
  *  @note Higher-level wrappers should call this before issuing an FFI call
  *        so they can distinguish "the call set a new error" from "the
  *        previous call left a stale error in the slot" when an empty value
  *        (e.g. zero rows) is also a valid success outcome. */
-void tdx_clear_error(void);
+void thetadatadx_clear_error(void);
 
 /** Typed discriminant of the last FFI error on the current thread. Higher-
  *  level bindings (the C++ exception hierarchy below, the typed error
  *  subclasses in the TypeScript SDK) dispatch on this to pick the right
  *  exception / error subclass without substring-matching the formatted
- *  error string. The string from tdx_last_error() carries the diagnostic.
+ *  error string. The string from thetadatadx_last_error() carries the diagnostic.
  *  @return One of the TDX_ERR_* discriminants below; TDX_ERR_NONE when no
- *          error is set or after tdx_clear_error(). */
-int32_t tdx_last_error_code(void);
+ *          error is set or after thetadatadx_clear_error(). */
+int32_t thetadatadx_last_error_code(void);
 
 /** Server-supplied rate-limit back-off of the last FFI error on the current
  *  thread, in milliseconds. Set only for a rate-limit error whose upstream
@@ -908,9 +908,9 @@ int32_t tdx_last_error_code(void);
  *  this as a typed value.
  *  @return The back-off in milliseconds, or -1 when the error carries no
  *          retry hint (every non-rate-limit error reads -1). */
-int64_t tdx_last_error_retry_after_ms(void);
+int64_t thetadatadx_last_error_retry_after_ms(void);
 
-/* Error-code discriminants returned by `tdx_last_error_code()`. */
+/* Error-code discriminants returned by `thetadatadx_last_error_code()`. */
 #define TDX_ERR_NONE 0
 #define TDX_ERR_OTHER 1
 #define TDX_ERR_AUTHENTICATION 2
@@ -931,64 +931,64 @@ int64_t tdx_last_error_retry_after_ms(void);
 /** Create a credentials handle from an email and password.
  *  @param email Account email; must be non-NULL.
  *  @param password Account password; must be non-NULL.
- *  @return Heap-owned TdxCredentials the caller must release with
- *          tdx_credentials_free, or NULL on error (check tdx_last_error()). */
-TdxCredentials* tdx_credentials_from_email(const char* email, const char* password);
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_email(const char* email, const char* password);
 
 /** Create a credentials handle by reading a file (line 1 = email,
  *  line 2 = password).
  *  @param path Filesystem path to the credentials file; must be non-NULL.
- *  @return Heap-owned TdxCredentials the caller must release with
- *          tdx_credentials_free, or NULL on error (check tdx_last_error()). */
-TdxCredentials* tdx_credentials_from_file(const char* path);
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
 
 /** Release a credentials handle.
- *  @param creds Handle from tdx_credentials_from_email /
- *               tdx_credentials_from_file; no-op when NULL. Call exactly once. */
-void tdx_credentials_free(TdxCredentials* creds);
+ *  @param creds Handle from thetadatadx_credentials_from_email /
+ *               thetadatadx_credentials_from_file; no-op when NULL. Call exactly once. */
+void thetadatadx_credentials_free(ThetaDataDxCredentials* creds);
 
 /* ── Config ── */
 
 /** Create a production config (ThetaData NJ datacenter).
- *  @return Heap-owned TdxConfig the caller must release with
- *          tdx_config_free. */
-TdxConfig* tdx_config_production(void);
+ *  @return Heap-owned ThetaDataDxConfig the caller must release with
+ *          thetadatadx_config_free. */
+ThetaDataDxConfig* thetadatadx_config_production(void);
 
 /** Create a dev streaming config (port 20200, infinite historical replay).
- *  @return Heap-owned TdxConfig the caller must release with
- *          tdx_config_free. */
-TdxConfig* tdx_config_dev(void);
+ *  @return Heap-owned ThetaDataDxConfig the caller must release with
+ *          thetadatadx_config_free. */
+ThetaDataDxConfig* thetadatadx_config_dev(void);
 
 /** Create a stage streaming config (port 20100, testing, unstable).
- *  @return Heap-owned TdxConfig the caller must release with
- *          tdx_config_free. */
-TdxConfig* tdx_config_stage(void);
+ *  @return Heap-owned ThetaDataDxConfig the caller must release with
+ *          thetadatadx_config_free. */
+ThetaDataDxConfig* thetadatadx_config_stage(void);
 
 /** Release a config handle.
  *  @param config Handle from a config factory; no-op when NULL.
  *                Call exactly once. */
-void tdx_config_free(TdxConfig* config);
+void thetadatadx_config_free(ThetaDataDxConfig* config);
 
 /**
  * Set the streaming reconnect policy on a config handle.
  *   policy=0: Auto (default) -- auto-reconnect with split per-class attempt
  *             budgets. Generic transient failures (TimedOut, ServerRestarting,
  *             Unspecified) use the budget set by
- *             `tdx_config_set_reconnect_max_attempts`; the rate-limited
+ *             `thetadatadx_config_set_reconnect_max_attempts`; the rate-limited
  *             (`TooManyRequests`) class uses
- *             `tdx_config_set_reconnect_max_rate_limited_attempts`. Counters
+ *             `thetadatadx_config_set_reconnect_max_rate_limited_attempts`. Counters
  *             reset after a continuous data-flow window configured via
- *             `tdx_config_set_reconnect_stable_window_secs`.
+ *             `thetadatadx_config_set_reconnect_stable_window_secs`.
  *   policy=1: Manual -- no auto-reconnect.
  * @param config Config handle to mutate.
  * @param policy Reconnect policy selector (0 = Auto, 1 = Manual).
  * @return 0 on success, -1 on an invalid policy (outside {0, 1}) or null
- *         config. A rejected policy sets tdx_last_error_code to
+ *         config. A rejected policy sets thetadatadx_last_error_code to
  *         TDX_ERR_INVALID_PARAMETER so an unknown value is rejected with the
  *         same typed class the Python / TypeScript bindings raise, never
  *         silently coerced to Auto.
  */
-int32_t tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
+int32_t thetadatadx_config_set_reconnect_policy(ThetaDataDxConfig* config, int policy);
 
 /**
  * Set the per-class transient-failure attempt budget for the
@@ -997,7 +997,7 @@ int32_t tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
  * @param config Config handle to mutate; no-op when NULL.
  * @param max_attempts Per-class transient-failure attempt budget.
  */
-void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
+void thetadatadx_config_set_reconnect_max_attempts(ThetaDataDxConfig* config,
                                            uint32_t max_attempts);
 
 /**
@@ -1007,8 +1007,8 @@ void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
  * @param config Config handle to mutate; no-op when NULL.
  * @param max_rate_limited_attempts Per-class rate-limited attempt budget.
  */
-void tdx_config_set_reconnect_max_rate_limited_attempts(
-    TdxConfig* config, uint32_t max_rate_limited_attempts);
+void thetadatadx_config_set_reconnect_max_rate_limited_attempts(
+    ThetaDataDxConfig* config, uint32_t max_rate_limited_attempts);
 
 /**
  * Set the continuous successful-data-flow window (in seconds) after
@@ -1017,7 +1017,7 @@ void tdx_config_set_reconnect_max_rate_limited_attempts(
  * @param config Config handle to mutate; no-op when NULL.
  * @param secs Stable-window length in seconds.
  */
-void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
+void thetadatadx_config_set_reconnect_stable_window_secs(ThetaDataDxConfig* config,
                                                  uint64_t secs);
 
 /**
@@ -1027,7 +1027,7 @@ void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
  * @param config Config handle to mutate; no-op when NULL.
  * @param ms Reconnect delay in milliseconds.
  */
-void tdx_config_set_reconnect_wait_ms(TdxConfig* config, uint64_t ms);
+void thetadatadx_config_set_reconnect_wait_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
  * Read the current reconnect wait_ms setting.
@@ -1035,7 +1035,7 @@ void tdx_config_set_reconnect_wait_ms(TdxConfig* config, uint64_t ms);
  * @param out_ms Receives the configured millisecond delay on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_wait_ms(const TdxConfig* config, uint64_t* out_ms);
+int32_t thetadatadx_config_get_reconnect_wait_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 /**
  * Set the reconnect delay (ms) honoured for `TooManyRequests`
@@ -1044,7 +1044,7 @@ int32_t tdx_config_get_reconnect_wait_ms(const TdxConfig* config, uint64_t* out_
  * @param config Config handle to mutate; no-op when NULL.
  * @param ms Reconnect delay in milliseconds.
  */
-void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t ms);
+void thetadatadx_config_set_reconnect_wait_rate_limited_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
  * Read the current reconnect wait_rate_limited_ms setting.
@@ -1052,7 +1052,7 @@ void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t m
  * @param out_ms Receives the configured millisecond delay on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_wait_rate_limited_ms(const TdxConfig* config, uint64_t* out_ms);
+int32_t thetadatadx_config_get_reconnect_wait_rate_limited_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 
 /**
@@ -1061,7 +1061,7 @@ int32_t tdx_config_get_reconnect_wait_rate_limited_ms(const TdxConfig* config, u
  * @param out_policy Receives 0 (Auto), 1 (Manual), or 2 (Custom) on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_policy(const TdxConfig* config, int32_t* out_policy);
+int32_t thetadatadx_config_get_reconnect_policy(const ThetaDataDxConfig* config, int32_t* out_policy);
 
 /**
  * Read the generic-transient reconnect attempt budget (default 30).
@@ -1070,7 +1070,7 @@ int32_t tdx_config_get_reconnect_policy(const TdxConfig* config, int32_t* out_po
  * @param out Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_max_attempts(const TdxConfig* config, uint32_t* out);
+int32_t thetadatadx_config_get_reconnect_max_attempts(const ThetaDataDxConfig* config, uint32_t* out);
 
 /**
  * Read the rate-limited reconnect attempt budget (default 100).
@@ -1078,7 +1078,7 @@ int32_t tdx_config_get_reconnect_max_attempts(const TdxConfig* config, uint32_t*
  * @param out Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_max_rate_limited_attempts(const TdxConfig* config,
+int32_t thetadatadx_config_get_reconnect_max_rate_limited_attempts(const ThetaDataDxConfig* config,
                                                            uint32_t* out);
 
 /**
@@ -1087,7 +1087,7 @@ int32_t tdx_config_get_reconnect_max_rate_limited_attempts(const TdxConfig* conf
  * @param config Config handle to mutate; no-op when NULL.
  * @param n ServerRestarting attempt budget.
  */
-void tdx_config_set_reconnect_max_server_restart_attempts(TdxConfig* config, uint32_t n);
+void thetadatadx_config_set_reconnect_max_server_restart_attempts(ThetaDataDxConfig* config, uint32_t n);
 
 /**
  * Read the ServerRestarting reconnect attempt budget (default 60).
@@ -1095,7 +1095,7 @@ void tdx_config_set_reconnect_max_server_restart_attempts(TdxConfig* config, uin
  * @param out Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_max_server_restart_attempts(const TdxConfig* config,
+int32_t thetadatadx_config_get_reconnect_max_server_restart_attempts(const ThetaDataDxConfig* config,
                                                              uint32_t* out);
 
 /**
@@ -1104,7 +1104,7 @@ int32_t tdx_config_get_reconnect_max_server_restart_attempts(const TdxConfig* co
  * @param out Receives the stable-window length in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_stable_window_secs(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_reconnect_stable_window_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the wall-clock reconnect envelope (seconds) for the
@@ -1115,7 +1115,7 @@ int32_t tdx_config_get_reconnect_stable_window_secs(const TdxConfig* config, uin
  * @param config Config handle to mutate; no-op when NULL.
  * @param secs Reconnect envelope in seconds (0 disables).
  */
-void tdx_config_set_reconnect_max_elapsed_secs(TdxConfig* config, uint64_t secs);
+void thetadatadx_config_set_reconnect_max_elapsed_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
  * Read the wall-clock reconnect envelope in seconds (default 300;
@@ -1124,7 +1124,7 @@ void tdx_config_set_reconnect_max_elapsed_secs(TdxConfig* config, uint64_t secs)
  * @param out Receives the envelope in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_max_elapsed_secs(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_reconnect_max_elapsed_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the cap (ms) on the exponential generic-transient reconnect
@@ -1133,7 +1133,7 @@ int32_t tdx_config_get_reconnect_max_elapsed_secs(const TdxConfig* config, uint6
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Ladder cap in milliseconds.
  */
-void tdx_config_set_reconnect_wait_max_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_reconnect_wait_max_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current reconnect wait_max_ms setting (default 30_000).
@@ -1141,7 +1141,7 @@ void tdx_config_set_reconnect_wait_max_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the ladder cap in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_wait_max_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_reconnect_wait_max_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the flat reconnect cadence (ms) for ServerRestarting
@@ -1149,7 +1149,7 @@ int32_t tdx_config_get_reconnect_wait_max_ms(const TdxConfig* config, uint64_t* 
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Reconnect cadence in milliseconds.
  */
-void tdx_config_set_reconnect_wait_server_restart_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_reconnect_wait_server_restart_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current reconnect wait_server_restart_ms setting (default 5_000).
@@ -1157,7 +1157,7 @@ void tdx_config_set_reconnect_wait_server_restart_ms(TdxConfig* config, uint64_t
  * @param out Receives the cadence in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_wait_server_restart_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_reconnect_wait_server_restart_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the jitter strategy applied to every reconnect delay.
@@ -1169,16 +1169,16 @@ int32_t tdx_config_get_reconnect_wait_server_restart_ms(const TdxConfig* config,
  * @param mode Jitter strategy selector (0-3 per the list above).
  * @return 0 on success, -1 on an invalid mode or null config.
  */
-int32_t tdx_config_set_reconnect_jitter(TdxConfig* config, int32_t mode);
+int32_t thetadatadx_config_set_reconnect_jitter(ThetaDataDxConfig* config, int32_t mode);
 
 /**
  * Read the configured reconnect jitter mode. Same encoding as
- * tdx_config_set_reconnect_jitter.
+ * thetadatadx_config_set_reconnect_jitter.
  * @param config Config handle to read.
  * @param out_mode Receives the jitter mode on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_jitter(const TdxConfig* config, int32_t* out_mode);
+int32_t thetadatadx_config_get_reconnect_jitter(const ThetaDataDxConfig* config, int32_t* out_mode);
 
 /**
  * Set the subscription-replay burst size used after an auto-reconnect:
@@ -1188,7 +1188,7 @@ int32_t tdx_config_get_reconnect_jitter(const TdxConfig* config, int32_t* out_mo
  * @param config Config handle to mutate; no-op when NULL.
  * @param n Replay burst size in frames (minimum 1).
  */
-void tdx_config_set_reconnect_replay_burst_size(TdxConfig* config, uint32_t n);
+void thetadatadx_config_set_reconnect_replay_burst_size(ThetaDataDxConfig* config, uint32_t n);
 
 /**
  * Read the current replay_burst_size setting (default 50).
@@ -1196,7 +1196,7 @@ void tdx_config_set_reconnect_replay_burst_size(TdxConfig* config, uint32_t n);
  * @param out Receives the burst size on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_replay_burst_size(const TdxConfig* config, uint32_t* out);
+int32_t thetadatadx_config_get_reconnect_replay_burst_size(const ThetaDataDxConfig* config, uint32_t* out);
 
 /**
  * Set the pause (ms) between subscription-replay bursts after an
@@ -1204,7 +1204,7 @@ int32_t tdx_config_get_reconnect_replay_burst_size(const TdxConfig* config, uint
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Inter-burst pause in milliseconds (0 disables).
  */
-void tdx_config_set_reconnect_replay_pace_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_reconnect_replay_pace_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current replay_pace_ms setting (default 5).
@@ -1212,10 +1212,10 @@ void tdx_config_set_reconnect_replay_pace_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the pause in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_reconnect_replay_pace_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_reconnect_replay_pace_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
- * Reconnect-decision callback for tdx_config_set_reconnect_callback.
+ * Reconnect-decision callback for thetadatadx_config_set_reconnect_callback.
  * Invoked on the streaming I/O thread after each retriable involuntary
  * disconnect.
  * @param reason The disconnect-reason discriminant.
@@ -1224,7 +1224,7 @@ int32_t tdx_config_get_reconnect_replay_pace_ms(const TdxConfig* config, uint64_
  * @return The reconnect delay in milliseconds, or any negative value to
  *         stop reconnecting.
  */
-typedef int64_t (*TdxReconnectCallback)(int32_t reason, uint32_t attempt, void* user_data);
+typedef int64_t (*ThetaDataDxReconnectCallback)(int32_t reason, uint32_t attempt, void* user_data);
 
 /**
  * Install a custom reconnect policy driven by a C callback. Permanent
@@ -1238,7 +1238,7 @@ typedef int64_t (*TdxReconnectCallback)(int32_t reason, uint32_t attempt, void* 
  *       to use from another thread for as long as any client built from
  *       this config is alive.
  */
-int32_t tdx_config_set_reconnect_callback(TdxConfig* config, TdxReconnectCallback cb,
+int32_t thetadatadx_config_set_reconnect_callback(ThetaDataDxConfig* config, ThetaDataDxReconnectCallback cb,
                                           void* user_data);
 
 /**
@@ -1248,7 +1248,7 @@ int32_t tdx_config_set_reconnect_callback(TdxConfig* config, TdxReconnectCallbac
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Read timeout in milliseconds.
  */
-void tdx_config_set_fpss_timeout_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss timeout_ms setting (default 3_000).
@@ -1256,7 +1256,7 @@ void tdx_config_set_fpss_timeout_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the timeout in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_timeout_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the per-server connect timeout (ms) for the streaming
@@ -1264,7 +1264,7 @@ int32_t tdx_config_get_fpss_timeout_ms(const TdxConfig* config, uint64_t* out);
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Connect timeout in milliseconds.
  */
-void tdx_config_set_fpss_connect_timeout_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_connect_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss connect_timeout_ms setting (default 2_000).
@@ -1272,7 +1272,7 @@ void tdx_config_set_fpss_connect_timeout_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the timeout in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_connect_timeout_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_connect_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the FPSS heartbeat ping interval (ms). Default 250; validated to
@@ -1280,7 +1280,7 @@ int32_t tdx_config_get_fpss_connect_timeout_ms(const TdxConfig* config, uint64_t
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Ping interval in milliseconds.
  */
-void tdx_config_set_fpss_ping_interval_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_ping_interval_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss ping_interval_ms setting (default 250).
@@ -1288,7 +1288,7 @@ void tdx_config_set_fpss_ping_interval_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the interval in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_ping_interval_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_ping_interval_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the per-iteration blocking-read slice (ms) for the streaming
@@ -1296,7 +1296,7 @@ int32_t tdx_config_get_fpss_ping_interval_ms(const TdxConfig* config, uint64_t* 
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Read slice in milliseconds.
  */
-void tdx_config_set_fpss_io_read_slice_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_io_read_slice_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss io_read_slice_ms setting (default 25).
@@ -1304,7 +1304,7 @@ void tdx_config_set_fpss_io_read_slice_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the read slice in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_io_read_slice_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_io_read_slice_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the last-frame watchdog (ms): when no frame of any kind has
@@ -1313,7 +1313,7 @@ int32_t tdx_config_get_fpss_io_read_slice_ms(const TdxConfig* config, uint64_t* 
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Watchdog interval in milliseconds (0 disables).
  */
-void tdx_config_set_fpss_data_watchdog_ms(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_data_watchdog_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss data_watchdog_ms setting (default 30_000; 0 = disabled).
@@ -1321,7 +1321,7 @@ void tdx_config_set_fpss_data_watchdog_ms(TdxConfig* config, uint64_t v);
  * @param out Receives the watchdog interval in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_data_watchdog_ms(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_data_watchdog_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the TCP keepalive idle time (seconds) before the first kernel
@@ -1330,7 +1330,7 @@ int32_t tdx_config_get_fpss_data_watchdog_ms(const TdxConfig* config, uint64_t* 
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive idle time in seconds.
  */
-void tdx_config_set_fpss_keepalive_idle_secs(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_keepalive_idle_secs(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss keepalive_idle_secs setting (default 5).
@@ -1338,7 +1338,7 @@ void tdx_config_set_fpss_keepalive_idle_secs(TdxConfig* config, uint64_t v);
  * @param out Receives the idle time in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_keepalive_idle_secs(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_keepalive_idle_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the interval (seconds) between TCP keepalive probes. Default 2;
@@ -1346,7 +1346,7 @@ int32_t tdx_config_get_fpss_keepalive_idle_secs(const TdxConfig* config, uint64_
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive probe interval in seconds.
  */
-void tdx_config_set_fpss_keepalive_interval_secs(TdxConfig* config, uint64_t v);
+void thetadatadx_config_set_fpss_keepalive_interval_secs(ThetaDataDxConfig* config, uint64_t v);
 
 /**
  * Read the current fpss keepalive_interval_secs setting (default 2).
@@ -1354,7 +1354,7 @@ void tdx_config_set_fpss_keepalive_interval_secs(TdxConfig* config, uint64_t v);
  * @param out Receives the probe interval in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_keepalive_interval_secs(const TdxConfig* config, uint64_t* out);
+int32_t thetadatadx_config_get_fpss_keepalive_interval_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
  * Set the number of unanswered TCP keepalive probes after which the
@@ -1363,7 +1363,7 @@ int32_t tdx_config_get_fpss_keepalive_interval_secs(const TdxConfig* config, uin
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Keepalive probe-failure count.
  */
-void tdx_config_set_fpss_keepalive_retries(TdxConfig* config, uint32_t v);
+void thetadatadx_config_set_fpss_keepalive_retries(ThetaDataDxConfig* config, uint32_t v);
 
 /**
  * Read the current fpss keepalive_retries setting (default 2).
@@ -1371,16 +1371,16 @@ void tdx_config_set_fpss_keepalive_retries(TdxConfig* config, uint32_t v);
  * @param out Receives the probe-failure count on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_keepalive_retries(const TdxConfig* config, uint32_t* out);
+int32_t thetadatadx_config_get_fpss_keepalive_retries(const ThetaDataDxConfig* config, uint32_t* out);
 
 /**
  * Set the FPSS event ring buffer size (slots). Must be a power of two
- * >= 64; invalid values are rejected at the setter (tdx_last_error).
+ * >= 64; invalid values are rejected at the setter (thetadatadx_last_error).
  * Default 131_072.
  * @param config Config handle to mutate; no-op when NULL.
  * @param n Ring buffer size in slots (power of two, >= 64).
  */
-void tdx_config_set_fpss_ring_size(TdxConfig* config, size_t n);
+void thetadatadx_config_set_fpss_ring_size(ThetaDataDxConfig* config, size_t n);
 
 /**
  * Read the current fpss ring_size setting (default 131_072).
@@ -1388,7 +1388,7 @@ void tdx_config_set_fpss_ring_size(TdxConfig* config, size_t n);
  * @param out Receives the ring buffer size in slots on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_ring_size(const TdxConfig* config, size_t* out);
+int32_t thetadatadx_config_get_fpss_ring_size(const ThetaDataDxConfig* config, size_t* out);
 
 /**
  * Set the FPSS host-selection policy.
@@ -1400,16 +1400,16 @@ int32_t tdx_config_get_fpss_ring_size(const TdxConfig* config, size_t* out);
  * @param policy Host-selection policy selector (0 = Shuffled, 1 = FixedOrder).
  * @return 0 on success, -1 on an invalid policy or null config.
  */
-int32_t tdx_config_set_fpss_host_selection(TdxConfig* config, int32_t policy);
+int32_t thetadatadx_config_set_fpss_host_selection(ThetaDataDxConfig* config, int32_t policy);
 
 /**
  * Read the configured FPSS host-selection policy. Same encoding as
- * tdx_config_set_fpss_host_selection.
+ * thetadatadx_config_set_fpss_host_selection.
  * @param config Config handle to read.
  * @param out_policy Receives the host-selection policy on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_fpss_host_selection(const TdxConfig* config, int32_t* out_policy);
+int32_t thetadatadx_config_get_fpss_host_selection(const ThetaDataDxConfig* config, int32_t* out_policy);
 
 /**
  * Set the FPSS host-shuffle seed using the (has_value, seed) widened
@@ -1421,7 +1421,7 @@ int32_t tdx_config_get_fpss_host_selection(const TdxConfig* config, int32_t* out
  * @param seed The deterministic seed, honoured only when has_value is true.
  * @return 0 on success, -1 if config is null.
  */
-int32_t tdx_config_set_fpss_host_shuffle_seed(TdxConfig* config, bool has_value, uint64_t seed);
+int32_t thetadatadx_config_set_fpss_host_shuffle_seed(ThetaDataDxConfig* config, bool has_value, uint64_t seed);
 
 /**
  * Read the current FPSS host-shuffle seed.
@@ -1431,7 +1431,7 @@ int32_t tdx_config_set_fpss_host_shuffle_seed(TdxConfig* config, bool has_value,
  * @param out_seed Receives the seed when out_has_value is true.
  * @return 0 on success, -1 if any pointer is null.
  */
-int32_t tdx_config_get_fpss_host_shuffle_seed(const TdxConfig* config, bool* out_has_value,
+int32_t thetadatadx_config_get_fpss_host_shuffle_seed(const ThetaDataDxConfig* config, bool* out_has_value,
                                               uint64_t* out_seed);
 
 /**
@@ -1441,7 +1441,7 @@ int32_t tdx_config_get_fpss_host_shuffle_seed(const TdxConfig* config, bool* out
  * @param config Config handle to mutate; no-op when NULL.
  * @param secs Retry envelope in seconds (0 disables).
  */
-void tdx_config_set_retry_max_elapsed_secs(TdxConfig* config, uint64_t secs);
+void thetadatadx_config_set_retry_max_elapsed_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
  * Read the current retry max_elapsed value in seconds (default 300; 0 = disabled).
@@ -1449,7 +1449,7 @@ void tdx_config_set_retry_max_elapsed_secs(TdxConfig* config, uint64_t secs);
  * @param out_secs Receives the envelope in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_retry_max_elapsed_secs(const TdxConfig* config, uint64_t* out_secs);
+int32_t thetadatadx_config_get_retry_max_elapsed_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
 /**
  * Toggle AWS-style full jitter on the flatfile retry ladder. Default
@@ -1457,7 +1457,7 @@ int32_t tdx_config_get_retry_max_elapsed_secs(const TdxConfig* config, uint64_t*
  * @param config Config handle to mutate; no-op when NULL.
  * @param jitter true enables full jitter, false uses the deterministic schedule.
  */
-void tdx_config_set_flatfiles_jitter(TdxConfig* config, bool jitter);
+void thetadatadx_config_set_flatfiles_jitter(ThetaDataDxConfig* config, bool jitter);
 
 /**
  * Read the current flatfiles jitter setting (default true).
@@ -1465,7 +1465,7 @@ void tdx_config_set_flatfiles_jitter(TdxConfig* config, bool jitter);
  * @param out_jitter Receives the jitter flag on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitter);
+int32_t thetadatadx_config_get_flatfiles_jitter(const ThetaDataDxConfig* config, bool* out_jitter);
 
 /**
  * Set the async worker-thread count for embedded runtimes, using the
@@ -1485,7 +1485,7 @@ int32_t tdx_config_get_flatfiles_jitter(const TdxConfig* config, bool* out_jitte
  *          is true.
  * @return 0 on success, -1 if config is NULL.
  */
-int32_t tdx_config_set_worker_threads(TdxConfig* config, bool has_value, size_t n);
+int32_t thetadatadx_config_set_worker_threads(ThetaDataDxConfig* config, bool has_value, size_t n);
 
 /**
  * Read the current async worker-thread count, using the same widened
@@ -1496,18 +1496,18 @@ int32_t tdx_config_set_worker_threads(TdxConfig* config, bool has_value, size_t 
  * @param out_n Receives the count (0 when unset, the explicit count otherwise).
  * @return 0 on success, -1 if any pointer is null.
  */
-int32_t tdx_config_get_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+int32_t thetadatadx_config_get_worker_threads(const ThetaDataDxConfig* config, bool* out_has_value, size_t* out_n);
 
 /* ── RetryPolicy field setters/getters ── */
 
 /**
  * Set the initial backoff delay (ms) for the historical-channel retry policy.
  * Default 250. Subsequent retries double from here, capped at
- * tdx_config_set_retry_max_delay_ms.
+ * thetadatadx_config_set_retry_max_delay_ms.
  * @param config Config handle to mutate; no-op when NULL.
  * @param ms Initial backoff delay in milliseconds.
  */
-void tdx_config_set_retry_initial_delay_ms(TdxConfig* config, uint64_t ms);
+void thetadatadx_config_set_retry_initial_delay_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
  * Read the historical-channel retry initial-delay setting (ms).
@@ -1515,7 +1515,7 @@ void tdx_config_set_retry_initial_delay_ms(TdxConfig* config, uint64_t ms);
  * @param out_ms Receives the initial delay in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_retry_initial_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+int32_t thetadatadx_config_get_retry_initial_delay_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 /**
  * Set the upper-bound backoff delay (ms) for the historical-channel retry policy.
@@ -1523,7 +1523,7 @@ int32_t tdx_config_get_retry_initial_delay_ms(const TdxConfig* config, uint64_t*
  * @param config Config handle to mutate; no-op when NULL.
  * @param ms Upper-bound backoff delay in milliseconds.
  */
-void tdx_config_set_retry_max_delay_ms(TdxConfig* config, uint64_t ms);
+void thetadatadx_config_set_retry_max_delay_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
  * Read the historical-channel retry max-delay setting (ms).
@@ -1531,7 +1531,7 @@ void tdx_config_set_retry_max_delay_ms(TdxConfig* config, uint64_t ms);
  * @param out_ms Receives the max delay in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_retry_max_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+int32_t thetadatadx_config_get_retry_max_delay_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 /**
  * Set the total attempt budget for the historical-channel retry policy. 1 disables
@@ -1540,7 +1540,7 @@ int32_t tdx_config_get_retry_max_delay_ms(const TdxConfig* config, uint64_t* out
  * @param config Config handle to mutate; no-op when NULL.
  * @param n Total attempt budget.
  */
-void tdx_config_set_retry_max_attempts(TdxConfig* config, uint32_t n);
+void thetadatadx_config_set_retry_max_attempts(ThetaDataDxConfig* config, uint32_t n);
 
 /**
  * Read the historical-channel retry max-attempts setting.
@@ -1548,7 +1548,7 @@ void tdx_config_set_retry_max_attempts(TdxConfig* config, uint32_t n);
  * @param out_n Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_retry_max_attempts(const TdxConfig* config, uint32_t* out_n);
+int32_t thetadatadx_config_get_retry_max_attempts(const ThetaDataDxConfig* config, uint32_t* out_n);
 
 /**
  * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
@@ -1557,7 +1557,7 @@ int32_t tdx_config_get_retry_max_attempts(const TdxConfig* config, uint32_t* out
  * @param config Config handle to mutate; no-op when NULL.
  * @param jitter true enables full jitter, false uses the deterministic schedule.
  */
-void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
+void thetadatadx_config_set_retry_jitter(ThetaDataDxConfig* config, bool jitter);
 
 /**
  * Read the historical-channel retry jitter setting.
@@ -1565,7 +1565,7 @@ void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
  * @param out_jitter Receives the jitter flag on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
+int32_t thetadatadx_config_get_retry_jitter(const ThetaDataDxConfig* config, bool* out_jitter);
 
 /* ── FlatFilesConfig field setters/getters ── */
 
@@ -1577,7 +1577,7 @@ int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
  * @param config Config handle to mutate; no-op when NULL.
  * @param n Total attempt budget.
  */
-void tdx_config_set_flatfiles_max_attempts(TdxConfig* config, uint32_t n);
+void thetadatadx_config_set_flatfiles_max_attempts(ThetaDataDxConfig* config, uint32_t n);
 
 /**
  * Read the flatfile retry max-attempts setting.
@@ -1585,7 +1585,7 @@ void tdx_config_set_flatfiles_max_attempts(TdxConfig* config, uint32_t n);
  * @param out_n Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_flatfiles_max_attempts(const TdxConfig* config, uint32_t* out_n);
+int32_t thetadatadx_config_get_flatfiles_max_attempts(const ThetaDataDxConfig* config, uint32_t* out_n);
 
 /**
  * Set the initial backoff delay (seconds) for the flatfile retry loop.
@@ -1593,7 +1593,7 @@ int32_t tdx_config_get_flatfiles_max_attempts(const TdxConfig* config, uint32_t*
  * @param config Config handle to mutate; no-op when NULL.
  * @param secs Initial backoff delay in seconds.
  */
-void tdx_config_set_flatfiles_initial_backoff_secs(TdxConfig* config, uint64_t secs);
+void thetadatadx_config_set_flatfiles_initial_backoff_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
  * Read the flatfile retry initial-backoff setting (seconds).
@@ -1601,7 +1601,7 @@ void tdx_config_set_flatfiles_initial_backoff_secs(TdxConfig* config, uint64_t s
  * @param out_secs Receives the initial backoff in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_flatfiles_initial_backoff_secs(const TdxConfig* config, uint64_t* out_secs);
+int32_t thetadatadx_config_get_flatfiles_initial_backoff_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
 /**
  * Set the upper-bound backoff delay (seconds) for the flatfile retry
@@ -1611,7 +1611,7 @@ int32_t tdx_config_get_flatfiles_initial_backoff_secs(const TdxConfig* config, u
  * @param config Config handle to mutate; no-op when NULL.
  * @param secs Upper-bound backoff delay in seconds.
  */
-void tdx_config_set_flatfiles_max_backoff_secs(TdxConfig* config, uint64_t secs);
+void thetadatadx_config_set_flatfiles_max_backoff_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
  * Read the flatfile retry max-backoff setting (seconds).
@@ -1619,7 +1619,7 @@ void tdx_config_set_flatfiles_max_backoff_secs(TdxConfig* config, uint64_t secs)
  * @param out_secs Receives the max backoff in seconds on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_flatfiles_max_backoff_secs(const TdxConfig* config, uint64_t* out_secs);
+int32_t thetadatadx_config_get_flatfiles_max_backoff_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
 /* ── AuthConfig field setters/getters ── */
 
@@ -1628,36 +1628,36 @@ int32_t tdx_config_get_flatfiles_max_backoff_secs(const TdxConfig* config, uint6
  * @param config Config handle to mutate.
  * @param url Non-null, NUL-terminated, valid-UTF-8 C string.
  * @return 0 on success, -1 if config is null or url is null / not valid
- *         UTF-8 (check tdx_last_error()).
+ *         UTF-8 (check thetadatadx_last_error()).
  */
-int32_t tdx_config_set_nexus_url(TdxConfig* config, const char* url);
+int32_t thetadatadx_config_set_nexus_url(ThetaDataDxConfig* config, const char* url);
 
 /**
  * Read the configured Nexus auth URL.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST release with
- *         tdx_string_free, or NULL on a null handle / interior-NUL value
- *         (check tdx_last_error()).
+ *         thetadatadx_string_free, or NULL on a null handle / interior-NUL value
+ *         (check thetadatadx_last_error()).
  */
-char* tdx_config_get_nexus_url(const TdxConfig* config);
+char* thetadatadx_config_get_nexus_url(const ThetaDataDxConfig* config);
 
 /**
  * Set the client_type query identifier on a config handle.
  * @param config Config handle to mutate.
  * @param client_type Non-null, NUL-terminated, valid-UTF-8 C string.
  * @return 0 on success, -1 if config is null or client_type is null / not
- *         valid UTF-8 (check tdx_last_error()).
+ *         valid UTF-8 (check thetadatadx_last_error()).
  */
-int32_t tdx_config_set_client_type(TdxConfig* config, const char* client_type);
+int32_t thetadatadx_config_set_client_type(ThetaDataDxConfig* config, const char* client_type);
 
 /**
  * Read the configured client_type query identifier.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST release with
- *         tdx_string_free, or NULL on a null handle / interior-NUL value
- *         (check tdx_last_error()).
+ *         thetadatadx_string_free, or NULL on a null handle / interior-NUL value
+ *         (check thetadatadx_last_error()).
  */
-char* tdx_config_get_client_type(const TdxConfig* config);
+char* thetadatadx_config_get_client_type(const ThetaDataDxConfig* config);
 
 /* ── MetricsConfig field setter/getter ── */
 
@@ -1672,7 +1672,7 @@ char* tdx_config_get_client_type(const TdxConfig* config);
  * @param port The exporter port, honoured only when has_value is true.
  * @return 0 on success, -1 if config is null.
  */
-int32_t tdx_config_set_metrics_port(TdxConfig* config, bool has_value, uint16_t port);
+int32_t thetadatadx_config_set_metrics_port(ThetaDataDxConfig* config, bool has_value, uint16_t port);
 
 /**
  * Read the configured Prometheus exporter port, using the same widened
@@ -1683,7 +1683,7 @@ int32_t tdx_config_set_metrics_port(TdxConfig* config, bool has_value, uint16_t 
  * @param out_port Receives the port (0 when disabled, the set port otherwise).
  * @return 0 on success, -1 if any pointer is null.
  */
-int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value, uint16_t* out_port);
+int32_t thetadatadx_config_get_metrics_port(const ThetaDataDxConfig* config, bool* out_has_value, uint16_t* out_port);
 
 /**
  * Set streaming flush mode on a config handle.
@@ -1691,19 +1691,19 @@ int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value
  *   mode=1: Immediate -- flush after every frame write.
  * @param config Config handle to mutate.
  * @param mode Flush mode selector (0 = Batched, 1 = Immediate).
- * @return 0 on success. -1 with tdx_last_error set and tdx_last_error_code =
+ * @return 0 on success. -1 with thetadatadx_last_error set and thetadatadx_last_error_code =
  *         TDX_ERR_CONFIG when mode is outside {0, 1} or config is null.
  */
-int tdx_config_set_flush_mode(TdxConfig* config, int mode);
+int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
 
 /**
  * Read the current streaming flush mode. Same encoding as
- * tdx_config_set_flush_mode.
+ * thetadatadx_config_set_flush_mode.
  * @param config Config handle to read.
  * @param out_mode Receives 0 (Batched) or 1 (Immediate) on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_flush_mode(const TdxConfig* config, int32_t* out_mode);
+int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
 /**
  * Set streaming OHLCVC derivation on a config handle.
@@ -1712,7 +1712,7 @@ int32_t tdx_config_get_flush_mode(const TdxConfig* config, int32_t* out_mode);
  *                events; false emits only server-sent OHLCVC frames
  *                (lower overhead).
  */
-void tdx_config_set_derive_ohlcvc(TdxConfig* config, bool enabled);
+void thetadatadx_config_set_derive_ohlcvc(ThetaDataDxConfig* config, bool enabled);
 
 /**
  * Read the current OHLCVC-derivation flag.
@@ -1720,7 +1720,7 @@ void tdx_config_set_derive_ohlcvc(TdxConfig* config, bool enabled);
  * @param out_enabled Receives the derivation flag on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_derive_ohlcvc(const TdxConfig* config, bool* out_enabled);
+int32_t thetadatadx_config_get_derive_ohlcvc(const ThetaDataDxConfig* config, bool* out_enabled);
 
 /* ── Decode pool sizing ── */
 
@@ -1731,23 +1731,23 @@ int32_t tdx_config_get_derive_ohlcvc(const TdxConfig* config, bool* out_enabled)
  * @return 0 on success, -1 if config is null or host is null / not valid
  *         UTF-8.
  */
-int32_t tdx_config_set_mdds_host(TdxConfig* config, const char* host);
+int32_t thetadatadx_config_set_mdds_host(ThetaDataDxConfig* config, const char* host);
 
 /**
  * Read the configured historical (MDDS) gRPC host.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
- *         tdx_string_free, or NULL if config is null or the value contains
+ *         thetadatadx_string_free, or NULL if config is null or the value contains
  *         an interior NUL.
  */
-char* tdx_config_get_mdds_host(const TdxConfig* config);
+char* thetadatadx_config_get_mdds_host(const ThetaDataDxConfig* config);
 
 /**
  * Set the historical (MDDS) gRPC port.
  * @param config Config handle to mutate; no-op when NULL.
  * @param port The gRPC port.
  */
-void tdx_config_set_mdds_port(TdxConfig* config, uint16_t port);
+void thetadatadx_config_set_mdds_port(ThetaDataDxConfig* config, uint16_t port);
 
 /**
  * Read the configured historical (MDDS) gRPC port.
@@ -1755,7 +1755,7 @@ void tdx_config_set_mdds_port(TdxConfig* config, uint16_t port);
  * @param out_port Receives the gRPC port on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_mdds_port(const TdxConfig* config, uint16_t* out_port);
+int32_t thetadatadx_config_get_mdds_port(const ThetaDataDxConfig* config, uint16_t* out_port);
 
 /**
  * Set the number of concurrent in-flight gRPC requests.
@@ -1765,7 +1765,7 @@ int32_t tdx_config_get_mdds_port(const TdxConfig* config, uint16_t* out_port);
  *          the entitlement cap at connect time with a logged warning if
  *          exceeded.
  */
-void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
+void thetadatadx_config_set_concurrent_requests(ThetaDataDxConfig* config, uint32_t n);
 
 /**
  * Read the current concurrent in-flight gRPC request count.
@@ -1773,7 +1773,7 @@ void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
  * @param out_n Receives the count on success (0 = auto-detect).
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_concurrent_requests(const TdxConfig* config, uint32_t* out_n);
+int32_t thetadatadx_config_get_concurrent_requests(const ThetaDataDxConfig* config, uint32_t* out_n);
 
 /**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.
@@ -1785,7 +1785,7 @@ int32_t tdx_config_get_concurrent_requests(const TdxConfig* config, uint32_t* ou
  * @param n Threshold in bytes; 0 disables the warning. Default
  *          100 * 1024 * 1024 (100 MiB).
  */
-void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n);
+void thetadatadx_config_set_warn_on_buffered_threshold_bytes(ThetaDataDxConfig* config, size_t n);
 
 /**
  * Read the current warn_on_buffered_threshold_bytes setting.
@@ -1793,7 +1793,7 @@ void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n
  * @param out_n Receives the configured byte count on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config, size_t* out_n);
+int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataDxConfig* config, size_t* out_n);
 
 /* ── HistoricalClient ── */
 
@@ -1801,49 +1801,49 @@ int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config,
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          tdx_historical_free, or NULL on connection/auth failure
- *          (check tdx_last_error()). */
-TdxHistoricalClient* tdx_historical_connect(const TdxCredentials* creds, const TdxConfig* config);
+ *          thetadatadx_historical_free, or NULL on connection/auth failure
+ *          (check thetadatadx_last_error()). */
+ThetaDataDxHistoricalClient* thetadatadx_historical_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
 /** Connect a historical (MDDS) client, reading credentials from a file
  *  (line 1 = email, line 2 = password). One-call equivalent of
- *  tdx_credentials_from_file + tdx_historical_connect.
+ *  thetadatadx_credentials_from_file + thetadatadx_historical_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          tdx_historical_free, or NULL on argument or connection/auth
- *          failure (check tdx_last_error()). */
-TdxHistoricalClient* tdx_historical_connect_from_file(const char* path, const TdxConfig* config);
+ *          thetadatadx_historical_free, or NULL on argument or connection/auth
+ *          failure (check thetadatadx_last_error()). */
+ThetaDataDxHistoricalClient* thetadatadx_historical_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
 /** Release a historical (MDDS) client handle.
- *  @param client Handle from a tdx_historical_connect* call; no-op when
+ *  @param client Handle from a thetadatadx_historical_connect* call; no-op when
  *                NULL. Call exactly once. */
-void tdx_historical_free(TdxHistoricalClient* client);
+void thetadatadx_historical_free(ThetaDataDxHistoricalClient* client);
 
 /* ── String free ── */
 
-/** Free a string returned by any tdx_* function.
- *  @param s Heap-owned string from a tdx_* call; no-op when NULL. Call
+/** Free a string returned by any thetadatadx_* function.
+ *  @param s Heap-owned string from a thetadatadx_* call; no-op when NULL. Call
  *           exactly once. */
-void tdx_string_free(char* s);
+void thetadatadx_string_free(char* s);
 
 /* Generated option-aware endpoint declarations. */
 #include "endpoint_with_options.h.inc"
 
-/** User callback signature for the tdx_<endpoint>_stream server-stream entry
+/** User callback signature for the thetadatadx_<endpoint>_stream server-stream entry
  *  points. Invoked once per decoded chunk drained from a historical result.
  *
  *  `rows` points at the first element of a contiguous run of `len` tick
- *  structs -- the SAME layout the matching tdx_<endpoint>_with_options array
- *  returns (e.g. a tdx_option_history_trade_stream chunk is `len` x
- *  TdxTradeTick). Cast `rows` to that tick pointer type before indexing. The
+ *  structs -- the SAME layout the matching thetadatadx_<endpoint>_with_options array
+ *  returns (e.g. a thetadatadx_option_history_trade_stream chunk is `len` x
+ *  ThetaDataDxTradeTick). Cast `rows` to that tick pointer type before indexing. The
  *  pointer is valid only for the duration of the call -- copy any rows the
  *  caller wants to outlive the callback. An empty result drains as zero
  *  invocations (a null `rows` with `len == 0` is never delivered).
  *
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed
  *  back unchanged on every invocation. */
-typedef void (*TdxTickChunkCallback)(const void* rows, size_t len, void* ctx);
+typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, void* ctx);
 
 /* Generated server-stream endpoint declarations. */
 #include "historical_stream.h.inc"
@@ -1860,10 +1860,10 @@ typedef void (*TdxTickChunkCallback)(const void* rows, size_t len, void* ctx);
  *  @param tte Time to expiry in years.
  *  @param option_price Observed option price for the IV solve.
  *  @param right "C"/"P" or "call"/"put" (case-insensitive).
- *  @return Heap-allocated TdxGreeksResult, or NULL on error (check
- *          tdx_last_error()). The caller MUST free a non-NULL result
- *          with tdx_greeks_result_free. */
-TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
+ *  @return Heap-allocated ThetaDataDxGreeksResult, or NULL on error (check
+ *          thetadatadx_last_error()). The caller MUST free a non-NULL result
+ *          with thetadatadx_greeks_result_free. */
+ThetaDataDxGreeksResult* thetadatadx_all_greeks(double spot, double strike, double rate, double div_yield,
                                 double tte, double option_price, const char* right);
 
 /** Solve the Black-Scholes implied volatility for one option.
@@ -1876,8 +1876,8 @@ TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double 
  *  @param right "C"/"P" or "call"/"put" (case-insensitive).
  *  @param out_iv Receives the solved implied volatility on success.
  *  @param out_error Receives the solver residual on success.
- *  @return 0 on success, -1 on failure (check tdx_last_error()). */
-int tdx_implied_volatility(double spot, double strike, double rate, double div_yield,
+ *  @return 0 on success, -1 on failure (check thetadatadx_last_error()). */
+int thetadatadx_implied_volatility(double spot, double strike, double rate, double div_yield,
                            double tte, double option_price, const char* right,
                            double* out_iv, double* out_error);
 
@@ -1885,7 +1885,7 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
 /*  Cross-language utility helpers — conditions / exchange / sequences   */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/* All `tdx_*_name` / `tdx_*_description` / `tdx_exchange_*` returns are
+/* All `thetadatadx_*_name` / `thetadatadx_*_description` / `thetadatadx_exchange_*` returns are
  * NUL-terminated UTF-8 C strings owned by the library — DO NOT FREE. The
  * pointer remains valid for the lifetime of the process. Unknown codes
  * return either "UNKNOWN" (name lookup) or "" (description lookup), never
@@ -1895,65 +1895,65 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
  *  @param code The trade condition code.
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
-const char* tdx_condition_name(int32_t code);
+const char* thetadatadx_condition_name(int32_t code);
 
 /** Trade condition description lookup.
  *  @param code The trade condition code.
  *  @return A process-lifetime string; "" for unrecognised codes. Never
  *          NULL; DO NOT FREE. */
-const char* tdx_condition_description(int32_t code);
+const char* thetadatadx_condition_description(int32_t code);
 
 /** Whether a trade condition code represents a cancellation.
  *  @param code The trade condition code.
  *  @return true if the code represents a cancellation, false otherwise. */
-bool tdx_condition_is_cancel(int32_t code);
+bool thetadatadx_condition_is_cancel(int32_t code);
 
 /** Whether a trade condition code updates the volume bar.
  *  @param code The trade condition code.
  *  @return true if the code updates the volume bar, false otherwise. */
-bool tdx_condition_updates_volume(int32_t code);
+bool thetadatadx_condition_updates_volume(int32_t code);
 
 /** Quote condition name lookup.
  *  @param code The quote condition code.
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
-const char* tdx_quote_condition_name(int32_t code);
+const char* thetadatadx_quote_condition_name(int32_t code);
 
 /** Quote condition description lookup.
  *  @param code The quote condition code.
  *  @return A process-lifetime string; "" for unrecognised codes. Never
  *          NULL; DO NOT FREE. */
-const char* tdx_quote_condition_description(int32_t code);
+const char* thetadatadx_quote_condition_description(int32_t code);
 
 /** Whether a quote condition is firm (binding).
  *  @param code The quote condition code.
  *  @return true if the quote condition is firm, false otherwise. */
-bool tdx_quote_condition_is_firm(int32_t code);
+bool thetadatadx_quote_condition_is_firm(int32_t code);
 
 /** Whether a quote condition indicates a trading halt.
  *  @param code The quote condition code.
  *  @return true if the quote condition indicates a trading halt, false
  *          otherwise. */
-bool tdx_quote_condition_is_halted(int32_t code);
+bool thetadatadx_quote_condition_is_halted(int32_t code);
 
 /** Exchange name lookup (e.g. 3 -> "NewYorkStockExchange").
  *  @param code The exchange code.
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
-const char* tdx_exchange_name(int32_t code);
+const char* thetadatadx_exchange_name(int32_t code);
 
 /** Exchange MIC-like symbol lookup (e.g. 3 -> "NYSE").
  *  @param code The exchange code.
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
-const char* tdx_exchange_symbol(int32_t code);
+const char* thetadatadx_exchange_symbol(int32_t code);
 
 /** Calendar day-type vocabulary lookup (0 -> "open", 1 -> "early_close",
  *  2 -> "full_close", 3 -> "weekend").
  *  @param code The calendar day-type code.
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
-const char* tdx_calendar_status_name(int32_t code);
+const char* thetadatadx_calendar_status_name(int32_t code);
 
 /** Combine an Eastern-Time YYYYMMDD date and milliseconds-of-day into
  *  Unix epoch milliseconds (UTC, DST-aware). Usable with any
@@ -1963,28 +1963,28 @@ const char* tdx_calendar_status_name(int32_t code);
  *  @return Unix epoch milliseconds, or -1 when date is not a valid YYYYMMDD
  *          (including the 0 absent fill) or ms_of_day is outside
  *          0..86,400,000. */
-int64_t tdx_timestamp_ms(int32_t date, int32_t ms_of_day);
+int64_t thetadatadx_timestamp_ms(int32_t date, int32_t ms_of_day);
 
 /** Convert a signed wire-encoded trade-sequence value to its unsigned
  *  monotonic form.
  *  @param signed_value Wire value; must lie in the 32-bit signed wire range
  *                      (-2,147,483,648 ..= 2,147,483,647).
  *  @param out Receives the unsigned monotonic value on success.
- *  @return 0 on success; -1 with tdx_last_error_code set to
+ *  @return 0 on success; -1 with thetadatadx_last_error_code set to
  *          TDX_ERR_INVALID_PARAMETER when signed_value is outside the wire
  *          range or out is null, so an out-of-range value is rejected rather
  *          than silently reinterpreted. */
-int32_t tdx_sequence_signed_to_unsigned(int64_t signed_value, uint64_t* out);
+int32_t thetadatadx_sequence_signed_to_unsigned(int64_t signed_value, uint64_t* out);
 
 /** Convert an unsigned monotonic trade-sequence value back to its signed
  *  wire encoding.
  *  @param unsigned_value Monotonic value; must lie in the unsigned wire
  *                        range (0 ..= 2^32 - 1).
  *  @param out Receives the signed wire value on success.
- *  @return 0 on success; -1 with tdx_last_error_code set to
+ *  @return 0 on success; -1 with thetadatadx_last_error_code set to
  *          TDX_ERR_INVALID_PARAMETER when unsigned_value is above the wire
  *          range or out is null. */
-int32_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
+int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Streaming — C-layout event types                                      */
@@ -2011,16 +2011,16 @@ int32_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
  * user callback — copy out before returning. Do NOT free. */
 #include "fpss_event_structs.h.inc"
 
-/** Read the option strike of a streaming TdxContract in dollars, folding
- *  the has_strike presence flag into the return value. TdxContract.strike
+/** Read the option strike of a streaming ThetaDataDxContract in dollars, folding
+ *  the has_strike presence flag into the return value. ThetaDataDxContract.strike
  *  already carries dollars; this surfaces the presence flag a plain field
- *  read would drop. Mirrors the C++ thetadatadx::strike(const TdxContract&) accessor.
+ *  read would drop. Mirrors the C++ thetadatadx::strike(const ThetaDataDxContract&) accessor.
  *  @param contract The streaming contract to read.
  *  @param out_dollars Receives the strike in dollars when the contract is an
  *                     option; left untouched otherwise.
  *  @return true when the contract is an option and out_dollars was written;
  *          false for a non-option, null contract, or null output pointer. */
-bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollars);
+bool thetadatadx_contract_strike_dollars(const ThetaDataDxContract* contract, double* out_dollars);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Real-time streaming client                                            */
@@ -2029,53 +2029,53 @@ bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollar
 /** Connect to the real-time streaming servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A streaming handle the caller must release with tdx_streaming_free, or
- *          NULL on failure (check tdx_last_error()). */
-TdxStreamHandle* tdx_streaming_connect(const TdxCredentials* creds, const TdxConfig* config);
+ *  @return A streaming handle the caller must release with thetadatadx_streaming_free, or
+ *          NULL on failure (check thetadatadx_last_error()). */
+ThetaDataDxStreamHandle* thetadatadx_streaming_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
 /** Connect to the real-time streaming servers, reading credentials from a
  *  file (line 1 = email, line 2 = password). One-call equivalent of
- *  tdx_credentials_from_file + tdx_streaming_connect.
+ *  thetadatadx_credentials_from_file + thetadatadx_streaming_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A streaming handle the caller must release with tdx_streaming_free, or
- *          NULL on failure (check tdx_last_error()). */
-TdxStreamHandle* tdx_streaming_connect_from_file(const char* path, const TdxConfig* config);
+ *  @return A streaming handle the caller must release with thetadatadx_streaming_free, or
+ *          NULL on failure (check thetadatadx_last_error()). */
+ThetaDataDxStreamHandle* thetadatadx_streaming_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
-/** Polymorphic subscribe / unsubscribe — see TdxSubscriptionRequest below. */
+/** Polymorphic subscribe / unsubscribe — see ThetaDataDxSubscriptionRequest below. */
 
 /** Report whether the streaming session is authenticated.
  *  @param h The streaming handle.
  *  @return 1 when authenticated, 0 otherwise. */
-int tdx_streaming_is_authenticated(const TdxStreamHandle* h);
+int thetadatadx_streaming_is_authenticated(const ThetaDataDxStreamHandle* h);
 
 /** Read the active subscriptions as a typed array.
  *  @param h The streaming handle.
  *  @return A subscription array the caller MUST free with
- *          tdx_subscription_array_free. */
-TdxSubscriptionArray* tdx_streaming_active_subscriptions(const TdxStreamHandle* h);
+ *          thetadatadx_subscription_array_free. */
+ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_subscriptions(const ThetaDataDxStreamHandle* h);
 
-/** User callback signature for tdx_*_set_callback.
+/** User callback signature for thetadatadx_*_set_callback.
  *  `event` is valid only for the duration of the call -- copy any fields the
  *  caller wants to outlive the callback. `ctx` is the opaque pointer the
  *  caller registered alongside the callback; it is passed back unchanged. */
-typedef void (*TdxStreamCallback)(const TdxStreamEvent* event, void* ctx);
+typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, void* ctx);
 
 /** Register a streaming callback and open the streaming connection.
  *
  *  Events flow from the streaming reader through a bounded ring to a
  *  dedicated consumer thread, which invokes the callback inside an
  *  isolation boundary. The reader thread NEVER blocks on user code:
- *  on ring overflow events are dropped and counted (tdx_streaming_dropped_events).
+ *  on ring overflow events are dropped and counted (thetadatadx_streaming_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid until ONE of: (a) tdx_streaming_free() returns
+ *  `ctx` MUST remain valid until ONE of: (a) thetadatadx_streaming_free() returns
  *  (which performs shutdown if needed and applies the drain barrier
- *  internally with a 5 s timeout), or (b) tdx_streaming_shutdown() /
- *  tdx_streaming_reconnect() returns AND tdx_streaming_await_drain() has
+ *  internally with a 5 s timeout), or (b) thetadatadx_streaming_shutdown() /
+ *  thetadatadx_streaming_reconnect() returns AND thetadatadx_streaming_await_drain() has
  *  returned 1. The consumer thread accesses ctx on every event and on
- *  every tdx_streaming_reconnect(), serially on a single thread. Freeing ctx
+ *  every thetadatadx_streaming_reconnect(), serially on a single thread. Freeing ctx
  *  without one of these barriers is undefined behavior.
  *
  *  The consumer thread invokes `callback(event, ctx)` serially on
@@ -2084,53 +2084,53 @@ typedef void (*TdxStreamCallback)(const TdxStreamEvent* event, void* ctx);
  *
  *  ## Lifecycle contract (one-shot rule)
  *
- *  Must be called exactly ONCE per handle. After tdx_streaming_shutdown() this
+ *  Must be called exactly ONCE per handle. After thetadatadx_streaming_shutdown() this
  *  handle is terminal: a second register, a register-after-shutdown, a
  *  reconnect-after-shutdown, or a double-shutdown all return -1 with a
- *  clear tdx_last_error() string ("streaming callback already installed -- ..."
+ *  clear thetadatadx_last_error() string ("streaming callback already installed -- ..."
  *  or "streaming handle has already been shut down -- this is terminal").
  *
- *  This is intentionally stricter than tdx_client_set_callback(), where
+ *  This is intentionally stricter than thetadatadx_client_set_callback(), where
  *  set-after-stop is supported as a normal user flow.
  *
  *  @param h        The streaming handle.
  *  @param callback The callback invoked once per streaming event.
  *  @param ctx      Opaque user pointer passed to every callback invocation.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_streaming_set_callback(const TdxStreamHandle* h, TdxStreamCallback callback, void* ctx);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_streaming_set_callback(const ThetaDataDxStreamHandle* h, ThetaDataDxStreamCallback callback, void* ctx);
 
 /** Reconnect the streaming session using the previously-registered
  *  callback.
  *  @param h The streaming handle.
  *  @return 0 on success, -1 on error; -1 with "streaming handle has already
  *          been shut down -- this is terminal" if the handle is past
- *          tdx_streaming_shutdown. */
-int tdx_streaming_reconnect(const TdxStreamHandle* h);
+ *          thetadatadx_streaming_shutdown. */
+int thetadatadx_streaming_reconnect(const ThetaDataDxStreamHandle* h);
 
 /** Cumulative count of streaming events that could not be published into
  *  the bounded ring because the consumer fell behind and the ring was full.
  *  @param h The streaming handle.
  *  @return The dropped-event count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_streaming_dropped_events(const TdxStreamHandle* h);
+uint64_t thetadatadx_streaming_dropped_events(const ThetaDataDxStreamHandle* h);
 
 /** Point-in-time count of streaming events published into the event ring
  *  but not yet drained into the registered callback — the in-flight depth
  *  between the feed and the dispatcher. Rising occupancy that approaches
- *  tdx_streaming_ring_capacity predicts drops before tdx_streaming_dropped_events
+ *  thetadatadx_streaming_ring_capacity predicts drops before thetadatadx_streaming_dropped_events
  *  moves; sampling never blocks the feed and is safe from any thread.
  *  @param h The streaming handle.
  *  @return The current ring occupancy, or 0 if the handle is null or has
  *          been shut down. */
-uint64_t tdx_streaming_ring_occupancy(const TdxStreamHandle* h);
+uint64_t thetadatadx_streaming_ring_occupancy(const ThetaDataDxStreamHandle* h);
 
 /** Configured capacity of the streaming event ring in slots (the
  *  fpss_ring_size setting, a power of two) — the fixed denominator for
- *  tdx_streaming_ring_occupancy.
+ *  thetadatadx_streaming_ring_occupancy.
  *  @param h The streaming handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or has
  *          been shut down. */
-uint64_t tdx_streaming_ring_capacity(const TdxStreamHandle* h);
+uint64_t thetadatadx_streaming_ring_capacity(const ThetaDataDxStreamHandle* h);
 
 /** Milliseconds since the most recent inbound streaming frame of any kind
  *  on this streaming handle.
@@ -2138,21 +2138,21 @@ uint64_t tdx_streaming_ring_capacity(const TdxStreamHandle* h);
  *  @param out_ms Receives the elapsed milliseconds on success.
  *  @return 0 on success with the value in *out_ms, 1 when no session is live
  *          or no frame has been received yet, -1 on a null pointer. */
-int32_t tdx_streaming_millis_since_last_event(const TdxStreamHandle* h, uint64_t* out_ms);
+int32_t thetadatadx_streaming_millis_since_last_event(const ThetaDataDxStreamHandle* h, uint64_t* out_ms);
 
 /** UNIX-nanosecond receive timestamp of the most recent inbound streaming
  *  frame of any kind on this streaming handle.
  *  @param h The streaming handle.
  *  @return The receive timestamp in Unix nanoseconds, or 0 when the handle
  *          is null, no session is live, or no frame has been received yet. */
-int64_t tdx_streaming_last_event_received_at_unix_nanos(const TdxStreamHandle* h);
+int64_t thetadatadx_streaming_last_event_received_at_unix_nanos(const ThetaDataDxStreamHandle* h);
 
 /** Address (host:port) of the streaming server the current session is
  *  connected to, following the session across auto-reconnects.
  *  @param h The streaming handle.
  *  @return A heap-owned C string the caller must release with
- *          tdx_string_free, or NULL when no session is live. */
-char* tdx_streaming_last_connected_addr(const TdxStreamHandle* h);
+ *          thetadatadx_string_free, or NULL when no session is live. */
+char* thetadatadx_streaming_last_connected_addr(const ThetaDataDxStreamHandle* h);
 
 
 
@@ -2164,30 +2164,30 @@ char* tdx_streaming_last_connected_addr(const TdxStreamHandle* h);
  *  @param h The streaming handle.
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_streaming_panic_count(const TdxStreamHandle* h);
+uint64_t thetadatadx_streaming_panic_count(const ThetaDataDxStreamHandle* h);
 
 /** Shut down the streaming client. Terminal: every subsequent
  *  set_callback / reconnect / shutdown call on this handle returns -1
- *  with a clear tdx_last_error() string. The handle remains valid for
- *  tdx_streaming_free() only. Returns asynchronously: in-flight events
+ *  with a clear thetadatadx_last_error() string. The handle remains valid for
+ *  thetadatadx_streaming_free() only. Returns asynchronously: in-flight events
  *  continue draining through the registered callback until the shutdown
  *  signal is observed.
  *  @param h The streaming handle.
- *  @note Pair with tdx_streaming_await_drain() (or use tdx_streaming_free(), which
+ *  @note Pair with thetadatadx_streaming_await_drain() (or use thetadatadx_streaming_free(), which
  *        applies the drain barrier internally) before freeing the callback
  *        ctx. */
-void tdx_streaming_shutdown(const TdxStreamHandle* h);
+void thetadatadx_streaming_shutdown(const ThetaDataDxStreamHandle* h);
 
 /** Wait for the previously-superseded streaming session to quiesce.
  *  @param h The streaming handle.
  *  @param timeout_ms Maximum time to wait, in milliseconds.
- *  @return 1 once the previous tdx_streaming_reconnect / tdx_streaming_shutdown
+ *  @return 1 once the previous thetadatadx_streaming_reconnect / thetadatadx_streaming_shutdown
  *          session has finished firing the registered callback; 0 on timeout
  *          or when no session has been superseded on this handle.
  *  @note Must be called from a thread other than the streaming consumer;
  *        calling it from inside the user callback would block the very work
  *        it waits on and always time out. */
-int tdx_streaming_await_drain(const TdxStreamHandle* h, uint64_t timeout_ms);
+int thetadatadx_streaming_await_drain(const ThetaDataDxStreamHandle* h, uint64_t timeout_ms);
 
 /** Free the streaming handle. Accepts the handle in either lifecycle state:
  *  if shutdown has not yet been called, this performs the shutdown sequence
@@ -2198,7 +2198,7 @@ int tdx_streaming_await_drain(const TdxStreamHandle* h, uint64_t timeout_ms);
  *  operation drain completes in low single-digit milliseconds, so ctx is
  *  safe to free immediately on return.
  *  @param h The streaming handle; no-op when NULL. Call exactly once. */
-void tdx_streaming_free(TdxStreamHandle* h);
+void thetadatadx_streaming_free(ThetaDataDxStreamHandle* h);
 
 /* ======================================================================= */
 /*  Unified client -- historical + streaming through one handle            */
@@ -2207,59 +2207,59 @@ void tdx_streaming_free(TdxStreamHandle* h);
 /** Connect to ThetaData (historical only -- real-time streaming is NOT started).
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A unified handle the caller must release with tdx_client_free, or
- *          NULL on connection/auth failure (check tdx_last_error()). */
-TdxClient* tdx_client_connect(const TdxCredentials* creds, const TdxConfig* config);
+ *  @return A unified handle the caller must release with thetadatadx_client_free, or
+ *          NULL on connection/auth failure (check thetadatadx_last_error()). */
+ThetaDataDxClient* thetadatadx_client_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
 /** Connect a unified client, reading credentials from a file (line 1 = email,
- *  line 2 = password). One-call equivalent of tdx_credentials_from_file +
- *  tdx_client_connect.
+ *  line 2 = password). One-call equivalent of thetadatadx_credentials_from_file +
+ *  thetadatadx_client_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A unified handle the caller must release with tdx_client_free, or
+ *  @return A unified handle the caller must release with thetadatadx_client_free, or
  *          NULL on argument or connection/auth failure (check
- *          tdx_last_error()). */
-TdxClient* tdx_client_connect_from_file(const char* path, const TdxConfig* config);
+ *          thetadatadx_last_error()). */
+ThetaDataDxClient* thetadatadx_client_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
 /** Register a streaming callback and start streaming on the unified client.
  *
  *  Events flow from the streaming reader through a bounded ring to a
  *  dedicated consumer thread, which invokes the callback inside an
  *  isolation boundary. Reader never blocks on user code; ring-overflow
- *  events are dropped (tdx_client_dropped_events).
+ *  events are dropped (thetadatadx_client_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid until ONE of: (a) tdx_client_free()
+ *  `ctx` MUST remain valid until ONE of: (a) thetadatadx_client_free()
  *  returns (which calls stop_streaming and applies the drain barrier
- *  internally with a 5 s timeout), (b) tdx_client_stop_streaming() /
- *  tdx_client_reconnect() returns AND tdx_client_await_drain() has
- *  returned 1, or (c) a successful replacement tdx_client_set_callback
- *  has returned AND tdx_client_await_drain() has returned 1 for the
+ *  internally with a 5 s timeout), (b) thetadatadx_client_stop_streaming() /
+ *  thetadatadx_client_reconnect() returns AND thetadatadx_client_await_drain() has
+ *  returned 1, or (c) a successful replacement thetadatadx_client_set_callback
+ *  has returned AND thetadatadx_client_await_drain() has returned 1 for the
  *  prior session. The consumer thread accesses ctx on every event and
  *  reconnect, serially on a single thread. Freeing ctx without one of
  *  these barriers is undefined behavior.
  *
  *  ## Lifecycle contract (REPLACEMENT after stop)
  *
- *  Unlike tdx_streaming_set_callback (one-shot), the unified path supports
- *  stop+register as a normal user flow: after tdx_client_stop_streaming
- *  another tdx_client_set_callback REPLACES the saved (callback, ctx).
- *  tdx_client_reconnect is built on top of this. Calling set_callback
+ *  Unlike thetadatadx_streaming_set_callback (one-shot), the unified path supports
+ *  stop+register as a normal user flow: after thetadatadx_client_stop_streaming
+ *  another thetadatadx_client_set_callback REPLACES the saved (callback, ctx).
+ *  thetadatadx_client_reconnect is built on top of this. Calling set_callback
  *  while streaming is already active returns -1 with "streaming already
  *  started".
  *
  *  @param handle   The unified handle.
  *  @param callback The callback invoked once per streaming event.
  *  @param ctx      Opaque user pointer passed to every callback invocation.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_client_set_callback(const TdxClient* handle, TdxStreamCallback callback, void* ctx);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_client_set_callback(const ThetaDataDxClient* handle, ThetaDataDxStreamCallback callback, void* ctx);
 
-/** Subscription request scope discriminator (TdxSubscriptionRequest.scope). */
+/** Subscription request scope discriminator (ThetaDataDxSubscriptionRequest.scope). */
 #define TDX_SUB_SCOPE_CONTRACT 0
 #define TDX_SUB_SCOPE_FULL     1
 
-/** Subscription kind discriminator (TdxSubscriptionRequest.kind). */
+/** Subscription kind discriminator (ThetaDataDxSubscriptionRequest.kind). */
 #define TDX_SUB_KIND_QUOTE         0
 #define TDX_SUB_KIND_TRADE         1
 #define TDX_SUB_KIND_OPEN_INTEREST 2
@@ -2281,47 +2281,47 @@ typedef struct {
     const char* strike;       /* per-contract option only */
     const char* right;        /* per-contract option only */
     const char* sec_type;     /* full-stream only */
-} TdxSubscriptionRequest;
+} ThetaDataDxSubscriptionRequest;
 
 /** Polymorphic subscribe on the unified client.
  *  @param handle The unified handle.
  *  @param request The subscription request payload.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_client_subscribe(const TdxClient* handle, const TdxSubscriptionRequest* request);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_client_subscribe(const ThetaDataDxClient* handle, const ThetaDataDxSubscriptionRequest* request);
 
 /** Polymorphic unsubscribe on the unified client.
  *  @param handle The unified handle.
  *  @param request The subscription request payload.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_client_unsubscribe(const TdxClient* handle, const TdxSubscriptionRequest* request);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_client_unsubscribe(const ThetaDataDxClient* handle, const ThetaDataDxSubscriptionRequest* request);
 
 /** Polymorphic subscribe on the standalone streaming client.
  *  @param h The streaming handle.
  *  @param request The subscription request payload.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_streaming_subscribe(const TdxStreamHandle* h, const TdxSubscriptionRequest* request);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_streaming_subscribe(const ThetaDataDxStreamHandle* h, const ThetaDataDxSubscriptionRequest* request);
 
 /** Polymorphic unsubscribe on the standalone streaming client.
  *  @param h The streaming handle.
  *  @param request The subscription request payload.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_streaming_unsubscribe(const TdxStreamHandle* h, const TdxSubscriptionRequest* request);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_streaming_unsubscribe(const ThetaDataDxStreamHandle* h, const ThetaDataDxSubscriptionRequest* request);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions.
  *  @param handle The unified handle.
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_client_reconnect(const TdxClient* handle);
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_client_reconnect(const ThetaDataDxClient* handle);
 
 /** Report whether streaming is active on the unified client.
  *  @param handle The unified handle.
  *  @return 1 when streaming, 0 otherwise. */
-int tdx_client_is_streaming(const TdxClient* handle);
+int thetadatadx_client_is_streaming(const ThetaDataDxClient* handle);
 
 /** Read the active subscriptions as a typed array.
  *  @param handle The unified handle.
  *  @return A subscription array the caller MUST free with
- *          tdx_subscription_array_free. */
-TdxSubscriptionArray* tdx_client_active_subscriptions(const TdxClient* handle);
+ *          thetadatadx_subscription_array_free. */
+ThetaDataDxSubscriptionArray* thetadatadx_client_active_subscriptions(const ThetaDataDxClient* handle);
 
 /** Read the active full-stream subscriptions as a typed array. Each entry's
  *  `contract` field carries the security-type discriminant
@@ -2331,23 +2331,23 @@ TdxSubscriptionArray* tdx_client_active_subscriptions(const TdxClient* handle);
  *  TypeScript `Subscription.kind` accessor.
  *  @param handle The unified handle.
  *  @return A subscription array the caller MUST free with
- *          tdx_subscription_array_free, or NULL on error. */
-TdxSubscriptionArray* tdx_client_active_full_subscriptions(const TdxClient* handle);
+ *          thetadatadx_subscription_array_free, or NULL on error. */
+ThetaDataDxSubscriptionArray* thetadatadx_client_active_full_subscriptions(const ThetaDataDxClient* handle);
 
 /** Borrow the historical client from a unified handle.
  *  @param handle The unified handle.
  *  @return A borrowed historical client pointer owned by the unified handle;
  *          do NOT free it. */
-const TdxHistoricalClient* tdx_client_historical(const TdxClient* handle);
+const ThetaDataDxHistoricalClient* thetadatadx_client_historical(const ThetaDataDxClient* handle);
 
 /** Stop streaming on the unified client. Historical remains available.
  *  Returns asynchronously: in-flight events continue draining through the
  *  registered callback until the shutdown signal is observed.
  *  @param handle The unified handle.
- *  @note Pair with tdx_client_await_drain() (or use tdx_client_free(),
+ *  @note Pair with thetadatadx_client_await_drain() (or use thetadatadx_client_free(),
  *        which applies the drain barrier internally) before freeing the
  *        callback ctx. */
-void tdx_client_stop_streaming(const TdxClient* handle);
+void thetadatadx_client_stop_streaming(const ThetaDataDxClient* handle);
 
 /** Wait for the previously-superseded streaming session to quiesce.
  *  @param handle The unified handle.
@@ -2356,32 +2356,32 @@ void tdx_client_stop_streaming(const TdxClient* handle);
  *          callback; 0 on timeout or when no stream has ever been started or
  *          stopped on this handle.
  *  @note Must be called from a thread other than the streaming consumer. */
-int tdx_client_await_drain(const TdxClient* handle, uint64_t timeout_ms);
+int thetadatadx_client_await_drain(const ThetaDataDxClient* handle, uint64_t timeout_ms);
 
 /** Cumulative count of streaming events that could not be published into
  *  the bounded ring because the consumer fell behind and the ring was full.
  *  @param handle The unified handle.
  *  @return The dropped-event count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_client_dropped_events(const TdxClient* handle);
+uint64_t thetadatadx_client_dropped_events(const ThetaDataDxClient* handle);
 
 /** Point-in-time count of streaming events published into the event ring
  *  but not yet drained into the registered callback — the in-flight depth
  *  between the feed and the dispatcher. Rising occupancy that approaches
- *  tdx_client_ring_capacity predicts drops before tdx_client_dropped_events
+ *  thetadatadx_client_ring_capacity predicts drops before thetadatadx_client_dropped_events
  *  moves; sampling never blocks the feed and is safe from any thread.
  *  @param handle The unified handle.
  *  @return The current ring occupancy, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_client_ring_occupancy(const TdxClient* handle);
+uint64_t thetadatadx_client_ring_occupancy(const ThetaDataDxClient* handle);
 
 /** Configured capacity of the streaming event ring in slots (the
  *  fpss_ring_size setting, a power of two) — the fixed denominator for
- *  tdx_client_ring_occupancy.
+ *  thetadatadx_client_ring_occupancy.
  *  @param handle The unified handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_client_ring_capacity(const TdxClient* handle);
+uint64_t thetadatadx_client_ring_capacity(const ThetaDataDxClient* handle);
 
 /** Milliseconds since the most recent inbound streaming frame of any kind
  *  on this unified handle.
@@ -2389,7 +2389,7 @@ uint64_t tdx_client_ring_capacity(const TdxClient* handle);
  *  @param out_ms Receives the elapsed milliseconds on success.
  *  @return 0 on success with the value in *out_ms, 1 when streaming has not
  *          started or no frame has been received yet, -1 on a null pointer. */
-int32_t tdx_client_millis_since_last_event(const TdxClient* handle, uint64_t* out_ms);
+int32_t thetadatadx_client_millis_since_last_event(const ThetaDataDxClient* handle, uint64_t* out_ms);
 
 /** UNIX-nanosecond receive timestamp of the most recent inbound streaming
  *  frame of any kind on this unified handle.
@@ -2397,14 +2397,14 @@ int32_t tdx_client_millis_since_last_event(const TdxClient* handle, uint64_t* ou
  *  @return The receive timestamp in Unix nanoseconds, or 0 when the handle
  *          is null, streaming has not started, or no frame has been received
  *          yet. */
-int64_t tdx_client_last_event_received_at_unix_nanos(const TdxClient* handle);
+int64_t thetadatadx_client_last_event_received_at_unix_nanos(const ThetaDataDxClient* handle);
 
 /** Address (host:port) of the streaming server the current session is
  *  connected to, following the session across auto-reconnects.
  *  @param handle The unified handle.
  *  @return A heap-owned C string the caller must release with
- *          tdx_string_free, or NULL when streaming has not started. */
-char* tdx_client_last_connected_addr(const TdxClient* handle);
+ *          thetadatadx_string_free, or NULL when streaming has not started. */
+char* thetadatadx_client_last_connected_addr(const ThetaDataDxClient* handle);
 
 
 
@@ -2416,9 +2416,9 @@ char* tdx_client_last_connected_addr(const TdxClient* handle);
  *  @param handle The unified handle.
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_client_panic_count(const TdxClient* handle);
+uint64_t thetadatadx_client_panic_count(const ThetaDataDxClient* handle);
 
-/** Free a unified client handle. Calls tdx_client_stop_streaming
+/** Free a unified client handle. Calls thetadatadx_client_stop_streaming
  *  internally, then waits up to 5 seconds for the registered callback to
  *  finish firing before destroying the handle. On drain timeout it logs an
  *  error and proceeds with destruction; in that diagnostic case the callback
@@ -2426,7 +2426,7 @@ uint64_t tdx_client_panic_count(const TdxClient* handle);
  *  normal operation drain completes in low single-digit milliseconds, so ctx
  *  is safe to free immediately on return.
  *  @param handle The unified handle; no-op when NULL. Call exactly once. */
-void tdx_client_free(TdxClient* handle);
+void thetadatadx_client_free(ThetaDataDxClient* handle);
 
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
@@ -2438,16 +2438,16 @@ void tdx_client_free(TdxClient* handle);
  */
 
 /** Opaque handle wrapping a decoded set of flat-file rows. Created by
- *  tdx_flatfile_request_decoded; freed by tdx_flatfile_rowlist_free. */
-typedef struct TdxFlatFileRowList TdxFlatFileRowList;
+ *  thetadatadx_flatfile_request_decoded; freed by thetadatadx_flatfile_rowlist_free. */
+typedef struct ThetaDataDxFlatFileRowList ThetaDataDxFlatFileRowList;
 
 /** Heap-owned byte buffer (Arrow IPC stream) returned by
- *  tdx_flatfile_rows_to_arrow_ipc. Caller MUST free with
- *  tdx_flatfile_bytes_free. */
-typedef struct TdxFlatFileBytes {
+ *  thetadatadx_flatfile_rows_to_arrow_ipc. Caller MUST free with
+ *  thetadatadx_flatfile_bytes_free. */
+typedef struct ThetaDataDxFlatFileBytes {
     const uint8_t* data;
     size_t len;
-} TdxFlatFileBytes;
+} ThetaDataDxFlatFileBytes;
 
 /** Pull a decoded flat-file blob for (sec_type, req_type, date) and
  *  return an opaque row-list handle.
@@ -2457,10 +2457,10 @@ typedef struct TdxFlatFileBytes {
  *                  "TRADE_QUOTE".
  *  @param date The snapshot date as "YYYYMMDD".
  *  @return A row-list handle the caller MUST free with
- *          tdx_flatfile_rowlist_free, or NULL on error (check
- *          tdx_last_error()). */
-TdxFlatFileRowList* tdx_flatfile_request_decoded(
-    const TdxClient* handle,
+ *          thetadatadx_flatfile_rowlist_free, or NULL on error (check
+ *          thetadatadx_last_error()). */
+ThetaDataDxFlatFileRowList* thetadatadx_flatfile_request_decoded(
+    const ThetaDataDxClient* handle,
     const char* sec_type,
     const char* req_type,
     const char* date);
@@ -2468,26 +2468,26 @@ TdxFlatFileRowList* tdx_flatfile_request_decoded(
 /** Number of rows in a row-list handle.
  *  @param rowlist The row-list handle.
  *  @return The row count, or 0 if rowlist is NULL. */
-size_t tdx_flatfile_rows_count(const TdxFlatFileRowList* rowlist);
+size_t thetadatadx_flatfile_rows_count(const ThetaDataDxFlatFileRowList* rowlist);
 
 /** Serialise the row list as Arrow IPC stream bytes. The schema is inferred
  *  from the first row.
  *  @param rowlist The row-list handle.
  *  @return An Arrow IPC byte buffer the caller MUST free with
- *          tdx_flatfile_bytes_free, or (data=NULL, len=0) on error (check
- *          tdx_last_error()). */
-TdxFlatFileBytes tdx_flatfile_rows_to_arrow_ipc(
-    const TdxFlatFileRowList* rowlist);
+ *          thetadatadx_flatfile_bytes_free, or (data=NULL, len=0) on error (check
+ *          thetadatadx_last_error()). */
+ThetaDataDxFlatFileBytes thetadatadx_flatfile_rows_to_arrow_ipc(
+    const ThetaDataDxFlatFileRowList* rowlist);
 
-/** Free a byte buffer returned by tdx_flatfile_rows_to_arrow_ipc.
- *  @param bytes Buffer from tdx_flatfile_rows_to_arrow_ipc; a (data=NULL,
+/** Free a byte buffer returned by thetadatadx_flatfile_rows_to_arrow_ipc.
+ *  @param bytes Buffer from thetadatadx_flatfile_rows_to_arrow_ipc; a (data=NULL,
  *               len=0) buffer is a no-op. Call exactly once. */
-void tdx_flatfile_bytes_free(TdxFlatFileBytes bytes);
+void thetadatadx_flatfile_bytes_free(ThetaDataDxFlatFileBytes bytes);
 
-/** Free a row-list handle returned by tdx_flatfile_request_decoded.
- *  @param rowlist Handle from tdx_flatfile_request_decoded; no-op when NULL.
+/** Free a row-list handle returned by thetadatadx_flatfile_request_decoded.
+ *  @param rowlist Handle from thetadatadx_flatfile_request_decoded; no-op when NULL.
  *                 Call exactly once. */
-void tdx_flatfile_rowlist_free(TdxFlatFileRowList* rowlist);
+void thetadatadx_flatfile_rowlist_free(ThetaDataDxFlatFileRowList* rowlist);
 
 /** Pull a flat-file blob and write the requested vendor format directly to
  *  a file. The format extension is appended to path automatically if missing.
@@ -2498,9 +2498,9 @@ void tdx_flatfile_rowlist_free(TdxFlatFileRowList* rowlist);
  *  @param date The snapshot date as "YYYYMMDD".
  *  @param path Output file path; the format extension is appended if missing.
  *  @param format Output format, "csv" or "jsonl".
- *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_flatfile_request_to_path(
-    const TdxClient* handle,
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_flatfile_request_to_path(
+    const ThetaDataDxClient* handle,
     const char* sec_type,
     const char* req_type,
     const char* date,

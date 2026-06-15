@@ -3,8 +3,8 @@
 // `HistoricalClient` is the historical-only napi handle: the same MDDS/Nexus
 // surface as the unified `Client`, with no streaming methods
 // reachable. It mirrors the Python `HistoricalClient`
-// (`sdks/python/src/mdds_client.rs`), the C++ `tdx::Client`, and the C
-// ABI `tdx_client_*` entry points. These assertions pin the split
+// (`sdks/python/src/mdds_client.rs`), the C++ `thetadatadx::Client`, and the C
+// ABI `thetadatadx_client_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a generator
 // or lib.rs change that leaks an FPSS method onto the MDDS surface — or
 // drops the historical surface from it — fails here without live

@@ -72,7 +72,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
         MethodKind::IsStreaming => {
             writeln!(out, "    #[napi(js_name = \"isStreaming\")]").unwrap();
             writeln!(out, "    pub fn {}(&self) -> bool {{", method.name).unwrap();
-            out.push_str("        self.tdx.stream().is_streaming()\n");
+            out.push_str("        self.client.stream().is_streaming()\n");
             out.push_str("    }\n");
         }
         MethodKind::StockContractCall => {
@@ -93,7 +93,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             writeln!(
                 out,
-                "        self.tdx.stream().{}(&contract).map_err(to_napi_err)",
+                "        self.client.stream().{}(&contract).map_err(to_napi_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -119,7 +119,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             writeln!(
                 out,
-                "        self.tdx.stream().{}(&contract).map_err(to_napi_err)",
+                "        self.client.stream().{}(&contract).map_err(to_napi_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -138,7 +138,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             writeln!(out, "        let st = parse_sec_type(&{})?;", param.name).unwrap();
             writeln!(
                 out,
-                "        self.tdx.stream().{}(st).map_err(to_napi_err)",
+                "        self.client.stream().{}(st).map_err(to_napi_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -152,7 +152,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name
             )
             .unwrap();
-            out.push_str("        self.tdx\n");
+            out.push_str("        self.client\n");
             out.push_str("            .stream()\n");
             out.push_str("            .active_subscriptions()\n");
             out.push_str("            .map(|subs| {\n");
@@ -233,12 +233,12 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // closure can outlive `&self` — `spawn_blocking` requires
             // `'static`. The polling itself is cheap (1 ms sleep loop)
             // and the Arc clone is one atomic bump.
-            out.push_str("        let tdx = self.tdx.clone();\n");
+            out.push_str("        let client = self.client.clone();\n");
             out.push_str(
                 "        let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));\n",
             );
             out.push_str(
-                "        tokio::task::spawn_blocking(move || tdx.stream().await_drain(timeout))\n",
+                "        tokio::task::spawn_blocking(move || client.stream().await_drain(timeout))\n",
             );
             out.push_str("            .await\n");
             out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"await_drain task panicked: {e}\")))\n");
@@ -252,7 +252,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // released before the streaming side tears down —
             // re-installing via `startStreaming` after stop / shutdown
             // then sees a clean slot.
-            out.push_str("        self.tdx.stream().stop_streaming();\n");
+            out.push_str("        self.client.stream().stop_streaming();\n");
             out.push_str(
                 "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );

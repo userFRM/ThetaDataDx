@@ -4,8 +4,8 @@
 //   * `operator<<` / `thetadatadx::str(...)` on FluentContract / FluentSubscription
 //     / FluentSecType give C++ the string rendering Python exposes through
 //     `__repr__` / `__str__` and TypeScript through `toString()`.
-//   * `tdx_contract_strike_dollars` folds the `has_strike` presence flag
-//     of a streaming `TdxContract` into a single accessor, mirroring the
+//   * `thetadatadx_contract_strike_dollars` folds the `has_strike` presence flag
+//     of a streaming `ThetaDataDxContract` into a single accessor, mirroring the
 //     C++ `thetadatadx::strike(...)` helper and the Python / TypeScript
 //     `contract.strike` surface.
 
@@ -92,13 +92,13 @@ TEST_CASE("FluentSubscription::kind_string is snake_case", "[fluent][offline]") 
             != thetadatadx::SecType::option().full_open_interest().kind_string());
 }
 
-TEST_CASE("tdx_contract_strike_dollars folds the presence flag", "[fluent][offline]") {
-    TdxContract option{};
+TEST_CASE("thetadatadx_contract_strike_dollars folds the presence flag", "[fluent][offline]") {
+    ThetaDataDxContract option{};
     option.sec_type = 1; // OPTION
     option.has_strike = true;
     option.strike = 550.0;
     double dollars = 0.0;
-    REQUIRE(tdx_contract_strike_dollars(&option, &dollars));
+    REQUIRE(thetadatadx_contract_strike_dollars(&option, &dollars));
     REQUIRE(dollars == 550.0);
 
     // The C++ `thetadatadx::strike(...)` accessor agrees with the C function.
@@ -106,15 +106,15 @@ TEST_CASE("tdx_contract_strike_dollars folds the presence flag", "[fluent][offli
     REQUIRE(via_cpp.has_value());
     REQUIRE(*via_cpp == 550.0);
 
-    TdxContract stock{};
+    ThetaDataDxContract stock{};
     stock.sec_type = 0; // STOCK
     stock.has_strike = false;
     double untouched = -1.0;
-    REQUIRE_FALSE(tdx_contract_strike_dollars(&stock, &untouched));
+    REQUIRE_FALSE(thetadatadx_contract_strike_dollars(&stock, &untouched));
     REQUIRE(untouched == -1.0); // left untouched on absence
     REQUIRE_FALSE(thetadatadx::strike(stock).has_value());
 
     // Null guards.
-    REQUIRE_FALSE(tdx_contract_strike_dollars(nullptr, &dollars));
-    REQUIRE_FALSE(tdx_contract_strike_dollars(&option, nullptr));
+    REQUIRE_FALSE(thetadatadx_contract_strike_dollars(nullptr, &dollars));
+    REQUIRE_FALSE(thetadatadx_contract_strike_dollars(&option, nullptr));
 }

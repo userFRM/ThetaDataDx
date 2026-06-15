@@ -55,20 +55,20 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
 // Lifecycle: intentionally hand-written (C++ destructor semantics with unique_ptr).
 //
 // Member destruction order (REVERSE declaration order): `handle_` first,
-// `callback_` second. The `handle_` deleter calls `tdx_streaming_free` which
+// `callback_` second. The `handle_` deleter calls `thetadatadx_streaming_free` which
 // performs an internal 5 s drain barrier — see the ordering invariant
 // comment above the member declarations in the header.
 //
 // The body raises the shutdown signal early so the consumer thread starts
 // quiescing before the deleter polls the drain flag. If the drain barrier
-// inside `tdx_streaming_free` times out, the FFI logs a `tracing::error!` and
+// inside `thetadatadx_streaming_free` times out, the FFI logs a `tracing::error!` and
 // proceeds with destruction. We mirror the move-assign rescue path here:
 // detach `callback_` storage to a helper thread for an extra 30 s grace
 // window so user code never observes a synchronous UAF on destructor exit.
 StreamingClient::~StreamingClient() {
     if (handle_) {
-        tdx_streaming_shutdown(handle_.get());
-        int drained = tdx_streaming_await_drain(handle_.get(), 5000);
+        thetadatadx_streaming_shutdown(handle_.get());
+        int drained = thetadatadx_streaming_await_drain(handle_.get(), 5000);
         if (drained == 0) {
             // Drain timed out: the consumer may still be firing through
             // `callback_`'s storage. Detach the storage onto a helper

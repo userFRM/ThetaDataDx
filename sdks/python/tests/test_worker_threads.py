@@ -33,11 +33,11 @@ _PROBE = r"""
 import collections
 import glob
 
-import thetadatadx as tdx
+import thetadatadx as client
 
 N = 2
 
-cfg = tdx.Config.dev()
+cfg = client.Config.dev()
 cfg.worker_threads = N
 
 try:
@@ -45,7 +45,7 @@ try:
     # `cfg.runtime` before the connect handshake runs. The connect itself
     # is expected to fail on throwaway credentials — we only care that the
     # runtime was built at the configured size.
-    tdx.HistoricalClient(tdx.Credentials("nobody@example.invalid", "x"), cfg)
+    client.HistoricalClient(client.Credentials("nobody@example.invalid", "x"), cfg)
 except Exception:
     pass
 

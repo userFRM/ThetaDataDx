@@ -48,7 +48,7 @@ describe('Util cross-language helpers (#424)', () => {
   });
 
   it('exposes calendarStatusName and timestampMs with the cross-binding sentinels', () => {
-    // Calendar status — vocabulary from the C ABI tdx_calendar_status_name
+    // Calendar status — vocabulary from the C ABI thetadatadx_calendar_status_name
     // / the core CalendarStatus enum. Out-of-table codes return "UNKNOWN".
     assert.equal(mod.Util.calendarStatusName(0), 'open');
     assert.equal(mod.Util.calendarStatusName(1), 'early_close');
@@ -64,7 +64,7 @@ describe('Util cross-language helpers (#424)', () => {
     assert.equal(epoch, 1704205800000n);
 
     // Out-of-domain inputs return null (the std::nullopt contract the
-    // C++ tdx::timestamp_ms shares), never a coerced sentinel value.
+    // C++ thetadatadx::timestamp_ms shares), never a coerced sentinel value.
     assert.equal(mod.Util.timestampMs(0, 0), null);
     assert.equal(mod.Util.timestampMs(20240102, -1), null);
   });

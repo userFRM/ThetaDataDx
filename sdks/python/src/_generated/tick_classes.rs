@@ -6,7 +6,7 @@
 // Every historical endpoint returns `Py<<TickName>List>`; terminal
 // methods (`to_list`, `to_arrow`, `to_pandas`, `to_polars`) live on
 // the wrapper so chained calls like
-//     tdx.stock_history_eod(...).to_polars()
+//     client.stock_history_eod(...).to_polars()
 // avoid a free-function round-trip.
 
 use arrow::array::{ArrayRef, StringArray};

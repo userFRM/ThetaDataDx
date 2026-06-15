@@ -155,7 +155,7 @@ pub(super) fn endpoint_streams(endpoint: &GeneratedEndpoint) -> bool {
 /// the buffered tick array exposes, so the C side reinterprets it with no
 /// re-marshaling. `OptionContracts` is the lone streaming return type whose
 /// core row carries an owned `String` (the contract symbol) — its FFI
-/// representation (`TdxOptionContract`, a `*const c_char` symbol) is a
+/// representation (`ThetaDataDxOptionContract`, a `*const c_char` symbol) is a
 /// distinct layout the buffered path marshals row-by-row. That per-row
 /// `CString` allocation is exactly the heap traffic the streaming path exists
 /// to avoid, and it has no stable lifetime inside a borrowed-slice callback,

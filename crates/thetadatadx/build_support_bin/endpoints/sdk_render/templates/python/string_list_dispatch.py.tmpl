@@ -1,5 +1,5 @@
         run_blocking(py, async move {
-            let call = self.tdx.__NAME__(__POSITIONAL_ARGS__);
+            let call = self.client.__NAME__(__POSITIONAL_ARGS__);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,

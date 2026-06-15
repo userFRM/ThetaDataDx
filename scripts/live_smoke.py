@@ -150,8 +150,8 @@ def _terminate_process(proc: subprocess.Popen[str]) -> None:
 
 
 def _smoke_cli(creds: pathlib.Path) -> None:
-    tdx = str(_bin_path("tdx"))
-    base = [tdx, "--creds", str(creds)]
+    client_bin = str(_bin_path("thetadatadx"))
+    base = [client_bin, "--creds", str(creds)]
 
     out = _run(base + ["calendar", "open_today", "--format", "json"])
     calendar = json.loads(out)

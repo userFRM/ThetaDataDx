@@ -312,7 +312,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         }
     };
 
-    let stream = state.tdx().stream();
+    let stream = state.client().stream();
     if stream.is_streaming() {
         let result = if is_add {
             stream.subscribe_many(subscriptions)

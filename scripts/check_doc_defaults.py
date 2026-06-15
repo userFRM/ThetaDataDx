@@ -318,7 +318,7 @@ def _find_defaults_for_anchor(
     The anchor must land on a declaration line — a Rust ``fn`` /
     extern signature, a C declaration, or a typed ``.pyi`` attribute —
     not on an incidental mention inside another item's doc comment
-    (``capped at tdx_config_set_retry_max_delay_ms``). Once anchored, the
+    (``capped at thetadatadx_config_set_retry_max_delay_ms``). Once anchored, the
     gate reads the ``Default`` token from the documentation attached to
     that declaration, on the side named by ``direction``:
 
@@ -480,7 +480,7 @@ def build_surfaces() -> list[Surface]:
     """
     surfaces: list[Surface] = []
 
-    # FFI doc comments (`tdx_config_set_*`). The setters carry the
+    # FFI doc comments (`thetadatadx_config_set_*`). The setters carry the
     # canonical doc; many getters echo `(default N)` inline and are
     # caught by the same anchor's window.
     ffi = Surface("ffi", pathlib.Path("ffi/src/auth.rs"))
@@ -874,13 +874,13 @@ impl MddsConfig {
     # wrong (2_000 vs canonical 250); the rest are correct.
     ffi_bad = """
 /// Set the reconnect delay (ms). Default `2_000`.
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms() {}
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms() {}
 
 /// Set the read timeout (ms). Default `3_000`.
-pub unsafe extern "C" fn tdx_config_set_fpss_timeout_ms() {}
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_timeout_ms() {}
 
 /// Set the flatfile attempt budget. Default `10`. Validated to `[1, 100]`.
-pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts() {}
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
 """
     ffi_good = ffi_bad.replace("Default `2_000`", "Default `250`")
 

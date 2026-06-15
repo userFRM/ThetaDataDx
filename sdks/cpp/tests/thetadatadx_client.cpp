@@ -2,7 +2,7 @@
 //
 // The typed `Client` wrapper exposes the full push-callback
 // streaming surface, so callers reach every method below without
-// dropping to the raw `tdx_client_*` C ABI handle.
+// dropping to the raw `thetadatadx_client_*` C ABI handle.
 //
 // Offline tests confirm:
 //   * `is_streaming` returns false on a moved-from / never-connected

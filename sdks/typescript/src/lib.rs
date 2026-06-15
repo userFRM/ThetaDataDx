@@ -50,10 +50,10 @@ pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
 /// carries a typed class-name prefix (`"[SubscriptionError] ..."`,
 /// `"[RateLimitError] ..."`, etc). The JS shim in `streaming-session.js`
 /// intercepts every async-method rejection, parses the prefix, and
-/// re-throws the right `tdx.SubscriptionError` / `tdx.RateLimitError`
+/// re-throws the right `thetadatadx.SubscriptionError` / `thetadatadx.RateLimitError`
 /// subclass. The classes derive from the existing TypeScript-exported
 /// base `ThetaDataError` so callers writing `catch (e instanceof
-/// tdx.ThetaDataError)` continue to observe every failure.
+/// thetadatadx.ThetaDataError)` continue to observe every failure.
 ///
 /// The canonical leaf set (`NotFoundError`, `DeadlineExceededError`,
 /// `UnavailableError`, `InvalidParameterError`, ...) is identical to the
@@ -86,8 +86,8 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 // ── Credentials ──
 //
 // A first-class credentials handle mirroring the Python `Credentials`
-// pyclass (`sdks/python/src/lib.rs`), the C++ `tdx::Credentials`, and the
-// C ABI `TdxCredentials` handle. Every binding builds credentials the
+// pyclass (`sdks/python/src/lib.rs`), the C++ `thetadatadx::Credentials`, and the
+// C ABI `ThetaDataDxCredentials` handle. Every binding builds credentials the
 // same way — `new Credentials(email, password)` or
 // `Credentials.fromFile(path)` — then hands the handle to `connect`, so
 // the connect surface is `connect(creds, config?)` across the board
@@ -387,7 +387,7 @@ pub struct Client {
     /// `thetadatadx::Client` is not `Clone` -- its FPSS mutex and
     /// subscription-tier state forbid that -- so the outer `Arc` is the
     /// only way to hand a borrow off the napi main thread.
-    tdx: Arc<thetadatadx::Client>,
+    client: Arc<thetadatadx::Client>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
     /// `reconnect()` so the reconnect path can re-attach the same JS
@@ -423,7 +423,7 @@ pub struct Client {
 /// source of truth.
 #[napi]
 pub struct HistoricalView {
-    tdx: Arc<thetadatadx::Client>,
+    client: Arc<thetadatadx::Client>,
 }
 
 /// User-facing real-time-streaming sub-namespace returned by the
@@ -435,7 +435,7 @@ pub struct HistoricalView {
 /// methods observe the same registration the unified client does.
 #[napi]
 pub struct StreamView {
-    tdx: Arc<thetadatadx::Client>,
+    client: Arc<thetadatadx::Client>,
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
 }
 
@@ -448,7 +448,7 @@ impl Client {
     #[napi(getter)]
     pub fn historical(&self) -> HistoricalView {
         HistoricalView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
         }
     }
 
@@ -461,7 +461,7 @@ impl Client {
     #[napi(getter)]
     pub fn stream(&self) -> StreamView {
         StreamView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
             callback: Arc::clone(&self.callback),
         }
     }
@@ -487,7 +487,7 @@ impl Client {
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
         let cfg = config_or_production(config);
-        let tdx = runtime_from_config(&cfg.runtime)
+        let client = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
@@ -495,7 +495,7 @@ impl Client {
             ))
             .map_err(to_napi_err)?;
         Ok(Client {
-            tdx: Arc::new(tdx),
+            client: Arc::new(client),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -508,14 +508,14 @@ impl Client {
     pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let tdx = runtime_from_config(&cfg.runtime)
+        let client = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
             ))
             .map_err(to_napi_err)?;
         Ok(Client {
-            tdx: Arc::new(tdx),
+            client: Arc::new(client),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -536,7 +536,7 @@ impl StreamView {
     /// (Number would top out at 2^53).
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.stream().dropped_event_count())
+        napi::bindgen_prelude::BigInt::from(self.client.stream().dropped_event_count())
     }
 
     /// Point-in-time count of streaming events published into the
@@ -555,7 +555,7 @@ impl StreamView {
     /// streaming counters.
     #[napi(js_name = "ringOccupancy")]
     pub fn ring_occupancy(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.stream().ring_occupancy() as u64)
+        napi::bindgen_prelude::BigInt::from(self.client.stream().ring_occupancy() as u64)
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -569,7 +569,7 @@ impl StreamView {
     /// shape-consistency with the other streaming counters.
     #[napi(js_name = "ringCapacity")]
     pub fn ring_capacity(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.stream().ring_capacity() as u64)
+        napi::bindgen_prelude::BigInt::from(self.client.stream().ring_capacity() as u64)
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -582,7 +582,7 @@ impl StreamView {
     /// earliest external signal of a dead or wedged connection.
     #[napi(js_name = "millisSinceLastEvent")]
     pub fn millis_since_last_event(&self) -> Option<napi::bindgen_prelude::BigInt> {
-        self.tdx
+        self.client
             .stream()
             .millis_since_last_event()
             .map(napi::bindgen_prelude::BigInt::from)
@@ -595,7 +595,9 @@ impl StreamView {
     /// their own pipeline timestamps.
     #[napi(js_name = "lastEventReceivedAtUnixNanos")]
     pub fn last_event_received_at_unix_nanos(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.stream().last_event_received_at_unix_nanos())
+        napi::bindgen_prelude::BigInt::from(
+            self.client.stream().last_event_received_at_unix_nanos(),
+        )
     }
 
     /// Address (`host:port`) of the streaming server the current
@@ -603,7 +605,7 @@ impl StreamView {
     /// auto-reconnects. `null` when streaming has not started.
     #[napi(js_name = "lastConnectedAddr")]
     pub fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.stream().last_connected_addr()
+        self.client.stream().last_connected_addr()
     }
 
     /// Cumulative count of user-callback panics caught at the per-event
@@ -617,7 +619,7 @@ impl StreamView {
     /// (Number would top out at 2^53).
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.stream().panic_count())
+        napi::bindgen_prelude::BigInt::from(self.client.stream().panic_count())
     }
 
     /// Snapshot of full-stream subscriptions (e.g. `OPTION` /
@@ -633,7 +635,7 @@ impl StreamView {
     #[napi(js_name = "activeFullSubscriptions")]
     pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
         use thetadatadx::fpss::protocol::SubscriptionKind;
-        self.tdx
+        self.client
             .stream()
             .active_full_subscriptions()
             .map(|subs| {
@@ -687,13 +689,13 @@ impl StreamView {
 pub struct HistoricalClient {
     /// Wrapped in `Arc` so the generated async endpoint methods can
     /// clone a cheap `'static` handle into the worker future, exactly
-    /// like the unified client's `tdx` field. The generated method
-    /// bodies reference `self.tdx`, so the historical impl block the
+    /// like the unified client's `client` field. The generated method
+    /// bodies reference `self.client`, so the historical impl block the
     /// codegen projects onto this class compiles unchanged. This client
     /// holds the same `thetadatadx::Client` core but never
     /// reaches its streaming methods — no FPSS TLS slot is opened for a
     /// session that lives entirely through `HistoricalClient`.
-    tdx: Arc<thetadatadx::Client>,
+    client: Arc<thetadatadx::Client>,
 }
 
 #[napi]
@@ -715,14 +717,16 @@ impl HistoricalClient {
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<HistoricalClient> {
         let cfg = config_or_production(config);
-        let tdx = runtime_from_config(&cfg.runtime)
+        let client = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
                 cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(HistoricalClient { tdx: Arc::new(tdx) })
+        Ok(HistoricalClient {
+            client: Arc::new(client),
+        })
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 =
@@ -736,13 +740,15 @@ impl HistoricalClient {
     ) -> napi::Result<HistoricalClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let tdx = runtime_from_config(&cfg.runtime)
+        let client = runtime_from_config(&cfg.runtime)
             .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(HistoricalClient { tdx: Arc::new(tdx) })
+        Ok(HistoricalClient {
+            client: Arc::new(client),
+        })
     }
 }
 
@@ -750,7 +756,7 @@ impl HistoricalClient {
 // per-endpoint method bodies onto both `Client` and
 // `HistoricalClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
 // emitter); both classes expose an `Arc<thetadatadx::Client>`
-// field named `tdx`, so the shared bodies compile against either.
+// field named `client`, so the shared bodies compile against either.
 include!("_generated/historical_methods.rs");
 
 // Generated streaming/FPSS methods.
@@ -788,7 +794,7 @@ pub use util_helpers::Util;
 
 // Standalone FPSS-only streaming client. Adds the `StreamingClient` napi class
 // over `thetadatadx::fpss::StreamingClient` (the FPSS primitive), mirroring the
-// Python `StreamingClient` and the C++ `tdx::StreamingClient`. It opens only the FPSS
+// Python `StreamingClient` and the C++ `thetadatadx::StreamingClient`. It opens only the FPSS
 // TLS transport — no MDDS / Nexus — and drives its own dispatcher thread,
 // routing events through the same `TsfnCallback` mechanism as the unified
 // client's streaming surface.
@@ -804,7 +810,7 @@ impl StreamView {
     /// `SecType.option().fullOpenInterest()` (full-stream scope).
     #[napi]
     pub fn subscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx
+        self.client
             .stream()
             .subscribe(sub.snapshot())
             .map_err(to_napi_err)
@@ -816,13 +822,16 @@ impl StreamView {
     #[napi(js_name = "subscribeMany")]
     pub fn subscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.tdx.stream().subscribe_many(snaps).map_err(to_napi_err)
+        self.client
+            .stream()
+            .subscribe_many(snaps)
+            .map_err(to_napi_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     #[napi]
     pub fn unsubscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx
+        self.client
             .stream()
             .unsubscribe(sub.snapshot())
             .map_err(to_napi_err)
@@ -832,7 +841,7 @@ impl StreamView {
     #[napi(js_name = "unsubscribeMany")]
     pub fn unsubscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.tdx
+        self.client
             .stream()
             .unsubscribe_many(snaps)
             .map_err(to_napi_err)

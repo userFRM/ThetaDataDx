@@ -198,7 +198,7 @@ def _selftest() -> int:
     leaky_header = (
         "/* #[repr(C)] tick types — layout-compatible with Rust tdbe structs */\n"
         "/* dispatched on a tokio runtime */\n"
-        "void tdx_thing(void);\n"
+        "void thetadatadx_thing(void);\n"
     )
     clean_stub = (
         "def connect(host: str) -> Client:\n"

@@ -58,7 +58,7 @@ artifacts human-readable:
 
 Presentation strings like `"2026-04-17"` would cause false diffs the
 moment a second SDK starts populating `first_row` with raw ints. The
-CLI emitter calls the `tdx` binary with `--format json-raw` so its
+CLI emitter calls the `thetadatadx` binary with `--format json-raw` so its
 output matches the contract; adding that flag was part of PR #293.
 
 Consumer-side canonicalization (`_canonicalize_row`) handles:

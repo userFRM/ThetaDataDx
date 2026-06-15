@@ -30,4 +30,4 @@ typedef struct {
     /* Per-call deadline. Set has_timeout_ms = 1 to apply. */
     uint64_t timeout_ms;
     int32_t has_timeout_ms;
-} TdxEndpointRequestOptions;
+} ThetaDataDxEndpointRequestOptions;

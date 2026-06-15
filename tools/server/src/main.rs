@@ -37,7 +37,7 @@ use clap::Parser;
 use tower_http::cors::CorsLayer;
 use zeroize::Zeroizing;
 
-use thetadatadx::{Credentials, DirectConfig, Client};
+use thetadatadx::{Client, Credentials, DirectConfig};
 
 use crate::state::AppState;
 
@@ -217,11 +217,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Step 3: Connect unified client (gRPC historical).
-    let tdx = Client::connect(&creds, config).await?;
+    let client = Client::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.
-    let state = AppState::new(tdx, shutdown_token);
+    let state = AppState::new(client, shutdown_token);
 
     // Step 5: Start FPSS streaming bridge.
     if !args.no_fpss {

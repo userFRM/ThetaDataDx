@@ -1,5 +1,5 @@
 # Captured from prod MDDS for SPY 2024-06-21 500 CALL 2024-06-14 via:
-#   tdx option history_trade SPY 20240621 500 C 20240614
+#   thetadatadx option history_trade SPY 20240621 500 C 20240614
 # Single chunk, 98 trades.
 
 endpoint = "option_history_trade"

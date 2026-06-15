@@ -10,10 +10,10 @@
 //! Surface shape:
 //!
 //! ```python
-//! tdx.flat_files.option_quote(date="20260428").to_polars()
-//! tdx.flat_files.option_open_interest(date="20260428").to_arrow()
-//! tdx.flat_files.stock_trade(date="20260428").to_pandas()
-//! tdx.flatfile_to_path("OPTION", "QUOTE", "20260428",
+//! client.flat_files.option_quote(date="20260428").to_polars()
+//! client.flat_files.option_open_interest(date="20260428").to_arrow()
+//! client.flat_files.stock_trade(date="20260428").to_pandas()
+//! client.flatfile_to_path("OPTION", "QUOTE", "20260428",
 //!                      "/tmp/spy.csv", "csv")  # raw on-disk
 //! ```
 //!
@@ -177,12 +177,12 @@ impl FlatFileRowList {
 
 // ── FlatFilesNamespace ─────────────────────────────────────────────────
 
-/// Namespace handle returned by `tdx.flat_files`. Each method maps to
+/// Namespace handle returned by `client.flat_files`. Each method maps to
 /// one `(SecType, ReqType)` tuple and runs `flatfile_request_decoded`
 /// under the shared tokio runtime, yielding a [`FlatFileRowList`].
 #[pyclass(module = "thetadatadx", frozen, name = "FlatFilesNamespace")]
 pub struct FlatFilesNamespace {
-    pub(crate) tdx: Arc<thetadatadx::Client>,
+    pub(crate) client: Arc<thetadatadx::Client>,
 }
 
 impl FlatFilesNamespace {
@@ -193,10 +193,10 @@ impl FlatFilesNamespace {
         req: ReqType,
         date: &str,
     ) -> PyResult<FlatFileRowList> {
-        let tdx = Arc::clone(&self.tdx);
+        let client = Arc::clone(&self.client);
         let date_owned = date.to_string();
         let rows = run_blocking(py, async move {
-            tdx.flatfile_request_decoded(sec, req, &date_owned).await
+            client.flatfile_request_decoded(sec, req, &date_owned).await
         })?;
         Ok(FlatFileRowList { rows })
     }
@@ -289,12 +289,12 @@ impl crate::Client {
     /// Lazily constructed on each access. Internally clones the inner
     /// `Arc<thetadatadx::Client>` — no auth round-trip, no FPSS
     /// state mutation. Each call returns a fresh handle so that storing
-    /// `flat_files = tdx.flat_files` in user code is identical to
-    /// calling `tdx.flat_files.option_quote(...)` inline.
+    /// `flat_files = client.flat_files` in user code is identical to
+    /// calling `client.flat_files.option_quote(...)` inline.
     #[getter]
     fn flat_files(&self) -> FlatFilesNamespace {
         FlatFilesNamespace {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
         }
     }
 
@@ -320,11 +320,12 @@ impl crate::Client {
         let sec = parse_flatfile_sec_type(sec_type)?;
         let req = parse_flatfile_req_type(req_type)?;
         let fmt = parse_flatfile_format(format)?;
-        let tdx = Arc::clone(&self.tdx);
+        let client = Arc::clone(&self.client);
         let date_owned = date.to_string();
         let path_owned = std::path::PathBuf::from(path);
         let final_path = run_blocking(py, async move {
-            tdx.flatfile_request(sec, req, &date_owned, &path_owned, fmt)
+            client
+                .flatfile_request(sec, req, &date_owned, &path_owned, fmt)
                 .await
         })?;
         Ok(final_path.to_string_lossy().into_owned())

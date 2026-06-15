@@ -42,7 +42,7 @@ impl StreamView {
         let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.tdx
+        self.client
             .stream()
             .start_streaming(move |event: &fpss::StreamEvent| {
                 // Convert to the typed `StreamEvent` napi object on the
@@ -83,13 +83,13 @@ impl StreamView {
     /// Whether the streaming connection is active.
     #[napi(js_name = "isStreaming")]
     pub fn is_streaming(&self) -> bool {
-        self.tdx.stream().is_streaming()
+        self.client.stream().is_streaming()
     }
 
     /// Get a snapshot of currently active subscriptions.
     #[napi(js_name = "activeSubscriptions")]
     pub fn active_subscriptions(&self) -> napi::Result<serde_json::Value> {
-        self.tdx
+        self.client
             .stream()
             .active_subscriptions()
             .map(|subs| {
@@ -147,7 +147,7 @@ impl StreamView {
         };
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.tdx
+        self.client
             .stream()
             .reconnect_streaming(move |event: &fpss::StreamEvent| {
                 let buffered = fpss_event_to_buffered(event);
@@ -166,7 +166,7 @@ impl StreamView {
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
-        self.tdx.stream().stop_streaming();
+        self.client.stream().stop_streaming();
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -176,7 +176,7 @@ impl StreamView {
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
-        self.tdx.stream().stop_streaming();
+        self.client.stream().stop_streaming();
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -184,9 +184,9 @@ impl StreamView {
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
     #[napi(js_name = "awaitDrain")]
     pub async fn await_drain(&self, timeout_ms: u32) -> napi::Result<bool> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));
-        tokio::task::spawn_blocking(move || tdx.stream().await_drain(timeout))
+        tokio::task::spawn_blocking(move || client.stream().await_drain(timeout))
             .await
             .map_err(|e| napi::Error::from_reason(format!("await_drain task panicked: {e}")))
     }

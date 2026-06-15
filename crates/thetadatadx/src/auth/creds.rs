@@ -293,7 +293,8 @@ mod tests {
         // the expected shape. The value-check is the load-bearing
         // assertion — the zeroize wrapping is a source-level
         // contract verified by the `Zeroizing` type system.
-        let tmp = std::env::temp_dir().join(format!("tdx-creds-test-{}.txt", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("thetadatadx-creds-test-{}.txt", std::process::id()));
         {
             let mut f = std::fs::File::create(&tmp).expect("create tmp creds file");
             writeln!(f, "secret-user@example.com").unwrap();

@@ -1,7 +1,7 @@
 """
 Dropped-events counter accessibility test.
 
-Pins the contract that ``tdx.stream.dropped_event_count()`` is callable
+Pins the contract that ``client.stream.dropped_event_count()`` is callable
 across the streaming lifecycle (pre-start / post-start /
 post-reconnect / post-stop) and is non-negative everywhere.
 
@@ -43,7 +43,7 @@ import pytest
 
 
 @pytest.fixture
-def tdx():
+def client():
     """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
@@ -80,32 +80,32 @@ def _noop_callback(_event):
     """
 
 
-def test_dropped_event_count_callable_before_streaming(tdx):
+def test_dropped_event_count_callable_before_streaming(client):
     """The getter must be callable before `start_streaming(callback)`
     and return 0 -- the streaming slot is empty, so the wrapper
     forwards 0 from the unified client.
     """
-    count = tdx.stream.dropped_event_count()
+    count = client.stream.dropped_event_count()
     assert isinstance(count, int)
     assert count >= 0
     # Pre-stream, the FPSS client hasn't been spawned -- count is 0.
     assert count == 0
 
 
-def test_dropped_event_count_lifecycle_callable(tdx):
+def test_dropped_event_count_lifecycle_callable(client):
     """The counter must remain callable across the full lifecycle:
     pre-start / post-start / post-reconnect / post-stop. The value
     is non-negative everywhere; it is NOT monotone across reconnect
     because reconnect rebuilds the FPSS client and zeros the counter.
     Snapshot before reconnect if you need cross-session accumulation.
     """
-    tdx.stream.start_streaming(_noop_callback)
-    post_start = tdx.stream.dropped_event_count()
+    client.stream.start_streaming(_noop_callback)
+    post_start = client.stream.dropped_event_count()
     assert isinstance(post_start, int)
     assert post_start >= 0
 
-    tdx.stream.reconnect()
-    post_reconnect = tdx.stream.dropped_event_count()
+    client.stream.reconnect()
+    post_reconnect = client.stream.dropped_event_count()
     assert isinstance(post_reconnect, int)
     # Counter lives on the live FPSS client; reconnect calls
     # stop_streaming + start_streaming, which recreates the client
@@ -115,15 +115,15 @@ def test_dropped_event_count_lifecycle_callable(tdx):
     # explicitly do NOT promise.
     assert post_reconnect >= 0
 
-    tdx.stream.stop_streaming()
-    post_stop = tdx.stream.dropped_event_count()
+    client.stream.stop_streaming()
+    post_stop = client.stream.dropped_event_count()
     assert isinstance(post_stop, int)
     # After stop_streaming the streaming slot is empty; the getter
     # returns 0.
     assert post_stop >= 0
 
 
-def test_start_streaming_accepts_any_pyobject_at_registration_time(tdx):
+def test_start_streaming_accepts_any_pyobject_at_registration_time(client):
     """`start_streaming` does NOT validate that its argument is callable
     at registration time -- PyO3 accepts `Py<PyAny>` and the validity
     check (`PyAny::call1`) only fires on the consumer thread when an
@@ -138,14 +138,14 @@ def test_start_streaming_accepts_any_pyobject_at_registration_time(tdx):
     `test_non_callable_callback_panic_is_counted` below, which DOES
     use `pytest.raises`.)
     """
-    tdx.stream.start_streaming(42)
-    tdx.stream.stop_streaming()
+    client.stream.start_streaming(42)
+    client.stream.stop_streaming()
 
 
-def test_reconnect_without_callback_raises(tdx):
+def test_reconnect_without_callback_raises(client):
     """`reconnect()` requires a previously installed callback. The
     binding must surface a clear `RuntimeError` rather than silently
     starting a callback-less stream.
     """
     with pytest.raises(RuntimeError, match="no callback registered"):
-        tdx.stream.reconnect()
+        client.stream.reconnect()

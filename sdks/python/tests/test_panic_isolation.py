@@ -24,7 +24,7 @@ import time
 import pytest
 
 try:
-    import thetadatadx as tdx
+    import thetadatadx as client
 except ImportError:
     pytest.skip(
         "thetadatadx native extension not built — run `maturin develop` from sdks/python/",
@@ -42,10 +42,10 @@ class TestPanicCountApiSurface:
 
     def test_panic_count_present_on_fpss_client(self) -> None:
         """StreamingClient.panic_count() must exist and be callable."""
-        assert hasattr(tdx.StreamingClient, "panic_count"), (
+        assert hasattr(client.StreamingClient, "panic_count"), (
             "StreamingClient must expose panic_count()"
         )
-        assert callable(getattr(tdx.StreamingClient, "panic_count")), (
+        assert callable(getattr(client.StreamingClient, "panic_count")), (
             "StreamingClient.panic_count must be callable"
         )
 
@@ -53,13 +53,13 @@ class TestPanicCountApiSurface:
         """panic_count() lives on the `client.stream` StreamView, not on the
         unified Client directly: every streaming diagnostic is reached through
         the stream sub-namespace."""
-        assert hasattr(tdx.StreamView, "panic_count"), (
+        assert hasattr(client.StreamView, "panic_count"), (
             "StreamView must expose panic_count()"
         )
-        assert callable(getattr(tdx.StreamView, "panic_count")), (
+        assert callable(getattr(client.StreamView, "panic_count")), (
             "StreamView.panic_count must be callable"
         )
-        assert not hasattr(tdx.Client, "panic_count"), (
+        assert not hasattr(client.Client, "panic_count"), (
             "panic_count() must NOT be on the unified Client; it lives on "
             "client.stream (StreamView)"
         )
@@ -70,10 +70,10 @@ class TestPanicCountApiSurface:
         Runs in <100 ms with no network connection.  Confirms the binding
         exposes the method even when live tests are skipped.
         """
-        assert hasattr(tdx.StreamingClient, "panic_count"), (
+        assert hasattr(client.StreamingClient, "panic_count"), (
             "StreamingClient.panic_count missing from binding"
         )
-        assert callable(getattr(tdx.StreamingClient, "panic_count")), (
+        assert callable(getattr(client.StreamingClient, "panic_count")), (
             "StreamingClient.panic_count must be callable"
         )
 
@@ -89,9 +89,9 @@ class TestPanicCountApiSurface:
         if not os.path.exists(creds_file):
             pytest.skip("creds.txt not present; skipping live-credential test")
 
-        creds = tdx.Credentials.from_file(creds_file)
-        config = tdx.Config.production()
-        fpss = tdx.StreamingClient(creds, config)
+        creds = client.Credentials.from_file(creds_file)
+        config = client.Config.production()
+        fpss = client.StreamingClient(creds, config)
 
         count = fpss.panic_count()
         assert isinstance(count, int), (
@@ -115,9 +115,9 @@ def fpss_client():
         pytest.skip(
             "set THETADX_TEST_CREDS=path/to/creds.txt to enable live behavioral tests"
         )
-    creds = tdx.Credentials.from_file(creds_path)
-    config = tdx.Config.production()
-    client = tdx.StreamingClient(creds, config)
+    creds = client.Credentials.from_file(creds_path)
+    config = client.Config.production()
+    client = client.StreamingClient(creds, config)
     yield client
     try:
         client.stop_streaming()
@@ -131,7 +131,7 @@ class TestPanicIsolationBehavioral:
     """
 
     def test_exception_in_callback_increments_panic_count(
-        self, fpss_client: tdx.StreamingClient
+        self, fpss_client: client.StreamingClient
     ) -> None:
         """An exception raised on the first event increments panic_count()
         to 1, does not stop the dispatcher, and all subsequent events continue
@@ -196,7 +196,7 @@ class TestPanicIsolationBehavioral:
         )
 
     def test_non_callable_callback_panic_is_counted(
-        self, fpss_client: tdx.StreamingClient
+        self, fpss_client: client.StreamingClient
     ) -> None:
         """A non-callable callback argument causes a TypeError on the
         consumer thread when the first event arrives.  The binding catches that

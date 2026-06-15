@@ -1214,7 +1214,7 @@ include!("_generated/utility_functions.rs");
 ///     # ... events arrive on the dispatcher's drain thread ...
 ///     client.stream.stop_streaming()
 // `frozen` — every `#[pymethods]` entry on this pyclass takes
-// `&self` (never `&mut self`). The inner `tdx: Arc<...>` carries its
+// `&self` (never `&mut self`). The inner `client: Arc<...>` carries its
 // own mutex / atomic state for transient surfaces; the pyclass shell
 // is immutable from Rust's perspective, which lets PyO3 elide the
 // `RefCell` borrow-check overhead on every attribute / method
@@ -1247,7 +1247,7 @@ struct Client {
     /// `Drop` site without restructuring every accessor, so the
     /// invariant is enforced by documentation plus the explicit
     /// `stop_streaming(py)` path.
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
@@ -1274,7 +1274,7 @@ struct Client {
 /// stays a single generated source of truth.
 #[pyclass(frozen)]
 struct HistoricalView {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
 }
 
 /// User-facing real-time-streaming sub-namespace returned by
@@ -1287,7 +1287,7 @@ struct HistoricalView {
 /// `Arc::clone`s — no auth round-trip, no FPSS state mutation.
 #[pyclass(frozen)]
 struct StreamView {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     callback: Arc<Mutex<Option<Py<PyAny>>>>,
 }
 
@@ -1321,12 +1321,12 @@ impl Client {
         // takes effect when the first client in the process connects.
         runtime_from_config(&direct_config.runtime);
         let inner_creds = creds.inner.clone();
-        let tdx = run_blocking(py, async move {
+        let client = run_blocking(py, async move {
             thetadatadx::Client::connect(&inner_creds, direct_config).await
         })?;
 
         Ok(Self {
-            tdx: std::sync::Arc::new(tdx),
+            client: std::sync::Arc::new(client),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -1365,7 +1365,7 @@ impl Client {
     // one place to audit.
 
     fn __repr__(&self) -> String {
-        let streaming = if self.tdx.stream().is_streaming() {
+        let streaming = if self.client.stream().is_streaming() {
             "streaming=connected"
         } else {
             "streaming=none"
@@ -1382,7 +1382,7 @@ impl Client {
     #[getter]
     fn historical(&self) -> HistoricalView {
         HistoricalView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
         }
     }
 
@@ -1395,7 +1395,7 @@ impl Client {
     #[getter]
     fn stream(&self) -> StreamView {
         StreamView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
             callback: Arc::clone(&self.callback),
         }
     }
@@ -1426,7 +1426,7 @@ impl StreamView {
     /// should poll this on a periodic timer and emit a log on any
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
-        self.tdx.stream().dropped_event_count()
+        self.client.stream().dropped_event_count()
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1444,7 +1444,7 @@ impl StreamView {
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
-        self.tdx.stream().ring_occupancy()
+        self.client.stream().ring_occupancy()
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1456,7 +1456,7 @@ impl StreamView {
     /// :meth:`dropped_event_count`). Returns 0 before
     /// `start_streaming` and after `stop_streaming`.
     fn ring_capacity(&self) -> usize {
-        self.tdx.stream().ring_capacity()
+        self.client.stream().ring_capacity()
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1468,7 +1468,7 @@ impl StreamView {
     /// when no market data flows), so a steadily growing value is the
     /// earliest external signal of a dead or wedged connection.
     fn millis_since_last_event(&self) -> Option<u64> {
-        self.tdx.stream().millis_since_last_event()
+        self.client.stream().millis_since_last_event()
     }
 
     /// UNIX-nanosecond receive timestamp of the most recent inbound
@@ -1477,14 +1477,14 @@ impl StreamView {
     /// :meth:`millis_since_last_event`, exposed for callers
     /// correlating against their own pipeline timestamps.
     fn last_event_received_at_unix_nanos(&self) -> i64 {
-        self.tdx.stream().last_event_received_at_unix_nanos()
+        self.client.stream().last_event_received_at_unix_nanos()
     }
 
     /// Address (``host:port``) of the streaming server the current
     /// session is connected to, following the session across
     /// auto-reconnects. ``None`` when streaming has not started.
     fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.stream().last_connected_addr()
+        self.client.stream().last_connected_addr()
     }
 
     /// Snapshot of full-stream subscriptions (e.g.
@@ -1502,7 +1502,7 @@ impl StreamView {
     fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;
         use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-        self.tdx
+        self.client
             .stream()
             .active_full_subscriptions()
             .map(|subs| {
@@ -1532,7 +1532,7 @@ impl StreamView {
     /// [`crate::fpss_client::StreamingClient`] and the upstream
     /// [`thetadatadx::Client::panic_count`].
     fn panic_count(&self) -> u64 {
-        self.tdx.stream().panic_count()
+        self.client.stream().panic_count()
     }
 }
 
@@ -1565,7 +1565,7 @@ impl StreamView {
     /// ```
     fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.stream().subscribe(inner).map_err(to_py_err)
+        self.client.stream().subscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-subscribe a list / iterable of `Subscription` values.
@@ -1575,19 +1575,22 @@ impl StreamView {
     /// protocol does not support batched transactions).
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.stream().subscribe_many(list).map_err(to_py_err)
+        self.client.stream().subscribe_many(list).map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.stream().unsubscribe(inner).map_err(to_py_err)
+        self.client.stream().unsubscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
     fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.stream().unsubscribe_many(list).map_err(to_py_err)
+        self.client
+            .stream()
+            .unsubscribe_many(list)
+            .map_err(to_py_err)
     }
 }
 
@@ -1791,8 +1794,8 @@ struct AsyncClient {
 impl AsyncClient {
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let tdx = Py::new(py, Client::new(py, creds, config)?)?;
-        Ok(Self { inner: tdx })
+        let client = Py::new(py, Client::new(py, creds, config)?)?;
+        Ok(Self { inner: client })
     }
 
     /// Convenience constructor: `AsyncClient.from_file("creds.txt")`.
@@ -1810,8 +1813,8 @@ impl AsyncClient {
                 &owned_default
             }
         };
-        let tdx = Py::new(py, Client::new(py, &creds, cfg)?)?;
-        Ok(Self { inner: tdx })
+        let client = Py::new(py, Client::new(py, &creds, cfg)?)?;
+        Ok(Self { inner: client })
     }
 
     /// Forward attribute access to the wrapped `Client`.

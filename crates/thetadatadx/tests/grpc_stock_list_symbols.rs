@@ -153,11 +153,11 @@ async fn mid_stream_unauthenticated_classifies_as_grpc_unauthenticated() {
     // Pin the wire-status → typed-Error mapping here so a future
     // refactor of `From<ChannelError> for Error` cannot silently
     // re-route `16` to `Transport(_)` (which would skip refresh).
-    let tdx_err: thetadatadx::Error = ChannelError::Rpc {
+    let thetadatadx_err: thetadatadx::Error = ChannelError::Rpc {
         status: Status::new(16, "session expired"),
     }
     .into();
-    match tdx_err {
+    match thetadatadx_err {
         thetadatadx::Error::Grpc {
             kind: thetadatadx::error::GrpcStatusKind::Unauthenticated,
             ..

@@ -16,7 +16,7 @@
         };
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.tdx
+        self.client
             .stream()
             .reconnect_streaming(move |event: &fpss::StreamEvent| {
                 let buffered = fpss_event_to_buffered(event);

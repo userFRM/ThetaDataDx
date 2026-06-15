@@ -7,8 +7,8 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
 
     fn unknown_control_event() -> FfiBufferedEvent {
         FfiBufferedEvent {
-            event: TdxStreamEvent {
-                kind: TdxStreamEventKind::UnknownControl,
+            event: ThetaDataDxStreamEvent {
+                kind: ThetaDataDxStreamEventKind::UnknownControl,
                 unknown_control: ZERO_UNKNOWN_CONTROL,
                 market_value: ZERO_MARKET_VALUE,
                 ohlcvc: ZERO_OHLCVC,
@@ -58,7 +58,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
-            let tdx_contract = TdxContract {
+            let thetadatadx_contract = ThetaDataDxContract {
                 symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
@@ -69,10 +69,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxStreamEvent {
-                    kind: TdxStreamEventKind::MarketValue,
-                    market_value: TdxStreamMarketValue {
-                        contract: tdx_contract,
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::MarketValue,
+                    market_value: ThetaDataDxStreamMarketValue {
+                        contract: thetadatadx_contract,
                         ms_of_day: *ms_of_day,
                         market_bid: *market_bid,
                         market_ask: *market_ask,
@@ -130,7 +130,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
-            let tdx_contract = TdxContract {
+            let thetadatadx_contract = ThetaDataDxContract {
                 symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
@@ -141,10 +141,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxStreamEvent {
-                    kind: TdxStreamEventKind::Ohlcvc,
-                    ohlcvc: TdxStreamOhlcvc {
-                        contract: tdx_contract,
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::Ohlcvc,
+                    ohlcvc: ThetaDataDxStreamOhlcvc {
+                        contract: thetadatadx_contract,
                         ms_of_day: *ms_of_day,
                         open: *open,
                         high: *high,
@@ -200,7 +200,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
-            let tdx_contract = TdxContract {
+            let thetadatadx_contract = ThetaDataDxContract {
                 symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
@@ -211,10 +211,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxStreamEvent {
-                    kind: TdxStreamEventKind::OpenInterest,
-                    open_interest: TdxStreamOpenInterest {
-                        contract: tdx_contract,
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::OpenInterest,
+                    open_interest: ThetaDataDxStreamOpenInterest {
+                        contract: thetadatadx_contract,
                         ms_of_day: *ms_of_day,
                         open_interest: *open_interest,
                         date: *date,
@@ -272,7 +272,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
-            let tdx_contract = TdxContract {
+            let thetadatadx_contract = ThetaDataDxContract {
                 symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
@@ -283,10 +283,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxStreamEvent {
-                    kind: TdxStreamEventKind::Quote,
-                    quote: TdxStreamQuote {
-                        contract: tdx_contract,
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::Quote,
+                    quote: ThetaDataDxStreamQuote {
+                        contract: thetadatadx_contract,
                         ms_of_day: *ms_of_day,
                         bid_size: *bid_size,
                         bid_exchange: *bid_exchange,
@@ -356,7 +356,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
-            let tdx_contract = TdxContract {
+            let thetadatadx_contract = ThetaDataDxContract {
                 symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
@@ -367,10 +367,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxStreamEvent {
-                    kind: TdxStreamEventKind::Trade,
-                    trade: TdxStreamTrade {
-                        contract: tdx_contract,
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::Trade,
+                    trade: ThetaDataDxStreamTrade {
+                        contract: thetadatadx_contract,
                         ms_of_day: *ms_of_day,
                         sequence: *sequence,
                         ext_condition1: *ext_condition1,
@@ -420,9 +420,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
         StreamEvent::Control(ctrl) => match ctrl {
             StreamControl::Connected => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Connected,
-                        connected: TdxStreamConnected {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Connected,
+                        connected: ThetaDataDxStreamConnected {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -462,7 +462,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let contract_symbol_ptr = contract_symbol_cstring
                     .as_ref()
                     .map_or(ptr::null(), |cs| cs.as_ptr());
-                let tdx_contract = TdxContract {
+                let thetadatadx_contract = ThetaDataDxContract {
                     symbol: contract_symbol_ptr,
                     sec_type: contract.sec_type as i32,
                     has_expiration: contract.expiration.is_some(),
@@ -473,11 +473,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     strike: contract.strike_dollars().unwrap_or(0.0),
                 };
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ContractAssigned,
-                        contract_assigned: TdxStreamContractAssigned {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ContractAssigned,
+                        contract_assigned: ThetaDataDxStreamContractAssigned {
                             id: *id,
-                            contract: tdx_contract,
+                            contract: thetadatadx_contract,
                         },
                         market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
@@ -509,9 +509,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::Disconnected { reason } => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Disconnected,
-                        disconnected: TdxStreamDisconnected {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Disconnected,
+                        disconnected: ThetaDataDxStreamDisconnected {
                             reason: *reason as i32,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -546,9 +546,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let cstring_owned = std::ffi::CString::new(permissions.as_str()).ok();
                 let permissions_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::LoginSuccess,
-                        login_success: TdxStreamLoginSuccess {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::LoginSuccess,
+                        login_success: ThetaDataDxStreamLoginSuccess {
                             permissions: permissions_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -581,9 +581,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::MarketClose => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::MarketClose,
-                        market_close: TdxStreamMarketClose {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::MarketClose,
+                        market_close: ThetaDataDxStreamMarketClose {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -616,9 +616,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::MarketOpen => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::MarketOpen,
-                        market_open: TdxStreamMarketOpen {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::MarketOpen,
+                        market_open: ThetaDataDxStreamMarketOpen {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -653,9 +653,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ParseError,
-                        parse_error: TdxStreamParseError {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ParseError,
+                        parse_error: ThetaDataDxStreamParseError {
                             message: message_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -691,9 +691,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let payload_ptr = bytes_owned.as_ptr();
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Ping,
-                        ping: TdxStreamPing {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Ping,
+                        ping: ThetaDataDxStreamPing {
                             payload: payload_ptr,
                             payload_len: payload_len_val,
                         },
@@ -727,9 +727,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::Reconnected => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Reconnected,
-                        reconnected: TdxStreamReconnected {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Reconnected,
+                        reconnected: ThetaDataDxStreamReconnected {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -762,9 +762,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::ReconnectedServer => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ReconnectedServer,
-                        reconnected_server: TdxStreamReconnectedServer {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ReconnectedServer,
+                        reconnected_server: ThetaDataDxStreamReconnectedServer {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -797,9 +797,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::Reconnecting { reason, attempt, delay_ms } => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Reconnecting,
-                        reconnecting: TdxStreamReconnecting {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Reconnecting,
+                        reconnecting: ThetaDataDxStreamReconnecting {
                             reason: *reason as i32,
                             attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                             delay_ms: *delay_ms,
@@ -834,9 +834,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::ReconnectsExhausted { reason, attempts } => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ReconnectsExhausted,
-                        reconnects_exhausted: TdxStreamReconnectsExhausted {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ReconnectsExhausted,
+                        reconnects_exhausted: ThetaDataDxStreamReconnectsExhausted {
                             reason: *reason as i32,
                             attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                         },
@@ -870,9 +870,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::ReqResponse { req_id, result } => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ReqResponse,
-                        req_response: TdxStreamReqResponse {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ReqResponse,
+                        req_response: ThetaDataDxStreamReqResponse {
                             req_id: *req_id,
                             result: *result as i32,
                         },
@@ -906,9 +906,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::Restart => {
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::Restart,
-                        restart: TdxStreamRestart {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::Restart,
+                        restart: ThetaDataDxStreamRestart {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -943,9 +943,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::ServerError,
-                        server_error: TdxStreamServerError {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::ServerError,
+                        server_error: ThetaDataDxStreamServerError {
                             message: message_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -981,9 +981,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let payload_ptr = bytes_owned.as_ptr();
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
-                    event: TdxStreamEvent {
-                        kind: TdxStreamEventKind::UnknownFrame,
-                        unknown_frame: TdxStreamUnknownFrame {
+                    event: ThetaDataDxStreamEvent {
+                        kind: ThetaDataDxStreamEventKind::UnknownFrame,
+                        unknown_frame: ThetaDataDxStreamUnknownFrame {
                             code: *code,
                             payload: payload_ptr,
                             payload_len: payload_len_val,

@@ -32,7 +32,7 @@ bool looks_like_arrow_ipc_stream(const std::vector<uint8_t>& bytes) {
 
 TEST_CASE("eod_ticks_to_arrow_ipc serialises a populated vector", "[arrow][offline]") {
     std::vector<thetadatadx::EodTick> rows;
-    TdxEodTick a{};
+    ThetaDataDxEodTick a{};
     a.open = 1.0;
     a.high = 2.0;
     a.low = 0.5;
@@ -40,7 +40,7 @@ TEST_CASE("eod_ticks_to_arrow_ipc serialises a populated vector", "[arrow][offli
     a.volume = 1000;
     a.date = 20260115;
     rows.push_back(a);
-    TdxEodTick b{};
+    ThetaDataDxEodTick b{};
     b.open = 1.5;
     b.close = 1.7;
     b.volume = 2000;

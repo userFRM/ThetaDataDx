@@ -143,7 +143,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
     for type_name in sorted_type_names(schema) {
         if type_name == "OptionContract" {
             // OptionContract carries a heap-allocated root string; the C
-            // mirror is hand-written (TdxOptionContract) and the FFI never
+            // mirror is hand-written (ThetaDataDxOptionContract) and the FFI never
             // ships an `OptionContract` array as a `#[repr(C)]` slice over
             // the boundary. Layout asserts therefore only cover columnar
             // tick structs.

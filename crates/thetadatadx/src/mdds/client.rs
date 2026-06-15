@@ -39,9 +39,9 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// # async fn run() -> Result<(), thetadatadx::Error> {
 /// let creds = Credentials::from_file("creds.txt")?;
-/// let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+/// let client = Client::connect(&creds, DirectConfig::production()).await?;
 ///
-/// let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+/// let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }

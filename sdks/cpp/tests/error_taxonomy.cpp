@@ -126,7 +126,7 @@ TEST_CASE("classify_grpc_kind routes every canonical gRPC status to the right le
           "[errors][offline]") {
     // Dispatch table test for `thetadatadx::detail::throw_for_grpc_kind` —
     // the seam every generated FFI wrapper hits when
-    // `tdx_get_last_error_code()` returns a typed discriminant. The
+    // `thetadatadx_get_last_error_code()` returns a typed discriminant. The
     // routing must match the Python leaf set one-for-one so a Python
     // user porting `except thetadatadx.SubscriptionError` to C++
     // gets `catch (const thetadatadx::SubscriptionError&)` and the same

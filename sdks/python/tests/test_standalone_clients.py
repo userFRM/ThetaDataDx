@@ -6,7 +6,7 @@ Pins the contract that:
   opens NEITHER the MDDS gRPC channel NOR a Nexus HTTP session at
   construction time. The FPSS TLS connection itself is deferred to
   the first ``start_streaming*`` call, matching the standalone C ABI
-  (``tdx_fpss_connect`` allocates, ``tdx_fpss_set_callback`` opens
+  (``thetadatadx_fpss_connect`` allocates, ``thetadatadx_fpss_set_callback`` opens
   the network).
 * ``HistoricalClient(creds, config)`` opens ONLY the MDDS gRPC channel
   plus the Nexus HTTP authentication. It exposes the historical /
@@ -24,7 +24,7 @@ This file does NOT change Nexus session behaviour. The standalone
 ``StreamingClient`` never authenticates against Nexus (FPSS speaks its
 own protocol-level ``CREDENTIALS`` handshake on the TLS connection
 itself; see ``crates/thetadatadx/src/fpss/mod.rs`` and
-``ffi/src/streaming.rs::tdx_fpss_connect``). The standalone
+``ffi/src/streaming.rs::thetadatadx_fpss_connect``). The standalone
 ``HistoricalClient`` authenticates against Nexus exactly once at
 construction time. Running both side-by-side in the same process
 authenticates Nexus once (via the MDDS surface) and never again

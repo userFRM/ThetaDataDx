@@ -18,7 +18,7 @@
 /articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
 /changelog — Changelog
-/cli — CLI: Query any endpoint from the command line with the tdx binary.
+/cli — CLI: Query any endpoint from the command line with the thetadatadx binary.
 /examples/ — Query Builder: Build a working SDK snippet interactively — pick data type, asset, parameters, and language.
 /examples/at-time — Quotes At a Time of Day: Sample the same wall-clock moment across a date range in one request.
 /examples/bulk-backfill — Bulk Backfill: Pull months of tick data with bounded memory and full tier concurrency.

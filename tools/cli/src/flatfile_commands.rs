@@ -1,6 +1,6 @@
-//! Hand-written `tdx flatfile` subcommand surface.
+//! Hand-written `thetadatadx flatfile` subcommand surface.
 //!
-//! Wires `tdx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
+//! Wires `thetadatadx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
 //! to `thetadatadx::Client::flatfile_request`. Output goes to the
 //! path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
 //! are streamed to stdout via `std::io::copy` from the file just written
@@ -182,7 +182,7 @@ fn parse_req_type(s: &str) -> Result<ReqType, thetadatadx::Error> {
     }
 }
 
-/// Dispatch a parsed `tdx flatfile <sub>` invocation. Returns `Ok(true)`
+/// Dispatch a parsed `thetadatadx flatfile <sub>` invocation. Returns `Ok(true)`
 /// when the subcommand was a `flatfile` subcommand (handled here);
 /// `Ok(false)` lets the caller fall through to the registry-driven
 /// dispatch in `main::run`.
@@ -205,7 +205,7 @@ pub(crate) async fn try_dispatch(
         None => {
             return Err(thetadatadx::Error::config_invalid(
                 "flatfile",
-                "missing flatfile sub-subcommand (try `tdx flatfile --help`)",
+                "missing flatfile sub-subcommand (try `thetadatadx flatfile --help`)",
             ));
         }
     };
@@ -260,7 +260,7 @@ pub(crate) async fn try_dispatch(
         Some(p) => (std::path::PathBuf::from(p), false),
         None => {
             let tmp = std::env::temp_dir().join(format!(
-                "tdx_flatfile_{}_{}_{date}.{}",
+                "thetadatadx_flatfile_{}_{}_{date}.{}",
                 sec_type,
                 req_type as u32,
                 format.extension(),
@@ -293,7 +293,7 @@ pub(crate) async fn try_dispatch(
         let _ = std::fs::remove_file(&written);
     } else {
         // Echo the written path to stderr so scripts capturing stdout
-        // (e.g. `tdx flatfile quotes ... -o foo.csv`) still see "where
+        // (e.g. `thetadatadx flatfile quotes ... -o foo.csv`) still see "where
         // it landed" without polluting the data stream.
         eprintln!("wrote {}", written.display());
     }

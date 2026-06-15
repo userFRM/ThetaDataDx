@@ -3,8 +3,8 @@
 //! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus HTTP
 //! authentication, no historical / Treasury / Calendar surface. Mirrors
 //! the Python `StreamingClient` (`sdks/python/src/fpss_client.rs`), the C++
-//! `tdx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`), and the standalone
-//! C ABI entry points (`tdx_fpss_*` in `ffi/src/streaming.rs`), letting a
+//! `thetadatadx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`), and the standalone
+//! C ABI entry points (`thetadatadx_fpss_*` in `ffi/src/streaming.rs`), letting a
 //! Node.js caller run an FPSS-only session alongside an externally
 //! managed MDDS process without the bundled
 //! [`crate::Client`] preempting the parallel MDDS work at the
@@ -246,7 +246,7 @@ impl StreamingClient {
 
         let dispatcher_client = Arc::clone(&client_arc);
         let dispatcher = std::thread::Builder::new()
-            .name("tdx-ts-fpss-dispatcher".into())
+            .name("thetadatadx-ts-fpss-dispatcher".into())
             .spawn(move || {
                 // `for_each_scoped` drives `poll_batch`, which wraps each
                 // callback invocation in its own `catch_unwind`; a panic in
@@ -310,8 +310,8 @@ impl StreamingClient {
     // Lifecycle: intentionally hand-written. The connect factories snapshot
     // the connect parameters but do NOT open the FPSS TLS connection —
     // connection is deferred to the first `startStreaming` call, matching
-    // the C ABI's deferred-connect contract (`tdx_fpss_connect` allocates
-    // the handle, `tdx_fpss_set_callback` opens the network) so the same
+    // the C ABI's deferred-connect contract (`thetadatadx_fpss_connect` allocates
+    // the handle, `thetadatadx_fpss_set_callback` opens the network) so the same
     // observable behaviour applies across every binding. No MDDS channel is
     // opened and no Nexus request is issued by any factory.
 

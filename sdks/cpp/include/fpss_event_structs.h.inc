@@ -7,7 +7,7 @@
 
 /* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.
 * Check `event.kind` then read the matching `event.<variant>` field on
-* `TdxStreamEvent`. Values are stable across the v9.x C ABI but may
+* `ThetaDataDxStreamEvent`. Values are stable across the v9.x C ABI but may
 * renumber on a future major bump. */
 typedef enum {
     TDX_FPSS_CONNECTED = 0,
@@ -32,7 +32,7 @@ typedef enum {
     TDX_FPSS_TRADE = 19,
     TDX_FPSS_UNKNOWN_CONTROL = 20,
     TDX_FPSS_UNKNOWN_FRAME = 21,
-} TdxStreamEventKind;
+} ThetaDataDxStreamEventKind;
 
 /* FPSS Contract shared across every data event. `symbol` is a
 * NUL-terminated C string (may be null when not yet resolved);
@@ -40,7 +40,7 @@ typedef enum {
 * Option<T>. `right` is `'C'` / `'P'` (NUL when `has_right` is false)
 * and `strike` is the option strike in dollars — the same notation
 * the public option builder takes. Layout is byte-identical to Rust's
-* #[repr(C)] TdxContract.
+* #[repr(C)] ThetaDataDxContract.
 */
 typedef struct {
 const char *symbol;
@@ -51,22 +51,22 @@ bool has_right;
 char right;
 bool has_strike;
 double strike;
-} TdxContract;
+} ThetaDataDxContract;
 
 /* FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
 typedef struct {
-    TdxContract contract;
+    ThetaDataDxContract contract;
     int32_t ms_of_day;
     double market_bid;
     double market_ask;
     double market_price;
     int32_t date;
     uint64_t received_at_ns;
-} TdxStreamMarketValue;
+} ThetaDataDxStreamMarketValue;
 
 /* FPSS OHLCVC bar. */
 typedef struct {
-    TdxContract contract;
+    ThetaDataDxContract contract;
     int32_t ms_of_day;
     double open;
     double high;
@@ -76,20 +76,20 @@ typedef struct {
     int64_t count;
     int32_t date;
     uint64_t received_at_ns;
-} TdxStreamOhlcvc;
+} ThetaDataDxStreamOhlcvc;
 
 /* FPSS OpenInterest tick. */
 typedef struct {
-    TdxContract contract;
+    ThetaDataDxContract contract;
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
     uint64_t received_at_ns;
-} TdxStreamOpenInterest;
+} ThetaDataDxStreamOpenInterest;
 
 /* FPSS Quote tick. */
 typedef struct {
-    TdxContract contract;
+    ThetaDataDxContract contract;
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -101,11 +101,11 @@ typedef struct {
     int32_t ask_condition;
     int32_t date;
     uint64_t received_at_ns;
-} TdxStreamQuote;
+} ThetaDataDxStreamQuote;
 
 /* FPSS Trade tick. */
 typedef struct {
-    TdxContract contract;
+    ThetaDataDxContract contract;
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -122,133 +122,133 @@ typedef struct {
     int32_t records_back;
     int32_t date;
     uint64_t received_at_ns;
-} TdxStreamTrade;
+} ThetaDataDxStreamTrade;
 
 /* FPSS server connection ack (wire code 4). Carries no payload. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamConnected;
+} ThetaDataDxStreamConnected;
 
 /* FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options). */
 typedef struct {
     int32_t id;
-    TdxContract contract;
-} TdxStreamContractAssigned;
+    ThetaDataDxContract contract;
+} ThetaDataDxStreamContractAssigned;
 
 /* FPSS server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name. */
 typedef struct {
     int32_t reason;
-} TdxStreamDisconnected;
+} ThetaDataDxStreamDisconnected;
 
 /* FPSS login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers. */
 typedef struct {
     const char * permissions;
-} TdxStreamLoginSuccess;
+} ThetaDataDxStreamLoginSuccess;
 
 /* FPSS market-close signal (wire code 32). Carries no payload. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamMarketClose;
+} ThetaDataDxStreamMarketClose;
 
 /* FPSS market-open signal (wire code 30). Carries no payload. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamMarketOpen;
+} ThetaDataDxStreamMarketOpen;
 
 /* FPSS protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`). */
 typedef struct {
     const char * message;
-} TdxStreamParseError;
+} ThetaDataDxStreamParseError;
 
 /* FPSS server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
 typedef struct {
     const uint8_t *payload;
     size_t payload_len;
-} TdxStreamPing;
+} ThetaDataDxStreamPing;
 
 /* FPSS auto-reconnect succeeded — connection is live again. Carries no payload. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamReconnected;
+} ThetaDataDxStreamReconnected;
 
 /* FPSS server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamReconnectedServer;
+} ThetaDataDxStreamReconnectedServer;
 
 /* FPSS auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. */
 typedef struct {
     int32_t reason;
     int32_t attempt;
     uint64_t delay_ms;
-} TdxStreamReconnecting;
+} ThetaDataDxStreamReconnecting;
 
 /* FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
 typedef struct {
     int32_t reason;
     int32_t attempts;
-} TdxStreamReconnectsExhausted;
+} ThetaDataDxStreamReconnectsExhausted;
 
 /* FPSS subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
 typedef struct {
     int32_t req_id;
     int32_t result;
-} TdxStreamReqResponse;
+} ThetaDataDxStreamReqResponse;
 
 /* FPSS server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamRestart;
+} ThetaDataDxStreamRestart;
 
 /* FPSS server-error message (wire code 11). */
 typedef struct {
     const char * message;
-} TdxStreamServerError;
+} ThetaDataDxStreamServerError;
 
 /* FPSS control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
 typedef struct {
     /* Placeholder so the struct has portable size 1. */
     uint8_t _padding;
-} TdxStreamUnknownControl;
+} ThetaDataDxStreamUnknownControl;
 
 /* FPSS server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports. */
 typedef struct {
     uint8_t code;
     const uint8_t *payload;
     size_t payload_len;
-} TdxStreamUnknownFrame;
+} ThetaDataDxStreamUnknownFrame;
 
 /* Tagged FPSS event. Read `kind` first, then access only the
  * matching `event.<variant>` field. Per-variant control payloads
  * mirror the Rust `StreamControl::*` enum one-for-one. */
 typedef struct {
-    TdxStreamEventKind kind;
-    TdxStreamMarketValue market_value;
-    TdxStreamOhlcvc ohlcvc;
-    TdxStreamOpenInterest open_interest;
-    TdxStreamQuote quote;
-    TdxStreamTrade trade;
-    TdxStreamConnected connected;
-    TdxStreamContractAssigned contract_assigned;
-    TdxStreamDisconnected disconnected;
-    TdxStreamLoginSuccess login_success;
-    TdxStreamMarketClose market_close;
-    TdxStreamMarketOpen market_open;
-    TdxStreamParseError parse_error;
-    TdxStreamPing ping;
-    TdxStreamReconnected reconnected;
-    TdxStreamReconnectedServer reconnected_server;
-    TdxStreamReconnecting reconnecting;
-    TdxStreamReconnectsExhausted reconnects_exhausted;
-    TdxStreamReqResponse req_response;
-    TdxStreamRestart restart;
-    TdxStreamServerError server_error;
-    TdxStreamUnknownControl unknown_control;
-    TdxStreamUnknownFrame unknown_frame;
-} TdxStreamEvent;
+    ThetaDataDxStreamEventKind kind;
+    ThetaDataDxStreamMarketValue market_value;
+    ThetaDataDxStreamOhlcvc ohlcvc;
+    ThetaDataDxStreamOpenInterest open_interest;
+    ThetaDataDxStreamQuote quote;
+    ThetaDataDxStreamTrade trade;
+    ThetaDataDxStreamConnected connected;
+    ThetaDataDxStreamContractAssigned contract_assigned;
+    ThetaDataDxStreamDisconnected disconnected;
+    ThetaDataDxStreamLoginSuccess login_success;
+    ThetaDataDxStreamMarketClose market_close;
+    ThetaDataDxStreamMarketOpen market_open;
+    ThetaDataDxStreamParseError parse_error;
+    ThetaDataDxStreamPing ping;
+    ThetaDataDxStreamReconnected reconnected;
+    ThetaDataDxStreamReconnectedServer reconnected_server;
+    ThetaDataDxStreamReconnecting reconnecting;
+    ThetaDataDxStreamReconnectsExhausted reconnects_exhausted;
+    ThetaDataDxStreamReqResponse req_response;
+    ThetaDataDxStreamRestart restart;
+    ThetaDataDxStreamServerError server_error;
+    ThetaDataDxStreamUnknownControl unknown_control;
+    ThetaDataDxStreamUnknownFrame unknown_frame;
+} ThetaDataDxStreamEvent;

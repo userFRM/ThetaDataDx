@@ -259,7 +259,7 @@ def test_orphan_rust_field_trips(tmpdir: pathlib.Path) -> None:
 
 
 def test_explicit_widened_abi_accepted() -> None:
-    """FFI emits `tdx_config_set_worker_threads_explicit` for the
+    """FFI emits `thetadatadx_config_set_worker_threads_explicit` for the
     widened `(has_value, n)` ABI shape; the parity row uses the bare
     public `worker_threads` name. The gate must accept the `_explicit`
     suffix as equivalent.

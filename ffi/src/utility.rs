@@ -6,7 +6,7 @@
 use std::os::raw::c_char;
 
 use crate::error::set_error;
-use crate::streaming::TdxContract;
+use crate::streaming::ThetaDataDxContract;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Greeks (standalone, not client methods)
@@ -14,7 +14,7 @@ use crate::streaming::TdxContract;
 
 /// All 23 Black-Scholes Greeks + IV as a typed C struct.
 #[repr(C)]
-pub struct TdxGreeksResult {
+pub struct ThetaDataDxGreeksResult {
     /// Black-Scholes theoretical option value.
     pub value: f64,
     /// First derivative of value in spot.
@@ -67,16 +67,16 @@ pub struct TdxGreeksResult {
 ///
 /// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
 /// the `thetadatadx::greeks::parse_right` canonical parser). Returns a heap-allocated
-/// `TdxGreeksResult`, or null on error (invalid UTF-8 / unrecognised right /
+/// `ThetaDataDxGreeksResult`, or null on error (invalid UTF-8 / unrecognised right /
 /// resolves to `both`). Caller must free the result with
-/// `tdx_greeks_result_free`.
+/// `thetadatadx_greeks_result_free`.
 ///
 /// # Safety
 ///
 /// `right` must be a valid NUL-terminated C string pointer (or null, which
 /// returns null with an error set).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_all_greeks(
+pub unsafe extern "C" fn thetadatadx_all_greeks(
     spot: f64,
     strike: f64,
     rate: f64,
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
     tte: f64,
     option_price: f64,
     right: *const c_char,
-) -> *mut TdxGreeksResult {
+) -> *mut ThetaDataDxGreeksResult {
     ffi_boundary!(std::ptr::null_mut(), {
         let right_str = require_cstr!(right, std::ptr::null_mut());
         let g = match thetadatadx::greeks::all_greeks(
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
                 return std::ptr::null_mut();
             }
         };
-        let result = TdxGreeksResult {
+        let result = ThetaDataDxGreeksResult {
             value: g.value,
             delta: g.delta,
             gamma: g.gamma,
@@ -131,12 +131,12 @@ pub unsafe extern "C" fn tdx_all_greeks(
     })
 }
 
-/// Free a `TdxGreeksResult` returned by `tdx_all_greeks`.
+/// Free a `ThetaDataDxGreeksResult` returned by `thetadatadx_all_greeks`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
+pub unsafe extern "C" fn thetadatadx_greeks_result_free(ptr: *mut ThetaDataDxGreeksResult) {
     ffi_boundary!((), {
         if !ptr.is_null() {
-            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
+            // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(ptr) });
         }
     })
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
 /// `right` must be a valid NUL-terminated C string pointer. `out_iv` and
 /// `out_error` must be valid, writable `double` pointers.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_implied_volatility(
+pub unsafe extern "C" fn thetadatadx_implied_volatility(
     spot: f64,
     strike: f64,
     rate: f64,
@@ -206,7 +206,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 //  predicates and integer accessors for trade-sequence math.
 // ═══════════════════════════════════════════════════════════════════════
 
-// every `tdx_condition_*` / `tdx_exchange_*` / `tdx_quote_condition_*`
+// every `thetadatadx_condition_*` / `thetadatadx_exchange_*` / `thetadatadx_quote_condition_*`
 // entry point wraps its body in `ffi_boundary!` so a panic in the
 // condition / exchange lookup tables (debug-build invariant trips,
 // etc.) or in `static_cstr` (cache mutex contention, allocator OOM) cannot abort
@@ -223,9 +223,9 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 /// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
 /// owned by the library and MUST NOT be freed. Returns the literal
 /// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
-/// boundary catches a panic — surfaced through `tdx_last_error()`.
+/// boundary catches a panic — surfaced through `thetadatadx_last_error()`.
 #[no_mangle]
-pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::condition_name(code))
     })
@@ -237,7 +237,7 @@ pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
 /// unknown codes). The pointer is owned by the library and MUST NOT be
 /// freed. Returns `NULL` if the boundary catches a panic.
 #[no_mangle]
-pub extern "C" fn tdx_condition_description(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::condition_description(code))
     })
@@ -245,13 +245,13 @@ pub extern "C" fn tdx_condition_description(code: i32) -> *const c_char {
 
 /// True if the trade condition code represents a cancellation.
 #[no_mangle]
-pub extern "C" fn tdx_condition_is_cancel(code: i32) -> bool {
+pub extern "C" fn thetadatadx_condition_is_cancel(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_cancel(code) })
 }
 
 /// True if the trade condition code updates the volume bar.
 #[no_mangle]
-pub extern "C" fn tdx_condition_updates_volume(code: i32) -> bool {
+pub extern "C" fn thetadatadx_condition_updates_volume(code: i32) -> bool {
     ffi_boundary!(false, {
         thetadatadx::utils::conditions::updates_volume(code)
     })
@@ -259,7 +259,7 @@ pub extern "C" fn tdx_condition_updates_volume(code: i32) -> bool {
 
 /// Look up the human-readable quote condition name for `code`.
 #[no_mangle]
-pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_quote_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::quote_condition_name(code))
     })
@@ -267,7 +267,7 @@ pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
 
 /// Look up the human-readable quote condition description for `code`.
 #[no_mangle]
-pub extern "C" fn tdx_quote_condition_description(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_quote_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::quote_condition_description(
             code,
@@ -277,19 +277,19 @@ pub extern "C" fn tdx_quote_condition_description(code: i32) -> *const c_char {
 
 /// True if the quote condition is firm (binding).
 #[no_mangle]
-pub extern "C" fn tdx_quote_condition_is_firm(code: i32) -> bool {
+pub extern "C" fn thetadatadx_quote_condition_is_firm(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_firm(code) })
 }
 
 /// True if the quote condition indicates a trading halt.
 #[no_mangle]
-pub extern "C" fn tdx_quote_condition_is_halted(code: i32) -> bool {
+pub extern "C" fn thetadatadx_quote_condition_is_halted(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_halted(code) })
 }
 
 /// Look up the human-readable exchange name for a numeric code.
 #[no_mangle]
-pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_exchange_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::exchange::exchange_name(code))
     })
@@ -297,7 +297,7 @@ pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
 
 /// Look up the MIC-like symbol for a numeric exchange code.
 #[no_mangle]
-pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_exchange_symbol(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::exchange::exchange_symbol(code))
     })
@@ -311,8 +311,8 @@ pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
 /// trade sequences as i32, so a value outside that domain is not a wire
 /// sequence and would otherwise be silently reinterpreted into a
 /// look-correct-but-wrong id. Writes the converted value to `out` and
-/// returns `0` on success; returns `-1` and sets `tdx_last_error` /
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `signed` is
+/// returns `0` on success; returns `-1` and sets `thetadatadx_last_error` /
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `signed` is
 /// outside the wire range or `out` is null, matching the typed class the
 /// Python / TypeScript bindings raise for the same input.
 ///
@@ -320,11 +320,14 @@ pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
 /// `out` must be a valid, non-null pointer to a `uint64_t` the caller
 /// keeps alive for the call duration.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut u64) -> i32 {
+pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
+    signed: i64,
+    out: *mut u64,
+) -> i32 {
     ffi_boundary!(-1, {
         if out.is_null() {
             crate::error::set_error_with_code(
-                "tdx_sequence_signed_to_unsigned: out pointer is null",
+                "thetadatadx_sequence_signed_to_unsigned: out pointer is null",
                 crate::error::TDX_ERR_INVALID_PARAMETER,
             );
             return -1;
@@ -335,7 +338,7 @@ pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut 
         {
             crate::error::set_error_with_code(
                 &format!(
-                    "tdx_sequence_signed_to_unsigned: {signed} is outside the i32 wire range (-2_147_483_648 ..= 2_147_483_647)"
+                    "thetadatadx_sequence_signed_to_unsigned: {signed} is outside the i32 wire range (-2_147_483_648 ..= 2_147_483_647)"
                 ),
                 crate::error::TDX_ERR_INVALID_PARAMETER,
             );
@@ -357,8 +360,8 @@ pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut 
 /// the monotonic sequence id is never wider than one i32 cycle, so a
 /// value above that domain is not a wire sequence and would otherwise be
 /// silently reinterpreted. Writes the converted value to `out` and
-/// returns `0` on success; returns `-1` and sets `tdx_last_error` /
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `unsigned` is
+/// returns `0` on success; returns `-1` and sets `thetadatadx_last_error` /
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `unsigned` is
 /// above the wire range or `out` is null, matching the typed class the
 /// Python / TypeScript bindings raise for the same input.
 ///
@@ -366,11 +369,14 @@ pub unsafe extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64, out: *mut 
 /// `out` must be a valid, non-null pointer to an `int64_t` the caller
 /// keeps alive for the call duration.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mut i64) -> i32 {
+pub unsafe extern "C" fn thetadatadx_sequence_unsigned_to_signed(
+    unsigned: u64,
+    out: *mut i64,
+) -> i32 {
     ffi_boundary!(-1, {
         if out.is_null() {
             crate::error::set_error_with_code(
-                "tdx_sequence_unsigned_to_signed: out pointer is null",
+                "thetadatadx_sequence_unsigned_to_signed: out pointer is null",
                 crate::error::TDX_ERR_INVALID_PARAMETER,
             );
             return -1;
@@ -378,7 +384,7 @@ pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mu
         if unsigned > u64::from(u32::MAX) {
             crate::error::set_error_with_code(
                 &format!(
-                    "tdx_sequence_unsigned_to_signed: {unsigned} is above the unsigned wire range (0 ..= 2^32 - 1)"
+                    "thetadatadx_sequence_unsigned_to_signed: {unsigned} is above the unsigned wire range (0 ..= 2^32 - 1)"
                 ),
                 crate::error::TDX_ERR_INVALID_PARAMETER,
             );
@@ -393,16 +399,16 @@ pub unsafe extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64, out: *mu
     })
 }
 
-/// Look up the vendor vocabulary text for a `TdxCalendarDay.status`
+/// Look up the vendor vocabulary text for a `ThetaDataDxCalendarDay.status`
 /// code (`0` -> `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`,
 /// `3` -> `"weekend"`).
 ///
 /// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
 /// owned by the library and MUST NOT be freed. Returns the literal
 /// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
-/// boundary catches a panic — surfaced through `tdx_last_error()`.
+/// boundary catches a panic — surfaced through `thetadatadx_last_error()`.
 #[no_mangle]
-pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
+pub extern "C" fn thetadatadx_calendar_status_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(
             thetadatadx::CalendarStatus::from_code(code)
@@ -421,15 +427,15 @@ pub extern "C" fn tdx_calendar_status_name(code: i32) -> *const c_char {
 /// `0..86_400_000` — `-1` is unreachable for real market data (it
 /// denotes 1969-12-31T23:59:59.999Z).
 #[no_mangle]
-pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
+pub extern "C" fn thetadatadx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
     ffi_boundary!(-1, {
         thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
     })
 }
 
-/// Read the option strike of a streaming `TdxContract` in dollars, folding
+/// Read the option strike of a streaming `ThetaDataDxContract` in dollars, folding
 /// the `has_strike` presence flag into the return value. Mirrors the C++
-/// `tdx::strike(const TdxContract&)` accessor and the Python / TypeScript
+/// `thetadatadx::strike(const ThetaDataDxContract&)` accessor and the Python / TypeScript
 /// `contract.strike` surface, which return an absent value for non-option
 /// contracts rather than a bare `0.0` the caller must special-case.
 ///
@@ -440,12 +446,12 @@ pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
 /// otherwise (non-option, or a null contract / output pointer).
 ///
 /// # Safety
-/// `contract` must be a valid `TdxContract` pointer (e.g. the
-/// `event.<variant>.contract` field of a `TdxStreamEvent`). `out_dollars`
+/// `contract` must be a valid `ThetaDataDxContract` pointer (e.g. the
+/// `event.<variant>.contract` field of a `ThetaDataDxStreamEvent`). `out_dollars`
 /// must be a valid, writable `double` pointer.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_contract_strike_dollars(
-    contract: *const TdxContract,
+pub unsafe extern "C" fn thetadatadx_contract_strike_dollars(
+    contract: *const ThetaDataDxContract,
     out_dollars: *mut f64,
 ) -> bool {
     ffi_boundary!(false, {
@@ -479,8 +485,8 @@ pub unsafe extern "C" fn tdx_contract_strike_dollars(
 /// valid — we have no transient half-mutated state because every
 /// insertion is `guard.insert(k, v)` after a successful allocation,
 /// not a partial update. Recovering the inner map rather than
-/// panicking again keeps every `tdx_condition_*` / `tdx_exchange_*`
-/// /`tdx_quote_condition_*` lookup non-aborting, matching the
+/// panicking again keeps every `thetadatadx_condition_*` / `thetadatadx_exchange_*`
+/// /`thetadatadx_quote_condition_*` lookup non-aborting, matching the
 /// `ffi_boundary!` contract on every other FFI entry point.
 fn static_cstr(s: &'static str) -> *const c_char {
     use std::collections::HashMap;
@@ -517,7 +523,7 @@ fn static_cstr(s: &'static str) -> *const c_char {
 //    1. do NOT abort the process (the test binary would crash),
 //    2. return the declared default (`-1` here, matching the
 //       existing `i32` status-code convention),
-//    3. make the panic payload retrievable via `tdx_last_error()`.
+//    3. make the panic payload retrievable via `thetadatadx_last_error()`.
 //
 //  The symbols are only compiled in when the feature is enabled, so
 //  the shared library shipped to Go / C++ / Python consumers never
@@ -526,11 +532,11 @@ fn static_cstr(s: &'static str) -> *const c_char {
 
 /// Deliberately panic with a `&'static str` payload. Returns -1 via the
 /// boundary's default handler. The panic message becomes part of the
-/// `tdx_last_error()` string so the caller can verify the downcast path
+/// `thetadatadx_last_error()` string so the caller can verify the downcast path
 /// that handles `&'static str` payloads works end to end.
 #[cfg(feature = "testing-panic-boundary")]
 #[no_mangle]
-pub extern "C" fn tdx_test_panic_str() -> i32 {
+pub extern "C" fn thetadatadx_test_panic_str() -> i32 {
     ffi_boundary!(-1, {
         panic!("intentional test panic via &'static str");
     })
@@ -542,7 +548,7 @@ pub extern "C" fn tdx_test_panic_str() -> i32 {
 /// str>` and `downcast_ref::<String>` branches of the macro.
 #[cfg(feature = "testing-panic-boundary")]
 #[no_mangle]
-pub extern "C" fn tdx_test_panic_string() -> i32 {
+pub extern "C" fn thetadatadx_test_panic_string() -> i32 {
     ffi_boundary!(-1, {
         panic!("{}", String::from("intentional test panic via String"));
     })
@@ -561,7 +567,7 @@ mod sequence_tests {
         for signed in [i64::from(i32::MIN), -1, 0, 1, i64::from(i32::MAX)] {
             let mut out: u64 = 0;
             // SAFETY: `out` points at a live stack slot for the call.
-            let rc = unsafe { super::tdx_sequence_signed_to_unsigned(signed, &mut out) };
+            let rc = unsafe { super::thetadatadx_sequence_signed_to_unsigned(signed, &mut out) };
             assert_eq!(rc, 0, "in-range input {signed} accepted");
             assert_eq!(
                 out,
@@ -574,12 +580,12 @@ mod sequence_tests {
     fn signed_to_unsigned_rejects_out_of_wire_range() {
         for signed in [i64::from(i32::MAX) + 1, i64::from(i32::MIN) - 1] {
             let mut out: u64 = 0;
-            crate::error::tdx_clear_error();
+            crate::error::thetadatadx_clear_error();
             // SAFETY: `out` points at a live stack slot for the call.
-            let rc = unsafe { super::tdx_sequence_signed_to_unsigned(signed, &mut out) };
+            let rc = unsafe { super::thetadatadx_sequence_signed_to_unsigned(signed, &mut out) };
             assert_eq!(rc, -1, "out-of-range input {signed} rejected");
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER
             );
         }
@@ -590,7 +596,7 @@ mod sequence_tests {
         for unsigned in [0u64, 1, u64::from(i32::MAX as u32), u64::from(u32::MAX)] {
             let mut out: i64 = 0;
             // SAFETY: `out` points at a live stack slot for the call.
-            let rc = unsafe { super::tdx_sequence_unsigned_to_signed(unsigned, &mut out) };
+            let rc = unsafe { super::thetadatadx_sequence_unsigned_to_signed(unsigned, &mut out) };
             assert_eq!(rc, 0, "in-range input {unsigned} accepted");
             assert_eq!(
                 out,
@@ -603,25 +609,26 @@ mod sequence_tests {
     fn unsigned_to_signed_rejects_above_wire_range() {
         // 2^32 is the first value past the unsigned wire range.
         let mut out: i64 = 0;
-        crate::error::tdx_clear_error();
+        crate::error::thetadatadx_clear_error();
         // SAFETY: `out` points at a live stack slot for the call.
-        let rc =
-            unsafe { super::tdx_sequence_unsigned_to_signed(u64::from(u32::MAX) + 1, &mut out) };
+        let rc = unsafe {
+            super::thetadatadx_sequence_unsigned_to_signed(u64::from(u32::MAX) + 1, &mut out)
+        };
         assert_eq!(rc, -1, "2^32 rejected as above the wire range");
         assert_eq!(
-            crate::error::tdx_last_error_code(),
+            crate::error::thetadatadx_last_error_code(),
             crate::error::TDX_ERR_INVALID_PARAMETER
         );
     }
 
     #[test]
     fn null_out_pointer_rejected() {
-        crate::error::tdx_clear_error();
+        crate::error::thetadatadx_clear_error();
         // SAFETY: deliberately passing null to exercise the guard.
-        let rc = unsafe { super::tdx_sequence_signed_to_unsigned(0, std::ptr::null_mut()) };
+        let rc = unsafe { super::thetadatadx_sequence_signed_to_unsigned(0, std::ptr::null_mut()) };
         assert_eq!(rc, -1);
         assert_eq!(
-            crate::error::tdx_last_error_code(),
+            crate::error::thetadatadx_last_error_code(),
             crate::error::TDX_ERR_INVALID_PARAMETER
         );
     }

@@ -10,23 +10,23 @@
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     // One connect, one auth. FPSS is NOT connected yet.
 //!     // Or inline: Credentials::new("user@example.com", "your-password")
-//!     let tdx = Client::connect(
+//!     let client = Client::connect(
 //!         &Credentials::from_file("creds.txt")?,
 //!         DirectConfig::production(),
 //!     ).await?;
 //!
 //!     // Historical -- works immediately, via the `historical` surface
-//!     let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+//!     let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming -- FPSS connects lazily on first subscribe, via `stream`
 //!     use thetadatadx::fpss::{StreamData, StreamEvent};
 //!     use thetadatadx::fpss::protocol::Contract;
-//!     tdx.stream().start_streaming(|event| {
+//!     client.stream().start_streaming(|event| {
 //!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
 //!         }
 //!     })?;
-//!     tdx.stream().subscribe(Contract::stock("AAPL").quote())?;
+//!     client.stream().subscribe(Contract::stock("AAPL").quote())?;
 //!
 //!     Ok(())
 //! }
@@ -264,7 +264,7 @@ impl Client {
     ///    callback. The calls do not deadlock (cleanup detaches), but
     ///    they return BEFORE the old consumer has finished draining
     ///    the in-flight ring contents — FFI callers freeing `ctx`
-    ///    after `tdx_*_stop_streaming` returns will observe
+    ///    after `thetadatadx_*_stop_streaming` returns will observe
     ///    use-after-free. Instead, set a flag from the callback, call
     ///    [`Self::stop_streaming`] from another thread, then
     ///    [`Self::await_drain`] before reusing captured resources.
@@ -380,7 +380,7 @@ impl Client {
         let dispatcher_client = Arc::clone(&client_arc);
         let mut scope = scope;
         let dispatcher_handle = std::thread::Builder::new()
-            .name("tdx-fpss-dispatcher".into())
+            .name("thetadatadx-fpss-dispatcher".into())
             .spawn(move || {
                 if !*gate_for_dispatcher.wait() {
                     return;
@@ -401,7 +401,7 @@ impl Client {
                 if outcome.is_err() {
                     tracing::error!(
                         target: "thetadatadx::client",
-                        "tdx-fpss-dispatcher panicked in event iteration machinery; client transitioning to failed state",
+                        "thetadatadx-fpss-dispatcher panicked in event iteration machinery; client transitioning to failed state",
                     );
                 }
             })
@@ -989,7 +989,7 @@ impl Client {
                     tracing::error!(
                         target: "thetadatadx::client",
                         reason = %reason,
-                        "tdx-fpss-dispatcher panicked; session marked as failed",
+                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
                     );
                     *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
                         DispatcherSession::Failed { reason };

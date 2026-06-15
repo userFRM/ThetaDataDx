@@ -10,7 +10,7 @@
 /// companion `has_timeout_ms = 1`; on expiry the call returns an error and the
 /// underlying gRPC stream is cancelled, leaving the client handle reusable.
 #[repr(C)]
-pub struct TdxEndpointRequestOptions {
+pub struct ThetaDataDxEndpointRequestOptions {
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: *const c_char,
     /// Minimum time filter
@@ -73,14 +73,14 @@ pub struct TdxEndpointRequestOptions {
 
 fn apply_endpoint_request_options(
     args: &mut thetadatadx::EndpointArgs,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> Result<(), String> {
     if options.is_null() {
         return Ok(());
     }
 
     // SAFETY: options is non-null (checked above) and the caller is required
-    // to keep the TdxEndpointRequestOptions alive for the duration of this call.
+    // to keep the ThetaDataDxEndpointRequestOptions alive for the duration of this call.
     let options = unsafe { &*options };
     insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;

@@ -2,8 +2,8 @@
 //!
 //! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus
 //! HTTP auth, no Treasury / Calendar / OHLCVC historical surface.
-//! Mirrors the C++ `tdx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`)
-//! and the standalone C ABI entry points (`tdx_fpss_*` in
+//! Mirrors the C++ `thetadatadx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`)
+//! and the standalone C ABI entry points (`thetadatadx_fpss_*` in
 //! `ffi/src/streaming.rs`), letting Python users run an FPSS-only
 //! session alongside an externally-managed MDDS process without the
 //! bundled [`crate::Client`] preempting the parallel MDDS
@@ -15,7 +15,7 @@
 //! own protocol-level `CREDENTIALS` handshake (wire code `0`) on the
 //! TLS connection itself; no separate Nexus session UUID is acquired.
 //! The cross-binding contract here matches the standalone C ABI:
-//! `tdx_fpss_connect` accepts a `TdxCredentials` handle without
+//! `thetadatadx_fpss_connect` accepts a `ThetaDataDxCredentials` handle without
 //! touching Nexus. Run the bundled [`crate::Client`] (which
 //! does authenticate against Nexus) when you need the MDDS surface and
 //! Nexus session machinery side-by-side.
@@ -225,8 +225,8 @@ impl StreamingClient {
     /// Snapshots the connect parameters out of the supplied `Config`
     /// but does NOT open the FPSS TLS connection — connection is
     /// deferred to the first `start_streaming*` call. This matches the
-    /// C ABI's deferred-connect contract (`tdx_fpss_connect` allocates
-    /// the handle, `tdx_fpss_set_callback` opens the network) so the
+    /// C ABI's deferred-connect contract (`thetadatadx_fpss_connect` allocates
+    /// the handle, `thetadatadx_fpss_set_callback` opens the network) so the
     /// same observable behaviour applies across every binding.
     ///
     /// No MDDS channel is opened. No Nexus HTTP request is issued.
@@ -349,7 +349,7 @@ impl StreamingClient {
         // reflects both Rust panics and Python exceptions.
         let panic_recorder = Arc::clone(&client_arc);
         let dispatcher = std::thread::Builder::new()
-            .name("tdx-py-fpss-dispatcher".into())
+            .name("thetadatadx-py-fpss-dispatcher".into())
             .spawn(move || {
                 // `StreamingClient::for_each` drives `poll_batch`, which wraps
                 // each callback invocation in its own `catch_unwind`.  A
@@ -402,7 +402,7 @@ impl StreamingClient {
                 if outcome.is_err() {
                     tracing::error!(
                         target: "thetadatadx::python",
-                        "tdx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
+                        "thetadatadx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
                     );
                 }
             });
@@ -449,8 +449,8 @@ impl StreamingClient {
 
     /// Whether the FPSS session is currently authenticated.
     ///
-    /// Mirrors the C++ `tdx::StreamingClient::is_authenticated()` getter and
-    /// the C ABI `tdx_fpss_is_authenticated`. Distinct from
+    /// Mirrors the C++ `thetadatadx::StreamingClient::is_authenticated()` getter and
+    /// the C ABI `thetadatadx_fpss_is_authenticated`. Distinct from
     /// `is_streaming()`: the TLS slot can hold an `RustStreamingClient` whose
     /// `authenticated` flag has been flipped to `false` after a server
     /// disconnect, before the application has issued `reconnect()`.
@@ -698,7 +698,7 @@ impl StreamingClient {
                             tracing::error!(
                                 target: "thetadatadx::python",
                                 reason = %reason,
-                                "tdx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
+                                "thetadatadx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
                             );
                             *dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner()) =
                                 PyFpssDispatcherSession::Failed { reason };
@@ -730,7 +730,7 @@ impl StreamingClient {
     /// already up at that point. Without this restore step a Python
     /// caller observing a transient disconnect would lose every
     /// subscription, breaking parity with the unified client and the
-    /// C ABI (`tdx_fpss_reconnect`).
+    /// C ABI (`thetadatadx_fpss_reconnect`).
     fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
         let stored = {
             let guard = self.lock_callback();
@@ -827,7 +827,7 @@ impl StreamingClient {
         Py::new(
             py,
             StreamingSession {
-                tdx: StreamableHandle::Fpss(slf),
+                client: StreamableHandle::Fpss(slf),
                 callback: Some(callback),
             },
         )

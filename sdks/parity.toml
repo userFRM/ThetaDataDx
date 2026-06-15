@@ -77,7 +77,7 @@ cpp = true          # exposed as `thetadatadx::FluentContract`
 name = "ContractRef"
 python = true
 typescript = true   # primary class name on TS side (Contract is the post-build alias)
-cpp = false         # C++ uses the C ABI `TdxContract` struct; no dedicated C++ class wrapper
+cpp = false         # C++ uses the C ABI `ThetaDataDxContract` struct; no dedicated C++ class wrapper
 
 [[class]]
 name = "CalendarDay"
@@ -225,7 +225,7 @@ cpp = true
 # every binding: Python via `Config.flatfiles_*` setters/getters,
 # TypeScript via `Config.setFlatfiles*`, C++ via
 # `thetadatadx::Config::set_flatfiles_*` (which forwards to the FFI
-# `tdx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
+# `thetadatadx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
 # two `Duration` fields cross the binding boundary as `u64` seconds
 # (`initial_backoff_secs` / `max_backoff_secs`).
 
@@ -278,7 +278,7 @@ cpp = true
 # timer. Bound on every binding: Python via `Config.reconnect_*`
 # setters, TypeScript via `Config.setReconnect*`, C++ via
 # `thetadatadx::Config::set_reconnect_*` (which forwards to the FFI
-# `tdx_config_set_reconnect_*` symbols). Dotted-name rows track
+# `thetadatadx_config_set_reconnect_*` symbols). Dotted-name rows track
 # field-level parity; the parity script's class-existence check skips
 # dotted rows pending the per-field granularity tightening (issue
 # referenced in `scripts/check_binding_parity.py`).
@@ -367,7 +367,7 @@ cpp = true
 # that own their runtime (FFI / Python / napi). The public setter is
 # `worker_threads` on every binding (Python `Config.worker_threads`,
 # TypeScript `Config.setWorkerThreads` / `workerThreads`, C++
-# `set_worker_threads`, FFI `tdx_config_set_worker_threads`). The row
+# `set_worker_threads`, FFI `thetadatadx_config_set_worker_threads`). The row
 # name carries the public concept; the internal storage field maps to
 # it through the rename table in `check_binding_parity.py`. The widened
 # `(has_value, n)` ABI shape on the C surface lets the `Some(0)`
@@ -427,14 +427,14 @@ cpp = true
 # `StreamControl::Error` variant) so no binding ships a class that
 # collides with the language's own error types: Python's exception
 # hierarchy roots at `ThetaDataError`, the JS global `Error` stays
-# unshadowed, and C / C++ expose `TdxStreamParseError` /
+# unshadowed, and C / C++ expose `ThetaDataDxStreamParseError` /
 # `thetadatadx::StreamParseError`.
 
 [[class]]
 name = "ParseError"
 python = true
 typescript = true   # `#[napi(object)]` interface `ParseError` + `StreamEvent.parseError`
-cpp = true          # `TdxStreamParseError` C struct, `thetadatadx::StreamParseError` alias
+cpp = true          # `ThetaDataDxStreamParseError` C struct, `thetadatadx::StreamParseError` alias
 
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
@@ -462,13 +462,13 @@ cpp = true          # `TdxStreamParseError` C struct, `thetadatadx::StreamParseE
 name = "GreeksEodTick.cross_binding_anchor"
 python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
 typescript = true   # `GreeksEodTick` napi class
-cpp = true          # `thetadatadx::GreeksEodTick` alias over `TdxGreeksEodTick`
+cpp = true          # `thetadatadx::GreeksEodTick` alias over `ThetaDataDxGreeksEodTick`
 
 [[class]]
 name = "IndexPriceAtTimeTick.cross_binding_anchor"
 python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
 typescript = true   # `IndexPriceAtTimeTick` napi class
-cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`
+cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataDxIndexPriceAtTimeTick`
 
 # ─── Rust-only MDDS / FPSS knobs (Gate 2 tightening / #595) ─────────────
 #
@@ -488,22 +488,22 @@ cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `TdxIndexPr
 # MDDS is a vendor protocol name, kept verbatim. Exposed on every
 # binding: Python (`Config.mdds_host` / `.mdds_port`), TypeScript
 # (`Config.setMddsHost` / `.setMddsPort`), and C++ (`set_mdds_host` /
-# `set_mdds_port` over the FFI `tdx_config_set_mdds_host` /
-# `tdx_config_set_mdds_port`). The dotted rows below capture the
+# `set_mdds_port` over the FFI `thetadatadx_config_set_mdds_host` /
+# `thetadatadx_config_set_mdds_port`). The dotted rows below capture the
 # binding state via the `setter = "..."` override.
 
 [[class]]
 name = "MddsConfig.host"
 python = true       # `Config.mdds_host` advanced override
 typescript = true   # `Config.setMddsHost` / `mddsHost` napi setter+getter
-cpp = true          # `Config::set_mdds_host` over `tdx_config_set_mdds_host`
+cpp = true          # `Config::set_mdds_host` over `thetadatadx_config_set_mdds_host`
 setter = "mdds_host"
 
 [[class]]
 name = "MddsConfig.port"
 python = true       # `Config.mdds_port` advanced override
 typescript = true   # `Config.setMddsPort` / `mddsPort` napi setter+getter
-cpp = true          # `Config::set_mdds_port` over `tdx_config_set_mdds_port`
+cpp = true          # `Config::set_mdds_port` over `thetadatadx_config_set_mdds_port`
 setter = "mdds_port"
 
 [[class]]
@@ -580,7 +580,7 @@ issue = "#595"
 
 # FPSS transport knobs are bound on every binding under `fpss_`-prefixed
 # canonical names (Python `Config.fpss_*`, TypeScript `Config.setFpss*`,
-# C++ `set_fpss_*`, FFI `tdx_config_set_fpss_*`). The prefix
+# C++ `set_fpss_*`, FFI `thetadatadx_config_set_fpss_*`). The prefix
 # disambiguates the generic field names (`timeout_ms`, `ring_size`)
 # against sibling sub-configs at the binding surface.
 
@@ -651,7 +651,7 @@ typescript = true
 cpp = true
 
 # `FpssConfig.flush_mode` is exposed on every binding:
-# C ABI (`tdx_config_set_flush_mode`), C++ (`set_flush_mode`),
+# C ABI (`thetadatadx_config_set_flush_mode`), C++ (`set_flush_mode`),
 # Python (`Config.flush_mode` getter + setter accepting
 # `"batched"` / `"immediate"`), TypeScript (`Config.flushMode`
 # getter + `setFlushMode` accepting the same strings).
@@ -662,7 +662,7 @@ typescript = true
 cpp = true
 
 # `FpssConfig.derive_ohlcvc` is exposed on every binding: the C ABI
-# (`tdx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
+# (`thetadatadx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
 # C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
 # / `deriveOhlcvc`).
 [[class]]
@@ -679,10 +679,10 @@ cpp = true
 # TypeScript via `Config.setNexusUrl` / `setClientType` /
 # `setMetricsPort`, C++ via `thetadatadx::Config::set_nexus_url` /
 # `set_client_type` / `set_metrics_port` (which forward to the FFI
-# `tdx_config_set_nexus_url` / `_client_type` / `_metrics_port`
+# `thetadatadx_config_set_nexus_url` / `_client_type` / `_metrics_port`
 # symbols). The two `AuthConfig` fields are `String` — the FFI
 # setter takes a `*const c_char` (validated UTF-8) and the getter
-# returns a heap-owned `*mut c_char` released via `tdx_string_free`.
+# returns a heap-owned `*mut c_char` released via `thetadatadx_string_free`.
 # `MetricsConfig.port` is `Option<u16>`, carried across the C ABI as
 # the widened `(has_value, port)` shape so the disabled-exporter
 # `None` sentinel survives the boundary.
@@ -720,15 +720,15 @@ cpp = true
 #                 `implied_volatility`). The checker derives the
 #                 per-binding spelling: Python `#[pyfunction] fn <name>`,
 #                 TypeScript `#[napi(js_name = "<camelCase>")]`, C++
-#                 `<name>(` in the wrapper header, FFI `tdx_<name>`.
+#                 `<name>(` in the wrapper header, FFI `thetadatadx_<name>`.
 #   python      — `true` iff the `#[pyfunction]` is emitted on the
 #                 Python surface.
 #   typescript  — `true` iff the napi free function is emitted on the
 #                 TypeScript surface.
 #   cpp         — `true` iff the wrapper declares the function in
 #                 `sdks/cpp/include/utilities.hpp.inc` (folded into the
-#                 `tdx` namespace of `thetadx.hpp`).
-#   ffi         — `true` iff the `tdx_<name>` C ABI symbol exists in
+#                 `thetadatadx` namespace of `thetadx.hpp`).
+#   ffi         — `true` iff the `thetadatadx_<name>` C ABI symbol exists in
 #                 `ffi/src/`. Every higher-level binding except Python /
 #                 TypeScript (which call the Rust core directly) forwards
 #                 through this symbol.
@@ -737,7 +737,7 @@ cpp = true
 # (Python / TS / C++ / MCP / CLI) over the same `thetadatadx::greeks`
 # core, so they stay in lockstep by construction; the
 # `generate_sdk_surfaces --check` drift gate and these rows guard a
-# regression. The FFI `tdx_all_greeks` / `tdx_implied_volatility` pair is
+# regression. The FFI `thetadatadx_all_greeks` / `thetadatadx_implied_volatility` pair is
 # hand-written but covered by `check_c_abi_completeness`.
 
 [[utility]]
@@ -758,8 +758,8 @@ ffi = true
 # `thetadatadx.util` submodule (Python), the `Util` namespace class
 # (TypeScript: `Util.conditionName(...)`), the `thetadatadx::util` namespace plus
 # the `thetadatadx::calendar_status_name` / `thetadatadx::timestamp_ms` free functions
-# (C++), and bare `tdx_*` symbols (the C ABI). The four predicate helpers
-# carry a disambiguating prefix on the C ABI symbol (`tdx_condition_is_cancel`
+# (C++), and bare `thetadatadx_*` symbols (the C ABI). The four predicate helpers
+# carry a disambiguating prefix on the C ABI symbol (`thetadatadx_condition_is_cancel`
 # vs the bare `is_cancel` the managed bindings expose, so the quote-condition
 # predicate of the same shape stays distinct); the `ffi_name` field records
 # the bare C-symbol name for those rows. All present on every binding.
@@ -1307,7 +1307,7 @@ cpp = true
 # `.derive_ohlcvc` / `.concurrent_requests` properties), TypeScript
 # (`Config.flushMode` / `.deriveOhlcvc` / `.concurrentRequests`
 # getters), C++ (`Config::get_flush_mode()` etc. over the FFI
-# `tdx_config_get_*` symbols). Both the Python `#[getter]` accessors and
+# `thetadatadx_config_get_*` symbols). Both the Python `#[getter]` accessors and
 # the C++ readback getters carry a uniform `get_` Rust/C++ fn prefix
 # (pyo3 strips it so the Python property name stays bare); the parity
 # gate accepts that per-language convention against the bare row. The
@@ -1332,7 +1332,7 @@ cpp = true
 # is meaningless for a callback, so the registration is tracked as a
 # method row (Python `config.reconnect_callback = fn` setter, TS
 # `setReconnectCallback`, C++ `set_reconnect_callback` over the FFI
-# `tdx_config_set_reconnect_callback` symbol).
+# `thetadatadx_config_set_reconnect_callback` symbol).
 [[method]]
 class = "Config"
 name = "setReconnectCallback"
@@ -1489,7 +1489,7 @@ typescript = "bool"
 # computed properties; C++ exposes one `thetadatadx::timestamp_ms(date,
 # ms_of_day)` free function reused for every `(date, *_ms_of_day)` pair
 # (tick rows are C struct aliases with no member methods) over the
-# `tdx_timestamp_ms` C ABI; TypeScript carries precomputed
+# `thetadatadx_timestamp_ms` C ABI; TypeScript carries precomputed
 # `Option<BigInt>` fields on the `#[napi(object)]` row (TS tick rows are
 # plain data objects, also method-less). Only the TypeScript half lands
 # as a struct field this checker can read, so the `[[value_field]]` rows
@@ -1671,7 +1671,7 @@ typescript = "Option<BigInt>"
 # binding: Python via the `<TickName>List.to_arrow()` terminal, TypeScript
 # via the generated `<tick>ToArrowIpc(rows)` napi free functions, and C++
 # via the generated `thetadatadx::<collection>_to_arrow_ipc(std::vector<Tick>)`
-# free functions over the `tdx_<collection>_to_arrow_ipc` C ABI. All three
+# free functions over the `thetadatadx_<collection>_to_arrow_ipc` C ABI. All three
 # binding surfaces are generated from `tick_schema.toml` and funnel through
 # the one `TicksArrowExt::to_arrow` + Arrow IPC `StreamWriter` path, so they
 # stay in lockstep by construction; the `generate_sdk_surfaces --check`
@@ -1695,7 +1695,7 @@ typescript = "Option<BigInt>"
 #                 `Client` napi class.
 #   cpp         — `<endpoint>_stream(...args, callback, options)` on the
 #                 C++ `Client` wrapper.
-#   ffi         — the `tdx_<endpoint>_stream(...)` extern "C" symbol.
+#   ffi         — the `thetadatadx_<endpoint>_stream(...)` extern "C" symbol.
 #
 # These terminals live on per-endpoint builders / as endpoint-named
 # methods, NOT on a class the `[[method]]` rows cover, so without this
@@ -1883,7 +1883,7 @@ typescript = true
 # The zero-copy chunk callback hands back the same flat #[repr(C)] tick the
 # buffered tick array exposes. option_list_contracts is the lone streaming
 # return whose row carries an owned symbol string, so its C ABI form
-# (TdxOptionContract, a char* symbol) is a distinct layout the buffered path
+# (ThetaDataDxOptionContract, a char* symbol) is a distinct layout the buffered path
 # marshals per row. That per-row allocation is exactly the heap traffic
 # streaming exists to avoid and has no stable lifetime inside a borrowed-slice
 # callback, so contract discovery keeps its buffered C-ABI form only. The
@@ -1960,7 +1960,7 @@ ffi = true
 #   typescript  — `<Class>.connectFromFile(path, config?)` napi factory.
 #   cpp         — `<Class>::from_file(path, config = Config::production())`
 #                 static member on the C++ wrapper.
-#   ffi         — the `tdx_<stem>_connect_from_file(path, config)`
+#   ffi         — the `thetadatadx_<stem>_connect_from_file(path, config)`
 #                 extern "C" symbol (`unified` / `mdds_client` / `fpss`).
 #
 # The construction entry point is not a data method the `[[method]]`

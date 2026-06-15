@@ -3,8 +3,8 @@
 // `StreamingClient` is the streaming-only napi handle over
 // `thetadatadx::fpss::StreamingClient`: the FPSS TLS transport with no MDDS /
 // Nexus historical surface. It mirrors the Python `StreamingClient`
-// (`sdks/python/src/fpss_client.rs`), the C++ `tdx::StreamingClient`, and the
-// C ABI `tdx_fpss_*` entry points. These assertions pin the split
+// (`sdks/python/src/fpss_client.rs`), the C++ `thetadatadx::StreamingClient`, and the
+// C ABI `thetadatadx_fpss_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a change that
 // drops the streaming surface — or leaks a historical method onto it —
 // fails here without live credentials.

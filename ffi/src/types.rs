@@ -1,5 +1,5 @@
-//! `#[repr(C)]` handle types, tick-array wrappers, `TdxStringArray`,
-//! `TdxOptionContract*`, plus the shared string / slice helpers that cross
+//! `#[repr(C)]` handle types, tick-array wrappers, `ThetaDataDxStringArray`,
+//! `ThetaDataDxOptionContract*`, plus the shared string / slice helpers that cross
 //! the FFI boundary.
 //!
 //! All symbols declared `#[no_mangle] extern "C" fn` here keep their original
@@ -15,32 +15,32 @@ use crate::error::{cstr_to_str, set_error};
 // ── Opaque handle types ──
 
 /// Opaque credentials handle.
-pub struct TdxCredentials {
+pub struct ThetaDataDxCredentials {
     pub(crate) inner: thetadatadx::Credentials,
 }
 
 /// Opaque historical (MDDS) client handle.
 ///
-/// `repr(transparent)` guarantees `*const TdxHistoricalClient` and
+/// `repr(transparent)` guarantees `*const ThetaDataDxHistoricalClient` and
 /// `*const HistoricalClient` have identical layout, allowing safe pointer casts in
-/// `tdx_client_historical()`.
+/// `thetadatadx_client_historical()`.
 #[repr(transparent)]
-pub struct TdxHistoricalClient {
+pub struct ThetaDataDxHistoricalClient {
     pub(crate) inner: thetadatadx::mdds::HistoricalClient,
 }
 
 /// Opaque config handle.
-pub struct TdxConfig {
+pub struct ThetaDataDxConfig {
     pub(crate) inner: thetadatadx::DirectConfig,
 }
 
 // ── C-string lifetime helpers (shared across all endpoint modules) ──
 
-/// Free a string returned by any `tdx_*` function.
+/// Free a string returned by any `thetadatadx_*` function.
 ///
 /// MUST be called for every non-null `*mut c_char` returned by this library.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
+pub unsafe extern "C" fn thetadatadx_string_free(s: *mut c_char) {
     ffi_boundary!((), {
         if !s.is_null() {
             // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
@@ -114,7 +114,7 @@ pub(crate) fn insert_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, 
 macro_rules! tick_array_type {
     ($name:ident, $tick:ty) => {
         /// Heap-allocated array of ticks returned from FFI.
-        /// Caller MUST free with the corresponding `tdx_*_array_free` function.
+        /// Caller MUST free with the corresponding `thetadatadx_*_array_free` function.
         #[repr(C)]
         pub struct $name {
             /// Pointer to the first element; null when empty.
@@ -126,7 +126,7 @@ macro_rules! tick_array_type {
         impl $name {
             /// Infallible for tick types (no `CString` allocation). Returns
             /// `Result` to match the signature of fallible sibling arrays
-            /// (`TdxStringArray`, `TdxOptionContractArray`) so the shared
+            /// (`ThetaDataDxStringArray`, `ThetaDataDxOptionContractArray`) so the shared
             /// FFI endpoint macros stay generic over `$array_type`.
             pub(crate) fn from_vec(v: Vec<$tick>) -> Result<Self, std::ffi::NulError> {
                 let len = v.len();
@@ -156,66 +156,78 @@ macro_rules! tick_array_type {
     };
 }
 
-tick_array_type!(TdxEodTickArray, thetadatadx::EodTick);
-tick_array_type!(TdxOhlcTickArray, thetadatadx::OhlcTick);
-tick_array_type!(TdxTradeTickArray, thetadatadx::TradeTick);
-tick_array_type!(TdxQuoteTickArray, thetadatadx::QuoteTick);
+tick_array_type!(ThetaDataDxEodTickArray, thetadatadx::EodTick);
+tick_array_type!(ThetaDataDxOhlcTickArray, thetadatadx::OhlcTick);
+tick_array_type!(ThetaDataDxTradeTickArray, thetadatadx::TradeTick);
+tick_array_type!(ThetaDataDxQuoteTickArray, thetadatadx::QuoteTick);
 // Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
 // `_second_order` / `_third_order`. The full union for the interval-sampled
-// `option_*_greeks_all` endpoints lands on `TdxGreeksAllTickArray`; the
+// `option_*_greeks_all` endpoints lands on `ThetaDataDxGreeksAllTickArray`; the
 // end-of-day endpoint `option_history_greeks_eod` lands on
-// `TdxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
+// `ThetaDataDxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
 // the interval-sampled all-union shape).
-tick_array_type!(TdxGreeksAllTickArray, thetadatadx::GreeksAllTick);
-tick_array_type!(TdxGreeksEodTickArray, thetadatadx::GreeksEodTick);
+tick_array_type!(ThetaDataDxGreeksAllTickArray, thetadatadx::GreeksAllTick);
+tick_array_type!(ThetaDataDxGreeksEodTickArray, thetadatadx::GreeksEodTick);
 tick_array_type!(
-    TdxGreeksFirstOrderTickArray,
+    ThetaDataDxGreeksFirstOrderTickArray,
     thetadatadx::GreeksFirstOrderTick
 );
 tick_array_type!(
-    TdxGreeksSecondOrderTickArray,
+    ThetaDataDxGreeksSecondOrderTickArray,
     thetadatadx::GreeksSecondOrderTick
 );
 tick_array_type!(
-    TdxGreeksThirdOrderTickArray,
+    ThetaDataDxGreeksThirdOrderTickArray,
     thetadatadx::GreeksThirdOrderTick
 );
 // Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
 // carry the nine trade-side execution columns alongside the Greek values --
-// distinct from the interval-sampled `TdxGreeks*TickArray` whose rows carry
+// distinct from the interval-sampled `ThetaDataDxGreeks*TickArray` whose rows carry
 // the bid/ask quote pair instead.
-tick_array_type!(TdxTradeGreeksAllTickArray, thetadatadx::TradeGreeksAllTick);
 tick_array_type!(
-    TdxTradeGreeksFirstOrderTickArray,
+    ThetaDataDxTradeGreeksAllTickArray,
+    thetadatadx::TradeGreeksAllTick
+);
+tick_array_type!(
+    ThetaDataDxTradeGreeksFirstOrderTickArray,
     thetadatadx::TradeGreeksFirstOrderTick
 );
 tick_array_type!(
-    TdxTradeGreeksSecondOrderTickArray,
+    ThetaDataDxTradeGreeksSecondOrderTickArray,
     thetadatadx::TradeGreeksSecondOrderTick
 );
 tick_array_type!(
-    TdxTradeGreeksThirdOrderTickArray,
+    ThetaDataDxTradeGreeksThirdOrderTickArray,
     thetadatadx::TradeGreeksThirdOrderTick
 );
 tick_array_type!(
-    TdxTradeGreeksImpliedVolatilityTickArray,
+    ThetaDataDxTradeGreeksImpliedVolatilityTickArray,
     thetadatadx::TradeGreeksImpliedVolatilityTick
 );
-tick_array_type!(TdxIvTickArray, thetadatadx::IvTick);
-tick_array_type!(TdxPriceTickArray, thetadatadx::PriceTick);
+tick_array_type!(ThetaDataDxIvTickArray, thetadatadx::IvTick);
+tick_array_type!(ThetaDataDxPriceTickArray, thetadatadx::PriceTick);
 // Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
 // `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
-// `exchange`, `price`). Distinct from the bare `TdxPriceTickArray`
+// `exchange`, `price`). Distinct from the bare `ThetaDataDxPriceTickArray`
 // used by `index_snapshot_price` / `index_history_price` (3 columns).
 tick_array_type!(
-    TdxIndexPriceAtTimeTickArray,
+    ThetaDataDxIndexPriceAtTimeTickArray,
     thetadatadx::IndexPriceAtTimeTick
 );
-tick_array_type!(TdxOpenInterestTickArray, thetadatadx::OpenInterestTick);
-tick_array_type!(TdxMarketValueTickArray, thetadatadx::MarketValueTick);
-tick_array_type!(TdxCalendarDayArray, thetadatadx::CalendarDay);
-tick_array_type!(TdxInterestRateTickArray, thetadatadx::InterestRateTick);
-tick_array_type!(TdxTradeQuoteTickArray, thetadatadx::TradeQuoteTick);
+tick_array_type!(
+    ThetaDataDxOpenInterestTickArray,
+    thetadatadx::OpenInterestTick
+);
+tick_array_type!(
+    ThetaDataDxMarketValueTickArray,
+    thetadatadx::MarketValueTick
+);
+tick_array_type!(ThetaDataDxCalendarDayArray, thetadatadx::CalendarDay);
+tick_array_type!(
+    ThetaDataDxInterestRateTickArray,
+    thetadatadx::InterestRateTick
+);
+tick_array_type!(ThetaDataDxTradeQuoteTickArray, thetadatadx::TradeQuoteTick);
 
 /// Generate a `#[no_mangle] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
@@ -231,61 +243,82 @@ macro_rules! tick_array_free {
     };
 }
 
-tick_array_free!(tdx_eod_tick_array_free, TdxEodTickArray);
-tick_array_free!(tdx_ohlc_tick_array_free, TdxOhlcTickArray);
-tick_array_free!(tdx_trade_tick_array_free, TdxTradeTickArray);
-tick_array_free!(tdx_quote_tick_array_free, TdxQuoteTickArray);
-tick_array_free!(tdx_greeks_all_tick_array_free, TdxGreeksAllTickArray);
-tick_array_free!(tdx_greeks_eod_tick_array_free, TdxGreeksEodTickArray);
+tick_array_free!(thetadatadx_eod_tick_array_free, ThetaDataDxEodTickArray);
+tick_array_free!(thetadatadx_ohlc_tick_array_free, ThetaDataDxOhlcTickArray);
+tick_array_free!(thetadatadx_trade_tick_array_free, ThetaDataDxTradeTickArray);
+tick_array_free!(thetadatadx_quote_tick_array_free, ThetaDataDxQuoteTickArray);
 tick_array_free!(
-    tdx_greeks_first_order_tick_array_free,
-    TdxGreeksFirstOrderTickArray
+    thetadatadx_greeks_all_tick_array_free,
+    ThetaDataDxGreeksAllTickArray
 );
 tick_array_free!(
-    tdx_greeks_second_order_tick_array_free,
-    TdxGreeksSecondOrderTickArray
+    thetadatadx_greeks_eod_tick_array_free,
+    ThetaDataDxGreeksEodTickArray
 );
 tick_array_free!(
-    tdx_greeks_third_order_tick_array_free,
-    TdxGreeksThirdOrderTickArray
+    thetadatadx_greeks_first_order_tick_array_free,
+    ThetaDataDxGreeksFirstOrderTickArray
 );
 tick_array_free!(
-    tdx_trade_greeks_all_tick_array_free,
-    TdxTradeGreeksAllTickArray
+    thetadatadx_greeks_second_order_tick_array_free,
+    ThetaDataDxGreeksSecondOrderTickArray
 );
 tick_array_free!(
-    tdx_trade_greeks_first_order_tick_array_free,
-    TdxTradeGreeksFirstOrderTickArray
+    thetadatadx_greeks_third_order_tick_array_free,
+    ThetaDataDxGreeksThirdOrderTickArray
 );
 tick_array_free!(
-    tdx_trade_greeks_second_order_tick_array_free,
-    TdxTradeGreeksSecondOrderTickArray
+    thetadatadx_trade_greeks_all_tick_array_free,
+    ThetaDataDxTradeGreeksAllTickArray
 );
 tick_array_free!(
-    tdx_trade_greeks_third_order_tick_array_free,
-    TdxTradeGreeksThirdOrderTickArray
+    thetadatadx_trade_greeks_first_order_tick_array_free,
+    ThetaDataDxTradeGreeksFirstOrderTickArray
 );
 tick_array_free!(
-    tdx_trade_greeks_implied_volatility_tick_array_free,
-    TdxTradeGreeksImpliedVolatilityTickArray
+    thetadatadx_trade_greeks_second_order_tick_array_free,
+    ThetaDataDxTradeGreeksSecondOrderTickArray
 );
-tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
-tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);
 tick_array_free!(
-    tdx_index_price_at_time_tick_array_free,
-    TdxIndexPriceAtTimeTickArray
+    thetadatadx_trade_greeks_third_order_tick_array_free,
+    ThetaDataDxTradeGreeksThirdOrderTickArray
 );
-tick_array_free!(tdx_open_interest_tick_array_free, TdxOpenInterestTickArray);
-tick_array_free!(tdx_market_value_tick_array_free, TdxMarketValueTickArray);
-tick_array_free!(tdx_calendar_day_array_free, TdxCalendarDayArray);
-tick_array_free!(tdx_interest_rate_tick_array_free, TdxInterestRateTickArray);
-tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
+tick_array_free!(
+    thetadatadx_trade_greeks_implied_volatility_tick_array_free,
+    ThetaDataDxTradeGreeksImpliedVolatilityTickArray
+);
+tick_array_free!(thetadatadx_iv_tick_array_free, ThetaDataDxIvTickArray);
+tick_array_free!(thetadatadx_price_tick_array_free, ThetaDataDxPriceTickArray);
+tick_array_free!(
+    thetadatadx_index_price_at_time_tick_array_free,
+    ThetaDataDxIndexPriceAtTimeTickArray
+);
+tick_array_free!(
+    thetadatadx_open_interest_tick_array_free,
+    ThetaDataDxOpenInterestTickArray
+);
+tick_array_free!(
+    thetadatadx_market_value_tick_array_free,
+    ThetaDataDxMarketValueTickArray
+);
+tick_array_free!(
+    thetadatadx_calendar_day_array_free,
+    ThetaDataDxCalendarDayArray
+);
+tick_array_free!(
+    thetadatadx_interest_rate_tick_array_free,
+    ThetaDataDxInterestRateTickArray
+);
+tick_array_free!(
+    thetadatadx_trade_quote_tick_array_free,
+    ThetaDataDxTradeQuoteTickArray
+);
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Arrow IPC terminal for in-band history tick rows
 // ═══════════════════════════════════════════════════════════════════════
 //
-// Mirrors the FlatFiles `tdx_flatfile_rows_to_arrow_ipc` terminal for the
+// Mirrors the FlatFiles `thetadatadx_flatfile_rows_to_arrow_ipc` terminal for the
 // typed history rows: a C++ caller holding a `std::vector<EodTick>` (or any
 // other tick vector) serialises it to an Arrow IPC stream and hands the
 // bytes to arrow-cpp, the same columnar exit Python exposes via
@@ -294,18 +327,18 @@ tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 // straight through `TicksArrowExt::to_arrow` with no re-marshaling.
 
 /// Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
-/// `tdx_*_to_arrow_ipc` terminals. Caller MUST free with
-/// `tdx_arrow_bytes_free`. Distinct from `TdxFlatFileBytes` only in name —
+/// `thetadatadx_*_to_arrow_ipc` terminals. Caller MUST free with
+/// `thetadatadx_arrow_bytes_free`. Distinct from `ThetaDataDxFlatFileBytes` only in name —
 /// the layout is identical so a future merge stays ABI-compatible.
 #[repr(C)]
-pub struct TdxArrowBytes {
+pub struct ThetaDataDxArrowBytes {
     /// Pointer to the first byte of the IPC stream; null when empty.
     pub data: *const u8,
     /// Length of the buffer in bytes.
     pub len: usize,
 }
 
-impl TdxArrowBytes {
+impl ThetaDataDxArrowBytes {
     const EMPTY: Self = Self {
         data: ptr::null(),
         len: 0,
@@ -325,23 +358,23 @@ impl TdxArrowBytes {
 /// Serialise a `&[$tick]` to Arrow IPC bytes through the shared
 /// `TicksArrowExt::to_arrow` + IPC `StreamWriter` path. An empty input is a
 /// valid zero-row stream (matching the FlatFiles terminal and Python).
-/// Returns `(data=null, len=0)` on error with `tdx_last_error()` set.
+/// Returns `(data=null, len=0)` on error with `thetadatadx_last_error()` set.
 macro_rules! tick_array_to_arrow_ipc {
     ($fn_name:ident, $tick:ty) => {
         /// Serialise a tick row span as an Arrow IPC stream. `rows` may be
         /// null only when `len` is 0. Caller MUST free the result with
-        /// `tdx_arrow_bytes_free`.
+        /// `thetadatadx_arrow_bytes_free`.
         ///
         /// # Safety
         /// `rows` must point to `len` initialised `$tick` values (e.g. the
         /// `data` / `len` pair of the array a history endpoint returned, or
         /// a C++ `std::vector`'s `data()` / `size()`), valid for the call.
         #[no_mangle]
-        pub unsafe extern "C" fn $fn_name(rows: *const $tick, len: usize) -> TdxArrowBytes {
-            ffi_boundary!(TdxArrowBytes::EMPTY, {
+        pub unsafe extern "C" fn $fn_name(rows: *const $tick, len: usize) -> ThetaDataDxArrowBytes {
+            ffi_boundary!(ThetaDataDxArrowBytes::EMPTY, {
                 if rows.is_null() && len != 0 {
                     crate::error::set_error("rows pointer is null with non-zero len");
-                    return TdxArrowBytes::EMPTY;
+                    return ThetaDataDxArrowBytes::EMPTY;
                 }
                 let slice: &[$tick] = if len == 0 {
                     &[]
@@ -356,7 +389,7 @@ macro_rules! tick_array_to_arrow_ipc {
                     Ok(b) => b,
                     Err(e) => {
                         crate::error::set_error(&format!("arrow conversion failed: {e}"));
-                        return TdxArrowBytes::EMPTY;
+                        return ThetaDataDxArrowBytes::EMPTY;
                     }
                 };
                 let mut buf: Vec<u8> = Vec::new();
@@ -368,99 +401,102 @@ macro_rules! tick_array_to_arrow_ipc {
                         Ok(w) => w,
                         Err(e) => {
                             crate::error::set_error(&format!("arrow ipc writer init failed: {e}"));
-                            return TdxArrowBytes::EMPTY;
+                            return ThetaDataDxArrowBytes::EMPTY;
                         }
                     };
                     if let Err(e) = writer.write(&batch) {
                         crate::error::set_error(&format!("arrow ipc write failed: {e}"));
-                        return TdxArrowBytes::EMPTY;
+                        return ThetaDataDxArrowBytes::EMPTY;
                     }
                     if let Err(e) = writer.finish() {
                         crate::error::set_error(&format!("arrow ipc finish failed: {e}"));
-                        return TdxArrowBytes::EMPTY;
+                        return ThetaDataDxArrowBytes::EMPTY;
                     }
                 }
-                TdxArrowBytes::from_vec(buf)
+                ThetaDataDxArrowBytes::from_vec(buf)
             })
         }
     };
 }
 
-tick_array_to_arrow_ipc!(tdx_eod_ticks_to_arrow_ipc, thetadatadx::EodTick);
-tick_array_to_arrow_ipc!(tdx_ohlc_ticks_to_arrow_ipc, thetadatadx::OhlcTick);
-tick_array_to_arrow_ipc!(tdx_trade_ticks_to_arrow_ipc, thetadatadx::TradeTick);
-tick_array_to_arrow_ipc!(tdx_quote_ticks_to_arrow_ipc, thetadatadx::QuoteTick);
+tick_array_to_arrow_ipc!(thetadatadx_eod_ticks_to_arrow_ipc, thetadatadx::EodTick);
+tick_array_to_arrow_ipc!(thetadatadx_ohlc_ticks_to_arrow_ipc, thetadatadx::OhlcTick);
+tick_array_to_arrow_ipc!(thetadatadx_trade_ticks_to_arrow_ipc, thetadatadx::TradeTick);
+tick_array_to_arrow_ipc!(thetadatadx_quote_ticks_to_arrow_ipc, thetadatadx::QuoteTick);
 tick_array_to_arrow_ipc!(
-    tdx_greeks_all_ticks_to_arrow_ipc,
+    thetadatadx_greeks_all_ticks_to_arrow_ipc,
     thetadatadx::GreeksAllTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_greeks_eod_ticks_to_arrow_ipc,
+    thetadatadx_greeks_eod_ticks_to_arrow_ipc,
     thetadatadx::GreeksEodTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_greeks_first_order_ticks_to_arrow_ipc,
+    thetadatadx_greeks_first_order_ticks_to_arrow_ipc,
     thetadatadx::GreeksFirstOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_greeks_second_order_ticks_to_arrow_ipc,
+    thetadatadx_greeks_second_order_ticks_to_arrow_ipc,
     thetadatadx::GreeksSecondOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_greeks_third_order_ticks_to_arrow_ipc,
+    thetadatadx_greeks_third_order_ticks_to_arrow_ipc,
     thetadatadx::GreeksThirdOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_greeks_all_ticks_to_arrow_ipc,
+    thetadatadx_trade_greeks_all_ticks_to_arrow_ipc,
     thetadatadx::TradeGreeksAllTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_greeks_first_order_ticks_to_arrow_ipc,
+    thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc,
     thetadatadx::TradeGreeksFirstOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_greeks_second_order_ticks_to_arrow_ipc,
+    thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc,
     thetadatadx::TradeGreeksSecondOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_greeks_third_order_ticks_to_arrow_ipc,
+    thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc,
     thetadatadx::TradeGreeksThirdOrderTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc,
+    thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc,
     thetadatadx::TradeGreeksImpliedVolatilityTick
 );
-tick_array_to_arrow_ipc!(tdx_iv_ticks_to_arrow_ipc, thetadatadx::IvTick);
-tick_array_to_arrow_ipc!(tdx_price_ticks_to_arrow_ipc, thetadatadx::PriceTick);
+tick_array_to_arrow_ipc!(thetadatadx_iv_ticks_to_arrow_ipc, thetadatadx::IvTick);
+tick_array_to_arrow_ipc!(thetadatadx_price_ticks_to_arrow_ipc, thetadatadx::PriceTick);
 tick_array_to_arrow_ipc!(
-    tdx_index_price_at_time_ticks_to_arrow_ipc,
+    thetadatadx_index_price_at_time_ticks_to_arrow_ipc,
     thetadatadx::IndexPriceAtTimeTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_open_interest_ticks_to_arrow_ipc,
+    thetadatadx_open_interest_ticks_to_arrow_ipc,
     thetadatadx::OpenInterestTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_market_value_ticks_to_arrow_ipc,
+    thetadatadx_market_value_ticks_to_arrow_ipc,
     thetadatadx::MarketValueTick
 );
-tick_array_to_arrow_ipc!(tdx_calendar_days_to_arrow_ipc, thetadatadx::CalendarDay);
 tick_array_to_arrow_ipc!(
-    tdx_interest_rate_ticks_to_arrow_ipc,
+    thetadatadx_calendar_days_to_arrow_ipc,
+    thetadatadx::CalendarDay
+);
+tick_array_to_arrow_ipc!(
+    thetadatadx_interest_rate_ticks_to_arrow_ipc,
     thetadatadx::InterestRateTick
 );
 tick_array_to_arrow_ipc!(
-    tdx_trade_quote_ticks_to_arrow_ipc,
+    thetadatadx_trade_quote_ticks_to_arrow_ipc,
     thetadatadx::TradeQuoteTick
 );
 
-/// Free a byte buffer returned by any `tdx_*_to_arrow_ipc` terminal.
+/// Free a byte buffer returned by any `thetadatadx_*_to_arrow_ipc` terminal.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_arrow_bytes_free(bytes: TdxArrowBytes) {
+pub unsafe extern "C" fn thetadatadx_arrow_bytes_free(bytes: ThetaDataDxArrowBytes) {
     ffi_boundary!((), {
         if !bytes.data.is_null() && bytes.len > 0 {
             // SAFETY: `bytes.data` was produced by `Box::into_raw` on a
-            // `Box<[u8]>` of length `bytes.len` in `TdxArrowBytes::from_vec`;
+            // `Box<[u8]>` of length `bytes.len` in `ThetaDataDxArrowBytes::from_vec`;
             // ownership returns to Rust here for drop. Null + zero-len gated.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
@@ -481,7 +517,7 @@ pub unsafe extern "C" fn tdx_arrow_bytes_free(bytes: TdxArrowBytes) {
 /// The `symbol` field is a heap-allocated C string. Freed when the array
 /// is freed.
 #[repr(C)]
-pub struct TdxOptionContract {
+pub struct ThetaDataDxOptionContract {
     /// Heap-allocated NUL-terminated C string. Freed with the array.
     pub symbol: *const c_char,
     /// Expiration date as a `YYYYMMDD` integer.
@@ -496,14 +532,14 @@ pub struct TdxOptionContract {
 
 /// Array of FFI-safe option contracts.
 #[repr(C)]
-pub struct TdxOptionContractArray {
+pub struct ThetaDataDxOptionContractArray {
     /// Pointer to the first element; null when empty.
-    pub data: *const TdxOptionContract,
+    pub data: *const ThetaDataDxOptionContract,
     /// Number of elements in the array.
     pub len: usize,
 }
 
-impl TdxOptionContractArray {
+impl ThetaDataDxOptionContractArray {
     pub(crate) fn from_vec(
         contracts: Vec<thetadatadx::OptionContract>,
     ) -> Result<Self, std::ffi::NulError> {
@@ -517,7 +553,7 @@ impl TdxOptionContractArray {
         let ffi_contracts = contracts
             .into_iter()
             .map(|c| {
-                Ok(TdxOptionContract {
+                Ok(ThetaDataDxOptionContract {
                     symbol: CString::new(c.symbol)?.into_raw().cast_const(),
                     expiration: c.expiration,
                     strike: c.strike,
@@ -526,7 +562,7 @@ impl TdxOptionContractArray {
             })
             .collect::<Result<Vec<_>, std::ffi::NulError>>()?;
         let boxed = ffi_contracts.into_boxed_slice();
-        let data = Box::into_raw(boxed) as *const TdxOptionContract;
+        let data = Box::into_raw(boxed) as *const ThetaDataDxOptionContract;
         Ok(Self { data, len })
     }
 }
@@ -534,7 +570,9 @@ impl TdxOptionContractArray {
 /// Free an option contract array, including all heap-allocated symbol
 /// strings.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractArray) {
+pub unsafe extern "C" fn thetadatadx_option_contract_array_free(
+    arr: ThetaDataDxOptionContractArray,
+) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
             // First free each symbol C string
@@ -547,7 +585,7 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
                 }
             }
             // Then free the array itself
-            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[TdxOptionContract]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element symbol strings were freed in the loop above.
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[ThetaDataDxOptionContract]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element symbol strings were freed in the loop above.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -559,19 +597,19 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  TdxStringArray — for list endpoints returning Vec<String>
+//  ThetaDataDxStringArray — for list endpoints returning Vec<String>
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Array of heap-allocated C strings.
 #[repr(C)]
-pub struct TdxStringArray {
+pub struct ThetaDataDxStringArray {
     /// Array of pointers to NUL-terminated C strings.
     pub data: *const *const c_char,
     /// Number of strings in the array.
     pub len: usize,
 }
 
-impl TdxStringArray {
+impl ThetaDataDxStringArray {
     pub(crate) fn from_vec(strings: Vec<String>) -> Result<Self, std::ffi::NulError> {
         let len = strings.len();
         if len == 0 {
@@ -592,7 +630,7 @@ impl TdxStringArray {
 
 /// Free a string array, including all individual C strings.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
+pub unsafe extern "C" fn thetadatadx_string_array_free(arr: ThetaDataDxStringArray) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
             // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.

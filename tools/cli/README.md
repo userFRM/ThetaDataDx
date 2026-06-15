@@ -1,8 +1,8 @@
-# tdx — ThetaDataDx CLI
+# thetadatadx — ThetaDataDx CLI
 
 Command-line interface for querying ThetaData market data.
 
-> **FLATFILES coverage:** the `tdx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). Example: `tdx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
+> **FLATFILES coverage:** the `thetadatadx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). Example: `thetadatadx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
 
 ## Install
 
@@ -14,7 +14,7 @@ Or build from the workspace root:
 
 ```bash
 cargo build --release -p thetadatadx-cli
-# binary at target/release/tdx
+# binary at target/release/thetadatadx
 ```
 
 ## Setup
@@ -30,96 +30,96 @@ your-password
 
 ```bash
 # Test authentication
-tdx auth --creds creds.txt
+thetadatadx auth --creds creds.txt
 
 # Stock data
-tdx stock list_symbols
-tdx stock list_dates EOD AAPL
-tdx stock history_eod AAPL 20240101 20240301
-tdx stock history_ohlc AAPL 20240315 1m              # 1-min bars
-tdx stock history_ohlc_range AAPL 20240101 20240301 1m
-tdx stock history_trade AAPL 20240315
-tdx stock history_quote AAPL 20240315 1m
-tdx stock history_trade_quote AAPL 20240315
-tdx stock snapshot_ohlc AAPL,MSFT,GOOGL
-tdx stock snapshot_trade AAPL,MSFT,GOOGL
-tdx stock snapshot_quote AAPL,MSFT,GOOGL
-tdx stock snapshot_market_value AAPL,MSFT
-tdx stock at_time_trade AAPL 20240101 20240301 09:30:00.000   # 9:30 AM ET
-tdx stock at_time_quote AAPL 20240101 20240301 09:30:00.000
+thetadatadx stock list_symbols
+thetadatadx stock list_dates EOD AAPL
+thetadatadx stock history_eod AAPL 20240101 20240301
+thetadatadx stock history_ohlc AAPL 20240315 1m              # 1-min bars
+thetadatadx stock history_ohlc_range AAPL 20240101 20240301 1m
+thetadatadx stock history_trade AAPL 20240315
+thetadatadx stock history_quote AAPL 20240315 1m
+thetadatadx stock history_trade_quote AAPL 20240315
+thetadatadx stock snapshot_ohlc AAPL,MSFT,GOOGL
+thetadatadx stock snapshot_trade AAPL,MSFT,GOOGL
+thetadatadx stock snapshot_quote AAPL,MSFT,GOOGL
+thetadatadx stock snapshot_market_value AAPL,MSFT
+thetadatadx stock at_time_trade AAPL 20240101 20240301 09:30:00.000   # 9:30 AM ET
+thetadatadx stock at_time_quote AAPL 20240101 20240301 09:30:00.000
 
 # Options
-tdx option list_symbols
-tdx option list_expirations SPY
-tdx option list_strikes SPY 20240419
-tdx option list_dates EOD SPY 20240419 500 C
-tdx option list_contracts EOD SPY 20240315
-tdx option history_trade SPY 20240419 500 C 20240315
-tdx option history_quote SPY 20240419 500 C 20240315 1m
-tdx option history_eod SPY 20240419 500 C 20240101 20240301
-tdx option history_ohlc SPY 20240419 500 C 20240315 1m
-tdx option history_trade_quote SPY 20240419 500 C 20240315
-tdx option history_open_interest SPY 20240419 500 C 20240315
+thetadatadx option list_symbols
+thetadatadx option list_expirations SPY
+thetadatadx option list_strikes SPY 20240419
+thetadatadx option list_dates EOD SPY 20240419 500 C
+thetadatadx option list_contracts EOD SPY 20240315
+thetadatadx option history_trade SPY 20240419 500 C 20240315
+thetadatadx option history_quote SPY 20240419 500 C 20240315 1m
+thetadatadx option history_eod SPY 20240419 500 C 20240101 20240301
+thetadatadx option history_ohlc SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_quote SPY 20240419 500 C 20240315
+thetadatadx option history_open_interest SPY 20240419 500 C 20240315
 
 # Option snapshots
-tdx option snapshot_ohlc SPY 20240419 500 C
-tdx option snapshot_trade SPY 20240419 500 C
-tdx option snapshot_quote SPY 20240419 500 C
-tdx option snapshot_open_interest SPY 20240419 500 C
-tdx option snapshot_market_value SPY 20240419 500 C
-tdx option snapshot_greeks_implied_volatility SPY 20240419 500 C
-tdx option snapshot_greeks_all SPY 20240419 500 C
-tdx option snapshot_greeks_first_order SPY 20240419 500 C
-tdx option snapshot_greeks_second_order SPY 20240419 500 C
-tdx option snapshot_greeks_third_order SPY 20240419 500 C
+thetadatadx option snapshot_ohlc SPY 20240419 500 C
+thetadatadx option snapshot_trade SPY 20240419 500 C
+thetadatadx option snapshot_quote SPY 20240419 500 C
+thetadatadx option snapshot_open_interest SPY 20240419 500 C
+thetadatadx option snapshot_market_value SPY 20240419 500 C
+thetadatadx option snapshot_greeks_implied_volatility SPY 20240419 500 C
+thetadatadx option snapshot_greeks_all SPY 20240419 500 C
+thetadatadx option snapshot_greeks_first_order SPY 20240419 500 C
+thetadatadx option snapshot_greeks_second_order SPY 20240419 500 C
+thetadatadx option snapshot_greeks_third_order SPY 20240419 500 C
 
 # Option Greeks history
-tdx option history_greeks_eod SPY 20240419 500 C 20240101 20240301
-tdx option history_greeks_all SPY 20240419 500 C 20240315 1m
-tdx option history_trade_greeks_all SPY 20240419 500 C 20240315
-tdx option history_greeks_first_order SPY 20240419 500 C 20240315 1m
-tdx option history_trade_greeks_first_order SPY 20240419 500 C 20240315
-tdx option history_greeks_second_order SPY 20240419 500 C 20240315 1m
-tdx option history_trade_greeks_second_order SPY 20240419 500 C 20240315
-tdx option history_greeks_third_order SPY 20240419 500 C 20240315 1m
-tdx option history_trade_greeks_third_order SPY 20240419 500 C 20240315
-tdx option history_greeks_implied_volatility SPY 20240419 500 C 20240315 1m
-tdx option history_trade_greeks_implied_volatility SPY 20240419 500 C 20240315
+thetadatadx option history_greeks_eod SPY 20240419 500 C 20240101 20240301
+thetadatadx option history_greeks_all SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_greeks_all SPY 20240419 500 C 20240315
+thetadatadx option history_greeks_first_order SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_greeks_first_order SPY 20240419 500 C 20240315
+thetadatadx option history_greeks_second_order SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_greeks_second_order SPY 20240419 500 C 20240315
+thetadatadx option history_greeks_third_order SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_greeks_third_order SPY 20240419 500 C 20240315
+thetadatadx option history_greeks_implied_volatility SPY 20240419 500 C 20240315 1m
+thetadatadx option history_trade_greeks_implied_volatility SPY 20240419 500 C 20240315
 
 # Option at-time queries
-tdx option at_time_trade SPY 20240419 500 C 20240101 20240301 09:30:00.000
-tdx option at_time_quote SPY 20240419 500 C 20240101 20240301 09:30:00.000
+thetadatadx option at_time_trade SPY 20240419 500 C 20240101 20240301 09:30:00.000
+thetadatadx option at_time_quote SPY 20240419 500 C 20240101 20240301 09:30:00.000
 
 # Indices
-tdx index list_symbols
-tdx index list_dates SPX
-tdx index history_eod SPX 20240101 20240301
-tdx index history_ohlc SPX 20240101 20240301 1m
-tdx index history_price SPX 20240315 1m
-tdx index snapshot_ohlc SPX,NDX,RUT
-tdx index snapshot_price SPX,NDX,RUT
-tdx index snapshot_market_value SPX,NDX,RUT
-tdx index at_time_price SPX 20240101 20240301 09:30:00.000
+thetadatadx index list_symbols
+thetadatadx index list_dates SPX
+thetadatadx index history_eod SPX 20240101 20240301
+thetadatadx index history_ohlc SPX 20240101 20240301 1m
+thetadatadx index history_price SPX 20240315 1m
+thetadatadx index snapshot_ohlc SPX,NDX,RUT
+thetadatadx index snapshot_price SPX,NDX,RUT
+thetadatadx index snapshot_market_value SPX,NDX,RUT
+thetadatadx index at_time_price SPX 20240101 20240301 09:30:00.000
 
 # Interest rates
-tdx rate history_eod SOFR 20240101 20240301
+thetadatadx rate history_eod SOFR 20240101 20240301
 
 # Market calendar
-tdx calendar open_today
-tdx calendar year 2024
-tdx calendar on_date 20240315
+thetadatadx calendar open_today
+thetadatadx calendar year 2024
+thetadatadx calendar on_date 20240315
 
 # Black-Scholes Greeks (offline, no server needed)
-tdx greeks 450 450 0.05 0.015 0.082 8.5 call
-tdx iv 450 450 0.05 0.015 0.082 8.5 call
+thetadatadx greeks 450 450 0.05 0.015 0.082 8.5 call
+thetadatadx iv 450 450 0.05 0.015 0.082 8.5 call
 ```
 
 ## Output formats
 
 ```bash
-tdx stock history_eod AAPL 20240101 20240301                  # pretty table (default)
-tdx stock history_eod AAPL 20240101 20240301 --format json     # JSON array
-tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
+thetadatadx stock history_eod AAPL 20240101 20240301                  # pretty table (default)
+thetadatadx stock history_eod AAPL 20240101 20240301 --format json     # JSON array
+thetadatadx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 ```
 
 ## Global flags

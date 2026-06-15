@@ -1325,8 +1325,8 @@ impl Config {
     // streaming-only surface never opens it; production code paths keep
     // the `Config.production()` default. Mirrors the Python
     // `Config.mdds_host` / `.mdds_port`, the C++ `set_mdds_host` /
-    // `set_mdds_port`, and the C ABI `tdx_config_set_mdds_host` /
-    // `tdx_config_set_mdds_port`.
+    // `set_mdds_port`, and the C ABI `thetadatadx_config_set_mdds_host` /
+    // `thetadatadx_config_set_mdds_port`.
 
     /// Override the historical gRPC host. Companion to `setMddsPort`.
     #[napi(js_name = "setMddsHost")]

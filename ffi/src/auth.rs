@@ -1,22 +1,22 @@
-//! Credentials, config, and historical-client lifecycle: `tdx_credentials_*`,
-//! `tdx_config_*`, `tdx_historical_connect` / `tdx_historical_free`.
+//! Credentials, config, and historical-client lifecycle: `thetadatadx_credentials_*`,
+//! `thetadatadx_config_*`, `thetadatadx_historical_connect` / `thetadatadx_historical_free`.
 
 use std::os::raw::c_char;
 use std::ptr;
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
-use crate::types::{TdxConfig, TdxCredentials, TdxHistoricalClient};
+use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxHistoricalClient};
 
 // ── Credentials ──
 
 /// Create credentials from email and password strings.
 ///
-/// Returns null on invalid input (check `tdx_last_error()`).
+/// Returns null on invalid input (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_credentials_from_email(
+pub unsafe extern "C" fn thetadatadx_credentials_from_email(
     email: *const c_char,
     password: *const c_char,
-) -> *mut TdxCredentials {
+) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
         // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let email = match unsafe { cstr_to_str(email) } {
@@ -43,15 +43,17 @@ pub unsafe extern "C" fn tdx_credentials_from_email(
             }
         };
         let creds = thetadatadx::Credentials::new(email, password);
-        Box::into_raw(Box::new(TdxCredentials { inner: creds }))
+        Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
     })
 }
 
 /// Load credentials from a file (line 1 = email, line 2 = password).
 ///
-/// Returns null on error (check `tdx_last_error()`).
+/// Returns null on error (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut TdxCredentials {
+pub unsafe extern "C" fn thetadatadx_credentials_from_file(
+    path: *const c_char,
+) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
         // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let path = match unsafe { cstr_to_str(path) } {
@@ -66,7 +68,7 @@ pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut 
             }
         };
         match thetadatadx::Credentials::from_file(path) {
-            Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
+            Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -77,10 +79,10 @@ pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut 
 
 /// Free a credentials handle.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_credentials_free(creds: *mut TdxCredentials) {
+pub unsafe extern "C" fn thetadatadx_credentials_free(creds: *mut ThetaDataDxCredentials) {
     ffi_boundary!((), {
         if !creds.is_null() {
-            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
+            // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(creds) });
         }
     })
@@ -90,9 +92,9 @@ pub unsafe extern "C" fn tdx_credentials_free(creds: *mut TdxCredentials) {
 
 /// Create a production config (`ThetaData` NJ datacenter).
 #[no_mangle]
-pub extern "C" fn tdx_config_production() -> *mut TdxConfig {
+pub extern "C" fn thetadatadx_config_production() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
-        Box::into_raw(Box::new(TdxConfig {
+        Box::into_raw(Box::new(ThetaDataDxConfig {
             inner: thetadatadx::DirectConfig::production(),
         }))
     })
@@ -100,9 +102,9 @@ pub extern "C" fn tdx_config_production() -> *mut TdxConfig {
 
 /// Create a dev config (FPSS dev servers, port 20200, infinite replay).
 #[no_mangle]
-pub extern "C" fn tdx_config_dev() -> *mut TdxConfig {
+pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
-        Box::into_raw(Box::new(TdxConfig {
+        Box::into_raw(Box::new(ThetaDataDxConfig {
             inner: thetadatadx::DirectConfig::dev(),
         }))
     })
@@ -110,9 +112,9 @@ pub extern "C" fn tdx_config_dev() -> *mut TdxConfig {
 
 /// Create a stage config (FPSS stage servers, port 20100, unstable).
 #[no_mangle]
-pub extern "C" fn tdx_config_stage() -> *mut TdxConfig {
+pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
-        Box::into_raw(Box::new(TdxConfig {
+        Box::into_raw(Box::new(ThetaDataDxConfig {
             inner: thetadatadx::DirectConfig::stage(),
         }))
     })
@@ -120,10 +122,10 @@ pub extern "C" fn tdx_config_stage() -> *mut TdxConfig {
 
 /// Free a config handle.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
+pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig) {
     ffi_boundary!((), {
         if !config.is_null() {
-            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
+            // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(config) });
         }
     })
@@ -134,18 +136,21 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 /// - `mode = 0`: Batched (default) -- flush only on PING every 100ms
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
 ///
-/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` when
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
 /// `mode` is outside the documented `{0, 1}` set or when `config` is
 /// null. A rejected `mode` value carries
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` (the same typed
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` (the same typed
 /// class the Python / TypeScript bindings raise for a bad enum value);
 /// a null `config` carries `TDX_ERR_CONFIG`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) -> i32 {
+pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
+    config: *mut ThetaDataDxConfig,
+    mode: i32,
+) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
             crate::error::set_error_with_code(
-                "tdx_config_set_flush_mode: config handle is null",
+                "thetadatadx_config_set_flush_mode: config handle is null",
                 crate::error::TDX_ERR_CONFIG,
             );
             return -1;
@@ -156,14 +161,14 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "tdx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
+                        "thetadatadx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
                     ),
                     crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
         };
-        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new`
+        // SAFETY: caller passes a pointer returned by `thetadatadx_direct_config_new`
         // that has not been freed; null was rejected above; `&mut *` produces a
         // unique reference valid for the call duration because the caller owns
         // the Box and the FFI contract forbids concurrent calls on the same
@@ -175,12 +180,12 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 }
 
 /// Read the configured FPSS flush mode. Same encoding as
-/// `tdx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
+/// `thetadatadx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
 /// (`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_flush_mode(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
+    config: *const ThetaDataDxConfig,
     out_mode: *mut i32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -188,7 +193,7 @@ pub unsafe extern "C" fn tdx_config_get_flush_mode(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match config.inner.fpss.flush_mode {
             thetadatadx::FpssFlushMode::Batched => 0,
@@ -206,26 +211,26 @@ pub unsafe extern "C" fn tdx_config_get_flush_mode(
 /// Set FPSS reconnect policy on a config handle.
 ///
 /// - `policy = 0`: Auto (default) -- auto-reconnect with split per-class
-///   attempt budgets (see `tdx_config_set_reconnect_max_attempts`,
-///   `tdx_config_set_reconnect_max_rate_limited_attempts`,
-///   `tdx_config_set_reconnect_stable_window_secs`).
+///   attempt budgets (see `thetadatadx_config_set_reconnect_max_attempts`,
+///   `thetadatadx_config_set_reconnect_max_rate_limited_attempts`,
+///   `thetadatadx_config_set_reconnect_stable_window_secs`).
 /// - `policy = 1`: Manual -- no auto-reconnect, user calls reconnect explicitly
 ///
-/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` /
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `policy` is
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` /
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `policy` is
 /// outside the documented `{0, 1}` set, so an unknown policy is rejected
 /// with the same typed class the Python / TypeScript bindings raise
 /// rather than being silently coerced to `Auto`. A null `config` is
 /// rejected with `TDX_ERR_CONFIG`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_policy(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
+    config: *mut ThetaDataDxConfig,
     policy: i32,
 ) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
             crate::error::set_error_with_code(
-                "tdx_config_set_reconnect_policy: config handle is null",
+                "thetadatadx_config_set_reconnect_policy: config handle is null",
                 crate::error::TDX_ERR_CONFIG,
             );
             return -1;
@@ -236,14 +241,14 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "tdx_config_set_reconnect_policy: invalid policy {other}; expected 0 (Auto) or 1 (Manual)"
+                        "thetadatadx_config_set_reconnect_policy: invalid policy {other}; expected 0 (Auto) or 1 (Manual)"
                     ),
                     crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
         };
-        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new`
+        // SAFETY: caller passes a pointer returned by `thetadatadx_direct_config_new`
         // that has not been freed; null was rejected above; `&mut *` produces a
         // unique reference valid for the call duration because the caller owns
         // the Box and the FFI contract forbids concurrent calls on the same
@@ -258,8 +263,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(
 /// auto-reconnect path. Default `30`. No effect unless the reconnect
 /// policy is `Auto`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_attempts(
+    config: *mut ThetaDataDxConfig,
     max_attempts: u32,
 ) {
     ffi_boundary!((), {
@@ -274,8 +279,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
 /// for the auto-reconnect path. Default `100`. No effect unless the
 /// reconnect policy is `Auto`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_rate_limited_attempts(
+    config: *mut ThetaDataDxConfig,
     max_rate_limited_attempts: u32,
 ) {
     ffi_boundary!((), {
@@ -290,8 +295,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
 /// which the auto-reconnect attempt counters reset. Default `60`. No
 /// effect unless the reconnect policy is `Auto`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_stable_window_secs(
+    config: *mut ThetaDataDxConfig,
     secs: u64,
 ) {
     ffi_boundary!((), {
@@ -307,7 +312,10 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
 /// through to the FPSS I/O loop at connect time and consumed by the
 /// `Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms(config: *mut TdxConfig, ms: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms(
+    config: *mut ThetaDataDxConfig,
+    ms: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.reconnect.wait_ms = ms;
@@ -319,8 +327,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms(config: *mut TdxConfig
 /// Writes the configured millisecond delay into `*out_ms`. Returns
 /// `0` on success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_ms(
+    config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -328,7 +336,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_ms checked non-null at line 238; FFI contract pins
         // the `u64` storage for the call. Writing the `reconnect.wait_ms`
@@ -347,8 +355,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
 /// `reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
 /// 130 s rate-limit cooldown).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_rate_limited_ms(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_rate_limited_ms(
+    config: *mut ThetaDataDxConfig,
     ms: u64,
 ) {
     ffi_boundary!((), {
@@ -358,10 +366,10 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_wait_rate_limited_ms(
 }
 
 /// Read the current reconnect `wait_rate_limited_ms` setting. Same
-/// shape as [`tdx_config_get_reconnect_wait_ms`].
+/// shape as [`thetadatadx_config_get_reconnect_wait_ms`].
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_rate_limited_ms(
+    config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -369,7 +377,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_ms checked non-null at line 279; FFI contract pins
         // the `u64` storage for the call. Writing
@@ -384,7 +392,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
 
 // ── Reconnect budget readback (Auto-policy limits) ─────────────────
 //
-// Getters mirroring the existing `tdx_config_set_reconnect_*` family
+// Getters mirroring the existing `thetadatadx_config_set_reconnect_*` family
 // so operator dashboards can read the configured policy back out of a
 // handle. When the policy is `Manual` or `Custom`, the limits getters
 // write the default-limits values: the per-class budgets only apply
@@ -396,8 +404,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
 /// `*out_policy`. Returns `0` on success, `-1` if either pointer is
 /// null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_policy(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
+    config: *const ThetaDataDxConfig,
     out_policy: *mut i32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -405,7 +413,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_policy(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(_) => 0,
@@ -427,8 +435,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_policy(
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_max_attempts(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_attempts(
+    config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -436,7 +444,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_attempts(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_attempts,
@@ -457,8 +465,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_attempts(
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_max_rate_limited_attempts(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_rate_limited_attempts(
+    config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -466,7 +474,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_rate_limited_attempts(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
@@ -482,8 +490,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_rate_limited_attempts(
 
 /// Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_max_server_restart_attempts(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_server_restart_attempts(
+    config: *mut ThetaDataDxConfig,
     n: u32,
 ) {
     ffi_boundary!((), {
@@ -501,8 +509,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_server_restart_attempts(
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_max_server_restart_attempts(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_server_restart_attempts(
+    config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -510,7 +518,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_server_restart_attempts(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
@@ -531,8 +539,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_server_restart_attempts(
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_stable_window_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_stable_window_secs(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -540,7 +548,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_stable_window_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(limits) => limits.stable_window,
@@ -556,8 +564,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_stable_window_secs(
 
 /// Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_max_elapsed_secs(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_elapsed_secs(
+    config: *mut ThetaDataDxConfig,
     secs: u64,
 ) {
     ffi_boundary!((), {
@@ -575,8 +583,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_elapsed_secs(
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_max_elapsed_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_elapsed_secs(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -584,7 +592,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_elapsed_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_elapsed,
@@ -602,7 +610,10 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_max_elapsed_secs(
 
 /// Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect_wait_ms` and doubles per consecutive attempt up to this value. Default `30_000`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_max_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_max_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.reconnect.wait_max_ms = v;
@@ -614,8 +625,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_wait_max_ms(config: *mut TdxCo
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_wait_max_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_max_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -623,7 +634,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_max_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -635,8 +646,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_max_ms(
 
 /// Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects. Default `5_000`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_server_restart_ms(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_server_restart_ms(
+    config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
@@ -650,8 +661,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_wait_server_restart_ms(
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_wait_server_restart_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_server_restart_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -659,7 +670,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_server_restart_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -676,16 +687,19 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_server_restart_ms(
 /// - `mode = 2`: Decorrelated — walk relative to the previous delay.
 /// - `mode = 3`: None — deterministic delays (tests only).
 ///
-/// Returns `0` on success. Returns `-1` and sets `tdx_last_error` when
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
 /// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
 /// null. A rejected `mode` value carries
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_jitter(config: *mut TdxConfig, mode: i32) -> i32 {
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
+    config: *mut ThetaDataDxConfig,
+    mode: i32,
+) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
-            set_error("tdx_config_set_reconnect_jitter: config handle is null");
+            set_error("thetadatadx_config_set_reconnect_jitter: config handle is null");
             return -1;
         }
         let value = match mode {
@@ -696,14 +710,14 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_jitter(config: *mut TdxConfig,
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "tdx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
+                        "thetadatadx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
                     ),
                     crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
         };
-        // SAFETY: config is a non-null pointer returned by `tdx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
         config.inner.reconnect.jitter = value;
         0
@@ -711,11 +725,11 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_jitter(config: *mut TdxConfig,
 }
 
 /// Read the configured reconnect jitter mode. Same encoding as
-/// `tdx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
+/// `thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
 /// either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_jitter(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_jitter(
+    config: *const ThetaDataDxConfig,
     out_mode: *mut i32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -723,7 +737,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_jitter(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match config.inner.reconnect.jitter {
             thetadatadx::JitterMode::Full => 0,
@@ -744,8 +758,8 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_jitter(
 /// burst flushed and followed by a jittered `replay_pace_ms` pause.
 /// Minimum `1` (validated at connect). Default `50`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_replay_burst_size(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_burst_size(
+    config: *mut ThetaDataDxConfig,
     n: u32,
 ) {
     ffi_boundary!((), {
@@ -759,8 +773,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_replay_burst_size(
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_replay_burst_size(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_burst_size(
+    config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -768,7 +782,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_replay_burst_size(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -780,7 +794,10 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_replay_burst_size(
 
 /// Set the pause (ms) between subscription-replay bursts after an auto-reconnect. `0` removes the pause. Default `5`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_replay_pace_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_pace_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.reconnect.replay_pace_ms = v;
@@ -792,8 +809,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_replay_pace_ms(config: *mut Td
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_reconnect_replay_pace_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_pace_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -801,7 +818,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_replay_pace_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -822,7 +839,10 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_replay_pace_ms(
 
 /// Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_timeout_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_timeout_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.timeout_ms = v;
@@ -834,8 +854,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_timeout_ms(config: *mut TdxConfig, 
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_timeout_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_timeout_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -843,7 +863,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_timeout_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -855,7 +875,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_timeout_ms(
 
 /// Set the per-server FPSS TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_connect_timeout_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_connect_timeout_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.connect_timeout_ms = v;
@@ -867,8 +890,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_connect_timeout_ms(config: *mut Tdx
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_connect_timeout_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_connect_timeout_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -876,7 +899,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_connect_timeout_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -888,7 +911,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_connect_timeout_ms(
 
 /// Set the FPSS heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_ping_interval_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_ping_interval_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.ping_interval_ms = v;
@@ -900,8 +926,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_ping_interval_ms(config: *mut TdxCo
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_ping_interval_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_ping_interval_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -909,7 +935,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_ping_interval_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -921,7 +947,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_ping_interval_ms(
 
 /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_io_read_slice_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_io_read_slice_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.io_read_slice_ms = v;
@@ -933,8 +962,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_io_read_slice_ms(config: *mut TdxCo
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_io_read_slice_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_io_read_slice_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -942,7 +971,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_io_read_slice_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -954,7 +983,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_io_read_slice_ms(
 
 /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects, regardless of the read-timeout accounting. `0` disables. Default `30_000`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_data_watchdog_ms(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_data_watchdog_ms(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.data_watchdog_ms = v;
@@ -966,8 +998,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_data_watchdog_ms(config: *mut TdxCo
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_data_watchdog_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_data_watchdog_ms(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -975,7 +1007,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_data_watchdog_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -987,7 +1019,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_data_watchdog_ms(
 
 /// Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent FPSS socket. Default `5`; validated to `[1, 7_200]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_idle_secs(config: *mut TdxConfig, v: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_idle_secs(
+    config: *mut ThetaDataDxConfig,
+    v: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.keepalive_idle_secs = v;
@@ -999,8 +1034,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_idle_secs(config: *mut Td
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_idle_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_idle_secs(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1008,7 +1043,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_idle_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1020,8 +1055,8 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_idle_secs(
 
 /// Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_interval_secs(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_interval_secs(
+    config: *mut ThetaDataDxConfig,
     v: u64,
 ) {
     ffi_boundary!((), {
@@ -1035,8 +1070,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_interval_secs(
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_interval_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_interval_secs(
+    config: *const ThetaDataDxConfig,
     out: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1044,7 +1079,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_interval_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1056,7 +1091,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_interval_secs(
 
 /// Set the number of unanswered TCP keepalive probes after which the kernel declares the FPSS connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_retries(config: *mut TdxConfig, v: u32) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_keepalive_retries(
+    config: *mut ThetaDataDxConfig,
+    v: u32,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.keepalive_retries = v;
@@ -1068,8 +1106,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_keepalive_retries(config: *mut TdxC
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_retries(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_keepalive_retries(
+    config: *const ThetaDataDxConfig,
     out: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1077,7 +1115,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_retries(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1092,9 +1130,12 @@ pub unsafe extern "C" fn tdx_config_get_fpss_keepalive_retries(
 /// Must be a power of two `>= 64`. Invalid values are rejected at the
 /// setter boundary: the config is left unchanged and the failure
 /// reason is written to thread-local storage retrievable via
-/// `tdx_last_error()`. Default is `131_072`.
+/// `thetadatadx_last_error()`. Default is `131_072`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_ring_size(config: *mut TdxConfig, n: usize) {
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_ring_size(
+    config: *mut ThetaDataDxConfig,
+    n: usize,
+) {
     ffi_boundary!((), {
         if config.is_null() {
             return;
@@ -1112,7 +1153,7 @@ pub unsafe extern "C" fn tdx_config_set_fpss_ring_size(config: *mut TdxConfig, n
             set_error(&format!("fpss_ring_size must be >= 64; got {n}"));
             return;
         }
-        // SAFETY: config is a non-null pointer returned by tdx_config_* and not yet freed.
+        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.fpss.ring_size = n;
     })
@@ -1123,8 +1164,8 @@ pub unsafe extern "C" fn tdx_config_set_fpss_ring_size(config: *mut TdxConfig, n
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_ring_size(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_ring_size(
+    config: *const ThetaDataDxConfig,
     out: *mut usize,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1132,7 +1173,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_ring_size(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1149,19 +1190,19 @@ pub unsafe extern "C" fn tdx_config_get_fpss_ring_size(
 ///   attempts cross physical machines.
 /// - `policy = 1`: FixedOrder — use the declared host order verbatim.
 ///
-/// Returns `0` on success. Returns `-1` and sets `tdx_last_error`
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
 /// when `policy` is outside the documented `{0, 1}` set or `config`
 /// is null. A rejected `policy` value carries
-/// `tdx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_host_selection(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_selection(
+    config: *mut ThetaDataDxConfig,
     policy: i32,
 ) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
-            set_error("tdx_config_set_fpss_host_selection: config handle is null");
+            set_error("thetadatadx_config_set_fpss_host_selection: config handle is null");
             return -1;
         }
         let value = match policy {
@@ -1170,14 +1211,14 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_selection(
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "tdx_config_set_fpss_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
+                        "thetadatadx_config_set_fpss_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
                     ),
                     crate::error::TDX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
         };
-        // SAFETY: config is a non-null pointer returned by `tdx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
         config.inner.fpss.host_selection = value;
         0
@@ -1185,11 +1226,11 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_selection(
 }
 
 /// Read the configured FPSS host-selection policy. Same encoding as
-/// `tdx_config_set_fpss_host_selection`. Returns `0` on success, `-1`
+/// `thetadatadx_config_set_fpss_host_selection`. Returns `0` on success, `-1`
 /// if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_host_selection(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_selection(
+    config: *const ThetaDataDxConfig,
     out_policy: *mut i32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1197,7 +1238,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_host_selection(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = match config.inner.fpss.host_selection {
             thetadatadx::HostSelectionPolicy::Shuffled => 0,
@@ -1224,8 +1265,8 @@ pub unsafe extern "C" fn tdx_config_get_fpss_host_selection(
 /// Ignored under the `FixedOrder` host-selection policy. Returns `0`
 /// on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_fpss_host_shuffle_seed(
+    config: *mut ThetaDataDxConfig,
     has_value: bool,
     seed: u64,
 ) -> i32 {
@@ -1234,7 +1275,7 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed(
             set_error("config handle is null");
             return -1;
         }
-        // SAFETY: config is a non-null pointer returned by `tdx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
         config.inner.fpss.host_shuffle_seed = if has_value { Some(seed) } else { None };
         0
@@ -1242,15 +1283,15 @@ pub unsafe extern "C" fn tdx_config_set_fpss_host_shuffle_seed(
 }
 
 /// Read the current FPSS host-shuffle seed. Same `(has_value, seed)`
-/// ABI as `tdx_config_set_fpss_host_shuffle_seed`:
+/// ABI as `thetadatadx_config_set_fpss_host_shuffle_seed`:
 ///
 /// * `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
 /// * `*out_has_value = true` → `Some(*out_seed)`.
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_fpss_host_shuffle_seed(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_fpss_host_shuffle_seed(
+    config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
     out_seed: *mut u64,
 ) -> i32 {
@@ -1259,7 +1300,7 @@ pub unsafe extern "C" fn tdx_config_get_fpss_host_shuffle_seed(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1284,7 +1325,10 @@ pub unsafe extern "C" fn tdx_config_get_fpss_host_shuffle_seed(
 /// retry sequence, measured from the first attempt. `0` disables the
 /// envelope (attempt budget only). Default `300`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_retry_max_elapsed_secs(config: *mut TdxConfig, secs: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_retry_max_elapsed_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.retry.max_elapsed = std::time::Duration::from_secs(secs);
@@ -1295,8 +1339,8 @@ pub unsafe extern "C" fn tdx_config_set_retry_max_elapsed_secs(config: *mut TdxC
 /// `300`; `0` = disabled). Returns `0` on success, `-1` if either
 /// pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_retry_max_elapsed_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_retry_max_elapsed_secs(
+    config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1304,7 +1348,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_elapsed_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1318,7 +1362,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_elapsed_secs(
 /// `true`; `false` gives the deterministic schedule, useful for tests
 /// that assert exact timings.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flatfiles_jitter(config: *mut TdxConfig, jitter: bool) {
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_jitter(
+    config: *mut ThetaDataDxConfig,
+    jitter: bool,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.flatfiles.jitter = jitter;
@@ -1328,8 +1375,8 @@ pub unsafe extern "C" fn tdx_config_set_flatfiles_jitter(config: *mut TdxConfig,
 /// Read the current `flatfiles.jitter` value (default `true`).
 /// Returns `0` on success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_flatfiles_jitter(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
+    config: *const ThetaDataDxConfig,
     out_jitter: *mut bool,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1337,7 +1384,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_jitter(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1350,7 +1397,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_jitter(
 // ── Custom reconnect policy callback ────────────────────────────────
 
 /// Reconnect-decision callback type for
-/// `tdx_config_set_reconnect_callback`.
+/// `thetadatadx_config_set_reconnect_callback`.
 ///
 /// Invoked on the streaming I/O thread after each retriable
 /// involuntary disconnect. `reason` is the `RemoveReason` discriminant
@@ -1358,7 +1405,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_jitter(
 /// Return the reconnect delay in milliseconds, or any negative value
 /// to stop reconnecting (the I/O loop then emits the terminal
 /// `ReconnectsExhausted` event and exits).
-pub type TdxReconnectCallback =
+pub type ThetaDataDxReconnectCallback =
     unsafe extern "C" fn(reason: i32, attempt: u32, user_data: *mut std::ffi::c_void) -> i64;
 
 /// Install a custom reconnect policy driven by a C callback.
@@ -1378,9 +1425,9 @@ pub type TdxReconnectCallback =
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
-    config: *mut TdxConfig,
-    cb: Option<TdxReconnectCallback>,
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
+    config: *mut ThetaDataDxConfig,
+    cb: Option<ThetaDataDxReconnectCallback>,
     user_data: *mut std::ffi::c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1388,7 +1435,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
             set_error("config handle is null");
             return -1;
         }
-        // SAFETY: config is a non-null pointer returned by `tdx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         let config = unsafe { &mut *config };
         let Some(cb) = cb else {
             config.inner.reconnect.policy =
@@ -1400,10 +1447,10 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
         // thread-safe; the wrapper below carries that promise across
         // Rust's auto-trait checks.
         struct CallbackCtx {
-            cb: TdxReconnectCallback,
+            cb: ThetaDataDxReconnectCallback,
             user_data: *mut std::ffi::c_void,
         }
-        // SAFETY: the public contract on `tdx_config_set_reconnect_callback` requires `cb` + `user_data` to be callable from any thread for the lifetime of clients built from this config; the wrapper only forwards the pointer pair to that documented-thread-safe callback.
+        // SAFETY: the public contract on `thetadatadx_config_set_reconnect_callback` requires `cb` + `user_data` to be callable from any thread for the lifetime of clients built from this config; the wrapper only forwards the pointer pair to that documented-thread-safe callback.
         unsafe impl Send for CallbackCtx {}
         // SAFETY: same documented contract as the `Send` impl — the wrapped pointer pair is only ever used to invoke the caller-supplied thread-safe callback.
         unsafe impl Sync for CallbackCtx {}
@@ -1447,8 +1494,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_callback(
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_worker_threads(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_worker_threads(
+    config: *mut ThetaDataDxConfig,
     has_value: bool,
     n: usize,
 ) -> i32 {
@@ -1458,7 +1505,7 @@ pub unsafe extern "C" fn tdx_config_set_worker_threads(
             return -1;
         }
         // SAFETY: config is a non-null pointer returned by
-        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
         // and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.runtime.tokio_worker_threads = if has_value { Some(n) } else { None };
@@ -1474,8 +1521,8 @@ pub unsafe extern "C" fn tdx_config_set_worker_threads(
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_worker_threads(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
+    config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
     out_n: *mut usize,
 ) -> i32 {
@@ -1484,7 +1531,7 @@ pub unsafe extern "C" fn tdx_config_get_worker_threads(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let (has_value, n) = match config.inner.runtime.tokio_worker_threads {
             Some(v) => (true, v),
@@ -1510,9 +1557,12 @@ pub unsafe extern "C" fn tdx_config_get_worker_threads(
 
 /// Set the initial backoff delay (ms) for the MDDS retry policy.
 /// Default `250`. Subsequent retries double from here, capped at
-/// `tdx_config_set_retry_max_delay_ms`.
+/// `thetadatadx_config_set_retry_max_delay_ms`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_retry_initial_delay_ms(config: *mut TdxConfig, ms: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_retry_initial_delay_ms(
+    config: *mut ThetaDataDxConfig,
+    ms: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.retry.initial_delay = std::time::Duration::from_millis(ms);
@@ -1522,8 +1572,8 @@ pub unsafe extern "C" fn tdx_config_set_retry_initial_delay_ms(config: *mut TdxC
 /// Read the current `retry.initial_delay` setting (ms). Returns `0` on
 /// success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_retry_initial_delay_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_retry_initial_delay_ms(
+    config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1531,7 +1581,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_initial_delay_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let ms = u64::try_from(config.inner.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
         // SAFETY: out_ms checked non-null at line 389; FFI contract
@@ -1549,7 +1599,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_initial_delay_ms(
 /// Default `30_000` (30 s). The exponential schedule never exceeds
 /// this value regardless of attempt number.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_retry_max_delay_ms(config: *mut TdxConfig, ms: u64) {
+pub unsafe extern "C" fn thetadatadx_config_set_retry_max_delay_ms(
+    config: *mut ThetaDataDxConfig,
+    ms: u64,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.retry.max_delay = std::time::Duration::from_millis(ms);
@@ -1558,8 +1611,8 @@ pub unsafe extern "C" fn tdx_config_set_retry_max_delay_ms(config: *mut TdxConfi
 
 /// Read the current `retry.max_delay` setting (ms).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_retry_max_delay_ms(
+    config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1567,7 +1620,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let ms = u64::try_from(config.inner.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
         // SAFETY: out_ms checked non-null at line 425; FFI contract pins
@@ -1585,7 +1638,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
 /// retries up to `max_attempts - 1` after the initial call. Default
 /// `20`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_retry_max_attempts(config: *mut TdxConfig, n: u32) {
+pub unsafe extern "C" fn thetadatadx_config_set_retry_max_attempts(
+    config: *mut ThetaDataDxConfig,
+    n: u32,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.retry.max_attempts = n;
@@ -1594,8 +1650,8 @@ pub unsafe extern "C" fn tdx_config_set_retry_max_attempts(config: *mut TdxConfi
 
 /// Read the current `retry.max_attempts` setting.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_retry_max_attempts(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_retry_max_attempts(
+    config: *const ThetaDataDxConfig,
     out_n: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1603,7 +1659,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_attempts(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
         unsafe {
@@ -1618,7 +1674,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_attempts(
 /// (`min(max_delay, initial * 2^attempt)`), which is useful for tests
 /// that need to assert exact timings.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_retry_jitter(config: *mut TdxConfig, jitter: bool) {
+pub unsafe extern "C" fn thetadatadx_config_set_retry_jitter(
+    config: *mut ThetaDataDxConfig,
+    jitter: bool,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.retry.jitter = jitter;
@@ -1627,8 +1686,8 @@ pub unsafe extern "C" fn tdx_config_set_retry_jitter(config: *mut TdxConfig, jit
 
 /// Read the current `retry.jitter` setting.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_retry_jitter(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_retry_jitter(
+    config: *const ThetaDataDxConfig,
     out_jitter: *mut bool,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1636,7 +1695,7 @@ pub unsafe extern "C" fn tdx_config_get_retry_jitter(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_jitter null-checked above; caller pins the storage for the call duration.
         unsafe {
@@ -1651,7 +1710,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_jitter(
 /// - `enabled = true` (default): derive OHLCVC bars locally from trade events
 /// - `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: bool) {
+pub unsafe extern "C" fn thetadatadx_config_set_derive_ohlcvc(
+    config: *mut ThetaDataDxConfig,
+    enabled: bool,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.fpss.derive_ohlcvc = enabled;
@@ -1662,8 +1724,8 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
 /// `false` into `*out_enabled`. Returns `0` on success, `-1` if either
 /// pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_derive_ohlcvc(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_derive_ohlcvc(
+    config: *const ThetaDataDxConfig,
     out_enabled: *mut bool,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1671,7 +1733,7 @@ pub unsafe extern "C" fn tdx_config_get_derive_ohlcvc(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
@@ -1696,7 +1758,10 @@ pub unsafe extern "C" fn tdx_config_get_derive_ohlcvc(
 /// `10`. Validated to the range `[1, 100]` at
 /// [`thetadatadx::DirectConfig::validate`] time.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts(config: *mut TdxConfig, n: u32) {
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts(
+    config: *mut ThetaDataDxConfig,
+    n: u32,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.flatfiles.max_attempts = n;
@@ -1706,8 +1771,8 @@ pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts(config: *mut TdxC
 /// Read the current `flatfiles.max_attempts` setting. Returns `0` on
 /// success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_flatfiles_max_attempts(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_attempts(
+    config: *const ThetaDataDxConfig,
     out_n: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1715,7 +1780,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_attempts(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_n null-checked above; FFI contract pins the `u32`
         // storage for the call. `flatfiles.max_attempts` is a `u32`
@@ -1731,8 +1796,8 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_attempts(
 /// retry loop. Doubles per attempt up to `max_backoff_secs`. Default
 /// `1`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flatfiles_initial_backoff_secs(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_initial_backoff_secs(
+    config: *mut ThetaDataDxConfig,
     secs: u64,
 ) {
     ffi_boundary!((), {
@@ -1744,8 +1809,8 @@ pub unsafe extern "C" fn tdx_config_set_flatfiles_initial_backoff_secs(
 /// Read the current `flatfiles.initial_backoff` setting (seconds).
 /// Returns `0` on success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_flatfiles_initial_backoff_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_initial_backoff_secs(
+    config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1753,7 +1818,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_initial_backoff_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_secs null-checked above. `Duration::as_secs`
         // returns a `u64` (the seconds component truncates the
@@ -1772,8 +1837,8 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_initial_backoff_secs(
 /// or equal to `initial_backoff_secs` (rejected at
 /// [`thetadatadx::DirectConfig::validate`] time otherwise).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_flatfiles_max_backoff_secs(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_backoff_secs(
+    config: *mut ThetaDataDxConfig,
     secs: u64,
 ) {
     ffi_boundary!((), {
@@ -1785,8 +1850,8 @@ pub unsafe extern "C" fn tdx_config_set_flatfiles_max_backoff_secs(
 /// Read the current `flatfiles.max_backoff` setting (seconds). Returns
 /// `0` on success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_backoff_secs(
+    config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1794,7 +1859,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_secs null-checked above. The flatfile retry-loop
         // upper bound is a whole-second value (validated against
@@ -1813,7 +1878,7 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
 // `String`, so the setter takes a `*const c_char` (validated non-null
 // + UTF-8, rejected with an error code on bad input) and the getter
 // returns a heap-owned `*mut c_char` the caller must release with
-// `tdx_string_free` — the same lifetime convention every other owned
+// `thetadatadx_string_free` — the same lifetime convention every other owned
 // C string returned by this library follows.
 
 /// Set the Nexus auth URL on a config handle.
@@ -1821,10 +1886,10 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
 /// `url` must be a non-null, NUL-terminated, valid-UTF-8 C string.
 /// Returns `0` on success, `-1` if `config` is null or `url` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
-/// storage retrievable via `tdx_last_error()`).
+/// storage retrievable via `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_nexus_url(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_nexus_url(
+    config: *mut ThetaDataDxConfig,
     url: *const c_char,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1845,7 +1910,7 @@ pub unsafe extern "C" fn tdx_config_set_nexus_url(
             }
         };
         // SAFETY: config is a non-null pointer returned by
-        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
         // and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.auth.nexus_url = url.to_string();
@@ -1856,17 +1921,19 @@ pub unsafe extern "C" fn tdx_config_set_nexus_url(
 /// Read the current `auth.nexus_url` setting.
 ///
 /// On success, returns a heap-owned NUL-terminated C string the
-/// caller MUST release with `tdx_string_free`. Returns null if
+/// caller MUST release with `thetadatadx_string_free`. Returns null if
 /// `config` is null or the stored value contains an interior NUL
-/// (the diagnostic is written to `tdx_last_error()`).
+/// (the diagnostic is written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_nexus_url(config: *const TdxConfig) -> *mut c_char {
+pub unsafe extern "C" fn thetadatadx_config_get_nexus_url(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
         if config.is_null() {
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         match std::ffi::CString::new(config.inner.auth.nexus_url.as_str()) {
             Ok(c) => c.into_raw(),
@@ -1883,10 +1950,10 @@ pub unsafe extern "C" fn tdx_config_get_nexus_url(config: *const TdxConfig) -> *
 /// `client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
 /// string. Returns `0` on success, `-1` if `config` is null or
 /// `client_type` is null / not valid UTF-8 (the diagnostic is written
-/// to thread-local storage retrievable via `tdx_last_error()`).
+/// to thread-local storage retrievable via `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_client_type(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_client_type(
+    config: *mut ThetaDataDxConfig,
     client_type: *const c_char,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1907,7 +1974,7 @@ pub unsafe extern "C" fn tdx_config_set_client_type(
             }
         };
         // SAFETY: config is a non-null pointer returned by
-        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
         // and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.auth.client_type = client_type.to_string();
@@ -1918,17 +1985,19 @@ pub unsafe extern "C" fn tdx_config_set_client_type(
 /// Read the current `auth.client_type` setting.
 ///
 /// On success, returns a heap-owned NUL-terminated C string the
-/// caller MUST release with `tdx_string_free`. Returns null if
+/// caller MUST release with `thetadatadx_string_free`. Returns null if
 /// `config` is null or the stored value contains an interior NUL
-/// (the diagnostic is written to `tdx_last_error()`).
+/// (the diagnostic is written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_client_type(config: *const TdxConfig) -> *mut c_char {
+pub unsafe extern "C" fn thetadatadx_config_get_client_type(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
         if config.is_null() {
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         match std::ffi::CString::new(config.inner.auth.client_type.as_str()) {
             Ok(c) => c.into_raw(),
@@ -1961,8 +2030,8 @@ pub unsafe extern "C" fn tdx_config_get_client_type(config: *const TdxConfig) ->
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_metrics_port(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_metrics_port(
+    config: *mut ThetaDataDxConfig,
     has_value: bool,
     port: u16,
 ) -> i32 {
@@ -1972,7 +2041,7 @@ pub unsafe extern "C" fn tdx_config_set_metrics_port(
             return -1;
         }
         // SAFETY: config is a non-null pointer returned by
-        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
         // and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.metrics.port = if has_value { Some(port) } else { None };
@@ -1988,8 +2057,8 @@ pub unsafe extern "C" fn tdx_config_set_metrics_port(
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_metrics_port(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_metrics_port(
+    config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
     out_port: *mut u16,
 ) -> i32 {
@@ -1998,7 +2067,7 @@ pub unsafe extern "C" fn tdx_config_get_metrics_port(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let (has_value, port) = match config.inner.metrics.port {
             Some(v) => (true, v),
@@ -2027,10 +2096,10 @@ pub unsafe extern "C" fn tdx_config_get_metrics_port(
 /// `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
 /// Returns `0` on success, `-1` if `config` is null or `host` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
-/// storage retrievable via `tdx_last_error()`).
+/// storage retrievable via `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_mdds_host(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_mdds_host(
+    config: *mut ThetaDataDxConfig,
     host: *const c_char,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -2050,7 +2119,7 @@ pub unsafe extern "C" fn tdx_config_set_mdds_host(
                 return -1;
             }
         };
-        // SAFETY: config is a non-null pointer returned by tdx_config_* and not yet freed.
+        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.mdds.host = host.to_string();
         0
@@ -2060,17 +2129,19 @@ pub unsafe extern "C" fn tdx_config_set_mdds_host(
 /// Read the current historical (MDDS) gRPC host.
 ///
 /// On success, returns a heap-owned NUL-terminated C string the caller
-/// MUST release with `tdx_string_free`. Returns null if `config` is
+/// MUST release with `thetadatadx_string_free`. Returns null if `config` is
 /// null or the stored value contains an interior NUL (the diagnostic is
-/// written to `tdx_last_error()`).
+/// written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_mdds_host(config: *const TdxConfig) -> *mut c_char {
+pub unsafe extern "C" fn thetadatadx_config_get_mdds_host(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
         if config.is_null() {
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         match std::ffi::CString::new(config.inner.mdds.host.as_str()) {
             Ok(c) => c.into_raw(),
@@ -2084,7 +2155,10 @@ pub unsafe extern "C" fn tdx_config_get_mdds_host(config: *const TdxConfig) -> *
 
 /// Set the historical (MDDS) gRPC port on a config handle.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_mdds_port(config: *mut TdxConfig, port: u16) {
+pub unsafe extern "C" fn thetadatadx_config_set_mdds_port(
+    config: *mut ThetaDataDxConfig,
+    port: u16,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.mdds.port = port;
@@ -2095,8 +2169,8 @@ pub unsafe extern "C" fn tdx_config_set_mdds_port(config: *mut TdxConfig, port: 
 /// into `*out_port`. Returns `0` on success, `-1` if either pointer is
 /// null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_mdds_port(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_mdds_port(
+    config: *const ThetaDataDxConfig,
     out_port: *mut u16,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -2104,7 +2178,7 @@ pub unsafe extern "C" fn tdx_config_get_mdds_port(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
@@ -2123,7 +2197,10 @@ pub unsafe extern "C" fn tdx_config_get_mdds_port(
 /// (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
 /// the tier cap are clamped at connect time with a `tracing::warn!`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConfig, n: u32) {
+pub unsafe extern "C" fn thetadatadx_config_set_concurrent_requests(
+    config: *mut ThetaDataDxConfig,
+    n: u32,
+) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
         config.inner.mdds.concurrent_requests = n as usize;
@@ -2135,8 +2212,8 @@ pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConf
 /// tier). A stored value above `u32::MAX` saturates to `u32::MAX`.
 /// Returns `0` on success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_concurrent_requests(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_concurrent_requests(
+    config: *const ThetaDataDxConfig,
     out_n: *mut u32,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -2144,7 +2221,7 @@ pub unsafe extern "C" fn tdx_config_get_concurrent_requests(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let value = u32::try_from(config.inner.mdds.concurrent_requests).unwrap_or(u32::MAX);
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
@@ -2164,8 +2241,8 @@ pub unsafe extern "C" fn tdx_config_get_concurrent_requests(
 ///
 /// `n = 0` disables the warning entirely.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_warn_on_buffered_threshold_bytes(
-    config: *mut TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_set_warn_on_buffered_threshold_bytes(
+    config: *mut ThetaDataDxConfig,
     n: usize,
 ) {
     ffi_boundary!((), {
@@ -2179,8 +2256,8 @@ pub unsafe extern "C" fn tdx_config_set_warn_on_buffered_threshold_bytes(
 /// Writes the configured byte count into `*out_n`. Returns `0` on
 /// success, `-1` if either pointer is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
-    config: *const TdxConfig,
+pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes(
+    config: *const ThetaDataDxConfig,
     out_n: *mut usize,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -2188,7 +2265,7 @@ pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
         unsafe {
@@ -2203,12 +2280,12 @@ pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
 /// Connect a historical (MDDS) client to `ThetaData` servers
 /// (authenticates via Nexus API).
 ///
-/// Returns null on connection/auth failure (check `tdx_last_error()`).
+/// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_historical_connect(
-    creds: *const TdxCredentials,
-    config: *const TdxConfig,
-) -> *mut TdxHistoricalClient {
+pub unsafe extern "C" fn thetadatadx_historical_connect(
+    creds: *const ThetaDataDxCredentials,
+    config: *const ThetaDataDxConfig,
+) -> *mut ThetaDataDxHistoricalClient {
     ffi_boundary!(ptr::null_mut(), {
         crate::ensure_crypto_provider();
         if creds.is_null() {
@@ -2219,14 +2296,14 @@ pub unsafe extern "C" fn tdx_historical_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: creds is a non-null pointer returned by tdx_credentials_from_email / tdx_credentials_from_file and not yet freed.
+        // SAFETY: creds is a non-null pointer returned by thetadatadx_credentials_from_email / thetadatadx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
+        // SAFETY: config is a non-null pointer returned by thetadatadx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
         match crate::runtime_from_config(&config.inner.runtime).block_on(
             thetadatadx::mdds::HistoricalClient::connect(&creds.inner, config.inner.clone()),
         ) {
-            Ok(client) => Box::into_raw(Box::new(TdxHistoricalClient { inner: client })),
+            Ok(client) => Box::into_raw(Box::new(ThetaDataDxHistoricalClient { inner: client })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -2238,45 +2315,45 @@ pub unsafe extern "C" fn tdx_historical_connect(
 /// Connect a historical (MDDS) client, loading credentials from a file
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
-/// One-call equivalent of `tdx_credentials_from_file` followed by
-/// `tdx_historical_connect`: the credentials are opened from `path`,
+/// One-call equivalent of `thetadatadx_credentials_from_file` followed by
+/// `thetadatadx_historical_connect`: the credentials are opened from `path`,
 /// consumed for the connect, and freed internally. The returned handle
 /// and its ownership / free convention are identical to
-/// `tdx_historical_connect` (free with `tdx_historical_free`).
+/// `thetadatadx_historical_connect` (free with `thetadatadx_historical_free`).
 ///
 /// Returns null on argument validation or connection/auth failure
-/// (check `tdx_last_error()`).
+/// (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_historical_connect_from_file(
+pub unsafe extern "C" fn thetadatadx_historical_connect_from_file(
     path: *const c_char,
-    config: *const TdxConfig,
-) -> *mut TdxHistoricalClient {
+    config: *const ThetaDataDxConfig,
+) -> *mut ThetaDataDxHistoricalClient {
     ffi_boundary!(ptr::null_mut(), {
         // SAFETY: `path` is a NUL-terminated C string valid for the call;
-        // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
-        // `tdx_last_error()` on failure.
-        let creds = unsafe { tdx_credentials_from_file(path) };
+        // `thetadatadx_credentials_from_file` validates non-null + UTF-8 and sets
+        // `thetadatadx_last_error()` on failure.
+        let creds = unsafe { thetadatadx_credentials_from_file(path) };
         if creds.is_null() {
             return ptr::null_mut();
         }
-        // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
-        // and is owned by this function; `tdx_historical_connect` borrows
+        // SAFETY: `creds` was just allocated by `thetadatadx_credentials_from_file`
+        // and is owned by this function; `thetadatadx_historical_connect` borrows
         // it and we free it unconditionally below.
-        let client = unsafe { tdx_historical_connect(creds, config) };
+        let client = unsafe { thetadatadx_historical_connect(creds, config) };
         // SAFETY: `creds` is the non-null handle checked above;
-        // `tdx_historical_connect` only borrowed it, so this scope still
+        // `thetadatadx_historical_connect` only borrowed it, so this scope still
         // owns it and frees it exactly once.
-        unsafe { tdx_credentials_free(creds) };
+        unsafe { thetadatadx_credentials_free(creds) };
         client
     })
 }
 
 /// Free a historical (MDDS) client handle.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_historical_free(client: *mut TdxHistoricalClient) {
+pub unsafe extern "C" fn thetadatadx_historical_free(client: *mut ThetaDataDxHistoricalClient) {
     ffi_boundary!((), {
         if !client.is_null() {
-            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
+            // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(client) });
         }
     })
@@ -2286,135 +2363,141 @@ pub unsafe extern "C" fn tdx_historical_free(client: *mut TdxHistoricalClient) {
 mod pool_sizing_tests {
     //! Offline tests for the MDDS pool-sizing setter.
     //!
-    //! Each test allocates a fresh `TdxConfig` via `tdx_config_production`,
+    //! Each test allocates a fresh `ThetaDataDxConfig` via `thetadatadx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
     //! `MddsConfig` to confirm the value round-tripped.
 
     #[test]
     fn concurrent_requests_round_trips() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut current: u32 = 99;
-            super::tdx_config_set_concurrent_requests(cfg, 8);
+            super::thetadatadx_config_set_concurrent_requests(cfg, 8);
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
             assert_eq!(
-                super::tdx_config_get_concurrent_requests(cfg, &mut current),
+                super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
                 0
             );
             assert_eq!(current, 8);
-            super::tdx_config_set_concurrent_requests(cfg, 0);
+            super::thetadatadx_config_set_concurrent_requests(cfg, 0);
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 0);
             assert_eq!(
-                super::tdx_config_get_concurrent_requests(cfg, &mut current),
+                super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
                 0
             );
             assert_eq!(current, 0);
             // Null-pointer guard on the getter returns -1.
             assert_eq!(
-                super::tdx_config_get_concurrent_requests(std::ptr::null(), &mut current),
+                super::thetadatadx_config_get_concurrent_requests(std::ptr::null(), &mut current),
                 -1
             );
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn flush_mode_round_trips() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut mode: i32 = -1;
             // Default is Batched (0).
-            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
             assert_eq!(mode, 0);
-            assert_eq!(super::tdx_config_set_flush_mode(cfg, 1), 0);
-            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 1), 0);
+            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
             assert_eq!(mode, 1);
-            assert_eq!(super::tdx_config_set_flush_mode(cfg, 0), 0);
-            assert_eq!(super::tdx_config_get_flush_mode(cfg, &mut mode), 0);
+            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 0), 0);
+            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
             assert_eq!(mode, 0);
             // Null-pointer guard on the getter returns -1.
             assert_eq!(
-                super::tdx_config_get_flush_mode(std::ptr::null(), &mut mode),
+                super::thetadatadx_config_get_flush_mode(std::ptr::null(), &mut mode),
                 -1
             );
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn derive_ohlcvc_round_trips() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut enabled = true;
-            super::tdx_config_set_derive_ohlcvc(cfg, false);
-            assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
+            super::thetadatadx_config_set_derive_ohlcvc(cfg, false);
+            assert_eq!(
+                super::thetadatadx_config_get_derive_ohlcvc(cfg, &mut enabled),
+                0
+            );
             assert!(!enabled);
-            super::tdx_config_set_derive_ohlcvc(cfg, true);
-            assert_eq!(super::tdx_config_get_derive_ohlcvc(cfg, &mut enabled), 0);
+            super::thetadatadx_config_set_derive_ohlcvc(cfg, true);
+            assert_eq!(
+                super::thetadatadx_config_get_derive_ohlcvc(cfg, &mut enabled),
+                0
+            );
             assert!(enabled);
             // Null-pointer guard on the getter returns -1.
             assert_eq!(
-                super::tdx_config_get_derive_ohlcvc(std::ptr::null(), &mut enabled),
+                super::thetadatadx_config_get_derive_ohlcvc(std::ptr::null(), &mut enabled),
                 -1
             );
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn warn_on_buffered_threshold_bytes_round_trips() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // Default seeded at 100 MiB by `MddsConfig::default()`.
             let mut current: usize = 0;
             assert_eq!(
-                super::tdx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
+                super::thetadatadx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
                 0
             );
             assert_eq!(current, 100 * 1024 * 1024);
             // Override.
-            super::tdx_config_set_warn_on_buffered_threshold_bytes(cfg, 50 * 1024 * 1024);
+            super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 50 * 1024 * 1024);
             assert_eq!(
                 (*cfg).inner.mdds.warn_on_buffered_threshold_bytes,
                 50 * 1024 * 1024
             );
             assert_eq!(
-                super::tdx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
+                super::thetadatadx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
                 0
             );
             assert_eq!(current, 50 * 1024 * 1024);
             // Disable.
-            super::tdx_config_set_warn_on_buffered_threshold_bytes(cfg, 0);
+            super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 0);
             assert_eq!((*cfg).inner.mdds.warn_on_buffered_threshold_bytes, 0);
             // Null-pointer guards: setter is a no-op (matches the
             // ffi_boundary `()` return); getter returns -1.
-            super::tdx_config_set_warn_on_buffered_threshold_bytes(std::ptr::null_mut(), 4);
+            super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(std::ptr::null_mut(), 4);
             assert_eq!(
-                super::tdx_config_get_warn_on_buffered_threshold_bytes(
+                super::thetadatadx_config_get_warn_on_buffered_threshold_bytes(
                     std::ptr::null(),
                     &mut current
                 ),
                 -1
             );
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // SAFETY: passing null to thetadatadx_config_set_* / thetadatadx_*_free is the
         // documented FFI contract — the call must return without
         // crashing. The test exercises that null-tolerance branch.
         unsafe {
-            super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
+            super::thetadatadx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
         }
     }
 }
@@ -2424,8 +2507,8 @@ mod reconnect_setter_tests {
     //! Offline tests for the FPSS ReconnectConfig setters on the FFI
     //! surface — cross-binding parity with Python / TypeScript / C++.
     //!
-    //! Each test allocates a fresh `TdxConfig` via
-    //! `tdx_config_production`, calls the setter under test, then reads
+    //! Each test allocates a fresh `ThetaDataDxConfig` via
+    //! `thetadatadx_config_production`, calls the setter under test, then reads
     //! the underlying `ReconnectConfig` to confirm the value
     //! round-tripped (or that the silent-no-op contract is honoured
     //! under non-Auto policies).
@@ -2438,21 +2521,21 @@ mod reconnect_setter_tests {
 
     #[test]
     fn reconnect_policy_round_trips_auto_and_manual() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 1);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 1);
             assert!(matches!(
                 (*cfg).inner.reconnect.policy,
                 thetadatadx::ReconnectPolicy::Manual
             ));
-            super::tdx_config_set_reconnect_policy(cfg, 0);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 0);
             assert!(matches!(
                 (*cfg).inner.reconnect.policy,
                 thetadatadx::ReconnectPolicy::Auto(_)
             ));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
@@ -2464,14 +2547,14 @@ mod reconnect_setter_tests {
         // TypeScript InvalidParameterError already honour. The setter
         // returns `-1`, sets the typed code, and leaves the prior
         // policy untouched.
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, 1), 0);
-            crate::error::tdx_clear_error();
-            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, 7), -1);
+            assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, 1), 0);
+            crate::error::thetadatadx_clear_error();
+            assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, 7), -1);
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER
             );
             // The rejected call leaves the previously-set Manual policy
@@ -2480,61 +2563,61 @@ mod reconnect_setter_tests {
                 (*cfg).inner.reconnect.policy,
                 thetadatadx::ReconnectPolicy::Manual
             ));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_max_attempts_round_trips_on_auto_policy() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 0);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 0);
             for n in [0u32, 1, 3, 10, 100, 1000] {
-                super::tdx_config_set_reconnect_max_attempts(cfg, n);
+                super::thetadatadx_config_set_reconnect_max_attempts(cfg, n);
                 let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
                 else {
                     panic!("policy must remain Auto across setter calls");
                 };
                 assert_eq!(limits.max_attempts, n);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_max_rate_limited_attempts_round_trips_on_auto_policy() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 0);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 0);
             for n in [0u32, 1, 10, 100, 1000] {
-                super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, n);
+                super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(cfg, n);
                 let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
                 else {
                     panic!("policy must remain Auto across setter calls");
                 };
                 assert_eq!(limits.max_rate_limited_attempts, n);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_stable_window_secs_round_trips_on_auto_policy() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 0);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 0);
             for secs in [0u64, 1, 60, 3600, 86_400] {
-                super::tdx_config_set_reconnect_stable_window_secs(cfg, secs);
+                super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, secs);
                 let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
                 else {
                     panic!("policy must remain Auto across setter calls");
                 };
                 assert_eq!(limits.stable_window, std::time::Duration::from_secs(secs));
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
@@ -2544,55 +2627,58 @@ mod reconnect_setter_tests {
         // only mutate `ReconnectAttemptLimits` when the policy variant
         // is `Auto`. Under `Manual` the calls are silently absorbed;
         // the underlying policy variant must not transition.
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_reconnect_policy(cfg, 1);
-            super::tdx_config_set_reconnect_max_attempts(cfg, 5);
-            super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, 50);
-            super::tdx_config_set_reconnect_stable_window_secs(cfg, 120);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 1);
+            super::thetadatadx_config_set_reconnect_max_attempts(cfg, 5);
+            super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(cfg, 50);
+            super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 120);
             assert!(matches!(
                 (*cfg).inner.reconnect.policy,
                 thetadatadx::ReconnectPolicy::Manual
             ));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // SAFETY: passing null to thetadatadx_config_set_* / thetadatadx_*_free is the
         // documented FFI contract — the call must return without
         // crashing. The test exercises that null-tolerance branch.
         unsafe {
-            super::tdx_config_set_reconnect_policy(std::ptr::null_mut(), 0);
-            super::tdx_config_set_reconnect_max_attempts(std::ptr::null_mut(), 3);
-            super::tdx_config_set_reconnect_max_rate_limited_attempts(std::ptr::null_mut(), 100);
-            super::tdx_config_set_reconnect_stable_window_secs(std::ptr::null_mut(), 60);
+            super::thetadatadx_config_set_reconnect_policy(std::ptr::null_mut(), 0);
+            super::thetadatadx_config_set_reconnect_max_attempts(std::ptr::null_mut(), 3);
+            super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(
+                std::ptr::null_mut(),
+                100,
+            );
+            super::thetadatadx_config_set_reconnect_stable_window_secs(std::ptr::null_mut(), 60);
         }
     }
 
     #[test]
     fn reconnect_setters_compose_with_pool_sizing_setters() {
         // Cross-binding interleaved-survival contract: reconnect setter
-        // calls and pool-sizing setter calls on the same `TdxConfig`
+        // calls and pool-sizing setter calls on the same `ThetaDataDxConfig`
         // must land in `inner` independently and persist. Mirrors the
         // Python `test_reconnect_setter_state_survives_interleaved_calls`,
         // TypeScript `Pool-sizing setter state survives interleaved
         // reconnect setter calls`, and C++ `Reconnect setters compose
         // with pool-sizing setters` cases.
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // Apply pool-sizing knobs.
-            super::tdx_config_set_concurrent_requests(cfg, 8);
+            super::thetadatadx_config_set_concurrent_requests(cfg, 8);
 
             // Apply reconnect knobs.
-            super::tdx_config_set_reconnect_policy(cfg, 0);
-            super::tdx_config_set_reconnect_max_attempts(cfg, 5);
-            super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, 3);
-            super::tdx_config_set_reconnect_stable_window_secs(cfg, 60);
+            super::thetadatadx_config_set_reconnect_policy(cfg, 0);
+            super::thetadatadx_config_set_reconnect_max_attempts(cfg, 5);
+            super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(cfg, 3);
+            super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 60);
 
             // Pool-sizing mutations survived the reconnect setter sequence.
             let mdds = &(*cfg).inner.mdds;
@@ -2606,70 +2692,82 @@ mod reconnect_setter_tests {
             assert_eq!(limits.max_rate_limited_attempts, 3);
             assert_eq!(limits.stable_window, std::time::Duration::from_secs(60));
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_wait_ms_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             // Default seeded from ReconnectConfig::production_defaults().
-            assert_eq!(super::tdx_config_get_reconnect_wait_ms(cfg, &mut got), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_wait_ms(cfg, &mut got),
+                0
+            );
             assert_eq!(got, 250);
             for ms in [0u64, 1, 500, 2_000, 60_000, u64::MAX] {
-                super::tdx_config_set_reconnect_wait_ms(cfg, ms);
+                super::thetadatadx_config_set_reconnect_wait_ms(cfg, ms);
                 assert_eq!((*cfg).inner.reconnect.wait_ms, ms);
-                assert_eq!(super::tdx_config_get_reconnect_wait_ms(cfg, &mut got), 0);
+                assert_eq!(
+                    super::thetadatadx_config_get_reconnect_wait_ms(cfg, &mut got),
+                    0
+                );
                 assert_eq!(got, ms);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_wait_rate_limited_ms_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             // Default seeded from ReconnectConfig::production_defaults().
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 130_000);
             for ms in [0u64, 1, 30_000, 130_000, 600_000, u64::MAX] {
-                super::tdx_config_set_reconnect_wait_rate_limited_ms(cfg, ms);
+                super::thetadatadx_config_set_reconnect_wait_rate_limited_ms(cfg, ms);
                 assert_eq!((*cfg).inner.reconnect.wait_rate_limited_ms, ms);
                 assert_eq!(
-                    super::tdx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
+                    super::thetadatadx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
                     0
                 );
                 assert_eq!(got, ms);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_wait_ms_null_handle_returns_minus_one() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let mut got: u64 = 42;
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_ms(std::ptr::null(), &mut got),
+                super::thetadatadx_config_get_reconnect_wait_ms(std::ptr::null(), &mut got),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_rate_limited_ms(std::ptr::null(), &mut got),
+                super::thetadatadx_config_get_reconnect_wait_rate_limited_ms(
+                    std::ptr::null(),
+                    &mut got
+                ),
                 -1
             );
-            super::tdx_config_set_reconnect_wait_ms(std::ptr::null_mut(), 1_234);
-            super::tdx_config_set_reconnect_wait_rate_limited_ms(std::ptr::null_mut(), 1_234);
+            super::thetadatadx_config_set_reconnect_wait_ms(std::ptr::null_mut(), 1_234);
+            super::thetadatadx_config_set_reconnect_wait_rate_limited_ms(
+                std::ptr::null_mut(),
+                1_234,
+            );
         }
     }
 }
@@ -2684,14 +2782,14 @@ mod runtime_setter_tests {
 
     #[test]
     fn worker_threads_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // None sentinel (default).
             let mut got_has = true;
             let mut got_n: usize = 99;
             assert_eq!(
-                super::tdx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
+                super::thetadatadx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
                 0
             );
             assert!(!got_has, "default worker_threads must be None");
@@ -2699,11 +2797,11 @@ mod runtime_setter_tests {
 
             // Explicit values round-trip including the Some(0) sentinel.
             for n in [0usize, 1, 2, 4, 8, 16, 32, 64] {
-                let rc = super::tdx_config_set_worker_threads(cfg, true, n);
+                let rc = super::thetadatadx_config_set_worker_threads(cfg, true, n);
                 assert_eq!(rc, 0);
                 assert_eq!((*cfg).inner.runtime.tokio_worker_threads, Some(n));
                 assert_eq!(
-                    super::tdx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
+                    super::thetadatadx_config_get_worker_threads(cfg, &mut got_has, &mut got_n),
                     0
                 );
                 assert!(got_has);
@@ -2711,24 +2809,28 @@ mod runtime_setter_tests {
             }
 
             // Reset to None.
-            let rc = super::tdx_config_set_worker_threads(cfg, false, 999);
+            let rc = super::thetadatadx_config_set_worker_threads(cfg, false, 999);
             assert_eq!(rc, 0);
             assert_eq!((*cfg).inner.runtime.tokio_worker_threads, None);
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn worker_threads_null_handle_returns_minus_one() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
-            let rc = super::tdx_config_set_worker_threads(std::ptr::null_mut(), true, 4);
+            let rc = super::thetadatadx_config_set_worker_threads(std::ptr::null_mut(), true, 4);
             assert_eq!(rc, -1);
             let mut got_has = false;
             let mut got_n: usize = 0;
             assert_eq!(
-                super::tdx_config_get_worker_threads(std::ptr::null(), &mut got_has, &mut got_n,),
+                super::thetadatadx_config_get_worker_threads(
+                    std::ptr::null(),
+                    &mut got_has,
+                    &mut got_n,
+                ),
                 -1
             );
         }
@@ -2744,106 +2846,118 @@ mod retry_setter_tests {
 
     #[test]
     fn retry_initial_delay_ms_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             // Default seeded by RetryPolicy::default().
             assert_eq!(
-                super::tdx_config_get_retry_initial_delay_ms(cfg, &mut got),
+                super::thetadatadx_config_get_retry_initial_delay_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 250);
             for ms in [0u64, 1, 100, 250, 2_000, 60_000] {
-                super::tdx_config_set_retry_initial_delay_ms(cfg, ms);
+                super::thetadatadx_config_set_retry_initial_delay_ms(cfg, ms);
                 assert_eq!(
-                    super::tdx_config_get_retry_initial_delay_ms(cfg, &mut got),
+                    super::thetadatadx_config_get_retry_initial_delay_ms(cfg, &mut got),
                     0
                 );
                 assert_eq!(got, ms);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn retry_max_delay_ms_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
-            assert_eq!(super::tdx_config_get_retry_max_delay_ms(cfg, &mut got), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_retry_max_delay_ms(cfg, &mut got),
+                0
+            );
             assert_eq!(got, 30_000);
             for ms in [0u64, 1, 1_000, 30_000, 300_000] {
-                super::tdx_config_set_retry_max_delay_ms(cfg, ms);
-                assert_eq!(super::tdx_config_get_retry_max_delay_ms(cfg, &mut got), 0);
+                super::thetadatadx_config_set_retry_max_delay_ms(cfg, ms);
+                assert_eq!(
+                    super::thetadatadx_config_get_retry_max_delay_ms(cfg, &mut got),
+                    0
+                );
                 assert_eq!(got, ms);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn retry_max_attempts_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u32 = 0;
-            assert_eq!(super::tdx_config_get_retry_max_attempts(cfg, &mut got), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_retry_max_attempts(cfg, &mut got),
+                0
+            );
             assert_eq!(got, 20);
             for n in [0u32, 1, 3, 5, 10, 100] {
-                super::tdx_config_set_retry_max_attempts(cfg, n);
-                assert_eq!(super::tdx_config_get_retry_max_attempts(cfg, &mut got), 0);
+                super::thetadatadx_config_set_retry_max_attempts(cfg, n);
+                assert_eq!(
+                    super::thetadatadx_config_get_retry_max_attempts(cfg, &mut got),
+                    0
+                );
                 assert_eq!(got, n);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn retry_jitter_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got = false;
-            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            assert_eq!(super::thetadatadx_config_get_retry_jitter(cfg, &mut got), 0);
             assert!(got, "default jitter is true");
-            super::tdx_config_set_retry_jitter(cfg, false);
-            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            super::thetadatadx_config_set_retry_jitter(cfg, false);
+            assert_eq!(super::thetadatadx_config_get_retry_jitter(cfg, &mut got), 0);
             assert!(!got);
-            super::tdx_config_set_retry_jitter(cfg, true);
-            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            super::thetadatadx_config_set_retry_jitter(cfg, true);
+            assert_eq!(super::thetadatadx_config_get_retry_jitter(cfg, &mut got), 0);
             assert!(got);
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn retry_setters_null_handle_returns_minus_one_or_noop() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
-            super::tdx_config_set_retry_initial_delay_ms(std::ptr::null_mut(), 100);
-            super::tdx_config_set_retry_max_delay_ms(std::ptr::null_mut(), 1_000);
-            super::tdx_config_set_retry_max_attempts(std::ptr::null_mut(), 3);
-            super::tdx_config_set_retry_jitter(std::ptr::null_mut(), false);
+            super::thetadatadx_config_set_retry_initial_delay_ms(std::ptr::null_mut(), 100);
+            super::thetadatadx_config_set_retry_max_delay_ms(std::ptr::null_mut(), 1_000);
+            super::thetadatadx_config_set_retry_max_attempts(std::ptr::null_mut(), 3);
+            super::thetadatadx_config_set_retry_jitter(std::ptr::null_mut(), false);
             let mut got_ms: u64 = 0;
             let mut got_n: u32 = 0;
             let mut got_b = false;
             assert_eq!(
-                super::tdx_config_get_retry_initial_delay_ms(std::ptr::null(), &mut got_ms),
+                super::thetadatadx_config_get_retry_initial_delay_ms(std::ptr::null(), &mut got_ms),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_retry_max_delay_ms(std::ptr::null(), &mut got_ms),
+                super::thetadatadx_config_get_retry_max_delay_ms(std::ptr::null(), &mut got_ms),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_retry_max_attempts(std::ptr::null(), &mut got_n),
+                super::thetadatadx_config_get_retry_max_attempts(std::ptr::null(), &mut got_n),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_retry_jitter(std::ptr::null(), &mut got_b),
+                super::thetadatadx_config_get_retry_jitter(std::ptr::null(), &mut got_b),
                 -1
             );
         }
@@ -2855,19 +2969,19 @@ mod retry_setter_tests {
         // struct must reflect the composed shape — proves the
         // setters target the same underlying field rather than
         // duplicating state.
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_retry_initial_delay_ms(cfg, 500);
-            super::tdx_config_set_retry_max_delay_ms(cfg, 60_000);
-            super::tdx_config_set_retry_max_attempts(cfg, 7);
-            super::tdx_config_set_retry_jitter(cfg, false);
+            super::thetadatadx_config_set_retry_initial_delay_ms(cfg, 500);
+            super::thetadatadx_config_set_retry_max_delay_ms(cfg, 60_000);
+            super::thetadatadx_config_set_retry_max_attempts(cfg, 7);
+            super::thetadatadx_config_set_retry_jitter(cfg, false);
             let retry = &(*cfg).inner.retry;
             assert_eq!(retry.initial_delay, std::time::Duration::from_millis(500));
             assert_eq!(retry.max_delay, std::time::Duration::from_millis(60_000));
             assert_eq!(retry.max_attempts, 7);
             assert!(!retry.jitter);
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 }
@@ -2882,109 +2996,112 @@ mod flatfiles_setter_tests {
 
     #[test]
     fn flatfiles_max_attempts_round_trips() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u32 = 0;
             // Default seeded from FlatFilesConfig::production_defaults().
             assert_eq!(
-                super::tdx_config_get_flatfiles_max_attempts(cfg, &mut got),
+                super::thetadatadx_config_get_flatfiles_max_attempts(cfg, &mut got),
                 0
             );
             assert_eq!(got, 10);
             for n in [0u32, 1, 3, 5, 10, 100] {
-                super::tdx_config_set_flatfiles_max_attempts(cfg, n);
+                super::thetadatadx_config_set_flatfiles_max_attempts(cfg, n);
                 assert_eq!((*cfg).inner.flatfiles.max_attempts, n);
                 assert_eq!(
-                    super::tdx_config_get_flatfiles_max_attempts(cfg, &mut got),
+                    super::thetadatadx_config_get_flatfiles_max_attempts(cfg, &mut got),
                     0
                 );
                 assert_eq!(got, n);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn flatfiles_initial_backoff_secs_round_trips() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             // Default seeded from FlatFilesConfig::production_defaults().
             assert_eq!(
-                super::tdx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
+                super::thetadatadx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 1);
             for secs in [0u64, 1, 2, 4, 10, 60, 3600] {
-                super::tdx_config_set_flatfiles_initial_backoff_secs(cfg, secs);
+                super::thetadatadx_config_set_flatfiles_initial_backoff_secs(cfg, secs);
                 assert_eq!(
                     (*cfg).inner.flatfiles.initial_backoff,
                     std::time::Duration::from_secs(secs),
                 );
                 assert_eq!(
-                    super::tdx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
+                    super::thetadatadx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
                     0
                 );
                 assert_eq!(got, secs);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn flatfiles_max_backoff_secs_round_trips() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             // Default seeded from FlatFilesConfig::production_defaults().
             assert_eq!(
-                super::tdx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
+                super::thetadatadx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 30);
             for secs in [0u64, 1, 4, 10, 60, 3600, 86_400] {
-                super::tdx_config_set_flatfiles_max_backoff_secs(cfg, secs);
+                super::thetadatadx_config_set_flatfiles_max_backoff_secs(cfg, secs);
                 assert_eq!(
                     (*cfg).inner.flatfiles.max_backoff,
                     std::time::Duration::from_secs(secs),
                 );
                 assert_eq!(
-                    super::tdx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
+                    super::thetadatadx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
                     0
                 );
                 assert_eq!(got, secs);
             }
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn flatfiles_setters_null_handle_returns_minus_one_or_noop() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
         unsafe {
-            super::tdx_config_set_flatfiles_max_attempts(std::ptr::null_mut(), 3);
-            super::tdx_config_set_flatfiles_initial_backoff_secs(std::ptr::null_mut(), 1);
-            super::tdx_config_set_flatfiles_max_backoff_secs(std::ptr::null_mut(), 4);
+            super::thetadatadx_config_set_flatfiles_max_attempts(std::ptr::null_mut(), 3);
+            super::thetadatadx_config_set_flatfiles_initial_backoff_secs(std::ptr::null_mut(), 1);
+            super::thetadatadx_config_set_flatfiles_max_backoff_secs(std::ptr::null_mut(), 4);
             let mut got_n: u32 = 0;
             let mut got_secs: u64 = 0;
             assert_eq!(
-                super::tdx_config_get_flatfiles_max_attempts(std::ptr::null(), &mut got_n),
+                super::thetadatadx_config_get_flatfiles_max_attempts(std::ptr::null(), &mut got_n),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_flatfiles_initial_backoff_secs(
+                super::thetadatadx_config_get_flatfiles_initial_backoff_secs(
                     std::ptr::null(),
                     &mut got_secs
                 ),
                 -1
             );
             assert_eq!(
-                super::tdx_config_get_flatfiles_max_backoff_secs(std::ptr::null(), &mut got_secs),
+                super::thetadatadx_config_get_flatfiles_max_backoff_secs(
+                    std::ptr::null(),
+                    &mut got_secs
+                ),
                 -1
             );
         }
@@ -2995,17 +3112,17 @@ mod flatfiles_setter_tests {
         // After mutating all three fields the `DirectConfig.flatfiles`
         // struct must reflect the composed shape — proves the setters
         // target the same underlying field rather than duplicating state.
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            super::tdx_config_set_flatfiles_max_attempts(cfg, 5);
-            super::tdx_config_set_flatfiles_initial_backoff_secs(cfg, 2);
-            super::tdx_config_set_flatfiles_max_backoff_secs(cfg, 30);
+            super::thetadatadx_config_set_flatfiles_max_attempts(cfg, 5);
+            super::thetadatadx_config_set_flatfiles_initial_backoff_secs(cfg, 2);
+            super::thetadatadx_config_set_flatfiles_max_backoff_secs(cfg, 30);
             let ff = &(*cfg).inner.flatfiles;
             assert_eq!(ff.max_attempts, 5);
             assert_eq!(ff.initial_backoff, std::time::Duration::from_secs(2));
             assert_eq!(ff.max_backoff, std::time::Duration::from_secs(30));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 }
@@ -3018,125 +3135,134 @@ mod auth_metrics_setter_tests {
     //!
     //! The two `AuthConfig` fields are `String` (setter takes a
     //! `*const c_char`, getter returns a heap-owned `*mut c_char` the
-    //! caller frees with `tdx_string_free`); `MetricsConfig.port` is
+    //! caller frees with `thetadatadx_string_free`); `MetricsConfig.port` is
     //! `Option<u16>` carried as the widened `(has_value, port)` shape.
 
-    use crate::types::tdx_string_free;
+    use crate::types::thetadatadx_string_free;
     use std::ffi::{CStr, CString};
 
     /// Read a `*mut c_char` getter result into an owned `String` and
-    /// release the heap allocation via `tdx_string_free`.
+    /// release the heap allocation via `thetadatadx_string_free`.
     fn take_owned(p: *mut std::os::raw::c_char) -> Option<String> {
         if p.is_null() {
             return None;
         }
         // SAFETY: `p` is a non-null pointer just returned by a
-        // `tdx_config_get_*` getter (produced by CString::into_raw);
-        // it is read once and then handed back to tdx_string_free.
+        // `thetadatadx_config_get_*` getter (produced by CString::into_raw);
+        // it is read once and then handed back to thetadatadx_string_free.
         let owned = unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned();
-        // SAFETY: `p` was produced by CString::into_raw; tdx_string_free
+        // SAFETY: `p` was produced by CString::into_raw; thetadatadx_string_free
         // reclaims it via CString::from_raw exactly once.
-        unsafe { tdx_string_free(p) };
+        unsafe { thetadatadx_string_free(p) };
         Some(owned)
     }
 
     #[test]
     fn nexus_url_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // Default seeded from AuthConfig::production_defaults().
-            let got = take_owned(super::tdx_config_get_nexus_url(cfg));
+            let got = take_owned(super::thetadatadx_config_get_nexus_url(cfg));
             assert_eq!(
                 got.as_deref(),
                 Some("https://nexus-api.thetadata.us/identity/terminal/auth_user"),
             );
             let url = CString::new("https://staging.example.invalid/auth").unwrap();
-            assert_eq!(super::tdx_config_set_nexus_url(cfg, url.as_ptr()), 0);
+            assert_eq!(
+                super::thetadatadx_config_set_nexus_url(cfg, url.as_ptr()),
+                0
+            );
             assert_eq!(
                 (*cfg).inner.auth.nexus_url,
                 "https://staging.example.invalid/auth"
             );
-            let got = take_owned(super::tdx_config_get_nexus_url(cfg));
+            let got = take_owned(super::thetadatadx_config_get_nexus_url(cfg));
             assert_eq!(got.as_deref(), Some("https://staging.example.invalid/auth"));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn client_type_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // Default seeded from AuthConfig::production_defaults().
-            let got = take_owned(super::tdx_config_get_client_type(cfg));
+            let got = take_owned(super::thetadatadx_config_get_client_type(cfg));
             assert_eq!(got.as_deref(), Some("rust-thetadatadx"));
             let ct = CString::new("fleet-east-1").unwrap();
-            assert_eq!(super::tdx_config_set_client_type(cfg, ct.as_ptr()), 0);
+            assert_eq!(
+                super::thetadatadx_config_set_client_type(cfg, ct.as_ptr()),
+                0
+            );
             assert_eq!((*cfg).inner.auth.client_type, "fleet-east-1");
-            let got = take_owned(super::tdx_config_get_client_type(cfg));
+            let got = take_owned(super::thetadatadx_config_get_client_type(cfg));
             assert_eq!(got.as_deref(), Some("fleet-east-1"));
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn nexus_url_rejects_null_and_leaves_config_unchanged() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         let baseline = unsafe { (*cfg).inner.auth.nexus_url.clone() };
-        // SAFETY: handle just returned by tdx_config_production.
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             assert_eq!(
-                super::tdx_config_set_nexus_url(cfg, std::ptr::null()),
+                super::thetadatadx_config_set_nexus_url(cfg, std::ptr::null()),
                 -1,
                 "null url must be rejected with -1",
             );
             assert_eq!((*cfg).inner.auth.nexus_url, baseline);
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn auth_string_setters_null_handle_returns_minus_one() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — string setters return -1, string getters null.
         unsafe {
             let url = CString::new("x").unwrap();
             assert_eq!(
-                super::tdx_config_set_nexus_url(std::ptr::null_mut(), url.as_ptr()),
+                super::thetadatadx_config_set_nexus_url(std::ptr::null_mut(), url.as_ptr()),
                 -1
             );
             assert_eq!(
-                super::tdx_config_set_client_type(std::ptr::null_mut(), url.as_ptr()),
+                super::thetadatadx_config_set_client_type(std::ptr::null_mut(), url.as_ptr()),
                 -1
             );
-            assert!(super::tdx_config_get_nexus_url(std::ptr::null()).is_null());
-            assert!(super::tdx_config_get_client_type(std::ptr::null()).is_null());
+            assert!(super::thetadatadx_config_get_nexus_url(std::ptr::null()).is_null());
+            assert!(super::thetadatadx_config_get_client_type(std::ptr::null()).is_null());
         }
     }
 
     #[test]
     fn metrics_port_round_trips_via_getter() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             // Default seeded from MetricsConfig::default() — None.
             let mut got_has = true;
             let mut got_port: u16 = 99;
             assert_eq!(
-                super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                super::thetadatadx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
                 0
             );
             assert!(!got_has, "default metrics.port must be None");
             assert_eq!(got_port, 0);
 
             for port in [0u16, 1, 9090, 9100, u16::MAX] {
-                assert_eq!(super::tdx_config_set_metrics_port(cfg, true, port), 0);
+                assert_eq!(
+                    super::thetadatadx_config_set_metrics_port(cfg, true, port),
+                    0
+                );
                 assert_eq!((*cfg).inner.metrics.port, Some(port));
                 assert_eq!(
-                    super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                    super::thetadatadx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
                     0
                 );
                 assert!(got_has);
@@ -3144,31 +3270,38 @@ mod auth_metrics_setter_tests {
             }
 
             // Reset to None.
-            assert_eq!(super::tdx_config_set_metrics_port(cfg, false, 9090), 0);
+            assert_eq!(
+                super::thetadatadx_config_set_metrics_port(cfg, false, 9090),
+                0
+            );
             assert_eq!((*cfg).inner.metrics.port, None);
             assert_eq!(
-                super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                super::thetadatadx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
                 0
             );
             assert!(!got_has);
             assert_eq!(got_port, 0);
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn metrics_port_null_handle_returns_minus_one() {
-        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter returns -1.
         unsafe {
             assert_eq!(
-                super::tdx_config_set_metrics_port(std::ptr::null_mut(), true, 9090),
+                super::thetadatadx_config_set_metrics_port(std::ptr::null_mut(), true, 9090),
                 -1
             );
             let mut got_has = false;
             let mut got_port: u16 = 0;
             assert_eq!(
-                super::tdx_config_get_metrics_port(std::ptr::null(), &mut got_has, &mut got_port),
+                super::thetadatadx_config_get_metrics_port(
+                    std::ptr::null(),
+                    &mut got_has,
+                    &mut got_port
+                ),
                 -1
             );
         }
@@ -3184,71 +3317,89 @@ mod resilience_knob_tests {
 
     #[test]
     fn reconnect_budget_getters_read_auto_limits() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut policy: i32 = -1;
-            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                0
+            );
             assert_eq!(policy, 0, "production default policy is Auto");
 
             let mut got_u32: u32 = 0;
             assert_eq!(
-                super::tdx_config_get_reconnect_max_attempts(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_max_attempts(cfg, &mut got_u32),
                 0
             );
             assert_eq!(got_u32, 30);
             assert_eq!(
-                super::tdx_config_get_reconnect_max_rate_limited_attempts(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_max_rate_limited_attempts(
+                    cfg,
+                    &mut got_u32
+                ),
                 0
             );
             assert_eq!(got_u32, 100);
             assert_eq!(
-                super::tdx_config_get_reconnect_max_server_restart_attempts(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_max_server_restart_attempts(
+                    cfg,
+                    &mut got_u32
+                ),
                 0
             );
             assert_eq!(got_u32, 60);
 
             let mut got_u64: u64 = 0;
             assert_eq!(
-                super::tdx_config_get_reconnect_stable_window_secs(cfg, &mut got_u64),
+                super::thetadatadx_config_get_reconnect_stable_window_secs(cfg, &mut got_u64),
                 0
             );
             assert_eq!(got_u64, 60);
             assert_eq!(
-                super::tdx_config_get_reconnect_max_elapsed_secs(cfg, &mut got_u64),
+                super::thetadatadx_config_get_reconnect_max_elapsed_secs(cfg, &mut got_u64),
                 0
             );
             assert_eq!(got_u64, 300);
 
             // Setters write through and read back.
-            super::tdx_config_set_reconnect_max_server_restart_attempts(cfg, 7);
+            super::thetadatadx_config_set_reconnect_max_server_restart_attempts(cfg, 7);
             assert_eq!(
-                super::tdx_config_get_reconnect_max_server_restart_attempts(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_max_server_restart_attempts(
+                    cfg,
+                    &mut got_u32
+                ),
                 0
             );
             assert_eq!(got_u32, 7);
-            super::tdx_config_set_reconnect_max_elapsed_secs(cfg, 0);
+            super::thetadatadx_config_set_reconnect_max_elapsed_secs(cfg, 0);
             assert_eq!(
-                super::tdx_config_get_reconnect_max_elapsed_secs(cfg, &mut got_u64),
+                super::thetadatadx_config_get_reconnect_max_elapsed_secs(cfg, &mut got_u64),
                 0
             );
             assert_eq!(got_u64, 0, "0 (envelope disabled) round-trips");
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_policy_round_trips_and_rejects_invalid() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut policy: i32 = -1;
-            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                0
+            );
             assert_eq!(policy, 0, "production default policy is Auto");
             for p in [1, 0] {
-                assert_eq!(super::tdx_config_set_reconnect_policy(cfg, p), 0);
-                assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+                assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, p), 0);
+                assert_eq!(
+                    super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                    0
+                );
                 assert_eq!(policy, p);
             }
             // An unknown selector is rejected with the typed
@@ -3256,226 +3407,253 @@ mod resilience_knob_tests {
             // Auto — the cross-binding contract the Python ValueError /
             // TypeScript InvalidParameterError already honour.
             assert_eq!(
-                super::tdx_config_set_reconnect_policy(cfg, 7),
+                super::thetadatadx_config_set_reconnect_policy(cfg, 7),
                 -1,
                 "unknown policy rejected, not coerced"
             );
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER
             );
-            assert_eq!(super::tdx_config_set_reconnect_policy(cfg, -5), -1);
+            assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, -5), -1);
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER
             );
-            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                0
+            );
             assert_eq!(policy, 0, "rejected policy leaves the config unchanged");
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn flush_mode_round_trips_and_rejects_invalid_with_typed_code() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            assert_eq!(super::tdx_config_set_flush_mode(cfg, 0), 0);
-            assert_eq!(super::tdx_config_set_flush_mode(cfg, 1), 0);
+            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 0), 0);
+            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 1), 0);
             // A rejected enum value surfaces the typed invalid-parameter
             // class, not the generic config code.
-            assert_eq!(super::tdx_config_set_flush_mode(cfg, 9), -1);
+            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 9), -1);
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER
             );
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_cadence_and_replay_round_trip() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_max_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_wait_max_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 30_000);
-            super::tdx_config_set_reconnect_wait_max_ms(cfg, 45_000);
+            super::thetadatadx_config_set_reconnect_wait_max_ms(cfg, 45_000);
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_max_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_wait_max_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 45_000);
 
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_server_restart_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_wait_server_restart_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 5_000);
-            super::tdx_config_set_reconnect_wait_server_restart_ms(cfg, 9_000);
+            super::thetadatadx_config_set_reconnect_wait_server_restart_ms(cfg, 9_000);
             assert_eq!(
-                super::tdx_config_get_reconnect_wait_server_restart_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_wait_server_restart_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 9_000);
 
             let mut got_u32: u32 = 0;
             assert_eq!(
-                super::tdx_config_get_reconnect_replay_burst_size(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_replay_burst_size(cfg, &mut got_u32),
                 0
             );
             assert_eq!(got_u32, 50);
-            super::tdx_config_set_reconnect_replay_burst_size(cfg, 200);
+            super::thetadatadx_config_set_reconnect_replay_burst_size(cfg, 200);
             assert_eq!(
-                super::tdx_config_get_reconnect_replay_burst_size(cfg, &mut got_u32),
+                super::thetadatadx_config_get_reconnect_replay_burst_size(cfg, &mut got_u32),
                 0
             );
             assert_eq!(got_u32, 200);
 
             assert_eq!(
-                super::tdx_config_get_reconnect_replay_pace_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_replay_pace_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 5);
-            super::tdx_config_set_reconnect_replay_pace_ms(cfg, 0);
+            super::thetadatadx_config_set_reconnect_replay_pace_ms(cfg, 0);
             assert_eq!(
-                super::tdx_config_get_reconnect_replay_pace_ms(cfg, &mut got),
+                super::thetadatadx_config_get_reconnect_replay_pace_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 0);
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn reconnect_jitter_round_trips_and_rejects_invalid() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut mode: i32 = -1;
-            assert_eq!(super::tdx_config_get_reconnect_jitter(cfg, &mut mode), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_jitter(cfg, &mut mode),
+                0
+            );
             assert_eq!(mode, 0, "default jitter mode is Full");
             for m in [1, 2, 3, 0] {
-                assert_eq!(super::tdx_config_set_reconnect_jitter(cfg, m), 0);
-                assert_eq!(super::tdx_config_get_reconnect_jitter(cfg, &mut mode), 0);
+                assert_eq!(super::thetadatadx_config_set_reconnect_jitter(cfg, m), 0);
+                assert_eq!(
+                    super::thetadatadx_config_get_reconnect_jitter(cfg, &mut mode),
+                    0
+                );
                 assert_eq!(mode, m);
             }
             assert_eq!(
-                super::tdx_config_set_reconnect_jitter(cfg, 9),
+                super::thetadatadx_config_set_reconnect_jitter(cfg, 9),
                 -1,
                 "invalid mode rejected"
             );
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER,
                 "a rejected enum value surfaces the typed invalid-parameter class"
             );
-            assert_eq!(super::tdx_config_get_reconnect_jitter(cfg, &mut mode), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_jitter(cfg, &mut mode),
+                0
+            );
             assert_eq!(mode, 0, "rejected mode leaves the config unchanged");
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn fpss_transport_knobs_round_trip() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
-            assert_eq!(super::tdx_config_get_fpss_timeout_ms(cfg, &mut got), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_fpss_timeout_ms(cfg, &mut got),
+                0
+            );
             assert_eq!(got, 3_000);
-            super::tdx_config_set_fpss_timeout_ms(cfg, 9_000);
-            assert_eq!(super::tdx_config_get_fpss_timeout_ms(cfg, &mut got), 0);
+            super::thetadatadx_config_set_fpss_timeout_ms(cfg, 9_000);
+            assert_eq!(
+                super::thetadatadx_config_get_fpss_timeout_ms(cfg, &mut got),
+                0
+            );
             assert_eq!(got, 9_000);
 
             assert_eq!(
-                super::tdx_config_get_fpss_connect_timeout_ms(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_connect_timeout_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 2_000);
             assert_eq!(
-                super::tdx_config_get_fpss_ping_interval_ms(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_ping_interval_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 250);
             assert_eq!(
-                super::tdx_config_get_fpss_io_read_slice_ms(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_io_read_slice_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 25);
             assert_eq!(
-                super::tdx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 30_000);
-            super::tdx_config_set_fpss_data_watchdog_ms(cfg, 0);
+            super::thetadatadx_config_set_fpss_data_watchdog_ms(cfg, 0);
             assert_eq!(
-                super::tdx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_data_watchdog_ms(cfg, &mut got),
                 0
             );
             assert_eq!(got, 0, "0 (watchdog disabled) round-trips");
 
             assert_eq!(
-                super::tdx_config_get_fpss_keepalive_idle_secs(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_keepalive_idle_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 5);
             assert_eq!(
-                super::tdx_config_get_fpss_keepalive_interval_secs(cfg, &mut got),
+                super::thetadatadx_config_get_fpss_keepalive_interval_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 2);
             let mut got_u32: u32 = 0;
             assert_eq!(
-                super::tdx_config_get_fpss_keepalive_retries(cfg, &mut got_u32),
+                super::thetadatadx_config_get_fpss_keepalive_retries(cfg, &mut got_u32),
                 0
             );
             assert_eq!(got_u32, 2);
 
             let mut got_usize: usize = 0;
-            assert_eq!(super::tdx_config_get_fpss_ring_size(cfg, &mut got_usize), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                0
+            );
             assert_eq!(got_usize, 131_072);
-            super::tdx_config_set_fpss_ring_size(cfg, 4_096);
-            assert_eq!(super::tdx_config_get_fpss_ring_size(cfg, &mut got_usize), 0);
+            super::thetadatadx_config_set_fpss_ring_size(cfg, 4_096);
+            assert_eq!(
+                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                0
+            );
             assert_eq!(got_usize, 4_096);
             // Non-power-of-two rejected at the setter; value unchanged.
-            super::tdx_config_set_fpss_ring_size(cfg, 5_000);
-            assert_eq!(super::tdx_config_get_fpss_ring_size(cfg, &mut got_usize), 0);
+            super::thetadatadx_config_set_fpss_ring_size(cfg, 5_000);
+            assert_eq!(
+                super::thetadatadx_config_get_fpss_ring_size(cfg, &mut got_usize),
+                0
+            );
             assert_eq!(got_usize, 4_096);
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn fpss_host_selection_and_seed_round_trip() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut policy: i32 = -1;
             assert_eq!(
-                super::tdx_config_get_fpss_host_selection(cfg, &mut policy),
+                super::thetadatadx_config_get_fpss_host_selection(cfg, &mut policy),
                 0
             );
             assert_eq!(policy, 0, "default host selection is Shuffled");
-            assert_eq!(super::tdx_config_set_fpss_host_selection(cfg, 1), 0);
+            assert_eq!(super::thetadatadx_config_set_fpss_host_selection(cfg, 1), 0);
             assert_eq!(
-                super::tdx_config_get_fpss_host_selection(cfg, &mut policy),
+                super::thetadatadx_config_get_fpss_host_selection(cfg, &mut policy),
                 0
             );
             assert_eq!(policy, 1);
             assert_eq!(
-                super::tdx_config_set_fpss_host_selection(cfg, 5),
+                super::thetadatadx_config_set_fpss_host_selection(cfg, 5),
                 -1,
                 "invalid policy rejected"
             );
             assert_eq!(
-                crate::error::tdx_last_error_code(),
+                crate::error::thetadatadx_last_error_code(),
                 crate::error::TDX_ERR_INVALID_PARAMETER,
                 "a rejected enum value surfaces the typed invalid-parameter class"
             );
@@ -3483,7 +3661,11 @@ mod resilience_knob_tests {
             let mut has_value = true;
             let mut seed: u64 = 7;
             assert_eq!(
-                super::tdx_config_get_fpss_host_shuffle_seed(cfg, &mut has_value, &mut seed),
+                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                    cfg,
+                    &mut has_value,
+                    &mut seed
+                ),
                 0
             );
             assert!(
@@ -3492,55 +3674,69 @@ mod resilience_knob_tests {
             );
             assert_eq!(seed, 0);
             assert_eq!(
-                super::tdx_config_set_fpss_host_shuffle_seed(cfg, true, 42),
+                super::thetadatadx_config_set_fpss_host_shuffle_seed(cfg, true, 42),
                 0
             );
             assert_eq!(
-                super::tdx_config_get_fpss_host_shuffle_seed(cfg, &mut has_value, &mut seed),
+                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                    cfg,
+                    &mut has_value,
+                    &mut seed
+                ),
                 0
             );
             assert!(has_value);
             assert_eq!(seed, 42);
             assert_eq!(
-                super::tdx_config_set_fpss_host_shuffle_seed(cfg, false, 0),
+                super::thetadatadx_config_set_fpss_host_shuffle_seed(cfg, false, 0),
                 0
             );
             assert_eq!(
-                super::tdx_config_get_fpss_host_shuffle_seed(cfg, &mut has_value, &mut seed),
+                super::thetadatadx_config_get_fpss_host_shuffle_seed(
+                    cfg,
+                    &mut has_value,
+                    &mut seed
+                ),
                 0
             );
             assert!(!has_value, "explicit None restores the sentinel");
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
     #[test]
     fn retry_envelope_and_flatfiles_jitter_round_trip() {
-        let cfg = super::tdx_config_production();
-        // SAFETY: handle just returned by tdx_config_production.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             let mut got: u64 = 0;
             assert_eq!(
-                super::tdx_config_get_retry_max_elapsed_secs(cfg, &mut got),
+                super::thetadatadx_config_get_retry_max_elapsed_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 300);
-            super::tdx_config_set_retry_max_elapsed_secs(cfg, 0);
+            super::thetadatadx_config_set_retry_max_elapsed_secs(cfg, 0);
             assert_eq!(
-                super::tdx_config_get_retry_max_elapsed_secs(cfg, &mut got),
+                super::thetadatadx_config_get_retry_max_elapsed_secs(cfg, &mut got),
                 0
             );
             assert_eq!(got, 0);
 
             let mut jitter = false;
-            assert_eq!(super::tdx_config_get_flatfiles_jitter(cfg, &mut jitter), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_jitter(cfg, &mut jitter),
+                0
+            );
             assert!(jitter, "flatfile jitter defaults on");
-            super::tdx_config_set_flatfiles_jitter(cfg, false);
-            assert_eq!(super::tdx_config_get_flatfiles_jitter(cfg, &mut jitter), 0);
+            super::thetadatadx_config_set_flatfiles_jitter(cfg, false);
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_jitter(cfg, &mut jitter),
+                0
+            );
             assert!(!jitter);
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 
@@ -3564,13 +3760,13 @@ mod resilience_knob_tests {
             i64::from(reason) * 10 + i64::from(attempt)
         }
 
-        let cfg = super::tdx_config_production();
+        let cfg = super::thetadatadx_config_production();
         let mut calls: i32 = 0;
-        // SAFETY: handle just returned by tdx_config_production; the
+        // SAFETY: handle just returned by thetadatadx_config_production; the
         // callback + user_data outlive every policy invocation below.
         unsafe {
             assert_eq!(
-                super::tdx_config_set_reconnect_callback(
+                super::thetadatadx_config_set_reconnect_callback(
                     cfg,
                     Some(decide),
                     std::ptr::addr_of_mut!(calls).cast(),
@@ -3578,7 +3774,10 @@ mod resilience_knob_tests {
                 0
             );
             let mut policy: i32 = -1;
-            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                0
+            );
             assert_eq!(policy, 2, "callback registration installs Custom");
 
             match &(*cfg).inner.reconnect.policy {
@@ -3596,14 +3795,17 @@ mod resilience_knob_tests {
 
             // NULL callback restores Auto.
             assert_eq!(
-                super::tdx_config_set_reconnect_callback(cfg, None, std::ptr::null_mut()),
+                super::thetadatadx_config_set_reconnect_callback(cfg, None, std::ptr::null_mut()),
                 0
             );
             let mut policy: i32 = -1;
-            assert_eq!(super::tdx_config_get_reconnect_policy(cfg, &mut policy), 0);
+            assert_eq!(
+                super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
+                0
+            );
             assert_eq!(policy, 0);
 
-            super::tdx_config_free(cfg);
+            super::thetadatadx_config_free(cfg);
         }
     }
 }

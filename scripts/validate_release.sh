@@ -86,7 +86,7 @@ ensure_python_sdk() {
 
 section "1/5  CLI — live parameter-mode matrix"
 
-if [ ! -f "$REPO/target/release/tdx" ]; then
+if [ ! -f "$REPO/target/release/thetadatadx" ]; then
     echo "Building CLI..."
     cargo build --release -p thetadatadx-cli --manifest-path "$REPO/Cargo.toml"
 fi

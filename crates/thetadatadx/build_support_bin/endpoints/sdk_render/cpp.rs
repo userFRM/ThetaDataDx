@@ -61,7 +61,7 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out.push_str("};\n");
     out.push_str("\nnamespace detail {\n\n");
     out.push_str("struct FfiEndpointRequestOptions {\n");
-    out.push_str("    TdxEndpointRequestOptions raw{};\n");
+    out.push_str("    ThetaDataDxEndpointRequestOptions raw{};\n");
     for param in params {
         if param.param_type != "Int" && param.param_type != "Float" && param.param_type != "Bool" {
             writeln!(out, "    std::string {}_storage;", param.name).unwrap();
@@ -174,12 +174,12 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
 ///
 /// Declarations only — the definitions live out-of-line in
 /// `historical_stream.cpp.inc` (mirroring the buffered `historical.cpp.inc`).
-/// Keeping the C-ABI `tdx_<endpoint>_stream` call sites out of the class body
+/// Keeping the C-ABI `thetadatadx_<endpoint>_stream` call sites out of the class body
 /// is also what stops the cross-binding parity collector — which scans class
 /// bodies for `name(` shapes — from mistaking a C-ABI call for a C++ method.
 /// The one inline member is the shared `extern "C"` trampoline
 /// `stream_chunk_shim`: tick-agnostic (the erased handler carries the per-
-/// endpoint reinterpretation) and `tdx_`-free, so it is safe inline. It
+/// endpoint reinterpretation) and `thetadatadx_`-free, so it is safe inline. It
 /// swallows exceptions — a throw must never unwind across the C ABI into Rust,
 /// the same contract the FPSS `callback_shim` holds.
 pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
@@ -231,12 +231,12 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
 /// definitions, included in `thetadx.cpp` via
 /// `sdks/cpp/src/historical_stream.cpp.inc`.
 ///
-/// Each borrows the historical `TdxHistoricalClient*` from the unified handle
-/// (`tdx_client_historical`), builds the same `EndpointRequestOptions` the
+/// Each borrows the historical `ThetaDataDxHistoricalClient*` from the unified handle
+/// (`thetadatadx_client_historical`), builds the same `EndpointRequestOptions` the
 /// buffered methods take, erases the typed `handler` to a
 /// `std::function<void(const void*, size_t)>` that reinterprets each chunk
 /// pointer as the endpoint's tick type, and drives the C-ABI
-/// `tdx_<endpoint>_stream` entry point through the shared `stream_chunk_shim`
+/// `thetadatadx_<endpoint>_stream` entry point through the shared `stream_chunk_shim`
 /// trampoline. The handler and the erased wrapper live on the stack for the
 /// synchronous drain — the C ABI blocks until the stream completes and only
 /// fires the callback during that call, so no heap lifetime juggling is
@@ -261,10 +261,10 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
             cpp_stream_signature(endpoint, false),
         )
         .unwrap();
-        out.push_str("    const TdxHistoricalClient* hist = historical_handle();\n");
+        out.push_str("    const ThetaDataDxHistoricalClient* hist = historical_handle();\n");
         out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
         // Clear any stale FFI error so a -1 return is attributed to this call.
-        out.push_str("    tdx_clear_error();\n");
+        out.push_str("    thetadatadx_clear_error();\n");
         // Erase the typed handler: reinterpret each chunk pointer as the
         // endpoint's tick type and build the span. The borrow of `handler` is
         // sound because both live to the end of this synchronous call.
@@ -273,7 +273,12 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
             "    std::function<void(const void*, std::size_t)> erased =\n        [&handler](const void* rows, std::size_t len) {{\n            handler(Span<const {tick}>(static_cast<const {tick}*>(rows), len));\n        }};"
         )
         .unwrap();
-        write!(out, "    int32_t rc = tdx_{}_stream(hist", endpoint.name).unwrap();
+        write!(
+            out,
+            "    int32_t rc = thetadatadx_{}_stream(hist",
+            endpoint.name
+        )
+        .unwrap();
         for param in &method_params {
             write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
         }
@@ -287,7 +292,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
 }
 
 /// C++ classes that carry the buffered historical query surface. The
-/// standalone `HistoricalClient` owns a `TdxHistoricalClient*` directly;
+/// standalone `HistoricalClient` owns a `ThetaDataDxHistoricalClient*` directly;
 /// the unified client's `Historical` view (returned by `client.historical()`)
 /// borrows the unified handle and derives the historical sub-handle. Both
 /// expose a private `historical_handle()` accessor, so the generated
@@ -381,13 +386,13 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     // Clear any stale FFI error before the call so check_string_array /
     // check_tick_array can disambiguate "success-empty" from
     // "failure-with-empty-sentinel" (e.g. timeout). See
-    // ffi/src/lib.rs::tdx_clear_error.
-    out.push_str("    tdx_clear_error();\n");
+    // ffi/src/lib.rs::thetadatadx_clear_error.
+    out.push_str("    thetadatadx_clear_error();\n");
 
     if endpoint.return_type == "StringList" {
         write!(
             out,
-            "    return detail::check_string_array(tdx_{}_with_options",
+            "    return detail::check_string_array(thetadatadx_{}_with_options",
             endpoint.name
         )
         .unwrap();
@@ -407,7 +412,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     if endpoint.return_type == "OptionContracts" {
         write!(
             out,
-            "    TdxOptionContractArray arr = tdx_{}_with_options",
+            "    ThetaDataDxOptionContractArray arr = thetadatadx_{}_with_options",
             endpoint.name
         )
         .unwrap();
@@ -421,14 +426,19 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
         }
         out.push_str(", &ffi_options.raw);\n");
         // Disambiguate empty-success vs failure-empty (e.g. timeout). See
-        // ffi/src/lib.rs::tdx_clear_error and the matching call before the FFI.
+        // ffi/src/lib.rs::thetadatadx_clear_error and the matching call before the FFI.
         out.push_str(include_str!(
             "templates/cpp/option_contracts_convert.cpp.tmpl"
         ));
         return out;
     }
 
-    write!(out, "    auto arr = tdx_{}_with_options", endpoint.name).unwrap();
+    write!(
+        out,
+        "    auto arr = thetadatadx_{}_with_options",
+        endpoint.name
+    )
+    .unwrap();
     out.push_str("(historical_handle()");
     for param in &method_params {
         if param.param_type == "Symbols" {
@@ -444,7 +454,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
 }
 
 /// Renders the cgo-facing `extern` declarations for every endpoint's
-/// `tdx_<endpoint>_with_options` C entry point.
+/// `thetadatadx_<endpoint>_with_options` C entry point.
 pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -455,12 +465,12 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        let ffi_name = format!("tdx_{}_with_options", endpoint.name);
+        let ffi_name = format!("thetadatadx_{}_with_options", endpoint.name);
         let return_type = ffi_array_type(&endpoint.return_type);
         let params = method_params(endpoint);
         write!(
             out,
-            "extern {} {}(const TdxHistoricalClient* client",
+            "extern {} {}(const ThetaDataDxHistoricalClient* client",
             return_type, ffi_name
         )
         .unwrap();
@@ -471,7 +481,7 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
                 write!(out, ", const char* {}", param.name).unwrap();
             }
         }
-        out.push_str(", const TdxEndpointRequestOptions* options);\n");
+        out.push_str(", const ThetaDataDxEndpointRequestOptions* options);\n");
     }
     out
 }

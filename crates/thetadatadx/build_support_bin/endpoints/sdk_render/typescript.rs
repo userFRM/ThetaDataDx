@@ -4,7 +4,7 @@
 //! shared per-endpoint options structs plus one `impl` block per
 //! historical napi class (`Client`, the unified handle, and
 //! `HistoricalClient`, the standalone historical-only handle). Both carry the
-//! identical method bodies (every body references `self.tdx`), so the
+//! identical method bodies (every body references `self.client`), so the
 //! historical surface stays in lockstep across the two at zero
 //! per-method cost. napi-rs compiles the result into the Node.js native
 //! addon.
@@ -50,15 +50,15 @@ use super::super::sdk_helpers::{
 };
 
 /// napi classes that carry the historical endpoint surface. Both wrap an
-/// `Arc<thetadatadx::Client>` field named `tdx`, so the
-/// generated method bodies (which all reference `self.tdx`) compile
+/// `Arc<thetadatadx::Client>` field named `client`, so the
+/// generated method bodies (which all reference `self.client`) compile
 /// unchanged against either receiver.
 ///
 /// `Client` is the unified handle (historical + FPSS
 /// streaming); `HistoricalClient` is the standalone historical-only handle
 /// that never opens the FPSS transport. The standalone client mirrors
 /// the Python `HistoricalClient` (`sdks/python/src/mdds_client.rs`), the C++
-/// `thetadatadx::Client`, and the C ABI `tdx_client_*` entry points: the same
+/// `thetadatadx::Client`, and the C ABI `thetadatadx_client_*` entry points: the same
 /// MDDS/Nexus surface with no streaming methods reachable. Emitting the
 /// identical method bodies onto both keeps the historical surface in
 /// lockstep at zero per-method cost — adding an endpoint to
@@ -97,9 +97,9 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
 
 /// Emit a single `#[napi] impl <ClassName> { ... }` block carrying every
 /// historical endpoint method (and its server-stream companion). The
-/// method bodies reference `self.tdx`, so the block compiles against any
+/// method bodies reference `self.client`, so the block compiles against any
 /// napi class that exposes an `Arc<thetadatadx::Client>` field
-/// named `tdx`. Parameterising over the class name lets the generator
+/// named `client`. Parameterising over the class name lets the generator
 /// project the identical surface onto the unified `Client` and
 /// the standalone `HistoricalClient` without duplicating the per-endpoint
 /// rendering.
@@ -250,7 +250,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     // `'static` borrow source: the request builder borrows the client,
     // and that borrow must outlive the V8 stack frame the Promise
     // detaches from.
-    out.push_str("        let tdx = self.tdx.clone();\n");
+    out.push_str("        let client = self.client.clone();\n");
 
     let has_symbols = method_params
         .iter()
@@ -310,7 +310,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        // The builder borrows `tdx` and the owned params, so it is
+        // The builder borrows `client` and the owned params, so it is
         // constructed and awaited inside the spawned future where those
         // values live for `'static`.
         out.push_str("        spawn_endpoint_task(async move {\n");
@@ -321,7 +321,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         }
         writeln!(
             out,
-            "            let call = tdx.historical().{name}({positional_args});",
+            "            let call = client.historical().{name}({positional_args});",
             name = endpoint.name,
         )
         .unwrap();
@@ -357,7 +357,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
-    // The builder borrows `tdx` and the owned params, so it is
+    // The builder borrows `client` and the owned params, so it is
     // constructed and awaited inside the spawned future where those
     // values live for `'static`.
     out.push_str("        let ticks = spawn_endpoint_task(async move {\n");
@@ -368,7 +368,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     }
     writeln!(
         out,
-        "            let mut request = tdx.historical().{}({});",
+        "            let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -479,7 +479,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     out.push_str("            Some(ms) => Some(validate_timeout_ms(ms)?),\n");
     out.push_str("            None => None,\n");
     out.push_str("        };\n");
-    out.push_str("        let tdx = self.tdx.clone();\n");
+    out.push_str("        let client = self.client.clone();\n");
 
     let has_symbols = method_params
         .iter()
@@ -558,7 +558,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     }
     writeln!(
         out,
-        "            let mut request = tdx.historical().{}({});",
+        "            let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();

@@ -1,6 +1,6 @@
 GreeksResult all_greeks(double spot, double strike, double rate, double div_yield,
                         double tte, double option_price, const std::string& right) {
-    TdxGreeksResult* raw = tdx_all_greeks(
+    ThetaDataDxGreeksResult* raw = thetadatadx_all_greeks(
         spot,
         strike,
         rate,
@@ -38,6 +38,6 @@ GreeksResult all_greeks(double spot, double strike, double rate, double div_yiel
         raw->epsilon,
         raw->lambda,
     };
-    tdx_greeks_result_free(raw);
+    thetadatadx_greeks_result_free(raw);
     return result;
 }

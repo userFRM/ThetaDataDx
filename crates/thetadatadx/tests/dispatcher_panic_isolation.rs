@@ -17,8 +17,8 @@ use thetadatadx::Client;
 /// and returns `u64`. A rename or signature change fails the build.
 #[test]
 fn panic_count_accessor_present_on_unified_client() {
-    let _witness = |tdx: &Client| {
-        let _: u64 = tdx.stream().panic_count();
+    let _witness = |client: &Client| {
+        let _: u64 = client.stream().panic_count();
     };
 }
 

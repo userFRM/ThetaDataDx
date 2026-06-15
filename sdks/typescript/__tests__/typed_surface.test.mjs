@@ -184,7 +184,7 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
   // Every tick row carrying a `date` column plus one or more
   // milliseconds-of-day columns surfaces a `*TimestampMs` epoch field —
   // the camelCase parity of the Python `*_timestamp_ms` property and the
-  // C++ `tdx::timestamp_ms` free function. The value is Unix epoch
+  // C++ `thetadatadx::timestamp_ms` free function. The value is Unix epoch
   // milliseconds (UTC, DST-aware), computed once at conversion time
   // through the one shared core (`thetadatadx::time::date_ms_to_epoch_ms`); the
   // raw milliseconds-of-day columns stay primary and the field is
@@ -258,7 +258,7 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
   it('every epoch field is computed through the one shared DST-aware core, not reimplemented', () => {
     // The generated factory resolves each accessor by calling the same
     // `thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)` the Python
-    // property and the `tdx_timestamp_ms` FFI route through — the single
+    // property and the `thetadatadx_timestamp_ms` FFI route through — the single
     // DST-aware implementation. No binding reimplements the Eastern-Time
     // offset rules, so the epoch value is identical across a DST boundary
     // (verified at the core: `date_ms_to_epoch_ms_round_trips_edt_and_est`

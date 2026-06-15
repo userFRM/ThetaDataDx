@@ -19,7 +19,7 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def tdx():
+def client():
     try:
         return importlib.import_module("thetadatadx")
     except ImportError:
@@ -46,43 +46,43 @@ CANONICAL_CLASSES = [
 
 
 @pytest.mark.parametrize("name", CANONICAL_CLASSES)
-def test_canonical_class_exists_and_roots_at_theta_data_error(tdx, name: str) -> None:
-    cls = getattr(tdx, name, None)
+def test_canonical_class_exists_and_roots_at_theta_data_error(client, name: str) -> None:
+    cls = getattr(client, name, None)
     assert isinstance(cls, type), f"thetadatadx.{name} must be an exception class"
     assert issubclass(
-        cls, tdx.ThetaDataError
+        cls, client.ThetaDataError
     ), f"{name} must derive from ThetaDataError"
 
 
-def test_invalid_credentials_narrows_authentication_error(tdx) -> None:
-    assert issubclass(tdx.InvalidCredentialsError, tdx.AuthenticationError)
+def test_invalid_credentials_narrows_authentication_error(client) -> None:
+    assert issubclass(client.InvalidCredentialsError, client.AuthenticationError)
 
 
-def test_legacy_names_are_assignment_aliases(tdx) -> None:
+def test_legacy_names_are_assignment_aliases(client) -> None:
     # The legacy names must be the *same object* as their canonical
     # replacement so `except thetadatadx.NoDataFoundError` keeps catching
     # the dispatched `NotFoundError`.
-    assert tdx.NoDataFoundError is tdx.NotFoundError
-    assert tdx.TimeoutError is tdx.DeadlineExceededError
+    assert client.NoDataFoundError is client.NotFoundError
+    assert client.TimeoutError is client.DeadlineExceededError
 
 
-def test_legacy_except_clause_catches_canonical(tdx) -> None:
+def test_legacy_except_clause_catches_canonical(client) -> None:
     # Raising the canonical class is caught by an `except` on the alias.
-    with pytest.raises(tdx.NoDataFoundError):
-        raise tdx.NotFoundError("no rows")
-    with pytest.raises(tdx.TimeoutError):
-        raise tdx.DeadlineExceededError("deadline")
+    with pytest.raises(client.NoDataFoundError):
+        raise client.NotFoundError("no rows")
+    with pytest.raises(client.TimeoutError):
+        raise client.DeadlineExceededError("deadline")
 
 
-def test_rate_limit_carries_retry_after_attribute(tdx) -> None:
+def test_rate_limit_carries_retry_after_attribute(client) -> None:
     # The attribute is present (default None) on the class, so callers
     # can read `err.retry_after` unconditionally.
-    assert hasattr(tdx.RateLimitError, "retry_after")
-    inst = tdx.RateLimitError("429")
+    assert hasattr(client.RateLimitError, "retry_after")
+    inst = client.RateLimitError("429")
     assert inst.retry_after is None
 
 
-def test_invalid_parameter_is_distinct_from_root(tdx) -> None:
+def test_invalid_parameter_is_distinct_from_root(client) -> None:
     # A dedicated subclass under the root, not the root itself.
-    assert tdx.InvalidParameterError is not tdx.ThetaDataError
-    assert issubclass(tdx.InvalidParameterError, tdx.ThetaDataError)
+    assert client.InvalidParameterError is not client.ThetaDataError
+    assert issubclass(client.InvalidParameterError, client.ThetaDataError)

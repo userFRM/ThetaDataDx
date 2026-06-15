@@ -1,4 +1,4 @@
-//! Thread-local error slot plus the `tdx_last_error` / `tdx_clear_error`
+//! Thread-local error slot plus the `thetadatadx_last_error` / `thetadatadx_clear_error`
 //! FFI accessors and the `require_cstr!` macro used by endpoint wrappers.
 //!
 //! Contract: the error slot is scoped to the OS thread that set it. C++
@@ -18,16 +18,16 @@ thread_local! {
     static LAST_ERROR_CODE: std::cell::Cell<i32> = const { std::cell::Cell::new(TDX_ERR_NONE) };
     /// Server-supplied rate-limit back-off in milliseconds, or `-1` when
     /// the last error carries no `RetryInfo` hint. Read via
-    /// [`tdx_last_error_retry_after_ms`] so the C++ `RateLimitError`
+    /// [`thetadatadx_last_error_retry_after_ms`] so the C++ `RateLimitError`
     /// surfaces the back-off as a typed value.
     static LAST_ERROR_RETRY_AFTER_MS: std::cell::Cell<i64> = const { std::cell::Cell::new(-1) };
 }
 
-/// Sentinel returned by [`tdx_last_error_retry_after_ms`] when the last
+/// Sentinel returned by [`thetadatadx_last_error_retry_after_ms`] when the last
 /// error carries no rate-limit back-off hint.
 pub const TDX_RETRY_AFTER_NONE: i64 = -1;
 
-/// Typed error-code discriminants surfaced via [`tdx_last_error_code`].
+/// Typed error-code discriminants surfaced via [`thetadatadx_last_error_code`].
 ///
 /// Higher-level bindings (the C++ exception hierarchy in
 /// `sdks/cpp/include/thetadx.hpp`, the typed napi error subclasses in
@@ -46,7 +46,7 @@ pub const TDX_ERR_AUTHENTICATION: i32 = 2;
 pub const TDX_ERR_INVALID_CREDENTIALS: i32 = 3;
 /// The account's subscription does not grant access to the requested data.
 pub const TDX_ERR_SUBSCRIPTION: i32 = 4;
-/// The server rate-limited the request; see [`tdx_last_error_retry_after_ms`].
+/// The server rate-limited the request; see [`thetadatadx_last_error_retry_after_ms`].
 pub const TDX_ERR_RATE_LIMIT: i32 = 5;
 /// The requested resource (symbol, contract, or endpoint) does not exist.
 pub const TDX_ERR_NOT_FOUND: i32 = 6;
@@ -96,7 +96,7 @@ pub(crate) fn set_error_with_code(msg: &str, code: i32) {
 /// from a [`thetadatadx::Error`]. The string keeps the previous
 /// surface; the code is what the C++ / TypeScript bindings dispatch
 /// on to pick the right exception class. A rate-limit back-off hint, if
-/// the error carries one, is stashed for [`tdx_last_error_retry_after_ms`].
+/// the error carries one, is stashed for [`thetadatadx_last_error_retry_after_ms`].
 pub(crate) fn set_error_from(err: &thetadatadx::Error) {
     set_error_string_only(&err.to_string());
     LAST_ERROR_CODE.with(|c| c.set(error_code_for(err)));
@@ -175,13 +175,13 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
 
 /// Retrieve the typed discriminant of the last FFI error on this
 /// thread. Returns [`TDX_ERR_NONE`] when no error is set or after
-/// [`tdx_clear_error`].
+/// [`thetadatadx_clear_error`].
 ///
-/// Callers should pair this with [`tdx_last_error`] for the
+/// Callers should pair this with [`thetadatadx_last_error`] for the
 /// human-readable message — the code routes to the right exception
 /// class, the string carries the diagnostic.
 #[no_mangle]
-pub extern "C" fn tdx_last_error_code() -> i32 {
+pub extern "C" fn thetadatadx_last_error_code() -> i32 {
     ffi_boundary!(TDX_ERR_OTHER, {
         LAST_ERROR_CODE.with(std::cell::Cell::get)
     })
@@ -197,7 +197,7 @@ pub extern "C" fn tdx_last_error_code() -> i32 {
 /// exposes this as a typed `retry_after()` value so a caller can honour
 /// the back-off without parsing the message text.
 #[no_mangle]
-pub extern "C" fn tdx_last_error_retry_after_ms() -> i64 {
+pub extern "C" fn thetadatadx_last_error_retry_after_ms() -> i64 {
     ffi_boundary!(TDX_RETRY_AFTER_NONE, {
         LAST_ERROR_RETRY_AFTER_MS.with(std::cell::Cell::get)
     })
@@ -208,7 +208,7 @@ pub extern "C" fn tdx_last_error_retry_after_ms() -> i64 {
 /// The returned pointer is valid until the next FFI call on the same thread.
 /// Do NOT free this pointer.
 #[no_mangle]
-pub extern "C" fn tdx_last_error() -> *const c_char {
+pub extern "C" fn thetadatadx_last_error() -> *const c_char {
     ffi_boundary!(ptr::null(), {
         LAST_ERROR.with(|e| {
             let borrow = e.borrow();
@@ -229,7 +229,7 @@ pub extern "C" fn tdx_last_error() -> *const c_char {
 /// (no rows) and failure (e.g. timeout) — without clearing first, the
 /// caller can't tell the two apart from the array alone.
 #[no_mangle]
-pub extern "C" fn tdx_clear_error() {
+pub extern "C" fn thetadatadx_clear_error() {
     ffi_boundary!((), {
         LAST_ERROR.with(|e| {
             *e.borrow_mut() = None;
@@ -247,7 +247,7 @@ pub extern "C" fn tdx_clear_error() {
 ///
 /// Callers must distinguish these cases: a null pointer is usually a
 /// legal "omit this optional arg" sentinel, while invalid UTF-8 is a bug
-/// in the caller that should be surfaced through `tdx_last_error`.
+/// in the caller that should be surfaced through `thetadatadx_last_error`.
 pub(crate) unsafe fn cstr_to_str<'a>(
     p: *const c_char,
 ) -> Result<Option<&'a str>, std::str::Utf8Error> {
@@ -278,9 +278,9 @@ macro_rules! require_cstr {
     };
 }
 
-/// Dereference an opaque `*const TdxHistoricalClient` (or equivalent) handle into a
+/// Dereference an opaque `*const ThetaDataDxHistoricalClient` (or equivalent) handle into a
 /// `&` reference, returning the supplied fallback after setting
-/// `tdx_last_error` on null. Hides the boilerplate `if is_null() { ... };
+/// `thetadatadx_last_error` on null. Hides the boilerplate `if is_null() { ... };
 /// unsafe { &*client }` pattern that the FFI endpoint codegen emits at
 /// every call site.
 macro_rules! require_client {
@@ -289,18 +289,18 @@ macro_rules! require_client {
             $crate::error::set_error(concat!(stringify!($client), " handle is null"));
             return $fallback;
         }
-        // SAFETY: caller passes a pointer returned by `tdx_historical_connect` that has not been freed by `tdx_historical_free`; null was rejected above; `&*` produces a shared reference valid for the call duration because the caller owns the Box.
+        // SAFETY: caller passes a pointer returned by `thetadatadx_historical_connect` that has not been freed by `thetadatadx_historical_free`; null was rejected above; `&*` produces a shared reference valid for the call duration because the caller owns the Box.
         unsafe { &*$client }
     }};
 }
 
 /// Decode a C array of C string pointers `(symbols, symbols_len)` into
 /// `Vec<String>`, returning the supplied fallback after setting
-/// `tdx_last_error` on null/UTF-8 failure. Wraps `parse_symbol_array`
+/// `thetadatadx_last_error` on null/UTF-8 failure. Wraps `parse_symbol_array`
 /// so endpoint shims do not repeat the inline null/UTF-8 branch.
 macro_rules! require_symbol_array {
     ($symbols:ident, $symbols_len:ident, $fallback:expr) => {
-        // SAFETY: caller passes a contiguous array of `symbols_len` non-null NUL-terminated C strings kept valid for the call duration; `parse_symbol_array` validates each element and surfaces errors via `tdx_last_error`.
+        // SAFETY: caller passes a contiguous array of `symbols_len` non-null NUL-terminated C strings kept valid for the call duration; `parse_symbol_array` validates each element and surfaces errors via `thetadatadx_last_error`.
         match unsafe { $crate::types::parse_symbol_array($symbols, $symbols_len) } {
             Some(values) => values,
             None => return $fallback,
@@ -308,8 +308,8 @@ macro_rules! require_symbol_array {
     };
 }
 
-/// Dereference an opaque `*mut TdxConfig` handle into a `&mut`
-/// reference. Null is treated as a no-op: every `tdx_config_set_*`
+/// Dereference an opaque `*mut ThetaDataDxConfig` handle into a `&mut`
+/// reference. Null is treated as a no-op: every `thetadatadx_config_set_*`
 /// shim silently returns without setting an error when the caller
 /// passes null (matches the per-call-site behaviour the macro
 /// replaces). Use [`require_client!`] when null must produce an `Err`
@@ -317,14 +317,14 @@ macro_rules! require_symbol_array {
 ///
 /// Centralises the `if is_null() { return; }; unsafe { &mut *config }`
 /// pattern across config setter entrypoints. The SAFETY block names
-/// the actual invariant (pointer returned by `tdx_*_new`, not yet
+/// the actual invariant (pointer returned by `thetadatadx_*_new`, not yet
 /// freed) once, instead of paraphrasing it inline at every setter.
 macro_rules! require_config_mut {
     ($config:ident) => {{
         if $config.is_null() {
             return;
         }
-        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new` that has not been freed; null was rejected above; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: caller passes a pointer returned by `thetadatadx_direct_config_new` that has not been freed; null was rejected above; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         unsafe { &mut *$config }
     }};
 }
@@ -466,18 +466,21 @@ mod tests {
         // A rate-limit error with a RetryInfo hint populates the
         // retry-after slot in milliseconds; reading it back returns the
         // hint, and clearing resets it to the "no hint" sentinel.
-        tdx_clear_error();
+        thetadatadx_clear_error();
         set_error_from(&thetadatadx::Error::Grpc {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(1500)),
         });
-        assert_eq!(tdx_last_error_code(), TDX_ERR_RATE_LIMIT);
-        assert_eq!(tdx_last_error_retry_after_ms(), 1500);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_RATE_LIMIT);
+        assert_eq!(thetadatadx_last_error_retry_after_ms(), 1500);
 
         // A rate-limit error without a hint reads the sentinel.
         set_error_from(&grpc(GrpcStatusKind::ResourceExhausted));
-        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
+        assert_eq!(
+            thetadatadx_last_error_retry_after_ms(),
+            TDX_RETRY_AFTER_NONE
+        );
 
         // A plain `set_error` clears any prior hint so it is never
         // misattributed to an unrelated failure.
@@ -486,12 +489,18 @@ mod tests {
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(2000)),
         });
-        assert_eq!(tdx_last_error_retry_after_ms(), 2000);
+        assert_eq!(thetadatadx_last_error_retry_after_ms(), 2000);
         set_error("unrelated failure");
-        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
+        assert_eq!(
+            thetadatadx_last_error_retry_after_ms(),
+            TDX_RETRY_AFTER_NONE
+        );
 
-        tdx_clear_error();
-        assert_eq!(tdx_last_error_retry_after_ms(), TDX_RETRY_AFTER_NONE);
+        thetadatadx_clear_error();
+        assert_eq!(
+            thetadatadx_last_error_retry_after_ms(),
+            TDX_RETRY_AFTER_NONE
+        );
     }
 
     #[test]
@@ -537,13 +546,13 @@ mod tests {
     #[test]
     fn set_error_from_populates_both_slots() {
         // Pin the contract: callers that observe a non-zero
-        // `tdx_last_error_code` must also see the matching string.
+        // `thetadatadx_last_error_code` must also see the matching string.
         set_error_from(&grpc(GrpcStatusKind::PermissionDenied));
-        assert_eq!(tdx_last_error_code(), TDX_ERR_SUBSCRIPTION);
-        assert!(!tdx_last_error().is_null());
-        tdx_clear_error();
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
-        assert!(tdx_last_error().is_null());
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_SUBSCRIPTION);
+        assert!(!thetadatadx_last_error().is_null());
+        thetadatadx_clear_error();
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert!(thetadatadx_last_error().is_null());
     }
 
     #[test]
@@ -552,10 +561,10 @@ mod tests {
         // non-thetadatadx error (e.g. UTF-8 parse failures) — the
         // discriminator must default to `TDX_ERR_OTHER` so the C++
         // dispatcher routes to the umbrella `ThetaDataError` class.
-        tdx_clear_error();
+        thetadatadx_clear_error();
         set_error("plain error");
-        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
-        tdx_clear_error();
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
+        thetadatadx_clear_error();
     }
 
     // ───────── macro coverage ─────────────────────────────────────────
@@ -569,12 +578,12 @@ mod tests {
     // slot.
 
     /// Read the current value of the thread-local `LAST_ERROR` slot
-    /// through the C ABI surface (`tdx_last_error()`) and return the
+    /// through the C ABI surface (`thetadatadx_last_error()`) and return the
     /// owned UTF-8 string, or `None` if the slot is empty.
     ///
-    /// SAFETY: `tdx_last_error()` returns a pointer into the thread-
+    /// SAFETY: `thetadatadx_last_error()` returns a pointer into the thread-
     /// local `LAST_ERROR` slot's `CString`. The slot lives until the
-    /// next `set_error` / `tdx_clear_error` call on this thread, and
+    /// next `set_error` / `thetadatadx_clear_error` call on this thread, and
     /// the test scope above clears the slot before each call to keep
     /// this lifetime invariant true at every call site. `CStr::from_ptr`
     /// also requires NUL-termination — guaranteed by `CString`'s
@@ -582,7 +591,7 @@ mod tests {
     /// not race the FFI surface, so no concurrent mutator invalidates
     /// the pointer between read and copy.
     fn last_error_message() -> Option<String> {
-        let p = tdx_last_error();
+        let p = thetadatadx_last_error();
         if p.is_null() {
             return None;
         }
@@ -609,28 +618,28 @@ mod tests {
 
     #[test]
     fn require_cstr_null_returns_fallback_and_sets_error() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let result = run_require_cstr(ptr::null(), "fallback");
         assert_eq!(result, "fallback");
-        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("is null"), "expected null mention, got {msg}");
-        tdx_clear_error();
+        thetadatadx_clear_error();
     }
 
     #[test]
     fn require_cstr_valid_utf8_returns_str() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let cstr = CString::new("payload").unwrap();
         let result = run_require_cstr(cstr.as_ptr(), "fallback");
         assert_eq!(result, "payload");
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
-        assert!(tdx_last_error().is_null());
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert!(thetadatadx_last_error().is_null());
     }
 
     #[test]
     fn require_cstr_invalid_utf8_returns_fallback_and_sets_error() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         // 0xFF is not a valid UTF-8 leading byte; the second 0x00 is
         // the NUL terminator so the buffer is a well-formed C string
         // but a malformed Rust `&str`.
@@ -638,26 +647,26 @@ mod tests {
         let p = bytes.as_ptr().cast::<c_char>();
         let result = run_require_cstr(p, "fallback");
         assert_eq!(result, "fallback");
-        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("UTF-8"), "expected UTF-8 mention, got {msg}");
-        tdx_clear_error();
+        thetadatadx_clear_error();
     }
 
     #[test]
     fn require_cstr_empty_returns_empty_str_no_error() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let bytes: [u8; 1] = [0x00];
         let p = bytes.as_ptr().cast::<c_char>();
         let result = run_require_cstr(p, "fallback");
         assert_eq!(result, "");
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
-        assert!(tdx_last_error().is_null());
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert!(thetadatadx_last_error().is_null());
     }
 
     // ─────────────────────────────────────────────────────────────────
     // `require_client!` macro coverage. Uses a synthetic non-opaque
-    // pointee so the test does not need a real `TdxHistoricalClient` handle (the
+    // pointee so the test does not need a real `ThetaDataDxHistoricalClient` handle (the
     // macro only reads the pointer null-ness and dereferences for
     // borrowing).
     fn run_require_client<T>(p: *const T, fallback: i32) -> i32 {
@@ -670,26 +679,26 @@ mod tests {
 
     #[test]
     fn require_client_null_returns_fallback_and_sets_error() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let result = run_require_client::<u32>(ptr::null(), -1);
         assert_eq!(result, -1);
-        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(
             msg.contains("handle is null"),
             "expected handle-is-null mention, got {msg}"
         );
-        tdx_clear_error();
+        thetadatadx_clear_error();
     }
 
     #[test]
     fn require_client_valid_returns_ref() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let storage: u32 = 0x00C0_FFEE_u32;
         let result = run_require_client(&storage as *const u32, -1);
         assert_eq!(result, 0);
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
-        assert!(tdx_last_error().is_null());
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert!(thetadatadx_last_error().is_null());
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -706,15 +715,15 @@ mod tests {
 
     #[test]
     fn require_symbol_array_null_pointer_zero_len_ok() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let out = run_require_symbol_array(ptr::null(), 0).expect("(null, 0) is the Go-empty case");
         assert!(out.is_empty());
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
     }
 
     #[test]
     fn require_symbol_array_null_pointer_nonzero_len_returns_fallback_and_sets_error() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let result = run_require_symbol_array(ptr::null(), 3);
         assert!(result.is_err());
         let msg = last_error_message().expect("error slot populated");
@@ -722,17 +731,17 @@ mod tests {
             msg.contains("symbols array pointer is null"),
             "expected null-array mention, got {msg}"
         );
-        tdx_clear_error();
+        thetadatadx_clear_error();
     }
 
     #[test]
     fn require_symbol_array_valid_returns_strings() {
-        tdx_clear_error();
+        thetadatadx_clear_error();
         let a = CString::new("AAPL").unwrap();
         let b = CString::new("MSFT").unwrap();
         let arr: [*const c_char; 2] = [a.as_ptr(), b.as_ptr()];
         let out = run_require_symbol_array(arr.as_ptr(), arr.len()).expect("valid input");
         assert_eq!(out, vec!["AAPL".to_owned(), "MSFT".to_owned()]);
-        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
     }
 }

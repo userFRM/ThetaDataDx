@@ -599,7 +599,7 @@ export declare class FlatFileRowList {
 }
 
 /**
- * JS class returned from `tdx.flatFiles`. Each method maps to one
+ * JS class returned from `client.flatFiles`. Each method maps to one
  * (security type, request type) pair and returns a `FlatFileRowList`.
  */
 export declare class FlatFilesNamespace {

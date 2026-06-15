@@ -1487,9 +1487,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().stock_list_symbols();
+            let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -1517,9 +1517,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -1552,13 +1552,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -1593,13 +1593,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_trade(&refs);
+            let mut request = client.historical().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -1634,13 +1634,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_quote(&refs);
+            let mut request = client.historical().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -1675,13 +1675,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -1713,11 +1713,11 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -1742,12 +1742,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -1784,7 +1784,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1793,7 +1793,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -1835,7 +1835,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1845,7 +1845,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -1898,7 +1898,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -1906,7 +1906,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1945,7 +1945,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -1954,7 +1954,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2007,7 +2007,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -2016,7 +2016,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2058,7 +2058,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -2068,7 +2068,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2122,7 +2122,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2131,7 +2131,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2173,7 +2173,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2183,7 +2183,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2241,13 +2241,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2276,14 +2276,14 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2326,13 +2326,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2361,14 +2361,14 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2398,9 +2398,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_symbols();
+            let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2434,10 +2434,10 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
+            let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2465,9 +2465,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_expirations(&symbol);
+            let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2496,10 +2496,10 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_strikes(&symbol, expiration.as_str());
+            let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2532,11 +2532,11 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -2564,12 +2564,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -2606,7 +2606,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2614,7 +2614,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2660,14 +2660,14 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2710,7 +2710,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2718,7 +2718,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2765,7 +2765,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2773,7 +2773,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2817,7 +2817,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2825,7 +2825,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2875,7 +2875,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2889,7 +2889,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -2957,7 +2957,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2971,7 +2971,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3039,7 +3039,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3053,7 +3053,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3121,7 +3121,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3135,7 +3135,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3203,7 +3203,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3217,7 +3217,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3284,7 +3284,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3293,7 +3293,7 @@ impl HistoricalView {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3331,7 +3331,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3341,7 +3341,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3392,7 +3392,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3404,7 +3404,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3453,7 +3453,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3466,7 +3466,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3529,7 +3529,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3541,7 +3541,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3590,7 +3590,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3603,7 +3603,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3666,7 +3666,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3679,7 +3679,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3731,7 +3731,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3745,7 +3745,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3812,7 +3812,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3825,7 +3825,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3877,7 +3877,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3891,7 +3891,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3954,7 +3954,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3964,7 +3964,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4007,7 +4007,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4018,7 +4018,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4076,7 +4076,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4090,7 +4090,7 @@ impl HistoricalView {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4143,7 +4143,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4158,7 +4158,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4227,7 +4227,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4243,7 +4243,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4304,7 +4304,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4321,7 +4321,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4398,7 +4398,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4414,7 +4414,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4475,7 +4475,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4492,7 +4492,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4570,7 +4570,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4586,7 +4586,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4647,7 +4647,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4664,7 +4664,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4741,7 +4741,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4757,7 +4757,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4818,7 +4818,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4835,7 +4835,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4913,7 +4913,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4929,7 +4929,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4990,7 +4990,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5007,7 +5007,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5084,7 +5084,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5100,7 +5100,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5161,7 +5161,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5178,7 +5178,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5256,7 +5256,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5272,7 +5272,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5333,7 +5333,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5350,7 +5350,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5427,7 +5427,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5443,7 +5443,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5504,7 +5504,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5521,7 +5521,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5598,7 +5598,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5614,7 +5614,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5675,7 +5675,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5692,7 +5692,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5768,7 +5768,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5784,7 +5784,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5845,7 +5845,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5862,7 +5862,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5937,7 +5937,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -5947,7 +5947,7 @@ impl HistoricalView {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5986,7 +5986,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -5997,7 +5997,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6046,7 +6046,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -6056,7 +6056,7 @@ impl HistoricalView {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6095,7 +6095,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -6106,7 +6106,7 @@ impl HistoricalView {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6145,9 +6145,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().index_list_symbols();
+            let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -6174,9 +6174,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().index_list_dates(&symbol);
+            let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -6204,12 +6204,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -6237,12 +6237,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_price(&refs);
+            let mut request = client.historical().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -6270,12 +6270,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_market_value(&refs);
+            let mut request = client.historical().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -6304,11 +6304,11 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6333,12 +6333,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6375,14 +6375,14 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6416,7 +6416,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6424,7 +6424,7 @@ impl HistoricalView {
         let end_time = normalize_optional_time(options.end_time);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6470,7 +6470,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -6478,7 +6478,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6517,7 +6517,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -6526,7 +6526,7 @@ impl HistoricalView {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6573,12 +6573,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6604,13 +6604,13 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6639,9 +6639,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_open_today();
+            let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6668,10 +6668,10 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_on_date(date.as_str());
+            let mut request = client.historical().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6698,9 +6698,9 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_year(&year);
+            let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6730,11 +6730,11 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6759,12 +6759,12 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6798,7 +6798,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6806,7 +6806,7 @@ impl HistoricalView {
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6843,7 +6843,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6852,7 +6852,7 @@ impl HistoricalView {
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -6894,9 +6894,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().stock_list_symbols();
+            let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -6924,9 +6924,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -6959,13 +6959,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7000,13 +7000,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_trade(&refs);
+            let mut request = client.historical().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7041,13 +7041,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_quote(&refs);
+            let mut request = client.historical().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7082,13 +7082,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7120,11 +7120,11 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -7149,12 +7149,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -7191,7 +7191,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7200,7 +7200,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -7242,7 +7242,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7252,7 +7252,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -7305,7 +7305,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7313,7 +7313,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7352,7 +7352,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7361,7 +7361,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7414,7 +7414,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7423,7 +7423,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -7465,7 +7465,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7475,7 +7475,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -7529,7 +7529,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7538,7 +7538,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7580,7 +7580,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7590,7 +7590,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7648,13 +7648,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7683,14 +7683,14 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7733,13 +7733,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7768,14 +7768,14 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -7805,9 +7805,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_symbols();
+            let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -7841,10 +7841,10 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
+            let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -7872,9 +7872,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_expirations(&symbol);
+            let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -7903,10 +7903,10 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = tdx.historical().option_list_strikes(&symbol, expiration.as_str());
+            let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -7939,11 +7939,11 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -7971,12 +7971,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let max_dte = options.max_dte;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -8013,7 +8013,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8021,7 +8021,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8067,14 +8067,14 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8117,7 +8117,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8125,7 +8125,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8172,7 +8172,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8180,7 +8180,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8224,7 +8224,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8232,7 +8232,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8282,7 +8282,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8296,7 +8296,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8364,7 +8364,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8378,7 +8378,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8446,7 +8446,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8460,7 +8460,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8528,7 +8528,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8542,7 +8542,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8610,7 +8610,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8624,7 +8624,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8691,7 +8691,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -8700,7 +8700,7 @@ impl HistoricalClient {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8738,7 +8738,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -8748,7 +8748,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8799,7 +8799,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8811,7 +8811,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8860,7 +8860,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8873,7 +8873,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8936,7 +8936,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8948,7 +8948,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8997,7 +8997,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9010,7 +9010,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9073,7 +9073,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9086,7 +9086,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9138,7 +9138,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9152,7 +9152,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9219,7 +9219,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9232,7 +9232,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9284,7 +9284,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9298,7 +9298,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9361,7 +9361,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9371,7 +9371,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9414,7 +9414,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9425,7 +9425,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9483,7 +9483,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -9497,7 +9497,7 @@ impl HistoricalClient {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9550,7 +9550,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -9565,7 +9565,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9634,7 +9634,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9650,7 +9650,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9711,7 +9711,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9728,7 +9728,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9805,7 +9805,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9821,7 +9821,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9882,7 +9882,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9899,7 +9899,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9977,7 +9977,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9993,7 +9993,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10054,7 +10054,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10071,7 +10071,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10148,7 +10148,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10164,7 +10164,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10225,7 +10225,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10242,7 +10242,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10320,7 +10320,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10336,7 +10336,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10397,7 +10397,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10414,7 +10414,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10491,7 +10491,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10507,7 +10507,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10568,7 +10568,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10585,7 +10585,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10663,7 +10663,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10679,7 +10679,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10740,7 +10740,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10757,7 +10757,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10834,7 +10834,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10850,7 +10850,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -10911,7 +10911,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10928,7 +10928,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11005,7 +11005,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11021,7 +11021,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11082,7 +11082,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11099,7 +11099,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11175,7 +11175,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11191,7 +11191,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11252,7 +11252,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11269,7 +11269,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11344,7 +11344,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11354,7 +11354,7 @@ impl HistoricalClient {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11393,7 +11393,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11404,7 +11404,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11453,7 +11453,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11463,7 +11463,7 @@ impl HistoricalClient {
         let max_dte = options.max_dte;
         let strike_range = options.strike_range;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11502,7 +11502,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11513,7 +11513,7 @@ impl HistoricalClient {
         let strike_range = options.strike_range;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -11552,9 +11552,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().index_list_symbols();
+            let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -11581,9 +11581,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_endpoint_task(async move {
-            let call = tdx.historical().index_list_dates(&symbol);
+            let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -11611,12 +11611,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -11644,12 +11644,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_price(&refs);
+            let mut request = client.historical().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -11677,12 +11677,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_market_value(&refs);
+            let mut request = client.historical().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -11711,11 +11711,11 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11740,12 +11740,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11782,14 +11782,14 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11823,7 +11823,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -11831,7 +11831,7 @@ impl HistoricalClient {
         let end_time = normalize_optional_time(options.end_time);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11877,7 +11877,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -11885,7 +11885,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11924,7 +11924,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -11933,7 +11933,7 @@ impl HistoricalClient {
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11980,12 +11980,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12011,13 +12011,13 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12046,9 +12046,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_open_today();
+            let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12075,10 +12075,10 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_on_date(date.as_str());
+            let mut request = client.historical().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12105,9 +12105,9 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().calendar_year(&year);
+            let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12137,11 +12137,11 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12166,12 +12166,12 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12205,7 +12205,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -12213,7 +12213,7 @@ impl HistoricalClient {
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -12250,7 +12250,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -12259,7 +12259,7 @@ impl HistoricalClient {
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }

@@ -5,12 +5,12 @@
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> calendar_days_to_arrow_ipc(const std::vector<CalendarDay>& rows) {
-    TdxArrowBytes raw = tdx_calendar_days_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_calendar_days_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -19,12 +19,12 @@ inline std::vector<uint8_t> calendar_days_to_arrow_ipc(const std::vector<Calenda
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> eod_ticks_to_arrow_ipc(const std::vector<EodTick>& rows) {
-    TdxArrowBytes raw = tdx_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -33,12 +33,12 @@ inline std::vector<uint8_t> eod_ticks_to_arrow_ipc(const std::vector<EodTick>& r
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc(const std::vector<GreeksAllTick>& rows) {
-    TdxArrowBytes raw = tdx_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -47,12 +47,12 @@ inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc(const std::vector<Gree
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc(const std::vector<GreeksEodTick>& rows) {
-    TdxArrowBytes raw = tdx_greeks_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_greeks_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -61,12 +61,12 @@ inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc(const std::vector<Gree
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc(const std::vector<GreeksFirstOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -75,12 +75,12 @@ inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc(const std::vec
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc(const std::vector<GreeksSecondOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -89,12 +89,12 @@ inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc(const std::ve
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc(const std::vector<GreeksThirdOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -103,12 +103,12 @@ inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc(const std::vec
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc(const std::vector<IndexPriceAtTimeTick>& rows) {
-    TdxArrowBytes raw = tdx_index_price_at_time_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_index_price_at_time_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -117,12 +117,12 @@ inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc(const std::ve
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc(const std::vector<InterestRateTick>& rows) {
-    TdxArrowBytes raw = tdx_interest_rate_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_interest_rate_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -131,12 +131,12 @@ inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc(const std::vector<I
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> iv_ticks_to_arrow_ipc(const std::vector<IvTick>& rows) {
-    TdxArrowBytes raw = tdx_iv_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_iv_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -145,12 +145,12 @@ inline std::vector<uint8_t> iv_ticks_to_arrow_ipc(const std::vector<IvTick>& row
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc(const std::vector<MarketValueTick>& rows) {
-    TdxArrowBytes raw = tdx_market_value_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_market_value_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -159,12 +159,12 @@ inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc(const std::vector<Ma
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc(const std::vector<OhlcTick>& rows) {
-    TdxArrowBytes raw = tdx_ohlc_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_ohlc_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -173,12 +173,12 @@ inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc(const std::vector<OhlcTick>&
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc(const std::vector<OpenInterestTick>& rows) {
-    TdxArrowBytes raw = tdx_open_interest_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_open_interest_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -187,12 +187,12 @@ inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc(const std::vector<O
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> price_ticks_to_arrow_ipc(const std::vector<PriceTick>& rows) {
-    TdxArrowBytes raw = tdx_price_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_price_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -201,12 +201,12 @@ inline std::vector<uint8_t> price_ticks_to_arrow_ipc(const std::vector<PriceTick
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> quote_ticks_to_arrow_ipc(const std::vector<QuoteTick>& rows) {
-    TdxArrowBytes raw = tdx_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -215,12 +215,12 @@ inline std::vector<uint8_t> quote_ticks_to_arrow_ipc(const std::vector<QuoteTick
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc(const std::vector<TradeGreeksAllTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -229,12 +229,12 @@ inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc(const std::vecto
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksFirstOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -243,12 +243,12 @@ inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc(const st
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc(const std::vector<TradeGreeksImpliedVolatilityTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -257,12 +257,12 @@ inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc(c
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksSecondOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -271,12 +271,12 @@ inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc(const s
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksThirdOrderTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -285,12 +285,12 @@ inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc(const st
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc(const std::vector<TradeQuoteTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 
@@ -299,12 +299,12 @@ inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc(const std::vector<Tra
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_ticks_to_arrow_ipc(const std::vector<TradeTick>& rows) {
-    TdxArrowBytes raw = tdx_trade_ticks_to_arrow_ipc(rows.data(), rows.size());
+    ThetaDataDxArrowBytes raw = thetadatadx_trade_ticks_to_arrow_ipc(rows.data(), rows.size());
     if (raw.data == nullptr) {
         detail::throw_last_ffi_error();
     }
     std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-    tdx_arrow_bytes_free(raw);
+    thetadatadx_arrow_bytes_free(raw);
     return out;
 }
 

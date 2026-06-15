@@ -19,34 +19,34 @@
 # When in doubt, rewrite the per-site comment to name what makes
 # THAT site sound, rather than expanding this allowlist.
 
-# Standard FFI handle-based functions: every `tdx_<noun>_free` /
-# `tdx_<noun>_get_*` / etc. takes a pointer returned by the matching
-# `tdx_<noun>_new` (or a successor that documents the same handle
+# Standard FFI handle-based functions: every `thetadatadx_<noun>_free` /
+# `thetadatadx_<noun>_get_*` / etc. takes a pointer returned by the matching
+# `thetadatadx_<noun>_new` (or a successor that documents the same handle
 # layout) and refers to a `Box<T>` whose lifetime is bounded by the
 # matching `*_free`. The repeat is intentional: the invariant IS the
 # same per-site, and the C-ABI shim cannot factor it into a helper
 # without losing the per-fn rustdoc.
-the handle is a non-null pointer returned by the matching tdx_
+the handle is a non-null pointer returned by the matching thetadatadx_
 
 # Endpoint-shim symbol-array contract: the same `*const *const c_char
 # + symbols_len` shape is consumed by ~30 endpoint shims. Each one's
 # null + UTF-8 + lifetime contract is identical (handed off to
 # `parse_symbol_array` which validates element-wise and surfaces
-# per-element errors through `tdx_last_error`). Allowlisted because
+# per-element errors through `thetadatadx_last_error`). Allowlisted because
 # the shared contract is genuinely shared, not boilerplate.
 caller passes a contiguous array of `symbols_len` non-null nul-terminated c strings
 
 # Test-only handle round-trip: every Config / fallback / policy /
-# streaming-shim test calls `tdx_<noun>_<factory>` immediately above
+# streaming-shim test calls `thetadatadx_<noun>_<factory>` immediately above
 # the unsafe block, asserts the returned pointer is non-null, then
 # dereferences it. Same invariant per site: the factory returned a
 # `Box<...>` whose lifetime is the unsafe scope. Allowlist substrings
 # accept the legitimate stamped forms.
-handle just returned by tdx_config_production
+handle just returned by thetadatadx_config_production
 policy was just allocated above
 # Tightened from the prior generic `passing null is the contract`
 # substring (which matched any text containing that phrase, even
-# outside the intended `tdx_*_free` tests) to anchor on the
-# `tdx_*_free` test family that exercises the documented
+# outside the intended `thetadatadx_*_free` tests) to anchor on the
+# `thetadatadx_*_free` test family that exercises the documented
 # null-tolerance contract per `ffi/src/auth.rs` rustdoc.
-passing null to tdx_
+passing null to thetadatadx_

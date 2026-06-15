@@ -6,11 +6,11 @@
 //! points would take down the host process (C / Go / Python). The
 //! `ffi_boundary!` macro wraps every body in `catch_unwind`, converts the
 //! panic into the function's declared default return value, and stashes the
-//! payload into the thread-local `tdx_last_error` slot.
+//! payload into the thread-local `thetadatadx_last_error` slot.
 //!
 //! This test calls the two feature-gated panic helpers and asserts all three
 //! invariants: process keeps running, the default (`-1`) is returned, and the
-//! panic message is readable via `tdx_last_error()`.
+//! panic message is readable via `thetadatadx_last_error()`.
 //!
 //! Only compiled when the `testing-panic-boundary` feature is enabled, so the
 //! production shared library never carries the panic-on-demand symbols. Run
@@ -20,9 +20,12 @@
 
 use std::ffi::CStr;
 
-use thetadatadx_ffi::{tdx_clear_error, tdx_last_error, tdx_test_panic_str, tdx_test_panic_string};
+use thetadatadx_ffi::{
+    thetadatadx_clear_error, thetadatadx_last_error, thetadatadx_test_panic_str,
+    thetadatadx_test_panic_string,
+};
 
-/// Read `tdx_last_error` into a Rust `String`. Returns an empty string if
+/// Read `thetadatadx_last_error` into a Rust `String`. Returns an empty string if
 /// the slot is null, which lets the test assert "set to something" with
 /// `!is_empty()` rather than decoding raw pointers inline.
 fn last_error_string() -> String {
@@ -30,7 +33,7 @@ fn last_error_string() -> String {
     // remains valid until the next FFI call on this thread. We copy into a
     // Rust String before dropping it, so no dangling reference escapes.
     unsafe {
-        let p = tdx_last_error();
+        let p = thetadatadx_last_error();
         if p.is_null() {
             return String::new();
         }
@@ -41,8 +44,8 @@ fn last_error_string() -> String {
 #[test]
 fn panic_with_static_str_returns_default_and_sets_last_error() {
     // Start from a clean error slot so we can attribute whatever shows up
-    // in `tdx_last_error` to *this* call and not a previous test.
-    tdx_clear_error();
+    // in `thetadatadx_last_error` to *this* call and not a previous test.
+    thetadatadx_clear_error();
     assert!(
         last_error_string().is_empty(),
         "precondition: last_error should start cleared"
@@ -54,7 +57,7 @@ fn panic_with_static_str_returns_default_and_sets_last_error() {
     // internally and the `ffi_boundary!` macro must catch that panic.
     // If the catch failed the test binary would abort (Rust 1.81+)
     // rather than reach the assertion below.
-    let rc = tdx_test_panic_str();
+    let rc = thetadatadx_test_panic_str();
 
     assert_eq!(
         rc, -1,
@@ -64,31 +67,31 @@ fn panic_with_static_str_returns_default_and_sets_last_error() {
     let err = last_error_string();
     assert!(
         err.starts_with("panic at FFI boundary:"),
-        "tdx_last_error should carry the boundary-caught panic prefix, got {err:?}",
+        "thetadatadx_last_error should carry the boundary-caught panic prefix, got {err:?}",
     );
     assert!(
         err.contains("intentional test panic via &'static str"),
-        "tdx_last_error should include the panic message payload, got {err:?}",
+        "thetadatadx_last_error should include the panic message payload, got {err:?}",
     );
 }
 
 #[test]
 fn panic_with_string_returns_default_and_sets_last_error() {
-    tdx_clear_error();
+    thetadatadx_clear_error();
     assert!(last_error_string().is_empty());
 
     // See the `&'static str` variant for why this call is safe.
-    let rc = tdx_test_panic_string();
+    let rc = thetadatadx_test_panic_string();
 
     assert_eq!(rc, -1);
 
     let err = last_error_string();
     assert!(
         err.starts_with("panic at FFI boundary:"),
-        "tdx_last_error should carry the boundary-caught panic prefix, got {err:?}",
+        "thetadatadx_last_error should carry the boundary-caught panic prefix, got {err:?}",
     );
     assert!(
         err.contains("intentional test panic via String"),
-        "tdx_last_error should include the String-typed panic payload, got {err:?}",
+        "thetadatadx_last_error should include the String-typed panic payload, got {err:?}",
     );
 }

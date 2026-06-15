@@ -83,7 +83,7 @@ variants = [
 ]
 
 # Global request-level options attached to every endpoint via
-# `TdxEndpointRequestOptions` (FFI) /
+# `ThetaDataDxEndpointRequestOptions` (FFI) /
 # `with_timeout_ms` (Rust/Python/C++). These are NOT per-endpoint
 # builder params — they apply uniformly across the surface — but the
 # FFI struct layout still needs to mirror this list, so we declare

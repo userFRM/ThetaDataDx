@@ -31,8 +31,7 @@ use tokio::sync::OnceCell;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, Client,
-    ENDPOINTS,
+    param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, ENDPOINTS,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
