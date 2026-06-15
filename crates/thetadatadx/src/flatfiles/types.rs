@@ -67,6 +67,41 @@ impl ReqType {
     }
 }
 
+/// Single source of truth for the `(SecType, ReqType)` pairs the flat-file
+/// distribution actually serves.
+///
+/// The flat-file service publishes a fixed matrix of daily snapshot
+/// datasets — option `trade_quote` / `open_interest` / `eod` and stock
+/// `trade_quote` / `eod`. Every other request type (per-tick quotes,
+/// trades, OHLC bars) is served by the historical endpoints, not as a
+/// flat file. Sending an unserved pair yields a server
+/// `INVALID_PARAMS:Invalid request type` rejection; this predicate lets
+/// the request entry points reject the pair locally, before any network
+/// round-trip, so callers see a typed invalid-parameter error instead.
+pub(crate) fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
+    matches!(
+        (sec, req),
+        (
+            SecType::Option,
+            ReqType::TradeQuote | ReqType::OpenInterest | ReqType::Eod
+        ) | (SecType::Stock, ReqType::TradeQuote | ReqType::Eod)
+    )
+}
+
+/// Lower-case dataset name for `req` as it appears in user-facing error
+/// text (e.g. `open_interest`). Matches the request-type tokens the
+/// public surface accepts.
+pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
+    match req {
+        ReqType::Eod => "eod",
+        ReqType::Quote => "quote",
+        ReqType::OpenInterest => "open_interest",
+        ReqType::Ohlc => "ohlc",
+        ReqType::Trade => "trade",
+        ReqType::TradeQuote => "trade_quote",
+    }
+}
+
 /// Reason a [`Client::flatfile_request`](crate::Client::flatfile_request)
 /// call cannot return CSV.
 ///

@@ -169,31 +169,10 @@ pub struct FlatFilesNamespace {
 
 #[napi]
 impl FlatFilesNamespace {
-    /// Option quote flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "optionQuote")]
-    pub fn option_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Quote, &date)?;
-        Ok(FlatFileRowList { rows })
-    }
-
-    /// Option trade flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "optionTrade")]
-    pub fn option_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Trade, &date)?;
-        Ok(FlatFileRowList { rows })
-    }
-
     /// Option trade-with-quote flat file for the given `YYYYMMDD` date.
     #[napi(js_name = "optionTradeQuote")]
     pub fn option_trade_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.client, SecType::Option, ReqType::TradeQuote, &date)?;
-        Ok(FlatFileRowList { rows })
-    }
-
-    /// Option OHLC flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "optionOhlc")]
-    pub fn option_ohlc(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Option, ReqType::Ohlc, &date)?;
         Ok(FlatFileRowList { rows })
     }
 
@@ -208,20 +187,6 @@ impl FlatFilesNamespace {
     #[napi(js_name = "optionEod")]
     pub fn option_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
         let rows = pull_decoded(&self.client, SecType::Option, ReqType::Eod, &date)?;
-        Ok(FlatFileRowList { rows })
-    }
-
-    /// Stock quote flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "stockQuote")]
-    pub fn stock_quote(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::Quote, &date)?;
-        Ok(FlatFileRowList { rows })
-    }
-
-    /// Stock trade flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "stockTrade")]
-    pub fn stock_trade(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Stock, ReqType::Trade, &date)?;
         Ok(FlatFileRowList { rows })
     }
 

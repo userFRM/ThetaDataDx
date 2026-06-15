@@ -450,6 +450,17 @@ mod tests {
             error_code_for(&thetadatadx::Error::config_missing("ffi")),
             TDX_ERR_INVALID_PARAMETER
         );
+        // The flat-file dataset gate rejects an unserved (security,
+        // request) pair with a `config_invalid` error, so the C-ABI
+        // surfaces it as the dedicated invalid-parameter discriminant —
+        // the same code C++ maps onto its invalid-argument exception.
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::config_invalid(
+                "flatfiles.dataset",
+                "flat-file service does not serve stock open_interest"
+            )),
+            TDX_ERR_INVALID_PARAMETER
+        );
         // Environmental config faults stay on the generic config code.
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_io("file not found")),

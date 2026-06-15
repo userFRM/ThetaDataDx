@@ -1672,7 +1672,9 @@ class FlatFiles {
 public:
     /// Generic dispatcher. `sec_type` is "OPTION" / "STOCK" / "INDEX";
     /// `req_type` is "EOD" / "QUOTE" / "OPEN_INTEREST" / "OHLC" /
-    /// "TRADE" / "TRADE_QUOTE"; `date` is "YYYYMMDD".
+    /// "TRADE" / "TRADE_QUOTE"; `date` is "YYYYMMDD". A `(sec_type,
+    /// req_type)` pair the flat-file distribution does not serve throws
+    /// a typed invalid-parameter error before any network round-trip.
     FlatFileRowList request(const std::string& sec_type,
                             const std::string& req_type,
                             const std::string& date) const {
@@ -1684,29 +1686,18 @@ public:
         return FlatFileRowList(h);
     }
 
-    FlatFileRowList option_quote(const std::string& date) const {
-        return request("OPTION", "QUOTE", date);
-    }
-    FlatFileRowList option_trade(const std::string& date) const {
-        return request("OPTION", "TRADE", date);
-    }
+    // Convenience accessors cover exactly the datasets the flat-file
+    // distribution serves — option trade_quote / open_interest / eod and
+    // stock trade_quote / eod. Other request types are reachable via the
+    // historical surface, not as flat files.
     FlatFileRowList option_trade_quote(const std::string& date) const {
         return request("OPTION", "TRADE_QUOTE", date);
-    }
-    FlatFileRowList option_ohlc(const std::string& date) const {
-        return request("OPTION", "OHLC", date);
     }
     FlatFileRowList option_open_interest(const std::string& date) const {
         return request("OPTION", "OPEN_INTEREST", date);
     }
     FlatFileRowList option_eod(const std::string& date) const {
         return request("OPTION", "EOD", date);
-    }
-    FlatFileRowList stock_quote(const std::string& date) const {
-        return request("STOCK", "QUOTE", date);
-    }
-    FlatFileRowList stock_trade(const std::string& date) const {
-        return request("STOCK", "TRADE", date);
     }
     FlatFileRowList stock_trade_quote(const std::string& date) const {
         return request("STOCK", "TRADE_QUOTE", date);

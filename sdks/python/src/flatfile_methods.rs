@@ -10,10 +10,10 @@
 //! Surface shape:
 //!
 //! ```python
-//! client.flat_files.option_quote(date="20260428").to_polars()
+//! client.flat_files.option_trade_quote(date="20260428").to_polars()
 //! client.flat_files.option_open_interest(date="20260428").to_arrow()
-//! client.flat_files.stock_trade(date="20260428").to_pandas()
-//! client.flatfile_to_path("OPTION", "QUOTE", "20260428",
+//! client.flat_files.stock_eod(date="20260428").to_pandas()
+//! client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20260428",
 //!                      "/tmp/spy.csv", "csv")  # raw on-disk
 //! ```
 //!
@@ -208,24 +208,9 @@ impl FlatFilesNamespace {
         "FlatFilesNamespace(option_*, stock_*; .to_arrow/.to_pandas/.to_polars/.to_list)"
     }
 
-    /// Decoded option-quote flat file for `date` (YYYYMMDD).
-    fn option_quote(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Option, ReqType::Quote, date)
-    }
-
-    /// Decoded option-trade flat file for `date` (YYYYMMDD).
-    fn option_trade(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Option, ReqType::Trade, date)
-    }
-
     /// Decoded option-trade-quote flat file for `date` (YYYYMMDD).
     fn option_trade_quote(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
         self.pull_decoded(py, SecType::Option, ReqType::TradeQuote, date)
-    }
-
-    /// Decoded option-OHLC flat file for `date` (YYYYMMDD).
-    fn option_ohlc(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Option, ReqType::Ohlc, date)
     }
 
     /// Decoded option-open-interest flat file for `date` (YYYYMMDD).
@@ -236,16 +221,6 @@ impl FlatFilesNamespace {
     /// Decoded option-EOD flat file for `date` (YYYYMMDD).
     fn option_eod(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
         self.pull_decoded(py, SecType::Option, ReqType::Eod, date)
-    }
-
-    /// Decoded stock-quote flat file for `date` (YYYYMMDD).
-    fn stock_quote(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Stock, ReqType::Quote, date)
-    }
-
-    /// Decoded stock-trade flat file for `date` (YYYYMMDD).
-    fn stock_trade(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Stock, ReqType::Trade, date)
     }
 
     /// Decoded stock-trade-quote flat file for `date` (YYYYMMDD).
@@ -290,7 +265,7 @@ impl crate::Client {
     /// `Arc<thetadatadx::Client>` — no auth round-trip, no FPSS
     /// state mutation. Each call returns a fresh handle so that storing
     /// `flat_files = client.flat_files` in user code is identical to
-    /// calling `client.flat_files.option_quote(...)` inline.
+    /// calling `client.flat_files.option_eod(...)` inline.
     #[getter]
     fn flat_files(&self) -> FlatFilesNamespace {
         FlatFilesNamespace {

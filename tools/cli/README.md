@@ -2,7 +2,7 @@
 
 Command-line interface for querying ThetaData market data.
 
-> **FLATFILES coverage:** the `thetadatadx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). Example: `thetadatadx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
+> **FLATFILES coverage:** the `thetadatadx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). The distribution serves option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Example: `thetadatadx flatfile trade_quote 20260428 --format csv -o spy_trade_quotes.csv`.
 
 ## Install
 

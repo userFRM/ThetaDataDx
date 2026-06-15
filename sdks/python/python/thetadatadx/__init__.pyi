@@ -1591,20 +1591,8 @@ class FlatFilesNamespace:
     dynamically by string identifiers.
     """
 
-    def option_quote(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_trade(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-trade flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
     def option_trade_quote(self, date: str) -> FlatFileRowList:
         """Return the decoded option-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_ohlc(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-OHLC flat file for ``date`` (``YYYYMMDD``)."""
         ...
 
     def option_open_interest(self, date: str) -> FlatFileRowList:
@@ -1613,14 +1601,6 @@ class FlatFilesNamespace:
 
     def option_eod(self, date: str) -> FlatFileRowList:
         """Return the decoded option-EOD flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_quote(self, date: str) -> FlatFileRowList:
-        """Return the decoded stock-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_trade(self, date: str) -> FlatFileRowList:
-        """Return the decoded stock-trade flat file for ``date`` (``YYYYMMDD``)."""
         ...
 
     def stock_trade_quote(self, date: str) -> FlatFileRowList:
@@ -1636,11 +1616,15 @@ class FlatFilesNamespace:
 
         Args:
             sec_type: Security type, e.g. ``"OPTION"`` / ``"STOCK"``.
-            req_type: Request type, e.g. ``"QUOTE"`` / ``"TRADE"``.
+            req_type: Request type, e.g. ``"TRADE_QUOTE"`` / ``"EOD"``.
             date: The trading day as a ``YYYYMMDD`` string.
 
         Returns:
             The decoded :class:`FlatFileRowList`.
+
+        Raises:
+            InvalidParameterError: If the ``(sec_type, req_type)`` pair is
+                not one the flat-file distribution serves.
         """
         ...
 

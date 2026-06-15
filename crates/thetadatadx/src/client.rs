@@ -1330,46 +1330,6 @@ impl Client {
         .await
     }
 
-    /// Convenience: option trade flat file for `date`.
-    ///
-    /// # Errors
-    /// Same conditions as [`Self::flatfile_request`].
-    pub async fn flatfile_option_trade(
-        &self,
-        date: &str,
-        output_path: impl AsRef<std::path::Path>,
-        format: crate::flatfiles::FlatFileFormat,
-    ) -> Result<std::path::PathBuf, Error> {
-        self.flatfile_request(
-            crate::flatfiles::SecType::Option,
-            crate::flatfiles::ReqType::Trade,
-            date,
-            output_path,
-            format,
-        )
-        .await
-    }
-
-    /// Convenience: option quote flat file for `date`.
-    ///
-    /// # Errors
-    /// Same conditions as [`Self::flatfile_request`].
-    pub async fn flatfile_option_quote(
-        &self,
-        date: &str,
-        output_path: impl AsRef<std::path::Path>,
-        format: crate::flatfiles::FlatFileFormat,
-    ) -> Result<std::path::PathBuf, Error> {
-        self.flatfile_request(
-            crate::flatfiles::SecType::Option,
-            crate::flatfiles::ReqType::Quote,
-            date,
-            output_path,
-            format,
-        )
-        .await
-    }
-
     /// Convenience: option end-of-day flat file for `date`.
     ///
     /// # Errors
@@ -1403,46 +1363,6 @@ impl Client {
         self.flatfile_request(
             crate::flatfiles::SecType::Stock,
             crate::flatfiles::ReqType::TradeQuote,
-            date,
-            output_path,
-            format,
-        )
-        .await
-    }
-
-    /// Convenience: stock trade flat file for `date`.
-    ///
-    /// # Errors
-    /// Same conditions as [`Self::flatfile_request`].
-    pub async fn flatfile_stock_trade(
-        &self,
-        date: &str,
-        output_path: impl AsRef<std::path::Path>,
-        format: crate::flatfiles::FlatFileFormat,
-    ) -> Result<std::path::PathBuf, Error> {
-        self.flatfile_request(
-            crate::flatfiles::SecType::Stock,
-            crate::flatfiles::ReqType::Trade,
-            date,
-            output_path,
-            format,
-        )
-        .await
-    }
-
-    /// Convenience: stock quote flat file for `date`.
-    ///
-    /// # Errors
-    /// Same conditions as [`Self::flatfile_request`].
-    pub async fn flatfile_stock_quote(
-        &self,
-        date: &str,
-        output_path: impl AsRef<std::path::Path>,
-        format: crate::flatfiles::FlatFileFormat,
-    ) -> Result<std::path::PathBuf, Error> {
-        self.flatfile_request(
-            crate::flatfiles::SecType::Stock,
-            crate::flatfiles::ReqType::Quote,
             date,
             output_path,
             format,

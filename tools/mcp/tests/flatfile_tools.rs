@@ -79,20 +79,34 @@ fn tools_list_includes_flatfile_tools() {
 
     for tool in [
         "thetadatadx_flatfile_request",
-        "thetadatadx_flatfile_option_quote",
-        "thetadatadx_flatfile_option_trade",
         "thetadatadx_flatfile_option_trade_quote",
-        "thetadatadx_flatfile_option_ohlc",
         "thetadatadx_flatfile_option_open_interest",
         "thetadatadx_flatfile_option_eod",
-        "thetadatadx_flatfile_stock_quote",
-        "thetadatadx_flatfile_stock_trade",
         "thetadatadx_flatfile_stock_trade_quote",
         "thetadatadx_flatfile_stock_eod",
     ] {
         assert!(
             response.contains(tool),
             "tools/list response should advertise `{tool}`; got: {response}"
+        );
+    }
+
+    // The datasets the flat-file distribution does not serve must not be
+    // advertised as convenience tools — they are reachable via the
+    // historical endpoints, not as flat files. Match the exact JSON name
+    // token so an unserved prefix (`..._option_trade`) cannot accidentally
+    // match a served suffix (`..._option_trade_quote`).
+    for tool in [
+        "thetadatadx_flatfile_option_quote",
+        "thetadatadx_flatfile_option_trade",
+        "thetadatadx_flatfile_option_ohlc",
+        "thetadatadx_flatfile_stock_quote",
+        "thetadatadx_flatfile_stock_trade",
+    ] {
+        let name_token = format!("\"name\":\"{tool}\"");
+        assert!(
+            !response.contains(&name_token),
+            "tools/list response must not advertise unserved tool `{tool}`; got: {response}"
         );
     }
 }

@@ -603,22 +603,12 @@ export declare class FlatFileRowList {
  * (security type, request type) pair and returns a `FlatFileRowList`.
  */
 export declare class FlatFilesNamespace {
-  /** Option quote flat file for the given `YYYYMMDD` date. */
-  optionQuote(date: string): FlatFileRowList
-  /** Option trade flat file for the given `YYYYMMDD` date. */
-  optionTrade(date: string): FlatFileRowList
   /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
   optionTradeQuote(date: string): FlatFileRowList
-  /** Option OHLC flat file for the given `YYYYMMDD` date. */
-  optionOhlc(date: string): FlatFileRowList
   /** Option open-interest flat file for the given `YYYYMMDD` date. */
   optionOpenInterest(date: string): FlatFileRowList
   /** Option end-of-day flat file for the given `YYYYMMDD` date. */
   optionEod(date: string): FlatFileRowList
-  /** Stock quote flat file for the given `YYYYMMDD` date. */
-  stockQuote(date: string): FlatFileRowList
-  /** Stock trade flat file for the given `YYYYMMDD` date. */
-  stockTrade(date: string): FlatFileRowList
   /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
   stockTradeQuote(date: string): FlatFileRowList
   /** Stock end-of-day flat file for the given `YYYYMMDD` date. */

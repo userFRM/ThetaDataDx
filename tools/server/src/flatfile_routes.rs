@@ -13,8 +13,9 @@
 //!   segments parse case-insensitively to the matching `SecType` /
 //!   `ReqType`. Query params: `date=YYYYMMDD&format=csv|jsonl`.
 //! - `POST /v3/flatfile/request` — generic endpoint. JSON body:
-//!   `{ "sec_type": "OPTION", "req_type": "QUOTE", "date": "20260428",
-//!      "format": "csv" }`.
+//!   `{ "sec_type": "OPTION", "req_type": "TRADE_QUOTE", "date":
+//!      "20260428", "format": "csv" }`. An `(sec_type, req_type)` pair the
+//!   flat-file distribution does not serve returns `400 bad_request`.
 //!
 //! Response:
 //! - `Content-Type: text/csv` (csv) or `application/x-ndjson` (jsonl).
@@ -199,11 +200,19 @@ async fn serve_flatfile(
         Ok(p) => p,
         Err(e) => {
             let _ = tokio::fs::remove_file(&scratch_path).await;
-            return error_response(
-                StatusCode::BAD_GATEWAY,
-                "flatfiles_unavailable",
-                &e.to_string(),
-            );
+            // An unserved (sec_type, req_type) pair fails the SDK's local
+            // dataset gate with a typed invalid-parameter error before any
+            // upstream call — that is a client request fault (400), not an
+            // upstream outage (502).
+            let (status, error_type) = if matches!(
+                &e,
+                thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter()
+            ) {
+                (StatusCode::BAD_REQUEST, "bad_request")
+            } else {
+                (StatusCode::BAD_GATEWAY, "flatfiles_unavailable")
+            };
+            return error_response(status, error_type, &e.to_string());
         }
     };
 

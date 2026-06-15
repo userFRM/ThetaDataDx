@@ -2,7 +2,7 @@
 
 MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
-> **FLATFILES coverage:** the MCP server advertises eleven FLATFILES tools — `thetadatadx_flatfile_request` plus ten convenience wrappers (`thetadatadx_flatfile_option_quote`, `thetadatadx_flatfile_option_trade_quote`, `thetadatadx_flatfile_stock_eod`, …). Each call writes the decoded CSV / JSONL blob to disk and returns the path.
+> **FLATFILES coverage:** the MCP server advertises six FLATFILES tools — `thetadatadx_flatfile_request` plus five convenience wrappers covering the datasets the distribution serves (`thetadatadx_flatfile_option_trade_quote`, `thetadatadx_flatfile_option_open_interest`, `thetadatadx_flatfile_option_eod`, `thetadatadx_flatfile_stock_trade_quote`, `thetadatadx_flatfile_stock_eod`). Each call writes the decoded CSV / JSONL blob to disk and returns the path; the generic tool rejects an unserved `(sec_type, req_type)` pair with a typed invalid-parameter error.
 
 ## Architecture
 

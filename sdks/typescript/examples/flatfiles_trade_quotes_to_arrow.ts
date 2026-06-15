@@ -5,7 +5,7 @@
 // runtime by the request type, so the binding emits Arrow IPC bytes
 // and the caller deserialises with `apache-arrow`'s `tableFromIPC`.
 //
-// Run with: `npx tsx flatfiles_quotes_to_arrow.ts`
+// Run with: `npx tsx flatfiles_trade_quotes_to_arrow.ts`
 // Requires: `npm i apache-arrow` (peer dep, not bundled by thetadatadx).
 
 import { Client } from "thetadatadx";
@@ -13,9 +13,9 @@ import { tableFromIPC } from "apache-arrow";
 
 const client = Client.connectFromFile("creds.txt");
 
-// Whole-universe option quotes for one trading day.
-const rows = client.flatFiles.optionQuote("20260428");
-console.log(`option_quote rows: ${rows.len()}`);
+// Whole-universe option trade-quotes for one trading day.
+const rows = client.flatFiles.optionTradeQuote("20260428");
+console.log(`option_trade_quote rows: ${rows.len()}`);
 
 // Apache Arrow table -- one column per vendor field plus the contract
 // key columns (symbol, expiration, strike, right). Schema inferred
@@ -31,9 +31,9 @@ console.log(`open_interest rows: ${oi.len()}`);
 // Drop raw vendor CSV bytes to disk without materialising rows.
 const path = client.flatFileToPath(
   "OPTION",
-  "QUOTE",
+  "TRADE_QUOTE",
   "20260428",
-  "/tmp/option-quote",
+  "/tmp/option-trade-quote",
   "csv",
 );
 console.log(`raw vendor CSV at ${path}`);

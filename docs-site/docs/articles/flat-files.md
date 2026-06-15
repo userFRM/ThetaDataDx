@@ -9,7 +9,7 @@ Flat files deliver **the whole universe for one date in one call** — every opt
 
 ## Pull a file
 
-The `flat_files` namespace exposes one method per (security type, request type) pair: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod` — plus a generic `request(sec_type, req_type, date)`.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. The `flat_files` namespace exposes one method per served pair: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod` — plus a generic `request(sec_type, req_type, date)` that rejects an unserved `(security, request)` pair with a typed invalid-parameter error before any network round-trip. Per-tick quotes, trades, and OHLC bars are served by the [reference endpoints](/reference/), not as flat files.
 
 <SdkTabs>
 
@@ -19,10 +19,10 @@ The `flat_files` namespace exposes one method per (security type, request type) 
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 
 // Vendor-format file straight to disk (bounded memory):
-client.flatfile_option_quote("20250303", "quotes.csv", FlatFileFormat::Csv).await?;
+client.flatfile_option_trade_quote("20250303", "trade_quotes.csv", FlatFileFormat::Csv).await?;
 
 // Decoded rows in memory:
-let rows = client.flatfile_request_decoded(SecType::Option, ReqType::Quote, "20250303").await?;
+let rows = client.flatfile_request_decoded(SecType::Option, ReqType::TradeQuote, "20250303").await?;
 ```
 
 </template>
@@ -30,11 +30,11 @@ let rows = client.flatfile_request_decoded(SecType::Option, ReqType::Quote, "202
 <template #python>
 
 ```python
-rows = client.flat_files.option_quote("20250303")
+rows = client.flat_files.option_trade_quote("20250303")
 df = rows.to_polars()          # or .to_pandas() / .to_arrow() / .to_list()
 
 # Or write the vendor-format file straight to disk (bounded memory):
-client.flatfile_to_path("OPTION", "QUOTE", "20250303", "quotes.csv", "csv")
+client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20250303", "trade_quotes.csv", "csv")
 ```
 
 </template>
@@ -42,7 +42,7 @@ client.flatfile_to_path("OPTION", "QUOTE", "20250303", "quotes.csv", "csv")
 <template #typescript>
 
 ```typescript
-const rows = client.flatFiles.optionQuote('20250303');
+const rows = client.flatFiles.optionTradeQuote('20250303');
 const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
 ```
 
@@ -51,7 +51,7 @@ const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
 <template #cpp>
 
 ```cpp
-auto rows = client.flat_files().option_quote("20250303");
+auto rows = client.flat_files().option_trade_quote("20250303");
 auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 ```
 
@@ -60,10 +60,10 @@ auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 <template #http>
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/flatfile/option/quote?date=2025-03-03&format=csv' -o quotes.csv
+curl 'http://127.0.0.1:25503/v3/flatfile/option/trade_quote?date=2025-03-03&format=csv' -o trade_quotes.csv
 ```
 
-The server streams the response body in chunks, so downloads of any size run in bounded memory. The same surface is available from the CLI: `thetadatadx flatfile quotes 20250303 --format csv -o quotes.csv`.
+The server streams the response body in chunks, so downloads of any size run in bounded memory. The same surface is available from the CLI: `thetadatadx flatfile trade_quote 20250303 --format csv -o trade_quotes.csv`.
 
 </template>
 

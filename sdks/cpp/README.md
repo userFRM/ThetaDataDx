@@ -177,17 +177,17 @@ auto unified = thetadatadx::Client::connect(
     thetadatadx::Credentials::from_file("creds.txt"),
     thetadatadx::Config::production());
 
-auto rows = unified.flat_files().option_quote("20260428");
+auto rows = unified.flat_files().option_trade_quote("20260428");
 auto ipc  = rows.to_arrow_ipc();              // std::vector<uint8_t>, Arrow IPC stream
 
 // Generic dispatcher when security type / request type come from config
 auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
 
 // Or write the raw vendor file straight to disk
-unified.flat_files().to_path("OPTION", "QUOTE", "20260428", "/tmp/option-quote", "csv");
+unified.flat_files().to_path("OPTION", "TRADE_QUOTE", "20260428", "/tmp/option-trade-quote", "csv");
 ```
 
-Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flat_files().*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`; the generic paths reject an unserved `(security, request)` pair with a typed invalid-parameter error. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
 
 ## Endpoint coverage
 
