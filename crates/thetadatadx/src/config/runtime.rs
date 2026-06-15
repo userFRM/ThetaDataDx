@@ -26,7 +26,7 @@ pub struct RuntimeConfig {
     ///   sentinel survives across binding boundaries.
     /// * `Some(n)` for `n >= 1` — pins the worker pool to exactly `n`.
     ///
-    /// JVM equivalent: `-Xmx` + `HTTP_CONCURRENCY` thread pool sizing.
+    /// Controls async runtime worker-pool sizing for HTTP concurrency.
     pub tokio_worker_threads: Option<usize>,
 }
 

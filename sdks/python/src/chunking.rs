@@ -157,8 +157,8 @@ impl Ymd {
     }
 }
 
-/// Maximum span accepted by the server (inclusive). 365 matches the
-/// behavior observed during reverse-engineering.
+/// Maximum span accepted by the server (inclusive). The server caps a
+/// single request at 365 days.
 pub const MAX_SPAN_DAYS: i64 = 365;
 
 /// Split `(start, end)` (YYYYMMDD strings, inclusive on both ends) into

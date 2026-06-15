@@ -83,8 +83,8 @@ impl DeltaState {
     /// Clear all accumulated delta state.
     ///
     /// Called on START/STOP (market open/close) signals to reset delta
-    /// decompression, matching Java's behavior where `Tick.readID()` starts
-    /// fresh after a session boundary.
+    /// decompression: the contract-id read starts fresh after a session
+    /// boundary.
     ///
     /// Note: `last_stop` is intentionally NOT cleared here because STOP
     /// itself calls `clear()`, and the timestamp must survive to suppress
@@ -112,12 +112,9 @@ impl DeltaState {
     /// individual fields directly from `out` to construct the public event
     /// — no `Vec<i32>` is allocated on the decode path.
     ///
-    /// Equivalent to the upstream sequence:
-    /// ```text
-    /// fitReader.open(p.data(), 0, p.len());  // FIT starts at offset 0
-    /// int size = fitReader.readChanges(alloc); // alloc[0] = contract_id
-    /// Contract c = idToContract.get(alloc[0]); // first field IS the contract_id
-    /// ```
+    /// Wire sequence: the FIT reader opens at offset 0 and decodes the row's
+    /// changes into `alloc`, where `alloc[0]` is the `contract_id` used to
+    /// resolve the contract and `alloc[1..]` are the tick fields.
     ///
     /// Returns `Some((contract_id, data_field_count))` on success, or `None`
     /// when the payload is empty or the FIT row is a DATE marker. Sets
@@ -169,12 +166,9 @@ impl DeltaState {
         out[..expected_fields].copy_from_slice(&self.alloc_buf[1..total_fields]);
 
         // Delta decompression applies only to the tick portion (excluding
-        // contract_id), matching Java's `Tick.readID()`:
-        //   for (int i = 1; i < len; ++i) {
-        //       this.data[i - 1] = firstData[i] + this.data[i - 1];
-        //   }
-        // It skips firstData[0] (contract_id) and applies deltas from
-        // firstData[1..] onto tick data[0..].
+        // contract_id): the first field (contract_id) is skipped, and deltas
+        // from `firstData[1..]` accumulate onto `data[0..]`:
+        //   for i in 1..len { data[i - 1] = firstData[i] + data[i - 1]; }
         let tick_n = n.saturating_sub(1);
 
         let key = (msg_code, contract_id);

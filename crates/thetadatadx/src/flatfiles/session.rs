@@ -69,7 +69,7 @@ pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStr
 
 /// Build the VERSION payload — `[u32 BE jsonlen][json_utf8]`.
 ///
-/// The vendor terminal serialises every JVM system property; the server
+/// The JVM terminal serialises a large host-property map; the server
 /// only inspects the `terminal.version` key. A minimal map keeps the
 /// server's MDC log showing a recognisable client identity without leaking
 /// host details.

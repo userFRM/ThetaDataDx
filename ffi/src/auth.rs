@@ -344,7 +344,7 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
 /// Set the reconnect delay (ms) honoured for `TooManyRequests`
 /// rate-limited disconnects. Plumbed through to the FPSS I/O loop at
 /// connect time and consumed by the `Auto` reconnect arm via
-/// `reconnect_delay_for`. Default `130_000` (matches the Java terminal's
+/// `reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
 /// 130 s rate-limit cooldown).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_wait_rate_limited_ms(

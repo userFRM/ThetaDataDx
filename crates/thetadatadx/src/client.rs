@@ -992,7 +992,8 @@ impl ThetaDataDxClient {
 
     /// Reconnect the streaming connection, re-subscribing all previous subscriptions.
     ///
-    /// This is the caller-driven equivalent of Java's `handleInvoluntaryDisconnect()`.
+    /// This is the caller-driven equivalent of the JVM terminal's
+    /// involuntary-disconnect recovery.
     /// It saves active subscriptions, stops the current streaming connection,
     /// starts a new one with the provided handler, and re-subscribes everything.
     ///
@@ -1202,7 +1203,7 @@ impl ThetaDataDxClient {
     // ---------------------------------------------------------------------
     // FLATFILES surface (third public surface, alongside FPSS and MDDS).
     //
-    // The legacy MDDS port (12000) speaks a custom binary PacketStream
+    // The legacy MDDS port (12000) speaks a custom binary packet-stream
     // protocol that supports a single FLAT_FILE request type. The server
     // pre-builds an INDEX + DATA blob per (sec_type, data_type, date)
     // tuple overnight and streams it back on demand. See

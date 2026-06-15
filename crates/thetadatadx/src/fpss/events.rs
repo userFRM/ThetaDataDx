@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn fpss_control_connected_ping_reconnected_server_restart_variants() {
         // Every new control variant must round-trip and expose its payload
-        // correctly — matching the Java terminal hand-off where codes
+        // correctly — matching the JVM terminal hand-off where codes
         // 4 / 10 / 13 / 31 each land on their own typed listener.
         let connected = FpssEvent::Control(FpssControl::Connected);
         assert!(matches!(

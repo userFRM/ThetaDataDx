@@ -109,7 +109,7 @@ type ActiveFullSubs = Arc<
 /// [`crate::config::FpssConfig`] tuning into the auto-reconnect path
 /// (so manual [`std::net::TcpStream::connect_timeout`] re-attempts and
 /// the framing-layer mid-frame stall budget honour the configured
-/// values, not the Java-parity hardcoded defaults).
+/// values, not the parity-reference hardcoded defaults).
 ///
 /// `producer` is the ring publisher built by the caller via
 /// [`build_poller_producer`]. The io_loop only ever calls

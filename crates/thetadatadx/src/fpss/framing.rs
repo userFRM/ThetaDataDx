@@ -62,7 +62,7 @@ pub(crate) fn is_transient_read(io_err: &std::io::Error) -> bool {
 
 /// Maximum payload length (single unsigned byte).
 ///
-/// Source: `PacketStream.java` -- the length field is one byte.
+/// The framing length field is a single byte, capping the payload at 255.
 pub const MAX_PAYLOAD_LEN: usize = 255;
 
 /// Wall-clock cap on the mid-frame retry budget.
@@ -80,7 +80,7 @@ pub const MAX_PAYLOAD_LEN: usize = 255;
 /// `FpssErrorKind::ProtocolError` with a `DRAIN_YIELD_MARKER` substring.
 /// At 200 ms it is 4× the 50 ms drain cadence, generous enough for
 /// normal TCP gaps yet tight enough that a pathological trickler cannot
-/// block heartbeats past the 2 s Java-side ping grace.
+/// block heartbeats past the 2 s ping grace.
 pub const MID_FRAME_DRAIN_WINDOW_MS: u64 = 200;
 
 /// Marker substring the I/O loop matches to recognise a drain-yield
@@ -183,16 +183,17 @@ fn read_header<R: Read>(
 /// Read the 2-byte FPSS header with configurable per-stall timeout
 /// and drain-yield budget.
 ///
-/// Byte-for-byte match with Java `PacketStream2.readCopy` +
-/// `socket.setSoTimeout(10_000)` on the per-stall half; a
-/// `drain_budget` yield on top. Contract:
+/// Byte-for-byte match with the JVM terminal's framed read under a
+/// 10_000 ms per-stall socket timeout; a `drain_budget` yield on top.
+/// Contract:
 /// - EOF before any byte → `Ok(None)` (graceful server close).
 /// - Pre-header `WouldBlock` / `TimedOut` (n == 0) → propagate as
 ///   `Error::Io` so `io_loop::is_read_timeout` drains pings +
 ///   command queue.
 /// - Mid-header `WouldBlock` / `TimedOut` (n > 0) → retry. The
 ///   stall deadline is **re-armed on every successful byte**,
-///   matching Java's per-`read()` `setSoTimeout` semantics. Fatal
+///   matching the JVM terminal's per-`read()` socket-timeout
+///   semantics. Fatal
 ///   if `stall_timeout` elapses without any forward progress.
 /// - Mid-header retries exceeding `drain_budget` of aggregate
 ///   wall-clock time → return a `ProtocolError` carrying the
@@ -311,8 +312,8 @@ fn read_exact_payload<R: Read>(
 /// Read exactly `buf.len()` bytes of payload with configurable
 /// per-stall timeout and drain-yield budget.
 ///
-/// Matches Java `DataInputStream.readNBytes` +
-/// `setSoTimeout(10_000)` on the per-stall half: every `WouldBlock` /
+/// Matches the JVM terminal's read-N-bytes under a 10_000 ms per-stall
+/// socket timeout: every `WouldBlock` /
 /// `TimedOut` re-arms a fresh `stall_timeout` deadline from the last
 /// successful byte of progress, not from function entry. A stream
 /// that dribbles data in slowly but steadily is fine; only
@@ -331,8 +332,8 @@ fn read_exact_payload<R: Read>(
 /// Earlier revisions treated the first `WouldBlock` as a fatal
 /// desync. Raw-byte tap captures on dev + prod showed every
 /// "corruption" event was a valid frame that finished arriving
-/// 50-76 ms after the first `WouldBlock`. Java tolerates that gap
-/// silently; so do we now, bounded by the drain-yield budget.
+/// 50-76 ms after the first `WouldBlock`. The JVM terminal tolerates
+/// that gap silently; so do we now, bounded by the drain-yield budget.
 ///
 /// `Interrupted` is retried (POSIX signal wakeups are benign).
 /// `EOF` and going `stall_timeout` without progress are still fatal.
@@ -441,7 +442,7 @@ pub fn read_frame_into<R: Read>(
 }
 
 /// Like [`read_frame_into`] but takes the per-stall mid-frame timeout
-/// from the caller instead of the Java-parity [`READ_TIMEOUT_MS`]
+/// from the caller instead of the parity-reference [`READ_TIMEOUT_MS`]
 /// default. The I/O loop threads the user-supplied
 /// [`crate::config::FpssConfig::timeout_ms`] through this entry point
 /// so the public knob actually controls the framing stall budget.
@@ -573,7 +574,7 @@ pub fn is_drain_yield(err: &crate::error::Error) -> bool {
 
 /// Write a single FPSS frame to a blocking writer.
 ///
-/// # Wire format (from `PacketStream.writeFrame()`)
+/// # Wire format
 ///
 /// Writes `[LEN: u8] [CODE: u8] [PAYLOAD: LEN bytes]` and flushes.
 ///
@@ -888,7 +889,8 @@ mod tests {
 
     /// Mid-header `WouldBlock` (one byte delivered, second stalls briefly)
     /// must retry within the `READ_TIMEOUT_MS` aggregate deadline, matching
-    /// Java `readByte` + `setSoTimeout(10_000)`. Capture evidence: real
+    /// the JVM terminal's single-byte read under a 10_000 ms socket timeout.
+    /// Capture evidence: real
     /// server pauses between LEN and CODE measured at 50-76 ms on dev; the
     /// surrounding bytes were valid.
     #[test]
@@ -907,8 +909,9 @@ mod tests {
     }
 
     /// Mid-payload `WouldBlock` (header + partial payload, brief stall,
-    /// rest arrives) must retry and complete, matching Java `readNBytes`
-    /// + `setSoTimeout(10_000)`. Overwhelmingly most common case in the field.
+    /// rest arrives) must retry and complete, matching the JVM terminal's
+    /// read-N-bytes under a 10_000 ms socket timeout. Overwhelmingly most
+    /// common case in the field.
     #[test]
     fn mid_payload_would_block_retries_and_recovers() {
         // header: len=4, code=PING; 2 payload bytes; 3 stalls; 2 more payload bytes.
@@ -991,8 +994,9 @@ mod tests {
 
     /// A slow-trickling stream whose gaps are each under the deadline but
     /// whose aggregate duration exceeds it must still succeed. Proves the
-    /// deadline re-arms on every successful byte (Java `setSoTimeout`
-    /// per-read semantics) rather than running from function entry.
+    /// deadline re-arms on every successful byte (the JVM terminal's
+    /// per-read socket-timeout semantics) rather than running from function
+    /// entry.
     /// Delivers one byte per `Ok`, with each byte preceded by a single
     /// `WouldBlock` that sleeps for `sleep_per_stall` wall-clock time.
     /// Used to verify the stall-deadline actually resets on progress —
@@ -1029,7 +1033,7 @@ mod tests {
     /// - Cumulative wall time: 8 × 15 ms = 120 ms (> 40 ms)
     /// - Longest single gap: 15 ms (< 40 ms)
     ///
-    /// Must succeed under the Java-parity "reset on progress" semantics.
+    /// Must succeed under the parity "reset on progress" semantics.
     /// A fixed deadline from function entry (prior implementation style)
     /// would fail around cycle 3 once cumulative sleep crossed 40 ms.
     #[test]

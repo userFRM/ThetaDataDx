@@ -35,9 +35,8 @@ pub(in crate::fpss) fn ping_loop(
 ) {
     let ping_payload = build_ping_payload();
 
-    // scheduleAtFixedRate(task, 2000L, 100L): first execution at 2000ms,
-    // then every 100ms. scheduleAtFixedRate sends THEN waits, so the first
-    // ping fires at exactly 2000ms.
+    // Fixed-rate heartbeat: first execution at 2000ms, then every 100ms.
+    // The task sends THEN waits, so the first ping fires at exactly 2000ms.
     thread::sleep(Duration::from_millis(2000));
 
     loop {
@@ -50,8 +49,8 @@ pub(in crate::fpss) fn ping_loop(
             continue;
         }
 
-        // Send ping FIRST, then sleep — matches scheduleAtFixedRate semantics
-        // (execute the task, then wait the interval).
+        // Send ping FIRST, then sleep — fixed-rate semantics (execute the
+        // task, then wait the interval).
         let cmd = IoCommand::WriteFrame {
             code: StreamMsgType::Ping,
             payload: ping_payload.clone(),
@@ -78,9 +77,9 @@ mod tests {
     /// background heartbeat. Setting a 30 ms interval must produce
     /// roughly one ping per 30 ms (within scheduling jitter), and the
     /// total elapsed time across N pings must scale linearly with the
-    /// configured interval. The 2 s startup grace from the Java
-    /// terminal's `scheduleAtFixedRate(.., 2000, ..)` is short-circuited
-    /// here by waiting `2000 + N * interval` and counting pings.
+    /// configured interval. The 2 s startup grace before the first
+    /// heartbeat is short-circuited here by waiting
+    /// `2000 + N * interval` and counting pings.
     ///
     /// Asserts the wiring path:
     /// `FpssConnectArgs::ping_interval_ms`
@@ -101,9 +100,8 @@ mod tests {
             ping_loop(cmd_tx, shutdown_clone, auth_clone, interval_clone);
         });
 
-        // The loop sleeps 2 s before its first ping (mirrors
-        // `scheduleAtFixedRate(.., 2000, ..)`), so the test waits past
-        // that grace plus four full intervals.
+        // The loop sleeps 2 s before its first ping (the fixed-rate startup
+        // grace), so the test waits past that grace plus four full intervals.
         let start = Instant::now();
         let deadline = start + Duration::from_millis(2_000) + interval * 5;
         let mut pings: Vec<Instant> = Vec::new();
