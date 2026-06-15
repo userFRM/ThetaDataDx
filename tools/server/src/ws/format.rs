@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX};
+use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX};
 
 /// Total events dropped because their JSON serialization failed.
 ///
@@ -44,20 +44,20 @@ fn try_serialize(msg: &sonic_rs::Value) -> Option<String> {
     }
 }
 
-/// Convert an `FpssEvent` to the Java terminal's WebSocket JSON format.
+/// Convert an `StreamEvent` to the Java terminal's WebSocket JSON format.
 ///
 /// `peeked_contract` should be the `Arc<Contract>` carried on the event
 /// (see [`super::contract_map::lookup_event_contract`]). Passing it in
 /// keeps the broadcast task contract-aware without re-deriving the
 /// reference from the event on every serialisation.
 pub(super) fn fpss_event_to_ws_json(
-    event: &FpssEvent,
+    event: &StreamEvent,
     peeked_contract: Option<&Contract>,
 ) -> Option<String> {
     match event {
-        FpssEvent::Data(data) => {
+        StreamEvent::Data(data) => {
             let (event_type, body) = match data {
-                FpssData::Quote {
+                StreamData::Quote {
                     ms_of_day,
                     bid_size,
                     bid_exchange,
@@ -86,7 +86,7 @@ pub(super) fn fpss_event_to_ws_json(
                         "received_at_ns": received_at_ns,
                     }),
                 ),
-                FpssData::Trade {
+                StreamData::Trade {
                     ms_of_day,
                     sequence,
                     condition,
@@ -109,7 +109,7 @@ pub(super) fn fpss_event_to_ws_json(
                         "received_at_ns": received_at_ns,
                     }),
                 ),
-                FpssData::Ohlcvc {
+                StreamData::Ohlcvc {
                     ms_of_day,
                     open,
                     high,
@@ -134,7 +134,7 @@ pub(super) fn fpss_event_to_ws_json(
                         "received_at_ns": received_at_ns,
                     }),
                 ),
-                FpssData::OpenInterest {
+                StreamData::OpenInterest {
                     ms_of_day,
                     open_interest,
                     date,
@@ -190,8 +190,8 @@ pub(super) fn fpss_event_to_ws_json(
             try_serialize(&msg)
         }
 
-        FpssEvent::Control(ctrl) => match ctrl {
-            FpssControl::ContractAssigned { id, contract } => {
+        StreamEvent::Control(ctrl) => match ctrl {
+            StreamControl::ContractAssigned { id, contract } => {
                 let msg = sonic_rs::json!({
                     "header": { "type": "CONTRACT" },
                     "contract": contract_to_json(contract),
@@ -199,7 +199,7 @@ pub(super) fn fpss_event_to_ws_json(
                 });
                 try_serialize(&msg)
             }
-            FpssControl::ReqResponse { req_id, result } => {
+            StreamControl::ReqResponse { req_id, result } => {
                 let msg = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
@@ -209,26 +209,26 @@ pub(super) fn fpss_event_to_ws_json(
                 });
                 try_serialize(&msg)
             }
-            FpssControl::MarketOpen => {
+            StreamControl::MarketOpen => {
                 let msg = sonic_rs::json!({
                     "header": { "type": "STATUS", "status": "MARKET_OPEN" }
                 });
                 try_serialize(&msg)
             }
-            FpssControl::MarketClose => {
+            StreamControl::MarketClose => {
                 let msg = sonic_rs::json!({
                     "header": { "type": "STATUS", "status": "MARKET_CLOSE" }
                 });
                 try_serialize(&msg)
             }
-            FpssControl::ServerError { message } => {
+            StreamControl::ServerError { message } => {
                 let msg = sonic_rs::json!({
                     "header": { "type": "ERROR" },
                     "error": message.as_str(),
                 });
                 try_serialize(&msg)
             }
-            FpssControl::Disconnected { reason } => {
+            StreamControl::Disconnected { reason } => {
                 let msg = sonic_rs::json!({
                     "header": { "type": "STATUS", "status": "DISCONNECTED" },
                     "reason": format!("{reason:?}"),
@@ -300,8 +300,8 @@ mod tests {
     use super::super::contract_map::lookup_event_contract;
     use super::*;
 
-    fn make_quote(contract: Arc<Contract>) -> FpssEvent {
-        FpssEvent::Data(FpssData::Quote {
+    fn make_quote(contract: Arc<Contract>) -> StreamEvent {
+        StreamEvent::Data(StreamData::Quote {
             contract,
             ms_of_day: 0,
             bid_size: 0,

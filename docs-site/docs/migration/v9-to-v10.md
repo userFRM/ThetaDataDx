@@ -137,11 +137,11 @@ callback / sync iterator paths:
 
 ```python
 import asyncio
-from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Contract, Credentials, Client
 
 async def main():
     creds = Credentials.from_file("creds.txt")
-    client = ThetaDataDxClient(creds, Config.production())
+    client = Client(creds, Config.production())
 
     async with client.streaming_async() as session:
         await session.subscribe(Contract.stock("QQQ").quote())
@@ -155,28 +155,28 @@ asyncio.run(main())
 The session wakes the asyncio event loop only when events arrive:
 zero polling cost during quiet periods, one wake per coalesced
 batch. The matching surface on
-the standalone `FpssClient` (`fpss_client.streaming_async()`) opens
+the standalone `StreamingClient` (`fpss_client.streaming_async()`) opens
 no historical-channel / Nexus surface — useful for asyncio apps coexisting with a
 parallel Java historical-channel process.
 
-## Standalone `FpssClient` / `MddsClient` Python pyclasses
+## Standalone `StreamingClient` / `HistoricalClient` Python pyclasses
 
 v10 ships standalone Python pyclasses for the streaming-only and
-historical-channel-only surfaces, mirroring the C ABI `tdx_fpss_*` / `tdx_client_*`
-split and the C++ `tdx::FpssClient` / `tdx::Client` shape:
+historical-channel-only surfaces, mirroring the C ABI `tdx_streaming_*` / `tdx_client_*`
+split and the C++ `thetadatadx::StreamingClient` / `thetadatadx::Client` shape:
 
 ```python
-from thetadatadx import FpssClient, MddsClient, Credentials, Config
+from thetadatadx import StreamingClient, HistoricalClient, Credentials, Config
 
 # Real-time stream only — no historical-channel gRPC, no Nexus auth.
-fpss = FpssClient(Credentials.from_file("creds.txt"), Config.production())
+fpss = StreamingClient(Credentials.from_file("creds.txt"), Config.production())
 
 # Historical / FLATFILES only — no streaming TLS slot. Every streaming-touching
 # method raises `AttributeError`.
-mdds = MddsClient(Credentials.from_file("creds.txt"), Config.production())
+mdds = HistoricalClient(Credentials.from_file("creds.txt"), Config.production())
 ```
 
-The bundled `ThetaDataDxClient` keeps its current behaviour — the
+The bundled `Client` keeps its current behaviour — the
 new classes are purely additive.
 
 ## CI invariant gates
@@ -199,7 +199,7 @@ its own PR.
 
 - The `inhouse-grpc` feature flag is gone — the in-house transport
   is the only path on v10.
-- `MddsClient::stub` was removed; internal call sites now reach the
+- `HistoricalClient::stub` was removed; internal call sites now reach the
   generated stubs through `proto::beta_theta_terminal::*` directly.
 - `GrpcStatusKind::from_code()` renamed to
   `GrpcStatusKind::from_u32()` to match the wire type. The enum

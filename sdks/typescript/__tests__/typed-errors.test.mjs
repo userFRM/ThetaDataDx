@@ -84,7 +84,7 @@ describe('typed error hierarchy', () => {
     // Build a tiny consumer of the same `rethrowTyped` logic by
     // patching a stub method onto a class instance and forcing it
     // to throw. Mirrors what every napi-bound method on
-    // `ThetaDataDxClient` does after the JS shim wrap.
+    // `Client` does after the JS shim wrap.
     class Stub {
       throwIt(msg) {
         const e = new Error(msg);

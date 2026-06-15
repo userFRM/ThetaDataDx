@@ -1,8 +1,8 @@
-// Standalone `MddsClient` structural contract (offline — no connect).
+// Standalone `HistoricalClient` structural contract (offline — no connect).
 //
-// `MddsClient` is the historical-only napi handle: the same MDDS/Nexus
-// surface as the unified `ThetaDataDxClient`, with no streaming methods
-// reachable. It mirrors the Python `MddsClient`
+// `HistoricalClient` is the historical-only napi handle: the same MDDS/Nexus
+// surface as the unified `Client`, with no streaming methods
+// reachable. It mirrors the Python `HistoricalClient`
 // (`sdks/python/src/mdds_client.rs`), the C++ `tdx::Client`, and the C
 // ABI `tdx_client_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a generator
@@ -27,10 +27,10 @@ try {
   process.exit(1);
 }
 
-// The `MddsClient` class body as declared in `index.d.ts`.
-const mddsBlock = dts.match(/export declare class MddsClient \{[\s\S]*?\n\}/);
+// The `HistoricalClient` class body as declared in `index.d.ts`.
+const mddsBlock = dts.match(/export declare class HistoricalClient \{[\s\S]*?\n\}/);
 const unifiedBlock = dts.match(
-  /export declare class ThetaDataDxClient \{[\s\S]*?\n\}/
+  /export declare class Client \{[\s\S]*?\n\}/
 );
 
 function methodNames(block) {
@@ -44,25 +44,25 @@ function methodNames(block) {
   );
 }
 
-describe('MddsClient native addon surface', () => {
-  it('exports the MddsClient class with the creds-first connect factories', () => {
-    assert.ok(mod.MddsClient, 'MddsClient should be exported');
+describe('HistoricalClient native addon surface', () => {
+  it('exports the HistoricalClient class with the creds-first connect factories', () => {
+    assert.ok(mod.HistoricalClient, 'HistoricalClient should be exported');
     for (const factory of ['connect', 'connectFromFile']) {
       assert.equal(
-        typeof mod.MddsClient[factory],
+        typeof mod.HistoricalClient[factory],
         'function',
-        `MddsClient.${factory} should be a static factory`
+        `HistoricalClient.${factory} should be a static factory`
       );
     }
   });
 
-  it('declares the MddsClient class in index.d.ts', () => {
-    assert.ok(mddsBlock, 'MddsClient class missing from index.d.ts');
-    assert.ok(unifiedBlock, 'ThetaDataDxClient class missing from index.d.ts');
+  it('declares the HistoricalClient class in index.d.ts', () => {
+    assert.ok(mddsBlock, 'HistoricalClient class missing from index.d.ts');
+    assert.ok(unifiedBlock, 'Client class missing from index.d.ts');
   });
 });
 
-describe('MddsClient carries the historical surface', () => {
+describe('HistoricalClient carries the historical surface', () => {
   it('exposes the buffered data-fetch families', () => {
     const methods = methodNames(mddsBlock[0]);
     for (const expected of [
@@ -75,7 +75,7 @@ describe('MddsClient carries the historical surface', () => {
     ]) {
       assert.ok(
         methods.has(expected),
-        `MddsClient must expose historical method ${expected}`
+        `HistoricalClient must expose historical method ${expected}`
       );
     }
   });
@@ -84,7 +84,7 @@ describe('MddsClient carries the historical surface', () => {
     const methods = methodNames(mddsBlock[0]);
     assert.ok(
       methods.has('stockHistoryEODStream'),
-      'MddsClient must expose the stream companion stockHistoryEODStream'
+      'HistoricalClient must expose the stream companion stockHistoryEODStream'
     );
   });
 
@@ -97,17 +97,17 @@ describe('MddsClient carries the historical surface', () => {
     for (const name of mdds) {
       assert.ok(
         unified.has(name),
-        `MddsClient method ${name} is missing from ThetaDataDxClient — the two historical surfaces have drifted`
+        `HistoricalClient method ${name} is missing from Client — the two historical surfaces have drifted`
       );
     }
   });
 });
 
-describe('MddsClient never exposes the FPSS / streaming surface', () => {
+describe('HistoricalClient never exposes the FPSS / streaming surface', () => {
   // The streaming, subscription, lifecycle, and ring-telemetry methods
   // live only on the unified client. An MDDS-only handle that surfaced
   // any of these could open or observe an FPSS slot, defeating the split.
-  // This is the TypeScript parity of the Python `MddsClient` block-list
+  // This is the TypeScript parity of the Python `HistoricalClient` block-list
   // (`FPSS_TOUCHING_METHODS` in `sdks/python/src/mdds_client.rs`).
   const FPSS_TOUCHING = [
     'startStreaming',
@@ -136,7 +136,7 @@ describe('MddsClient never exposes the FPSS / streaming surface', () => {
     for (const banned of FPSS_TOUCHING) {
       assert.ok(
         !methods.has(banned),
-        `MddsClient must NOT expose the FPSS-touching method ${banned}`
+        `HistoricalClient must NOT expose the FPSS-touching method ${banned}`
       );
     }
   });
@@ -149,7 +149,7 @@ describe('MddsClient never exposes the FPSS / streaming surface', () => {
     for (const present of ['startStreaming', 'subscribe', 'ringOccupancy']) {
       assert.ok(
         unified.has(present),
-        `ThetaDataDxClient should still expose ${present}`
+        `Client should still expose ${present}`
       );
     }
   });

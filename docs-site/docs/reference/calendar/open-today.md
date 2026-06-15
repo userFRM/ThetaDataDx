@@ -39,7 +39,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.calendar_open_today(*, timeout_ms=None) -> list[CalendarDay]
+Client.calendar_open_today(*, timeout_ms=None) -> list[CalendarDay]
 ```
 
 `calendar_open_today_async(...)` awaits the same call shape.
@@ -80,7 +80,7 @@ std::vector<CalendarDay> calendar_open_today(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

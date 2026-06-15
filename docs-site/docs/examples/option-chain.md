@@ -8,10 +8,10 @@ description: Discover a chain and pull live Greeks for every contract on an expi
 Discover what trades, then pull the whole expiration's Greeks in one wildcard request.
 
 ```python
-from thetadatadx import Config, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 # 1. Nearest expiration for the underlying.
 expiration = tdx.option_list_expirations("SPY")[0]

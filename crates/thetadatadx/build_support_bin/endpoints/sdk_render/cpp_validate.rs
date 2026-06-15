@@ -3,7 +3,7 @@
 //! Emits `sdks/cpp/examples/validate.cpp`: one `cell(...)` lambda per
 //! (endpoint, mode). Each cell sets `EndpointRequestOptions::timeout_ms`
 //! to 60_000 so the Rust SDK enforces the deadline and throws a
-//! `tdx::Error` carrying "Request deadline exceeded" on expiry.
+//! `thetadatadx::Error` carrying "Request deadline exceeded" on expiry.
 //! The gRPC stream is cancelled by the SDK; the `Client` handle stays
 //! usable. Preamble/cell/postamble templates live in
 //! `templates/validate_cpp/`.
@@ -51,7 +51,7 @@ pub(super) fn render_cpp_validate(
                 "kPerCellTimeoutMs"
             };
             args_parts.push(format!(
-                "tdx::EndpointRequestOptions{{}}{setters}.with_timeout_ms({timeout_sym})"
+                "thetadatadx::EndpointRequestOptions{{}}{setters}.with_timeout_ms({timeout_sym})"
             ));
             let args = args_parts.join(", ");
             write!(

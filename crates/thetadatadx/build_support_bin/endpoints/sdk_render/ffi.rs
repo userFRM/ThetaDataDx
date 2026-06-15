@@ -140,7 +140,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn tdx_{}_with_options(\n    client: *const TdxMddsClient",
+        "pub unsafe extern \"C\" fn tdx_{}_with_options(\n    client: *const TdxHistoricalClient",
         endpoint.name
     )
     .unwrap();
@@ -286,7 +286,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn tdx_{}_stream(\n    client: *const TdxMddsClient",
+        "pub unsafe extern \"C\" fn tdx_{}_stream(\n    client: *const TdxHistoricalClient",
         endpoint.name
     )
     .unwrap();
@@ -370,7 +370,7 @@ pub(super) fn render_c_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
         let params = method_params(endpoint);
         write!(
             out,
-            "extern int32_t tdx_{}_stream(const TdxMddsClient* client",
+            "extern int32_t tdx_{}_stream(const TdxHistoricalClient* client",
             endpoint.name
         )
         .unwrap();

@@ -182,7 +182,7 @@ impl FlatFileRowList {
 /// under the shared tokio runtime, yielding a [`FlatFileRowList`].
 #[pyclass(module = "thetadatadx", frozen, name = "FlatFilesNamespace")]
 pub struct FlatFilesNamespace {
-    pub(crate) tdx: Arc<thetadatadx::ThetaDataDxClient>,
+    pub(crate) tdx: Arc<thetadatadx::Client>,
 }
 
 impl FlatFilesNamespace {
@@ -275,19 +275,19 @@ impl FlatFilesNamespace {
     }
 }
 
-// ── ThetaDataDxClient pymethods extension ────────────────────────────────────
+// ── Client pymethods extension ────────────────────────────────────
 //
-// Adding a second `#[pymethods]` block on `ThetaDataDxClient` requires the
+// Adding a second `#[pymethods]` block on `Client` requires the
 // `multiple-pymethods` PyO3 feature, already enabled in
 // `sdks/python/Cargo.toml` for the same reason the streaming /
 // historical includes use it.
 
 #[pymethods]
-impl crate::ThetaDataDxClient {
+impl crate::Client {
     /// Namespace handle exposing the FLATFILES surface.
     ///
     /// Lazily constructed on each access. Internally clones the inner
-    /// `Arc<thetadatadx::ThetaDataDxClient>` — no auth round-trip, no FPSS
+    /// `Arc<thetadatadx::Client>` — no auth round-trip, no FPSS
     /// state mutation. Each call returns a fresh handle so that storing
     /// `flat_files = tdx.flat_files` in user code is identical to
     /// calling `tdx.flat_files.option_quote(...)` inline.

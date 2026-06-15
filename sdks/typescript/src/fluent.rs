@@ -1,7 +1,6 @@
 //! Fluent contract-first TypeScript surface.
 //!
-//! Mirrors the Rust API laid out in
-//! `report/ThetaDataDxClient_API_DX_Review_Rust_Python.md`:
+//! Mirrors the contract-first Rust API:
 //!
 //! ```ts
 //! import { Contract, SecType } from "thetadatadx";

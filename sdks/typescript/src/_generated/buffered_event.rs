@@ -133,10 +133,10 @@ pub(crate) enum BufferedEvent {
     },
 }
 
-pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
+pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent {
     match event {
-        fpss::FpssEvent::Data(data) => match data {
-            fpss::FpssData::MarketValue {
+        fpss::StreamEvent::Data(data) => match data {
+            fpss::StreamData::MarketValue {
                 contract,
                 ms_of_day,
                 market_bid,
@@ -154,7 +154,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 date: *date,
                 received_at_ns: *received_at_ns,
             },
-            fpss::FpssData::Ohlcvc {
+            fpss::StreamData::Ohlcvc {
                 contract,
                 ms_of_day,
                 open,
@@ -178,7 +178,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 date: *date,
                 received_at_ns: *received_at_ns,
             },
-            fpss::FpssData::OpenInterest {
+            fpss::StreamData::OpenInterest {
                 contract,
                 ms_of_day,
                 open_interest,
@@ -192,7 +192,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 date: *date,
                 received_at_ns: *received_at_ns,
             },
-            fpss::FpssData::Quote {
+            fpss::StreamData::Quote {
                 contract,
                 ms_of_day,
                 bid_size,
@@ -220,7 +220,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 date: *date,
                 received_at_ns: *received_at_ns,
             },
-            fpss::FpssData::Trade {
+            fpss::StreamData::Trade {
                 contract,
                 ms_of_day,
                 sequence,
@@ -260,46 +260,46 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             },
             _ => BufferedEvent::UnknownControl,
         },
-        fpss::FpssEvent::Control(ctrl) => match ctrl {
-            fpss::FpssControl::Connected => BufferedEvent::Connected,
-            fpss::FpssControl::ContractAssigned { id, contract } => BufferedEvent::ContractAssigned {
+        fpss::StreamEvent::Control(ctrl) => match ctrl {
+            fpss::StreamControl::Connected => BufferedEvent::Connected,
+            fpss::StreamControl::ContractAssigned { id, contract } => BufferedEvent::ContractAssigned {
                 id: *id,
                 contract: (**contract).clone(),
             },
-            fpss::FpssControl::Disconnected { reason } => BufferedEvent::Disconnected {
+            fpss::StreamControl::Disconnected { reason } => BufferedEvent::Disconnected {
                 reason: *reason as i32,
             },
-            fpss::FpssControl::LoginSuccess { permissions } => BufferedEvent::LoginSuccess {
+            fpss::StreamControl::LoginSuccess { permissions } => BufferedEvent::LoginSuccess {
                 permissions: permissions.clone(),
             },
-            fpss::FpssControl::MarketClose => BufferedEvent::MarketClose,
-            fpss::FpssControl::MarketOpen => BufferedEvent::MarketOpen,
-            fpss::FpssControl::Error { message } => BufferedEvent::ParseError {
+            fpss::StreamControl::MarketClose => BufferedEvent::MarketClose,
+            fpss::StreamControl::MarketOpen => BufferedEvent::MarketOpen,
+            fpss::StreamControl::Error { message } => BufferedEvent::ParseError {
                 message: message.clone(),
             },
-            fpss::FpssControl::Ping { payload } => BufferedEvent::Ping {
+            fpss::StreamControl::Ping { payload } => BufferedEvent::Ping {
                 payload: payload.clone(),
             },
-            fpss::FpssControl::Reconnected => BufferedEvent::Reconnected,
-            fpss::FpssControl::ReconnectedServer => BufferedEvent::ReconnectedServer,
-            fpss::FpssControl::Reconnecting { reason, attempt, delay_ms } => BufferedEvent::Reconnecting {
+            fpss::StreamControl::Reconnected => BufferedEvent::Reconnected,
+            fpss::StreamControl::ReconnectedServer => BufferedEvent::ReconnectedServer,
+            fpss::StreamControl::Reconnecting { reason, attempt, delay_ms } => BufferedEvent::Reconnecting {
                 reason: *reason as i32,
                 attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                 delay_ms: *delay_ms,
             },
-            fpss::FpssControl::ReconnectsExhausted { reason, attempts } => BufferedEvent::ReconnectsExhausted {
+            fpss::StreamControl::ReconnectsExhausted { reason, attempts } => BufferedEvent::ReconnectsExhausted {
                 reason: *reason as i32,
                 attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
             },
-            fpss::FpssControl::ReqResponse { req_id, result } => BufferedEvent::ReqResponse {
+            fpss::StreamControl::ReqResponse { req_id, result } => BufferedEvent::ReqResponse {
                 req_id: *req_id,
                 result: *result as i32,
             },
-            fpss::FpssControl::Restart => BufferedEvent::Restart,
-            fpss::FpssControl::ServerError { message } => BufferedEvent::ServerError {
+            fpss::StreamControl::Restart => BufferedEvent::Restart,
+            fpss::StreamControl::ServerError { message } => BufferedEvent::ServerError {
                 message: message.clone(),
             },
-            fpss::FpssControl::UnknownFrame { code, payload } => BufferedEvent::UnknownFrame {
+            fpss::StreamControl::UnknownFrame { code, payload } => BufferedEvent::UnknownFrame {
                 code: *code,
                 payload: payload.clone(),
             },

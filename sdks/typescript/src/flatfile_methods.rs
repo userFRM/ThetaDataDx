@@ -64,7 +64,7 @@ fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
 }
 
 fn pull_decoded(
-    tdx: &Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: &Arc<thetadatadx::Client>,
     sec: SecType,
     req: ReqType,
     date: &str,
@@ -164,7 +164,7 @@ impl FlatFileRowList {
 /// (security type, request type) pair and returns a `FlatFileRowList`.
 #[napi]
 pub struct FlatFilesNamespace {
-    pub(crate) tdx: Arc<thetadatadx::ThetaDataDxClient>,
+    pub(crate) tdx: Arc<thetadatadx::Client>,
 }
 
 #[napi]
@@ -255,12 +255,12 @@ impl FlatFilesNamespace {
     }
 }
 
-// ── ThetaDataDxClient napi extension ─────────────────────────────────────────
+// ── Client napi extension ─────────────────────────────────────────
 
-use crate::ThetaDataDxClient;
+use crate::Client;
 
 #[napi]
-impl ThetaDataDxClient {
+impl Client {
     /// FLATFILES namespace handle. Cheap — clones the inner Arc.
     #[napi(getter, js_name = "flatFiles")]
     pub fn flat_files(&self) -> FlatFilesNamespace {

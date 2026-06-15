@@ -32,10 +32,10 @@ TEST_CASE("TdxInterestRateTick has the 2-field shape", "[interest_rate][schema][
 TEST_CASE("InterestRateTick wrapper alias resolves to the C ABI struct", "[interest_rate][schema][offline]") {
     // The C++ wrapper exposes the schema name verbatim via a `using`
     // alias on top of the C type — both must be the same layout.
-    STATIC_REQUIRE(sizeof(tdx::InterestRateTick) == sizeof(TdxInterestRateTick));
-    STATIC_REQUIRE(alignof(tdx::InterestRateTick) == alignof(TdxInterestRateTick));
-    STATIC_REQUIRE(offsetof(tdx::InterestRateTick, date) == offsetof(TdxInterestRateTick, date));
-    STATIC_REQUIRE(offsetof(tdx::InterestRateTick, rate) == offsetof(TdxInterestRateTick, rate));
+    STATIC_REQUIRE(sizeof(thetadatadx::InterestRateTick) == sizeof(TdxInterestRateTick));
+    STATIC_REQUIRE(alignof(thetadatadx::InterestRateTick) == alignof(TdxInterestRateTick));
+    STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, date) == offsetof(TdxInterestRateTick, date));
+    STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, rate) == offsetof(TdxInterestRateTick, rate));
 }
 
 TEST_CASE("InterestRateTick decodes the SOFR reference row", "[interest_rate][offline]") {
@@ -43,7 +43,7 @@ TEST_CASE("InterestRateTick decodes the SOFR reference row", "[interest_rate][of
     // 2025-04-28 row (`date=20250428`, `rate=4.36`). Pin the exact
     // values on a hand-built tick so any future struct-shape drift
     // fails this test before it ships.
-    tdx::InterestRateTick tick{};
+    thetadatadx::InterestRateTick tick{};
     tick.date = 20250428;
     tick.rate = 4.36;
     REQUIRE(tick.date == 20250428);

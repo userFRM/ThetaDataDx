@@ -34,7 +34,7 @@ thetadatadx = { path = "../crates/thetadatadx", features = ["arrow", "__internal
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 arrow-ipc = "59.0.0"
 # Used by the FPSS streaming callback silent-drop observability path
-# (see `tdx_fpss_dropped_events` / `tdx_unified_dropped_events`). Keep
+# (see `tdx_streaming_dropped_events` / `tdx_client_dropped_events`). Keep
 # pinned to the same major/minor as the parent crate so the target that
 # `tracing::debug!` writes to is filterable with a single
 # `RUST_LOG=thetadatadx=debug` directive.
@@ -46,7 +46,7 @@ tracing = "0.1.44"
 # Pinned to the same version the core crate consumes through
 # `crates/thetadatadx/Cargo.toml`.
 disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
-# Enables `FpssClient::for_self_join_test` and `HarnessPublishMode` so
+# Enables `StreamingClient::for_self_join_test` and `HarnessPublishMode` so
 # the panic-isolation unit test in `src/streaming.rs` can drive the ring
 # consumer directly without a live FPSS connection.
 thetadatadx = { path = "../crates/thetadatadx", features = ["arrow", "__internal", "__test-helpers"] }

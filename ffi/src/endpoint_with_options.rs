@@ -5,7 +5,7 @@
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -245,7 +245,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -293,7 +293,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -355,7 +355,7 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -410,7 +410,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -465,7 +465,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -520,7 +520,7 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -575,7 +575,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -644,7 +644,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -713,7 +713,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
@@ -754,7 +754,7 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_list_dates_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
@@ -816,7 +816,7 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -864,7 +864,7 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -919,7 +919,7 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
@@ -981,7 +981,7 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1036,7 +1036,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1091,7 +1091,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1146,7 +1146,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1201,7 +1201,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1256,7 +1256,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1311,7 +1311,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1366,7 +1366,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1421,7 +1421,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1476,7 +1476,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1531,7 +1531,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_eod_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1662,7 +1662,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1724,7 +1724,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1786,7 +1786,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1848,7 +1848,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1910,7 +1910,7 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1979,7 +1979,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2041,7 +2041,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2103,7 +2103,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2165,7 +2165,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2227,7 +2227,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2289,7 +2289,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2351,7 +2351,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2413,7 +2413,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2475,7 +2475,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2537,7 +2537,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2599,7 +2599,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2675,7 +2675,7 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2751,7 +2751,7 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
@@ -2792,7 +2792,7 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_list_dates_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -2840,7 +2840,7 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -2888,7 +2888,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -2936,7 +2936,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
@@ -2984,7 +2984,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_eod_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3046,7 +3046,7 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3108,7 +3108,7 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_history_price_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
@@ -3163,7 +3163,7 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3232,7 +3232,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxCalendarDayArray {
     ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
@@ -3273,7 +3273,7 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -3321,7 +3321,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_calendar_year_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     year: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -3369,7 +3369,7 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3431,7 +3431,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
-    client: *const TdxMddsClient,
+    client: *const TdxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char

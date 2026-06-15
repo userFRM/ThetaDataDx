@@ -3,10 +3,10 @@
 //! Reads `fpss_event_schema.toml` and emits:
 //!
 //! - `sdks/python/src/_generated/fpss_event_classes.rs` — `#[pyclass]` per Data variant
-//!   plus the `fpss_event_to_typed` dispatcher (borrowed `&FpssEvent` →
+//!   plus the `fpss_event_to_typed` dispatcher (borrowed `&StreamEvent` →
 //!   pyclass, no intermediate) plus `register_fpss_event_classes`.
 //! - `sdks/typescript/src/_generated/fpss_event_classes.rs` — `#[napi(object)]` per
-//!   Data variant + a flat `FpssEvent` wrapper struct with optional typed
+//!   Data variant + a flat `StreamEvent` wrapper struct with optional typed
 //!   payload fields + a `buffered_event_to_typed` dispatcher that converts
 //!   an internal `BufferedEvent` into one. Control/simple/raw-data events
 //!   fall through to string-tagged variants so TypeScript consumers can
@@ -84,7 +84,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         // TypeScript keeps the shared `BufferedEvent` intermediate: its
         // typed dispatcher takes owned values out of an mpsc-crossed
         // buffered form. The Python SDK converts the borrowed
-        // `&FpssEvent` directly to the pyclass (see `python.rs`), so it
+        // `&StreamEvent` directly to the pyclass (see `python.rs`), so it
         // carries no `BufferedEvent` copy.
         GeneratedSourceFile {
             relative_path: "sdks/typescript/src/_generated/buffered_event.rs",

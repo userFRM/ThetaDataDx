@@ -43,7 +43,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_snapshot_trade(
+Client.option_snapshot_trade(
     symbol, expiration,
     *,
     strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None,
@@ -92,13 +92,13 @@ std::vector<TradeTick> option_snapshot_trade(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_strike_range(...)`, `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_strike_range(...)`, `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_snapshot_trade("SPY", "20250321",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.price << ' ' << t.size << "\n";
 }

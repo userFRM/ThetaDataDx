@@ -12,20 +12,20 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
-//! use thetadatadx::fpss::{FpssEvent, FpssData};
+//! use thetadatadx::{Client, Credentials, DirectConfig};
+//! use thetadatadx::fpss::{StreamEvent, StreamData};
 //! use thetadatadx::fpss::protocol::Contract;
 //!
 //! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
-//! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+//! let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 //!
 //! // Historical — every historical endpoint available via Deref
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //! // Real-time streaming
-//! tdx.start_streaming(|event: &FpssEvent| {
-//!     if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+//! tdx.start_streaming(|event: &StreamEvent| {
+//!     if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
 //!         println!("Trade: {} @ {price} x {size}", contract.symbol);
 //!     }
 //! })?;
@@ -33,11 +33,11 @@
 //! # Ok(()) }
 //! ```
 //!
-//! For streaming-only workloads, build an [`fpss::FpssClient`] directly
+//! For streaming-only workloads, build an [`fpss::StreamingClient`] directly
 //! and iterate events on the caller's thread:
 //!
 //! ```rust,no_run
-//! use thetadatadx::fpss::{FpssClient, FpssEvent};
+//! use thetadatadx::fpss::{StreamingClient, StreamEvent};
 //! use thetadatadx::{Credentials, DirectConfig};
 //! use thetadatadx::fpss::protocol::Contract;
 //!
@@ -45,14 +45,14 @@
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = DirectConfig::production().fpss.hosts;
 //!
-//! let client = FpssClient::builder(&creds, &hosts)
+//! let client = StreamingClient::builder(&creds, &hosts)
 //!     .ring_size(8192)
 //!     .build()?;
 //!
 //! client.subscribe(Contract::stock("AAPL").quote())?;
 //!
 //! for event in &client {
-//!     let _event: FpssEvent = event?;
+//!     let _event: StreamEvent = event?;
 //! }
 //! # Ok(()) }
 //! ```
@@ -67,7 +67,7 @@
 //! Historical data arrives over ThetaData's MDDS service; real-time
 //! ticks arrive over ThetaData's FPSS service. Both are decoded
 //! inside the crate — consumers see typed tick rows on the historical side
-//! and a typed [`fpss::FpssEvent`] stream on the streaming side.
+//! and a typed [`fpss::StreamEvent`] stream on the streaming side.
 
 // `wire_semantics.rs` is `#[path]`-shared between this library and the
 // `generate_sdk_surfaces` binary's code-generation tree. The binary sees
@@ -94,7 +94,7 @@ pub(crate) mod lifecycle;
 
 // The `grpc` module hosts the transport infrastructure (Channel, ChannelPool,
 // Status, ServerStreaming). The user-facing path is
-// `MddsClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
+// `HistoricalClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
 // consumed by the SDK's own integration tests and benches.
 //
 // In shipped builds (default features) the module is `pub(crate)` so none
@@ -242,13 +242,13 @@ pub use mdds::registry::{
 };
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
-pub use mdds::{MddsClient, SubscriptionTier};
+pub use mdds::{HistoricalClient, SubscriptionTier};
 
 // ─── Curated public client surface ───────────────────────────────────────────
 
 pub use auth::Credentials;
 pub use backoff::JitterMode;
-pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDxClient};
+pub use client::{Client, ConnectionStatus, SubscriptionInfo};
 pub use config::{
     DirectConfig, FlatFilesConfig, FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
@@ -260,10 +260,10 @@ pub use error::{
 
 // ─── Real-time streaming (FPSS) ──────────────────────────────────────────────
 // The streaming surface lives in the [`fpss`] module: build a client with
-// [`fpss::FpssClient::builder`], subscribe via [`fpss::protocol::Contract`],
+// [`fpss::StreamingClient::builder`], subscribe via [`fpss::protocol::Contract`],
 // then drain with `next_event` / `poll_batch` / the `Iterator` impl.
 
-/// Outcome of a single [`fpss::FpssClient::poll_batch`] call, re-exported at
+/// Outcome of a single [`fpss::StreamingClient::poll_batch`] call, re-exported at
 /// the crate root for callers that drive the batch loop directly.
 pub use fpss::PollOutcome;
 
@@ -445,7 +445,7 @@ pub mod mimalloc {
 /// use thetadatadx::prelude::*;
 /// # async fn doc() -> Result<(), thetadatadx::Error> {
 /// let creds  = Credentials::from_file("creds.txt")?;
-/// let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+/// let client = Client::connect(&creds, DirectConfig::production()).await?;
 /// let stock  = Contract::stock("AAPL");
 /// let option = Contract::option("SPX", OptionLeg { expiration: "20260620", strike: "5400", right: "C" })?;
 /// client.subscribe(stock.quote())?;
@@ -455,7 +455,7 @@ pub mod mimalloc {
 /// ```
 pub mod prelude {
     pub use crate::auth::Credentials;
-    pub use crate::client::{ConnectionStatus, ThetaDataDxClient};
+    pub use crate::client::{Client, ConnectionStatus};
     pub use crate::config::DirectConfig;
     pub use crate::error::Error;
     pub use crate::fpss::protocol::{

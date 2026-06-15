@@ -586,6 +586,7 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.Client = nativeBinding.Client
 module.exports.Config = nativeBinding.Config
 module.exports.ContractRef = nativeBinding.ContractRef
 // `Contract` is the public name for the fluent contract builder; it
@@ -595,11 +596,10 @@ module.exports.Contract = nativeBinding.ContractRef;
 module.exports.Credentials = nativeBinding.Credentials
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
 module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace
-module.exports.FpssClient = nativeBinding.FpssClient
-module.exports.MddsClient = nativeBinding.MddsClient
+module.exports.HistoricalClient = nativeBinding.HistoricalClient
 module.exports.SecType = nativeBinding.SecType
+module.exports.StreamingClient = nativeBinding.StreamingClient
 module.exports.Subscription = nativeBinding.Subscription
-module.exports.ThetaDataDxClient = nativeBinding.ThetaDataDxClient
 module.exports.Util = nativeBinding.Util
 module.exports.allGreeks = nativeBinding.allGreeks
 module.exports.calendarDayToArrowIpc = nativeBinding.calendarDayToArrowIpc

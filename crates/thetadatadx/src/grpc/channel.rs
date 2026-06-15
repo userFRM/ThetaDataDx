@@ -48,7 +48,7 @@ const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 /// flow-control windows and keepalive cadence. The short channel
 /// constructors use [`ChannelTuning::default`] (the HTTP/2 spec
 /// windows, 30 s / 10 s keepalive — the values production config
-/// defaults to); `MddsClient::connect` threads the operator's
+/// defaults to); `HistoricalClient::connect` threads the operator's
 /// configured values through [`Channel::connect_tls_tuned`] /
 /// [`Channel::connect_h2c_tuned`].
 #[derive(Debug, Clone, Copy)]
@@ -502,7 +502,7 @@ impl Channel {
     /// [`ChannelError::DeadlineExceeded`].
     ///
     /// Reachable only under `__test-helpers` — production deadlines are
-    /// handled at the `MddsClient` layer via `tokio::time::timeout`
+    /// handled at the `HistoricalClient` layer via `tokio::time::timeout`
     /// around the streaming consumer.
     #[cfg(feature = "__test-helpers")]
     pub async fn server_streaming_with_deadline<Req, Resp>(

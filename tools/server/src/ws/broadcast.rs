@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssControl, FpssEvent};
+use thetadatadx::fpss::{StreamControl, StreamEvent};
 use tokio::sync::mpsc::error::TrySendError;
 
 use crate::state::AppState;
@@ -16,8 +16,8 @@ use super::format::fpss_event_to_ws_json;
 /// Sized at 65_536 slots: large enough that the broadcast task's transient
 /// scheduling jitter never spills into a drop under normal load, small enough
 /// that an offline broadcast task can't accumulate unbounded heap. Each slot
-/// is `(FpssEvent, Option<Arc<Contract>>)` ~ a few hundred bytes after
-/// `FpssEvent`'s `Arc<str>` + `Arc<Contract>` refcount bumps, so the worst-
+/// is `(StreamEvent, Option<Arc<Contract>>)` ~ a few hundred bytes after
+/// `StreamEvent`'s `Arc<str>` + `Arc<Contract>` refcount bumps, so the worst-
 /// case memory footprint is on the order of tens of MB — bounded, scrapeable,
 /// and recoverable.
 const FPSS_BROADCAST_CAPACITY: usize = 65_536;
@@ -27,7 +27,7 @@ const FPSS_BROADCAST_CAPACITY: usize = 65_536;
 /// stderr at the per-event rate.
 const WARN_EVERY_N: u64 = 1024;
 
-/// Start the FPSS -> WebSocket bridge via `ThetaDataDxClient::start_streaming()`.
+/// Start the FPSS -> WebSocket bridge via `Client::start_streaming()`.
 ///
 /// The event-dispatch callback runs on a blocking consumer thread and must stay
 /// cheap. It only: (1) updates the contract map and connection flags,
@@ -48,7 +48,7 @@ const WARN_EVERY_N: u64 = 1024;
 ///
 /// # Contract identity
 ///
-/// Every `FpssData::*` variant carries `contract: Arc<Contract>`
+/// Every `StreamData::*` variant carries `contract: Arc<Contract>`
 /// directly — the SDK's I/O thread populates it from its internal
 /// contract cache at decode time. The bridge keeps no
 /// `contract_id -> Arc<Contract>` map of its own: the contract reference
@@ -58,7 +58,7 @@ const WARN_EVERY_N: u64 = 1024;
 /// cost stays minimal.
 ///
 /// # Errors
-/// Returns an error when `ThetaDataDxClient::start_streaming` fails to
+/// Returns an error when `Client::start_streaming` fails to
 /// establish the FPSS stream.
 pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let state_for_cb = state.clone();
@@ -69,7 +69,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     // hot side — a `Full` rejection bumps the dropped counter and returns
     // immediately, never blocking the event-dispatch consumer thread.
     let (tx, mut rx) =
-        tokio::sync::mpsc::channel::<(FpssEvent, Option<Arc<Contract>>)>(FPSS_BROADCAST_CAPACITY);
+        tokio::sync::mpsc::channel::<(StreamEvent, Option<Arc<Contract>>)>(FPSS_BROADCAST_CAPACITY);
 
     tokio::spawn(async move {
         while let Some((event, peeked)) = rx.recv().await {
@@ -85,19 +85,19 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         }
     });
 
-    state.tdx().start_streaming(move |event: &FpssEvent| {
+    state.tdx().start_streaming(move |event: &StreamEvent| {
         // Update connection status.
         match event {
-            FpssEvent::Control(FpssControl::LoginSuccess { .. }) => {
+            StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {
                 state_for_cb.set_fpss_connected(true);
             }
-            FpssEvent::Control(FpssControl::Disconnected { .. }) => {
+            StreamEvent::Control(StreamControl::Disconnected { .. }) => {
                 state_for_cb.set_fpss_connected(false);
             }
             _ => {}
         }
 
-        // Resolve the event's contract — for `FpssData::*` it rides on
+        // Resolve the event's contract — for `StreamData::*` it rides on
         // the event directly; for control variants there is none.
         let peeked = lookup_event_contract(event);
 

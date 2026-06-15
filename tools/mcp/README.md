@@ -1,6 +1,6 @@
 # thetadatadx-mcp
 
-MCP (Model Context Protocol) server for [ThetaDataDxClient](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
 > **FLATFILES coverage:** the MCP server advertises eleven FLATFILES tools — `tdx_flatfile_request` plus ten convenience wrappers (`tdx_flatfile_option_quote`, `tdx_flatfile_option_trade_quote`, `tdx_flatfile_stock_eod`, …). Each call writes the decoded CSV / JSONL blob to disk and returns the path.
 
@@ -11,12 +11,12 @@ LLM (any MCP-compatible client)
     |  JSON-RPC 2.0 over stdio
     v
 thetadatadx-mcp (long-running process)
-    |  Single ThetaDataDxClient client, authenticated once at startup
+    |  Single ThetaDataDx client, authenticated once at startup
     v
 ThetaData servers (MDDS + FPSS)
 ```
 
-The server authenticates **once** at startup, keeps the `ThetaDataDxClient` client alive, and serves tool calls instantly with zero per-request auth overhead.
+The server authenticates **once** at startup, keeps the `Client` client alive, and serves tool calls instantly with zero per-request auth overhead.
 
 ## Install
 

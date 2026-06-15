@@ -1,6 +1,6 @@
 """Fluent contract-first streaming example.
 
-Demonstrates the primary documented surface for ThetaDataDxClient Python:
+Demonstrates the primary documented surface for ThetaData Python:
 typed `Contract` / `Subscription` values feeding the polymorphic
 `client.subscribe(...)` and `client.subscribe_many(...)` paths.
 
@@ -23,7 +23,7 @@ from thetadatadx import (
     Credentials,
     Quote,
     SecType,
-    ThetaDataDxClient,
+    Client,
     Trade,
 )
 
@@ -42,7 +42,7 @@ def on_event(event):
 def main() -> None:
     creds = Credentials.from_file("creds.txt")
     config = Config.production()
-    client = ThetaDataDxClient(creds, config)
+    client = Client(creds, config)
 
     # Fluent contract-first construction. Every subscription is a
     # typed `Subscription` value — no string flags, no kwarg

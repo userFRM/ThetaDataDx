@@ -6,7 +6,7 @@
 #     TS napi `#[napi(object)]`, Go struct, C++ struct, FFI struct).
 #   - the `BufferedEvent` enum in Python + TS (generator-emitted, not
 #     hand-rolled — drift is compile-fatal).
-#   - the `fpss_event_to_buffered(event: &FpssEvent) -> BufferedEvent`
+#   - the `fpss_event_to_buffered(event: &StreamEvent) -> BufferedEvent`
 #     converter in Python + TS.
 #   - the `buffered_event_to_typed` dispatcher that returns a typed
 #     pyclass / napi struct for every variant — no PyDict / `any`
@@ -15,13 +15,13 @@
 # Variant classification:
 #   - `kind = "data"`     — typed market-data payload (Quote / Trade / ...)
 #   - `kind = "control"`  — typed control / lifecycle event mirroring a
-#                           `FpssControl::*` Rust variant one-for-one.
+#                           `StreamControl::*` Rust variant one-for-one.
 #                           Each variant declares its own fields so the
 #                           Python and TypeScript SDKs surface the same
 #                           shape Rust consumers see (no flat
 #                           `event_type` / `detail` envelope).
 #                           Frames the decoder cannot parse are surfaced
-#                           through `FpssControl::UnknownFrame` (typed
+#                           through `StreamControl::UnknownFrame` (typed
 #                           control variant with `code` + `payload`).
 #
 # Column type `Contract` is a nested struct: every language emits a
@@ -116,13 +116,13 @@ columns = [
     { name = "received_at_ns", type = "u64" },
 ]
 
-# ── Control variants — typed mirror of `FpssControl::*` ────────────────
+# ── Control variants — typed mirror of `StreamControl::*` ────────────────
 #
-# Each [events.<Variant>] section maps to a Rust `FpssControl::<Variant>`
+# Each [events.<Variant>] section maps to a Rust `StreamControl::<Variant>`
 # arm. Field names + scalar types match the Rust enum exactly. Python
 # users dispatch via `match event: case LoginSuccess(): ...`; TypeScript
 # users discriminate on `event.kind`. The converter in `buffered.rs`
-# generator pattern-matches each `FpssControl` arm directly into the
+# generator pattern-matches each `StreamControl` arm directly into the
 # matching `BufferedEvent::<Variant>` arm — no flat `event_type` /
 # `detail` string envelope.
 #

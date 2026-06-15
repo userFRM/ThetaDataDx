@@ -76,7 +76,7 @@ FPSS credential length fields are read as unsigned integers (matching Java's
 
 ### Concurrent Request Limiting
 
-MddsClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of
+HistoricalClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of
 in-flight gRPC requests. The default is dynamically derived from the user's subscription
 tier (`2^tier`), matching the Java terminal's concurrency model. This prevents runaway
 request storms from overwhelming the upstream MDDS server or triggering server-side rate

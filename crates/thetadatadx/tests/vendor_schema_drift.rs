@@ -23,7 +23,7 @@ use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssControl, FpssEvent};
+use thetadatadx::fpss::{StreamControl, StreamEvent};
 
 fn push_frame(out: &mut Vec<u8>, code: u8, payload: &[u8]) {
     out.push(payload.len() as u8);
@@ -60,7 +60,7 @@ fn single_unknown_opcode_skipped_without_desync() {
     let mut delta = DeltaState::new();
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
     let mut state = FrameReadState::new();
-    let mut events: Vec<FpssEvent> = Vec::new();
+    let mut events: Vec<StreamEvent> = Vec::new();
 
     for _ in 0..16 {
         match read_frame_into(&mut cursor, &mut buf, &mut state) {
@@ -98,10 +98,10 @@ fn single_unknown_opcode_skipped_without_desync() {
     let mut saw_login = false;
     let mut saw_contract_7 = false;
     for e in &events {
-        if let FpssEvent::Control(FpssControl::LoginSuccess { .. }) = e {
+        if let StreamEvent::Control(StreamControl::LoginSuccess { .. }) = e {
             saw_login = true;
         }
-        if let FpssEvent::Control(FpssControl::ContractAssigned { id, .. }) = e {
+        if let StreamEvent::Control(StreamControl::ContractAssigned { id, .. }) = e {
             if *id == 7 {
                 saw_contract_7 = true;
             }

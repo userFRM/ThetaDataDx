@@ -19,9 +19,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::Client;
 use thetadatadx::SecType;
-use thetadatadx::ThetaDataDxClient;
 
 fn now_ns() -> u64 {
     SystemTime::now()
@@ -71,16 +71,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tr2 = Arc::clone(&trades);
     let ls2 = Arc::clone(&lat_samples);
 
-    let tdx = ThetaDataDxClient::connect(&creds, cfg).await?;
-    tdx.start_streaming(move |ev: &FpssEvent| {
+    let tdx = Client::connect(&creds, cfg).await?;
+    tdx.start_streaming(move |ev: &StreamEvent| {
         let observed_ns = now_ns();
         t2.fetch_add(1, Ordering::Relaxed);
         match ev {
-            FpssEvent::Data(FpssData::Quote { received_at_ns, .. })
-            | FpssEvent::Data(FpssData::Trade { received_at_ns, .. })
-            | FpssEvent::Data(FpssData::Ohlcvc { received_at_ns, .. })
-            | FpssEvent::Data(FpssData::OpenInterest { received_at_ns, .. }) => {
-                if matches!(ev, FpssEvent::Data(FpssData::Trade { .. })) {
+            StreamEvent::Data(StreamData::Quote { received_at_ns, .. })
+            | StreamEvent::Data(StreamData::Trade { received_at_ns, .. })
+            | StreamEvent::Data(StreamData::Ohlcvc { received_at_ns, .. })
+            | StreamEvent::Data(StreamData::OpenInterest { received_at_ns, .. }) => {
+                if matches!(ev, StreamEvent::Data(StreamData::Trade { .. })) {
                     tr2.fetch_add(1, Ordering::Relaxed);
                 }
                 let lat = observed_ns.saturating_sub(*received_at_ns);

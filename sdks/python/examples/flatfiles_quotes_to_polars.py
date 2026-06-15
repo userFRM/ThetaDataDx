@@ -7,10 +7,10 @@ runtime by the request type, so the binding chains through Arrow:
 
 Run with a credentials file: ``python flatfiles_quotes_to_polars.py``.
 """
-from thetadatadx import Config, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 # Whole-universe option quotes for one trading day. Several hundred MB
 # decoded -- expect this call to take a few seconds even on a fast link.

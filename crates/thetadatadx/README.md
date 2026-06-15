@@ -41,12 +41,12 @@ thetadatadx = { version = "12", features = ["polars"] }
 > `THETADATA_PASSWORD` environment variables.
 
 ```rust
-use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+use thetadatadx::{Client, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 
     // EOD Greeks for a SPY option chain across Q1 2024.
     let chain = tdx
@@ -70,7 +70,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 One authentication, one connection. Historical queries work immediately; the streaming transport opens on the first `start_streaming(callback)` call. Subscribe specific contracts with the fluent `Contract` API, or take a whole-market feed:
 
 ```rust
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
 use thetadatadx::prelude::*;
 
 fn format_contract(contract: &Contract) -> String {
@@ -87,9 +87,9 @@ fn format_contract(contract: &Contract) -> String {
     label
 }
 
-tdx.start_streaming(|event: &FpssEvent| {
+tdx.start_streaming(|event: &StreamEvent| {
     match event {
-        FpssEvent::Data(FpssData::Trade {
+        StreamEvent::Data(StreamData::Trade {
             contract,
             price,
             size,
@@ -104,7 +104,7 @@ tdx.start_streaming(|event: &FpssEvent| {
                 format_contract(contract),
             );
         }
-        FpssEvent::Data(FpssData::Quote {
+        StreamEvent::Data(StreamData::Quote {
             contract,
             bid,
             ask,
@@ -136,32 +136,32 @@ tdx.subscribe(SecType::Option.full_trades())?;
 
 On an involuntary disconnect the client recovers on its own — exponential backoff with jitter, host failover, then a paced re-subscribe of every active contract.
 
-### Streaming-only — `FpssClient`
+### Streaming-only — `StreamingClient`
 
-For workloads that never touch history, `FpssClient` connects to the streaming servers alone — no Nexus session, no historical surface. Drive it as an iterator, or with the explicit drain primitives:
+For workloads that never touch history, `StreamingClient` connects to the streaming servers alone — no Nexus session, no historical surface. Drive it as an iterator, or with the explicit drain primitives:
 
 ```rust
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssClient, FpssEvent};
+use thetadatadx::fpss::{StreamingClient, StreamEvent};
 
 let creds = Credentials::from_file("creds.txt")?;
 let hosts = DirectConfig::production().fpss.hosts;
-let client = FpssClient::builder(&creds, &hosts).ring_size(8192).build()?;
+let client = StreamingClient::builder(&creds, &hosts).ring_size(8192).build()?;
 
 client.subscribe(Contract::stock("AAPL").quote())?;
 
 for event in &client {
     match event? {
-        FpssEvent::Data(data)       => { /* market-data tick */ }
-        FpssEvent::Control(control) => { /* lifecycle event   */ }
+        StreamEvent::Data(data)       => { /* market-data tick */ }
+        StreamEvent::Control(control) => { /* lifecycle event   */ }
         _ => {}
     }
 }
 ```
 
-Beyond the iterator, `FpssClient` exposes `next_event()` (blocking pop), `try_next_event()` (non-blocking pop), `poll_batch(|e| …)` (non-blocking batch drain), and `for_each(|e| …)` (blocking loop until shutdown). Auto-reconnect with subscription replay is on by default; tune it through `FpssClientBuilder` or `DirectConfig::reconnect`.
+Beyond the iterator, `StreamingClient` exposes `next_event()` (blocking pop), `try_next_event()` (non-blocking pop), `poll_batch(|e| …)` (non-blocking batch drain), and `for_each(|e| …)` (blocking loop until shutdown). Auto-reconnect with subscription replay is on by default; tune it through `StreamingClientBuilder` or `DirectConfig::reconnect`.
 
 ## Flat files
 

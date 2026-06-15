@@ -1,4 +1,4 @@
-// ReconnectConfig setters on tdx::Config — C++ binding parity
+// ReconnectConfig setters on thetadatadx::Config — C++ binding parity
 // with Python / TypeScript / FFI.
 //
 // Pins the C++ surface contract for `set_reconnect_policy`,
@@ -23,7 +23,7 @@
 
 TEST_CASE("Config::set_reconnect_policy accepts Auto and Manual selectors",
           "[config][reconnect][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     REQUIRE_NOTHROW(cfg.set_reconnect_policy(0)); // Auto
     REQUIRE_NOTHROW(cfg.set_reconnect_policy(1)); // Manual
 }
@@ -35,15 +35,15 @@ TEST_CASE("Config::set_reconnect_policy rejects unknown selectors with InvalidPa
     // the cross-binding contract the Python ValueError / TypeScript
     // InvalidParameterError already honour. The leaf must narrow
     // ThetaDataError so generic handlers still observe it.
-    auto cfg = tdx::Config::production();
-    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), tdx::InvalidParameterError);
-    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(-1), tdx::InvalidParameterError);
-    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), tdx::ThetaDataError);
+    auto cfg = thetadatadx::Config::production();
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), thetadatadx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(-1), thetadatadx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_reconnect_policy(7), thetadatadx::ThetaDataError);
 }
 
 TEST_CASE("Config::set_reconnect_max_attempts accepts representative budgets without throwing",
           "[config][reconnect][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(0); // Auto
     for (std::uint32_t n : {0u, 1u, 3u, 10u, 100u, 1000u}) {
         REQUIRE_NOTHROW(cfg.set_reconnect_max_attempts(n));
@@ -52,7 +52,7 @@ TEST_CASE("Config::set_reconnect_max_attempts accepts representative budgets wit
 
 TEST_CASE("Config::set_reconnect_max_rate_limited_attempts accepts representative budgets without throwing",
           "[config][reconnect][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(0); // Auto
     for (std::uint32_t n : {0u, 1u, 10u, 100u, 1000u}) {
         REQUIRE_NOTHROW(cfg.set_reconnect_max_rate_limited_attempts(n));
@@ -61,7 +61,7 @@ TEST_CASE("Config::set_reconnect_max_rate_limited_attempts accepts representativ
 
 TEST_CASE("Config::set_reconnect_stable_window_secs accepts u64 values",
           "[config][reconnect][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(0); // Auto
     for (std::uint64_t secs : {std::uint64_t{0}, std::uint64_t{1},
                                std::uint64_t{60}, std::uint64_t{3600},
@@ -77,7 +77,7 @@ TEST_CASE("Reconnect setters under Manual policy are silent no-ops",
     // only mutate `ReconnectAttemptLimits` when the policy is
     // `Auto(limits)`. Under `Manual` the calls are silently absorbed;
     // the wrapper surface must not throw.
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(1); // Manual
     REQUIRE_NOTHROW(cfg.set_reconnect_max_attempts(5));
     REQUIRE_NOTHROW(cfg.set_reconnect_max_rate_limited_attempts(50));
@@ -87,8 +87,8 @@ TEST_CASE("Reconnect setters under Manual policy are silent no-ops",
 TEST_CASE("Reconnect setters compose with pool-sizing setters",
           "[config][reconnect][offline]") {
     // Interleaved reconnect setter and pool-sizing setter calls on
-    // the same `tdx::Config` must not interfere with each other.
-    auto cfg = tdx::Config::production();
+    // the same `thetadatadx::Config` must not interfere with each other.
+    auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(0);
     cfg.set_reconnect_max_attempts(7);
     cfg.set_reconnect_max_rate_limited_attempts(77);

@@ -1,8 +1,8 @@
-// ThetaDataDxClient FPSS surface tests.
+// Client FPSS surface tests.
 //
-// The typed `ThetaDataDxClient` wrapper exposes the full push-callback
+// The typed `Client` wrapper exposes the full push-callback
 // streaming surface, so callers reach every method below without
-// dropping to the raw `tdx_unified_*` C ABI handle.
+// dropping to the raw `tdx_client_*` C ABI handle.
 //
 // Offline tests confirm:
 //   * `is_streaming` returns false on a moved-from / never-connected
@@ -39,22 +39,22 @@ std::string env_or_empty(const char* key) {
 
 } // namespace
 
-TEST_CASE("ThetaDataDxClient is move-only with the right type-trait shape",
+TEST_CASE("Client is move-only with the right type-trait shape",
           "[unified][offline]") {
-    STATIC_REQUIRE(std::is_move_constructible_v<tdx::ThetaDataDxClient>);
-    STATIC_REQUIRE(std::is_move_assignable_v<tdx::ThetaDataDxClient>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<tdx::ThetaDataDxClient>);
-    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<tdx::ThetaDataDxClient>);
+    STATIC_REQUIRE(std::is_move_constructible_v<thetadatadx::Client>);
+    STATIC_REQUIRE(std::is_move_assignable_v<thetadatadx::Client>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<thetadatadx::Client>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::Client>);
 }
 
-TEST_CASE("ThetaDataDxClient binds the full FPSS surface",
+TEST_CASE("Client binds the full FPSS surface",
           "[unified][offline]") {
     // Pin every method introduced by the B2 closure: an accidental
     // delete or rename here will fire at compile time rather than at
     // runtime against a live server.
     using namespace std::chrono_literals;
-    using Cb = std::function<void(const tdx::FpssEvent&)>;
-    using UC = tdx::ThetaDataDxClient;
+    using Cb = std::function<void(const thetadatadx::StreamEvent&)>;
+    using UC = thetadatadx::Client;
 
     // set_callback
     STATIC_REQUIRE(std::is_invocable_v<decltype(&UC::set_callback), UC&, Cb>);
@@ -80,27 +80,27 @@ TEST_CASE("ThetaDataDxClient binds the full FPSS surface",
     // active_subscriptions() -> std::vector<Subscription>
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const UC&>().active_subscriptions()),
-        std::vector<tdx::Subscription>>);
+        std::vector<thetadatadx::Subscription>>);
     // active_full_subscriptions() -> std::vector<FullSubscription>
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const UC&>().active_full_subscriptions()),
-        std::vector<tdx::FullSubscription>>);
+        std::vector<thetadatadx::FullSubscription>>);
 }
 
-TEST_CASE("ThetaDataDxClient end-to-end push-callback cycle", "[unified][live]") {
+TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADX_LIVE_CREDS not set");
     }
-    auto creds = tdx::Credentials::from_file(creds_path);
-    auto config = tdx::Config::production();
-    auto client = tdx::ThetaDataDxClient::connect(creds, config);
+    auto creds = thetadatadx::Credentials::from_file(creds_path);
+    auto config = thetadatadx::Config::production();
+    auto client = thetadatadx::Client::connect(creds, config);
 
     REQUIRE_FALSE(client.is_streaming());
     REQUIRE(client.dropped_event_count() == 0);
 
     std::atomic<uint64_t> events{0};
-    client.set_callback([&](const tdx::FpssEvent& /*event*/) {
+    client.set_callback([&](const thetadatadx::StreamEvent& /*event*/) {
         events.fetch_add(1, std::memory_order_relaxed);
     });
 
@@ -109,7 +109,7 @@ TEST_CASE("ThetaDataDxClient end-to-end push-callback cycle", "[unified][live]")
     // this check fires. The C ABI is_streaming flips true on a
     // successful Connected event; we wait briefly so a slow login
     // doesn't race us.
-    client.subscribe(tdx::Contract::stock("SPY").quote());
+    client.subscribe(thetadatadx::Contract::stock("SPY").quote());
     std::this_thread::sleep_for(std::chrono::seconds(1));
     REQUIRE(client.is_streaming());
 

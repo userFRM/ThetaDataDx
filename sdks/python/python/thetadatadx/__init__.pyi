@@ -5,10 +5,10 @@ historical market data without a separate terminal process. The package
 exposes:
 
 - Connection types: :class:`Credentials` and :class:`Config`.
-- Clients: :class:`ThetaDataDxClient` (historical plus on-demand
-  streaming), :class:`AsyncThetaDataDxClient` (``await``-based
-  historical), :class:`FpssClient` (streaming only), and
-  :class:`MddsClient` (historical only).
+- Clients: :class:`Client` (historical plus on-demand
+  streaming), :class:`AsyncClient` (``await``-based
+  historical), :class:`StreamingClient` (streaming only), and
+  :class:`HistoricalClient` (historical only).
 - A fluent subscription surface: :class:`Contract`,
   :class:`Subscription`, and :class:`SecType`.
 - Real-time event types delivered to the streaming callback
@@ -862,7 +862,7 @@ class UnknownFrame:
 
 # Union of every streaming event class delivered to the callback. Opaque
 # to type checkers; narrow at runtime via `match` / `isinstance`.
-FpssEvent = Any
+StreamEvent = Any
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -873,7 +873,7 @@ EventCallback = Callable[[Any], None]
 
 
 @final
-class ThetaDataDxClient:
+class Client:
     """Unified client for historical data and real-time streaming.
 
     Connects to ThetaData at construction (a single authentication
@@ -902,7 +902,7 @@ class ThetaDataDxClient:
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> ThetaDataDxClient:
+    ) -> Client:
         """Construct a client from a credentials file and connect.
 
         Args:
@@ -911,7 +911,7 @@ class ThetaDataDxClient:
                 ``Config.production()`` when omitted.
 
         Returns:
-            A connected :class:`ThetaDataDxClient`.
+            A connected :class:`Client`.
 
         Raises:
             ThetaDataError: If the file cannot be read or the connection
@@ -1141,16 +1141,16 @@ class ThetaDataDxClient:
 
 
 @final
-class AsyncThetaDataDxClient:
+class AsyncClient:
     """Async client exposing ``await``-based historical methods.
 
     Each historical endpoint is available as an ``*_async`` coroutine
     (e.g. ``await client.stock_history_eod_async(...)``). The streaming
     lifecycle and subscription methods (``start_streaming``,
     ``stop_streaming``, ``subscribe``, ``streaming`` etc.) mirror those
-    on :class:`ThetaDataDxClient`. Accessing the synchronous historical
+    on :class:`Client`. Accessing the synchronous historical
     methods on this class raises ``AttributeError`` — use
-    :class:`ThetaDataDxClient` for those.
+    :class:`Client` for those.
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None:
@@ -1169,7 +1169,7 @@ class AsyncThetaDataDxClient:
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> AsyncThetaDataDxClient:
+    ) -> AsyncClient:
         """Construct an async client from a credentials file and connect.
 
         Args:
@@ -1178,7 +1178,7 @@ class AsyncThetaDataDxClient:
                 ``Config.production()`` when omitted.
 
         Returns:
-            A connected :class:`AsyncThetaDataDxClient`.
+            A connected :class:`AsyncClient`.
 
         Raises:
             ThetaDataError: If the file cannot be read or the connection
@@ -1200,7 +1200,7 @@ class AsyncThetaDataDxClient:
 
 
 @final
-class FpssClient:
+class StreamingClient:
     """Streaming-only client — opens the real-time feed and never the
     historical channel."""
 
@@ -1220,7 +1220,7 @@ class FpssClient:
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> FpssClient:
+    ) -> StreamingClient:
         """Construct a streaming-only client from a credentials file.
 
         Args:
@@ -1229,7 +1229,7 @@ class FpssClient:
                 ``Config.production()`` when omitted.
 
         Returns:
-            A :class:`FpssClient`.
+            A :class:`StreamingClient`.
 
         Raises:
             ThetaDataError: If the file cannot be read.
@@ -1239,7 +1239,7 @@ class FpssClient:
     def start_streaming(self, callback: EventCallback) -> None:
         """Start streaming and register ``callback`` for incoming events.
 
-        See :meth:`ThetaDataDxClient.start_streaming` for the callback
+        See :meth:`Client.start_streaming` for the callback
         contract.
 
         Raises:
@@ -1403,13 +1403,13 @@ class FpssClient:
 
 
 @final
-class MddsClient:
+class HistoricalClient:
     """Historical-only client — the streaming surface is blocked.
 
-    Exposes the same historical endpoints as :class:`ThetaDataDxClient`
+    Exposes the same historical endpoints as :class:`Client`
     and never opens the real-time feed. Any streaming method (e.g.
     ``start_streaming`` / ``subscribe``) raises ``AttributeError``; use
-    :class:`FpssClient` or :class:`ThetaDataDxClient` for streaming.
+    :class:`StreamingClient` or :class:`Client` for streaming.
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None:
@@ -1428,7 +1428,7 @@ class MddsClient:
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> MddsClient:
+    ) -> HistoricalClient:
         """Construct a historical-only client from a credentials file.
 
         Args:
@@ -1437,7 +1437,7 @@ class MddsClient:
                 ``Config.production()`` when omitted.
 
         Returns:
-            A connected :class:`MddsClient`.
+            A connected :class:`HistoricalClient`.
 
         Raises:
             ThetaDataError: If the file cannot be read or the connection
@@ -1468,8 +1468,8 @@ class MddsClient:
 class StreamingSession:
     """Context manager for callback-driven streaming.
 
-    Acquired via :py:meth:`ThetaDataDxClient.streaming` /
-    :py:meth:`FpssClient.streaming`. Entering the ``with`` block starts
+    Acquired via :py:meth:`Client.streaming` /
+    :py:meth:`StreamingClient.streaming`. Entering the ``with`` block starts
     streaming; exiting stops it and drains pending events. Subscription
     and lifecycle methods of the bound client are reachable directly on
     the session.
@@ -1525,7 +1525,7 @@ class FlatFileRowList:
 
 @final
 class FlatFilesNamespace:
-    """Namespace accessor returned by :py:attr:`ThetaDataDxClient.flat_files`.
+    """Namespace accessor returned by :py:attr:`Client.flat_files`.
 
     Each method maps one ``(SecType, ReqType)`` pair to a
     :class:`FlatFileRowList`. The wildcard :py:meth:`request` dispatches

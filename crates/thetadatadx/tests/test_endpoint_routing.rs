@@ -5,7 +5,7 @@
 //! *parsers* (`parse_greeks_eod_ticks`, `parse_trade_greeks_*_ticks`,
 //! `parse_index_price_at_time_ticks`) preserve every wire column when
 //! fed a hand-built `DataTable`. They do NOT prove that the high-level
-//! `MddsClient::<endpoint>` dispatch method routes the response through
+//! `HistoricalClient::<endpoint>` dispatch method routes the response through
 //! that parser -- the heuristic that picks `parse: decode::parse_<tick>`
 //! for each endpoint inside `build_support/endpoints/proto_parser.rs`
 //! can drift silently and the per-parser regressions would still pass.
@@ -18,8 +18,8 @@
 //!      `proto::ResponseData`.
 //!   2. Spins up the in-process `grpc_mock_server` mock and serves
 //!      that single `ResponseData` chunk under the gRPC stub path
-//!      the real `MddsClient::<endpoint>` builder dispatches to.
-//!   3. Builds an `MddsClient` against the mock via the
+//!      the real `HistoricalClient::<endpoint>` builder dispatches to.
+//!   3. Builds an `HistoricalClient` against the mock via the
 //!      `__test-helpers`-gated `for_endpoint_routing_test` constructor.
 //!   4. Awaits the real builder (`client.<endpoint>(...).await`) and
 //!      asserts the returned `Vec<X>` carries the concrete tick type
@@ -44,7 +44,7 @@ use thetadatadx::{
 use tokio::sync::Semaphore;
 
 use thetadatadx::grpc::{Channel, ChannelPool};
-use thetadatadx::mdds::MddsClient;
+use thetadatadx::mdds::HistoricalClient;
 use thetadatadx::wire as proto;
 use thetadatadx::DirectConfig;
 
@@ -58,10 +58,12 @@ use capture_loader::load_response_data as load_response;
 
 /// Stand up an in-process gRPC mock that serves one
 /// `proto::ResponseData` chunk and a clean `grpc-status: 0`, then
-/// return an `MddsClient` wired to that mock via the
+/// return an `HistoricalClient` wired to that mock via the
 /// `__test-helpers`-gated `for_endpoint_routing_test` constructor. The mock
 /// handle stays alive as long as the test owning it.
-async fn client_for_response(response: proto::ResponseData) -> (mock::MockServer, MddsClient) {
+async fn client_for_response(
+    response: proto::ResponseData,
+) -> (mock::MockServer, HistoricalClient) {
     let server = mock::MockServer::spawn(vec![response], 0).await;
     let channel = Channel::connect_h2c("127.0.0.1", server.addr.port())
         .await
@@ -69,7 +71,7 @@ async fn client_for_response(response: proto::ResponseData) -> (mock::MockServer
     let pool = ChannelPool::from_channels(vec![channel]);
     let cfg = DirectConfig::production();
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::for_endpoint_routing_test(cfg, pool, sem);
+    let client = HistoricalClient::for_endpoint_routing_test(cfg, pool, sem);
     (server, client)
 }
 

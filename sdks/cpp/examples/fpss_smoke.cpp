@@ -25,9 +25,9 @@ constexpr auto kCollectFor = std::chrono::seconds(5);
 constexpr int kMaxEventsPrinted = 25;
 
 // Replaced the flat `TDX_FPSS_CONTROL` discriminant with
-// one kind per typed `FpssControl::*` variant. Returning a friendly
+// one kind per typed `StreamControl::*` variant. Returning a friendly
 // short name keeps the smoke test's stdout compact.
-const char* event_kind_name(tdx::FpssEventKind kind) {
+const char* event_kind_name(thetadatadx::StreamEventKind kind) {
     switch (kind) {
         case TDX_FPSS_QUOTE: return "quote";
         case TDX_FPSS_TRADE: return "trade";
@@ -55,7 +55,7 @@ const char* event_kind_name(tdx::FpssEventKind kind) {
 
 // Returns true when the kind is one of the typed control variants
 // (everything except the four data variants).
-bool is_control_kind(tdx::FpssEventKind kind) {
+bool is_control_kind(thetadatadx::StreamEventKind kind) {
     switch (kind) {
         case TDX_FPSS_QUOTE:
         case TDX_FPSS_TRADE:
@@ -72,16 +72,16 @@ bool is_control_kind(tdx::FpssEventKind kind) {
 int main(int argc, char** argv) {
     const std::string creds_path = (argc > 1) ? argv[1] : "creds.txt";
     try {
-        auto creds = tdx::Credentials::from_file(creds_path);
-        auto config = tdx::Config::production();
+        auto creds = thetadatadx::Credentials::from_file(creds_path);
+        auto config = thetadatadx::Config::production();
 
-        tdx::FpssClient fpss(creds, config);
+        thetadatadx::StreamingClient fpss(creds, config);
 
         std::atomic<int> total_events{0};
         std::atomic<int> data_events{0};
         std::mutex print_mtx;
 
-        fpss.set_callback([&](const tdx::FpssEvent& event) {
+        fpss.set_callback([&](const thetadatadx::StreamEvent& event) {
             const int seq = total_events.fetch_add(1, std::memory_order_relaxed);
             if (!is_control_kind(event.kind)) {
                 data_events.fetch_add(1, std::memory_order_relaxed);
@@ -169,8 +169,8 @@ int main(int argc, char** argv) {
         });
 
         // Fluent contract-first subscriptions.
-        auto stock = tdx::Contract::stock(kSymbol);
-        auto option = tdx::Contract::option(
+        auto stock = thetadatadx::Contract::stock(kSymbol);
+        auto option = thetadatadx::Contract::option(
             kOptionSymbol, {.expiration = kExpiration, .strike = kStrike, .right = kRight});
         fpss.subscribe(stock.quote());
         fpss.subscribe(stock.trade());

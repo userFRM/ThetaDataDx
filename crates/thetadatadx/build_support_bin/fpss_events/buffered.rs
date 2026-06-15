@@ -3,7 +3,7 @@
 //!
 //! The intermediate event shape between the FPSS dispatcher callback and
 //! the napi typed dispatcher. The Python SDK converts the borrowed
-//! `&FpssEvent` directly to its pyclass (see `python.rs`), so it carries
+//! `&StreamEvent` directly to its pyclass (see `python.rs`), so it carries
 //! no buffered copy.
 
 use std::fmt::Write as _;
@@ -15,13 +15,13 @@ use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema}
 /// in a form the TypeScript (`napi-rs`) SDK can `include!`.
 ///
 /// Variants + field names come from `fpss_event_schema.toml` directly —
-/// data variants mirror `FpssData::*`, control variants mirror
-/// `FpssControl::*` one-for-one (no flat `Simple { event_type, detail,
-/// id }` envelope). `FpssControl` itself is `#[non_exhaustive]`, so
+/// data variants mirror `StreamData::*`, control variants mirror
+/// `StreamControl::*` one-for-one (no flat `Simple { event_type, detail,
+/// id }` envelope). `StreamControl` itself is `#[non_exhaustive]`, so
 /// the converter routes any unknown future variant through
 /// `BufferedEvent::UnknownControl` (also schema-declared, so the
 /// routing arm is generator-emitted, not hand-rolled). Decode-fallback
-/// frames never reach this dispatcher — the public `FpssEvent` only
+/// frames never reach this dispatcher — the public `StreamEvent` only
 /// carries `Data` / `Control`.
 pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
     let mut out = String::new();
@@ -59,19 +59,19 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
 
     // ── converter ──
     out.push_str(
-        "pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {\n",
+        "pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent {\n",
     );
     out.push_str("    match event {\n");
-    out.push_str("        fpss::FpssEvent::Data(data) => match data {\n");
+    out.push_str("        fpss::StreamEvent::Data(data) => match data {\n");
     for event_name in &names {
         let def = &schema.events[*event_name];
         if def.kind != "data" {
             continue;
         }
-        // Data variants mirror `FpssData` one-for-one by schema name.
+        // Data variants mirror `StreamData` one-for-one by schema name.
         out.push_str(&render_data_match_arm(event_name, def));
     }
-    // `FpssData` is `#[non_exhaustive]`; route unknown data variants
+    // `StreamData` is `#[non_exhaustive]`; route unknown data variants
     // through `UnknownControl` so downstream consumers observe them
     // without panicking. (Strictly speaking these are unknown DATA
     // variants — but the typed `UnknownControl` carries no payload, so
@@ -83,10 +83,10 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
     // Control variants → typed BufferedEvent arms.
     out.push_str(&render_control_match_arms(schema));
 
-    // `FpssEvent` itself is `#[non_exhaustive]`; route through
+    // `StreamEvent` itself is `#[non_exhaustive]`; route through
     // `UnknownControl` (typed, payload-less). Decode-fallback frames
     // are filtered before reaching this dispatcher, so the public
-    // `FpssEvent` only ever carries `Data` / `Control`.
+    // `StreamEvent` only ever carries `Data` / `Control`.
     out.push_str("        _ => BufferedEvent::UnknownControl,\n");
 
     out.push_str("    }\n");
@@ -96,11 +96,11 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
 
 fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
-    writeln!(out, "            fpss::FpssData::{event_name} {{").unwrap();
+    writeln!(out, "            fpss::StreamData::{event_name} {{").unwrap();
     for column in &def.columns {
         writeln!(out, "                {},", column.name).unwrap();
     }
-    // `FpssData::*` variants are `#[non_exhaustive]` at the top-level
+    // `StreamData::*` variants are `#[non_exhaustive]` at the top-level
     // enum but each struct-variant has named fields. The `..` rest
     // pattern lets the core crate add auxiliary fields (e.g. an internal
     // decode cursor) without breaking the SDK conversion.
@@ -123,7 +123,7 @@ fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
     out
 }
 
-/// Emit one `fpss::FpssControl::*` match arm per schema control variant.
+/// Emit one `fpss::StreamControl::*` match arm per schema control variant.
 /// Each arm constructs the matching typed `BufferedEvent::*` value from
 /// the Rust enum's bound fields. Variant-specific shape adjustments
 /// (e.g. `RemoveReason` → `i32` discriminant cast, `Reconnecting.attempt`
@@ -131,15 +131,15 @@ fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
 /// the schema-driven side stays declarative.
 ///
 /// Stable order: the `_ => BufferedEvent::UnknownControl` wildcard arm
-/// is emitted last to absorb any future `FpssControl::*` variant the
-/// core crate adds (`FpssControl` is `#[non_exhaustive]`).
+/// is emitted last to absorb any future `StreamControl::*` variant the
+/// core crate adds (`StreamControl` is `#[non_exhaustive]`).
 fn render_control_match_arms(schema: &Schema) -> String {
     let mut out = String::new();
-    out.push_str("        fpss::FpssEvent::Control(ctrl) => match ctrl {\n");
+    out.push_str("        fpss::StreamEvent::Control(ctrl) => match ctrl {\n");
     for (event_name, def) in sorted_control_events(schema) {
         if event_name == "UnknownControl" {
             // `UnknownControl` is the schema-declared landing pad for
-            // future `FpssControl::*` variants; emitted as the trailing
+            // future `StreamControl::*` variants; emitted as the trailing
             // wildcard arm below, not as a named-variant match.
             continue;
         }
@@ -150,7 +150,7 @@ fn render_control_match_arms(schema: &Schema) -> String {
     out
 }
 
-/// Render a single `fpss::FpssControl::<Variant> { ... } => BufferedEvent::<Variant> { ... }`
+/// Render a single `fpss::StreamControl::<Variant> { ... } => BufferedEvent::<Variant> { ... }`
 /// arm. The bound-field list comes from a hand-coded mapping per
 /// variant because the Rust enum's field shapes don't always line up
 /// with the schema columns one-for-one (e.g. `Disconnected.reason` is
@@ -162,13 +162,13 @@ fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
     if def.columns.is_empty() {
         writeln!(
             out,
-            "            fpss::FpssControl::{rust_variant} => BufferedEvent::{event_name},",
+            "            fpss::StreamControl::{rust_variant} => BufferedEvent::{event_name},",
         )
         .unwrap();
     } else {
         writeln!(
             out,
-            "            fpss::FpssControl::{rust_variant} {{ {rust_pattern} }} => BufferedEvent::{event_name} {{",
+            "            fpss::StreamControl::{rust_variant} {{ {rust_pattern} }} => BufferedEvent::{event_name} {{",
         )
         .unwrap();
         for assign in field_assigns {
@@ -179,7 +179,7 @@ fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
     out
 }
 
-/// Core `FpssControl` variant backing a schema control event. The two
+/// Core `StreamControl` variant backing a schema control event. The two
 /// names coincide for every variant except `ParseError`, whose core
 /// enum variant keeps the historical `Error` spelling — the public
 /// event class is named `ParseError` so no binding ships a class that
@@ -192,7 +192,7 @@ fn control_rust_variant(event_name: &str) -> &str {
 }
 
 /// Per-variant Rust-pattern + field-assignment mapping. Keeps the
-/// translation from the core `FpssControl` enum's field shapes to the
+/// translation from the core `StreamControl` enum's field shapes to the
 /// schema's flat scalar columns in one auditable table.
 ///
 /// Returned tuple: (Rust-side `match` pattern body inside `{ ... }`,

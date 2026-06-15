@@ -67,7 +67,7 @@ impl HostSelectionPolicy {
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
 /// `connect_timeout_ms`, `io_read_slice_ms`, `data_watchdog_ms`, the
 /// keepalive trio) and `ring_size` are wired into the runtime: the
-/// values flow through [`crate::fpss::FpssClientBuilder`] into the
+/// values flow through [`crate::fpss::StreamingClientBuilder`] into the
 /// connection, framing, and ping layers.
 /// [`crate::DirectConfig::validate`] rejects out-of-range values before
 /// the connect attempt.
@@ -111,12 +111,12 @@ pub struct FpssConfig {
     /// FPSS event ring buffer size (slots).
     ///
     /// MUST be a power of two (the ring wraps the index with
-    /// `i & (cap - 1)`) and at least `64`. `FpssClient::connect`
+    /// `i & (cap - 1)`) and at least `64`. `StreamingClient::connect`
     /// returns [`crate::error::Error::Config`] on a non-power-of-two
     /// or below-minimum value — silent rounding is rejected so the
     /// caller's stated buffer budget is never rewritten under their
     /// feet. Larger rings absorb more burst traffic but use more
-    /// memory (~`ring_size * sizeof(Option<FpssEvent>)`).
+    /// memory (~`ring_size * sizeof(Option<StreamEvent>)`).
     pub ring_size: usize,
 
     /// FPSS heartbeat ping interval in milliseconds.
@@ -199,7 +199,7 @@ pub struct FpssConfig {
 
     /// Whether to derive OHLCVC bars locally from trade events.
     ///
-    /// When `true` (default), the FPSS client emits derived `FpssData::Ohlcvc`
+    /// When `true` (default), the FPSS client emits derived `StreamData::Ohlcvc`
     /// events after each trade. When `false`, only server-sent OHLCVC frames
     /// (wire code 24) are emitted, reducing per-trade throughput overhead.
     pub derive_ohlcvc: bool,

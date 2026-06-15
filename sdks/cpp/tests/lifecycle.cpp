@@ -23,12 +23,12 @@ std::string env_or_empty(const char* key) {
 } // namespace
 
 TEST_CASE("Config::production builds without network access", "[lifecycle][offline]") {
-    auto config = tdx::Config::production();
+    auto config = thetadatadx::Config::production();
     REQUIRE(config.get() != nullptr);
 }
 
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
-    auto config = tdx::Config::production();
+    auto config = thetadatadx::Config::production();
     REQUIRE_NOTHROW(config.set_reconnect_policy(0));
     REQUIRE_NOTHROW(config.set_reconnect_max_attempts(5));
     REQUIRE_NOTHROW(config.set_reconnect_max_rate_limited_attempts(50));
@@ -42,7 +42,7 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
     // `.derive_ohlcvc` and TypeScript `flushMode` / `deriveOhlcvc`
     // surfaces, so a value set through the C++ wrapper reads back
     // through the same wrapper.
-    auto config = tdx::Config::production();
+    auto config = thetadatadx::Config::production();
 
     config.set_flush_mode(1);
     REQUIRE(config.get_flush_mode() == 1);
@@ -55,12 +55,12 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
     REQUIRE(config.get_derive_ohlcvc() == true);
 }
 
-TEST_CASE("MddsClient::connect succeeds against the production server", "[lifecycle][live]") {
+TEST_CASE("HistoricalClient::connect succeeds against the production server", "[lifecycle][live]") {
     const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADX_LIVE_CREDS not set");
     }
-    auto creds = tdx::Credentials::from_file(creds_path);
-    auto config = tdx::Config::production();
-    REQUIRE_NOTHROW(tdx::MddsClient::connect(creds, config));
+    auto creds = thetadatadx::Credentials::from_file(creds_path);
+    auto config = thetadatadx::Config::production();
+    REQUIRE_NOTHROW(thetadatadx::HistoricalClient::connect(creds, config));
 }

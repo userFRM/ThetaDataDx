@@ -103,7 +103,9 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         out.push_str(
             "/// the same columnar exit the Python `<TickName>List.to_arrow()` terminal\n",
         );
-        out.push_str("/// gives. Throws `tdx::Error` on serialisation failure. The returned\n");
+        out.push_str(
+            "/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned\n",
+        );
         out.push_str("/// vector owns its memory; the FFI buffer is freed before return.\n");
         writeln!(
             out,
@@ -131,10 +133,10 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
 
 /// Emit `sdks/cpp/include/tick_flag_accessors.hpp.inc` — the C++ free
 /// functions that decode each tick type's boolean flag-word accessors
-/// (e.g. `tdx::is_cancelled(const TradeTick&)`). C++ tick rows are C
+/// (e.g. `thetadatadx::is_cancelled(const TradeTick&)`). C++ tick rows are C
 /// `#[repr(C)]` struct aliases with no member methods, so the decoded
-/// booleans are free functions in the `tdx::` namespace, mirroring the
-/// existing `tdx::strike(const TdxContract&)` accessor. The predicate
+/// booleans are free functions in the `thetadatadx::` namespace, mirroring the
+/// existing `thetadatadx::strike(const TdxContract&)` accessor. The predicate
 /// matches the Rust core and the Python / TypeScript projections from
 /// the same schema rows.
 pub(super) fn render_cpp_tick_flag_accessors(schema: &Schema) -> String {

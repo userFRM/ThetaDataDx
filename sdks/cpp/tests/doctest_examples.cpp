@@ -14,9 +14,9 @@
 // When you add a header example block, prefer this pattern:
 //
 //     /// @example
-//     ///     auto creds = tdx::Credentials("user@example.com", "pw");
-//     ///     auto cfg   = tdx::Config::production();
-//     ///     tdx::ThetaDataDxClient client(creds, cfg);
+//     ///     auto creds = thetadatadx::Credentials("user@example.com", "pw");
+//     ///     auto cfg   = thetadatadx::Config::production();
+//     ///     thetadatadx::Client client(creds, cfg);
 //
 // Then translate the body into a TEST_CASE below. The build step
 // will fail at compile time if the example references a stale symbol.

@@ -51,7 +51,7 @@ describe('endpoint options objects', () => {
 });
 
 describe('historical methods resolve off the execution thread', () => {
-  // The 61 buffered data-fetch methods declared on ThetaDataDxClient.
+  // The 61 buffered data-fetch methods declared on Client.
   // Each runs the network round-trip on a worker and resolves a Promise
   // with the full typed row array, so a fetch never holds the Node event
   // loop. Element types are unchanged — only the surrounding shape
@@ -61,9 +61,9 @@ describe('historical methods resolve off the execution thread', () => {
   // declarations elsewhere in the file (awaitDrain etc.) cannot dilute
   // the assertion.
   const clientBlock = dts.match(
-    /export declare class ThetaDataDxClient \{[\s\S]*?\n\}/
+    /export declare class Client \{[\s\S]*?\n\}/
   );
-  assert.ok(clientBlock, 'ThetaDataDxClient class missing from index.d.ts');
+  assert.ok(clientBlock, 'Client class missing from index.d.ts');
   const body = clientBlock[0];
 
   // Every endpoint method names a return type; collect each declared

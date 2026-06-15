@@ -33,7 +33,7 @@ not perturb the gate.
 
 ### Sub-10 ns p50 baselines
 
-Entries with a `p50_ns` below ~10 ns (e.g. the `FpssEvent::match/*`
+Entries with a `p50_ns` below ~10 ns (e.g. the `StreamEvent::match/*`
 family) are noise-dominated under a 25 % proportional threshold:
 ordinary timer jitter on a 2-vCPU runner can swing a 1 ns
 measurement by ±50 %. The gated set keeps those entries because

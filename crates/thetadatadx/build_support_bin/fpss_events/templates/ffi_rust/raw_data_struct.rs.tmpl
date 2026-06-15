@@ -3,7 +3,7 @@
 /// `code` is the wire message code. `payload` is a pointer to the raw
 /// bytes and `payload_len` is the number of bytes.
 #[repr(C)]
-pub struct TdxFpssRawData {
+pub struct TdxStreamRawData {
     pub code: u8,
     pub payload: *const u8,
     pub payload_len: usize,

@@ -41,34 +41,34 @@ class TestPanicCountApiSurface:
     """panic_count() must be present on both streaming client classes."""
 
     def test_panic_count_present_on_fpss_client(self) -> None:
-        """FpssClient.panic_count() must exist and be callable."""
-        assert hasattr(tdx.FpssClient, "panic_count"), (
-            "FpssClient must expose panic_count()"
+        """StreamingClient.panic_count() must exist and be callable."""
+        assert hasattr(tdx.StreamingClient, "panic_count"), (
+            "StreamingClient must expose panic_count()"
         )
-        assert callable(getattr(tdx.FpssClient, "panic_count")), (
-            "FpssClient.panic_count must be callable"
+        assert callable(getattr(tdx.StreamingClient, "panic_count")), (
+            "StreamingClient.panic_count must be callable"
         )
 
     def test_panic_count_present_on_unified_client(self) -> None:
-        """ThetaDataDxClient.panic_count() must exist and be callable."""
-        assert hasattr(tdx.ThetaDataDxClient, "panic_count"), (
-            "ThetaDataDxClient must expose panic_count()"
+        """Client.panic_count() must exist and be callable."""
+        assert hasattr(tdx.Client, "panic_count"), (
+            "Client must expose panic_count()"
         )
-        assert callable(getattr(tdx.ThetaDataDxClient, "panic_count")), (
-            "ThetaDataDxClient.panic_count must be callable"
+        assert callable(getattr(tdx.Client, "panic_count")), (
+            "Client.panic_count must be callable"
         )
 
     def test_panic_count_api_surface_smoke(self) -> None:
-        """Smoke check: panic_count exists and is callable on FpssClient.
+        """Smoke check: panic_count exists and is callable on StreamingClient.
 
         Runs in <100 ms with no network connection.  Confirms the binding
         exposes the method even when live tests are skipped.
         """
-        assert hasattr(tdx.FpssClient, "panic_count"), (
-            "FpssClient.panic_count missing from binding"
+        assert hasattr(tdx.StreamingClient, "panic_count"), (
+            "StreamingClient.panic_count missing from binding"
         )
-        assert callable(getattr(tdx.FpssClient, "panic_count")), (
-            "FpssClient.panic_count must be callable"
+        assert callable(getattr(tdx.StreamingClient, "panic_count")), (
+            "StreamingClient.panic_count must be callable"
         )
 
     def test_panic_count_returns_int_when_not_streaming(
@@ -76,7 +76,7 @@ class TestPanicCountApiSurface:
     ) -> None:
         """panic_count() returns an integer (0) before streaming starts.
 
-        Uses a minimal FpssClient constructed without opening a network
+        Uses a minimal StreamingClient constructed without opening a network
         connection — panic_count() must not block or raise.
         """
         creds_file = "/home/theta-gamma/thetadx/creds.txt"
@@ -85,7 +85,7 @@ class TestPanicCountApiSurface:
 
         creds = tdx.Credentials.from_file(creds_file)
         config = tdx.Config.production()
-        fpss = tdx.FpssClient(creds, config)
+        fpss = tdx.StreamingClient(creds, config)
 
         count = fpss.panic_count()
         assert isinstance(count, int), (
@@ -103,7 +103,7 @@ class TestPanicCountApiSurface:
 
 @pytest.fixture
 def fpss_client():
-    """Build a standalone FpssClient or skip if credentials are absent."""
+    """Build a standalone StreamingClient or skip if credentials are absent."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
@@ -111,7 +111,7 @@ def fpss_client():
         )
     creds = tdx.Credentials.from_file(creds_path)
     config = tdx.Config.production()
-    client = tdx.FpssClient(creds, config)
+    client = tdx.StreamingClient(creds, config)
     yield client
     try:
         client.stop_streaming()
@@ -125,7 +125,7 @@ class TestPanicIsolationBehavioral:
     """
 
     def test_exception_in_callback_increments_panic_count(
-        self, fpss_client: tdx.FpssClient
+        self, fpss_client: tdx.StreamingClient
     ) -> None:
         """An exception raised on the first event increments panic_count()
         to 1, does not stop the dispatcher, and all subsequent events continue
@@ -190,7 +190,7 @@ class TestPanicIsolationBehavioral:
         )
 
     def test_non_callable_callback_panic_is_counted(
-        self, fpss_client: tdx.FpssClient
+        self, fpss_client: tdx.StreamingClient
     ) -> None:
         """A non-callable callback argument causes a TypeError on the
         consumer thread when the first event arrives.  The binding catches that

@@ -13,10 +13,10 @@ try {
   process.exit(1);
 }
 
-describe('ThetaDataDxClient native addon', () => {
-  it('exports ThetaDataDxClient class with connect factory', () => {
-    assert.ok(mod.ThetaDataDxClient, 'ThetaDataDxClient should be exported');
-    assert.equal(typeof mod.ThetaDataDxClient.connect, 'function', 'connect should be a static method');
-    assert.equal(typeof mod.ThetaDataDxClient.connectFromFile, 'function', 'connectFromFile should be a static method');
+describe('Client native addon', () => {
+  it('exports Client class with connect factory', () => {
+    assert.ok(mod.Client, 'Client should be exported');
+    assert.equal(typeof mod.Client.connect, 'function', 'connect should be a static method');
+    assert.equal(typeof mod.Client.connectFromFile, 'function', 'connectFromFile should be a static method');
   });
 });

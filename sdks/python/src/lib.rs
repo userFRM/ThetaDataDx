@@ -36,7 +36,7 @@ use errors::to_py_err;
 /// `pyo3_async_runtimes::tokio::init_with_runtime(...)`. No second runtime
 /// is ever constructed, so the sync and async code paths share worker
 /// threads, connection pools, and the request semaphore on the underlying
-/// `MddsClient`.
+/// `HistoricalClient`.
 ///
 /// The runtime is process-global and built exactly once. The first client
 /// connected in the process seeds it from that client's `config.runtime`
@@ -165,7 +165,7 @@ where
 //
 // `skip_from_py_object` matches every generated pyclass: these are constructed
 // on the Python side and passed to Rust by reference (`&Credentials` in
-// `ThetaDataDxClient::new`), never extracted by value, so the auto-derived
+// `Client::new`), never extracted by value, so the auto-derived
 // `FromPyObject` impl is dead weight (and deprecated for `Clone` pyclasses in
 // pyo3 0.28+).
 
@@ -1128,7 +1128,7 @@ impl Config {
     ///
     ///     cfg = Config.production()
     ///     cfg.concurrent_requests = 8
-    ///     client = ThetaDataDxClient(creds, cfg)
+    ///     client = Client(creds, cfg)
     #[setter]
     fn set_concurrent_requests(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -1193,7 +1193,7 @@ include!("_generated/utility_functions.rs");
 
 // ── FPSS streaming client ──
 
-// ── Unified ThetaDataDxClient client ──
+// ── Unified Client client ──
 
 /// Unified ThetaData client — single connection for both historical and streaming.
 ///
@@ -1203,7 +1203,7 @@ include!("_generated/utility_functions.rs");
 ///
 /// Usage::
 ///
-///     tdx = ThetaDataDxClient(creds, config)
+///     tdx = Client(creds, config)
 ///     eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 ///
 ///     def on_event(event):
@@ -1222,19 +1222,19 @@ include!("_generated/utility_functions.rs");
 // regression surfaces as a `cargo check` failure rather than slipping
 // silently through.
 #[pyclass(frozen)]
-struct ThetaDataDxClient {
-    /// The underlying Rust unified client (Deref to MddsClient for historical).
+struct Client {
+    /// The underlying Rust unified client (Deref to HistoricalClient for historical).
     ///
     /// Wrapped in `Arc<>` so the per-endpoint fluent builder pyclasses
     /// emitted by the generator (`<Endpoint>Builder`) can clone a cheap
     /// handle into the awaitable returned by `*_async()` terminals. The
-    /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its
+    /// inner `thetadatadx::Client` is not `Clone` — its
     /// streaming mutex and subscription-tier state forbid it — so the
     /// builder cannot hold the value directly without Arc ref-counting.
     ///
     /// Shutdown contract: when the pyclass auto-drops while the GIL is
     /// held, the final `Arc::drop` may trigger the core
-    /// `ThetaDataDxClient::Drop` chain, which joins the FPSS dispatcher
+    /// `Client::Drop` chain, which joins the FPSS dispatcher
     /// thread that itself re-acquires the GIL via `Python::attach`.
     /// Holding the GIL across that join would deadlock. Callers MUST
     /// invoke `stop_streaming()` (the generated method uses `py.detach`
@@ -1247,7 +1247,7 @@ struct ThetaDataDxClient {
     /// `Drop` site without restructuring every accessor, so the
     /// invariant is enforced by documentation plus the explicit
     /// `stop_streaming(py)` path.
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
@@ -1259,7 +1259,7 @@ struct ThetaDataDxClient {
 }
 
 #[pymethods]
-impl ThetaDataDxClient {
+impl Client {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
     /// Connect to ThetaData (historical only -- streaming is NOT started).
@@ -1289,7 +1289,7 @@ impl ThetaDataDxClient {
         runtime_from_config(&direct_config.runtime);
         let inner_creds = creds.inner.clone();
         let tdx = run_blocking(py, async move {
-            thetadatadx::ThetaDataDxClient::connect(&inner_creds, direct_config).await
+            thetadatadx::Client::connect(&inner_creds, direct_config).await
         })?;
 
         Ok(Self {
@@ -1298,16 +1298,16 @@ impl ThetaDataDxClient {
         })
     }
 
-    /// Convenience constructor: `ThetaDataDxClient.from_file("creds.txt")`.
+    /// Convenience constructor: `Client.from_file("creds.txt")`.
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
     /// The `config` kwarg is optional: with no kwarg the constructor
     /// targets the production endpoint. Tests and dev / stage
     /// environments reach a single-arg constructor shape via
-    /// `ThetaDataDxClient.from_file("creds.txt", config=Config.dev())`.
-    /// Parity with `AsyncThetaDataDxClient.from_file()`,
-    /// `MddsClient.from_file()`, and `FpssClient.from_file()` — every
+    /// `Client.from_file("creds.txt", config=Config.dev())`.
+    /// Parity with `AsyncClient.from_file()`,
+    /// `HistoricalClient.from_file()`, and `StreamingClient.from_file()` — every
     /// Python client exposes the same one-call file-construction shape.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
@@ -1337,7 +1337,7 @@ impl ThetaDataDxClient {
         } else {
             "streaming=none"
         };
-        format!("ThetaDataDxClient(historical=connected, {streaming})")
+        format!("Client(historical=connected, {streaming})")
     }
 
     /// Cumulative count of streaming events the TLS reader could not
@@ -1345,7 +1345,7 @@ impl ThetaDataDxClient {
     /// and the ring was full.
     ///
     /// Forwarded directly to
-    /// [`thetadatadx::ThetaDataDxClient::dropped_event_count`] so the count
+    /// [`thetadatadx::Client::dropped_event_count`] so the count
     /// matches every other binding (C ABI, TypeScript, C++). The
     /// counter lives on the live streaming client, not on this Python
     /// wrapper, which has two consequences:
@@ -1377,7 +1377,7 @@ impl ThetaDataDxClient {
     /// feed; poll it from your own thread at any cadence.
     ///
     /// Forwarded to
-    /// [`thetadatadx::ThetaDataDxClient::ring_occupancy`] so the value
+    /// [`thetadatadx::Client::ring_occupancy`] so the value
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
@@ -1437,7 +1437,7 @@ impl ThetaDataDxClient {
 // Second `#[pymethods]` impl block enabled by the `multiple-pymethods`
 // PyO3 feature flag (also used by `streaming_session.rs`).
 #[pymethods]
-impl ThetaDataDxClient {
+impl Client {
     /// Polymorphic subscribe — primary fluent entry point.
     ///
     /// Accepts the `Subscription` value returned by `Contract.quote()`
@@ -1480,12 +1480,12 @@ impl ThetaDataDxClient {
     }
 }
 
-// `ThetaDataDxClient` is THE pyclass name. No alias, no compat wrapper.
+// `Client` is THE pyclass name. No alias, no compat wrapper.
 
-// ── AsyncThetaDataDxClient — async-only sibling ───────────────────────
+// ── AsyncClient — async-only sibling ───────────────────────
 //
-// The underlying `ThetaDataDxClient` exposes both sync and `*_async`
-// historical methods. This thin wrapper holds a `ThetaDataDxClient`
+// The underlying `Client` exposes both sync and `*_async`
+// historical methods. This thin wrapper holds a `Client`
 // handle and proxies attribute access through `__getattr__`, but raises
 // on access to non-`async_` methods so users that opt into the async
 // surface do not accidentally call a blocking sync path.
@@ -1493,15 +1493,15 @@ impl ThetaDataDxClient {
 // The wrapper is a disciplined façade over the same Rust core, exposing
 // a narrower public Python surface.
 
-/// Async-only sibling of [`ThetaDataDxClient`].
+/// Async-only sibling of [`Client`].
 ///
 /// ```python
 /// import asyncio
-/// from thetadatadx import AsyncThetaDataDxClient, Credentials, Config
+/// from thetadatadx import AsyncClient, Credentials, Config
 ///
 /// async def main():
 ///     creds = Credentials.from_file("creds.txt")
-///     client = AsyncThetaDataDxClient(creds, Config.production())
+///     client = AsyncClient(creds, Config.production())
 ///     ticks = await client.stock_history_eod_async("AAPL", "20240101", "20240301")
 ///     print(ticks.to_pandas().head())
 ///
@@ -1513,15 +1513,15 @@ impl ThetaDataDxClient {
 /// async counterpart on the wrapped surface
 /// (`subscribe`/`unsubscribe`/`stop_streaming`/...).
 /// Sync method names safelisted for proxy access on
-/// [`AsyncThetaDataDxClient`]. Every name MUST exist as a
-/// `#[pymethods]` entry on [`ThetaDataDxClient`]; the const-eval
+/// [`AsyncClient`]. Every name MUST exist as a
+/// `#[pymethods]` entry on [`Client`]; the const-eval
 /// assertion below pins that invariant at compile time so we cannot
 /// promise a method that the inner pyclass does not implement.
 ///
-/// `is_authenticated` lives only on `FpssClient` (not on the unified
+/// `is_authenticated` lives only on `StreamingClient` (not on the unified
 /// client) and `config` has no such getter, so neither appears in
 /// this list. The remaining names map 1:1 to public methods on
-/// `ThetaDataDxClient` reachable via `bound.getattr(name)`.
+/// `Client` reachable via `bound.getattr(name)`.
 pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // Subscription management.
     "subscribe",
@@ -1546,14 +1546,14 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // FLATFILES namespace getter.
     "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
-    // `ThetaDataDxClient` — they live on `StreamingSession` (returned
+    // `Client` — they live on `StreamingSession` (returned
     // by `client.streaming(callback)`) per their natural lifecycle
     // scope. Reaching for them through the unified async surface
     // raises `AttributeError` via the runtime `bound.getattr` after
     // the allowlist check, identical to the sync client.
 ];
 
-/// Hand-written `#[pymethods]` entries on `ThetaDataDxClient` outside
+/// Hand-written `#[pymethods]` entries on `Client` outside
 /// the generator-emitted streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`).
 /// Pairs with the generator-emitted set in the
 /// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below — every
@@ -1573,8 +1573,8 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "active_full_subscriptions",
     // Diagnostic getters — `dropped_event_count`, `panic_count`,
     // `ring_occupancy`, and `ring_capacity` live directly on
-    // `ThetaDataDxClient` (lib.rs) and forward to the core
-    // `thetadatadx::ThetaDataDxClient` accessors so the count matches
+    // `Client` (lib.rs) and forward to the core
+    // `thetadatadx::Client` accessors so the count matches
     // every other binding.
     "dropped_event_count",
     "panic_count",
@@ -1601,7 +1601,7 @@ const fn const_str_eq(a: &str, b: &str) -> bool {
 }
 
 /// Compile-time assertion: every safelisted proxy name must
-/// resolve to a real `#[pymethods]` entry on `ThetaDataDxClient`.
+/// resolve to a real `#[pymethods]` entry on `Client`.
 /// Without this check a name that passes the allowlist but has no
 /// matching method would raise a confusing `AttributeError` from the
 /// inner `getattr` at call time — pinning the inventory here surfaces
@@ -1633,27 +1633,27 @@ const _: () = {
             found,
             "ALLOWED_UNIFIED_PROXY_METHODS contains a name not present \
              in `PYTHON_UNIFIED_FPSS_METHODS` (generated) nor in \
-             `HANDWRITTEN_UNIFIED_PYMETHODS` — the AsyncThetaDataDxClient \
-             would promise a method ThetaDataDxClient does not implement."
+             `HANDWRITTEN_UNIFIED_PYMETHODS` — the AsyncClient \
+             would promise a method Client does not implement."
         );
         i += 1;
     }
 };
 
-#[pyclass(module = "thetadatadx", name = "AsyncThetaDataDxClient")]
-struct AsyncThetaDataDxClient {
-    inner: Py<ThetaDataDxClient>,
+#[pyclass(module = "thetadatadx", name = "AsyncClient")]
+struct AsyncClient {
+    inner: Py<Client>,
 }
 
 #[pymethods]
-impl AsyncThetaDataDxClient {
+impl AsyncClient {
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let tdx = Py::new(py, ThetaDataDxClient::new(py, creds, config)?)?;
+        let tdx = Py::new(py, Client::new(py, creds, config)?)?;
         Ok(Self { inner: tdx })
     }
 
-    /// Convenience constructor: `AsyncThetaDataDxClient.from_file("creds.txt")`.
+    /// Convenience constructor: `AsyncClient.from_file("creds.txt")`.
     /// Accepts an optional `config` kwarg defaulting to
     /// `Config.production()` for non-production environment tests.
     #[staticmethod]
@@ -1668,27 +1668,27 @@ impl AsyncThetaDataDxClient {
                 &owned_default
             }
         };
-        let tdx = Py::new(py, ThetaDataDxClient::new(py, &creds, cfg)?)?;
+        let tdx = Py::new(py, Client::new(py, &creds, cfg)?)?;
         Ok(Self { inner: tdx })
     }
 
-    /// Forward attribute access to the wrapped `ThetaDataDxClient`.
+    /// Forward attribute access to the wrapped `Client`.
     /// Async-suffixed methods plus the safelisted lifecycle / streaming
     /// methods are reachable; everything else raises `AttributeError`
     /// so callers who picked the async surface stay on the async path.
     ///
     /// Every name in `ALLOWED` is checked at compile time (see the
     /// `_ALLOWED_NAMES_ON_UNIFIED` const-eval block below) to actually
-    /// exist on `ThetaDataDxClient`. The list is verified by
-    /// `_ALLOWED_NAMES`; `is_authenticated` (only on `FpssClient`)
+    /// exist on `Client`. The list is verified by
+    /// `_ALLOWED_NAMES`; `is_authenticated` (only on `StreamingClient`)
     /// and `config` (no such getter) are intentionally excluded so
     /// the proxy does not advertise methods the inner client lacks.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(
-                "AsyncThetaDataDxClient surfaces only `*_async` historical methods plus \
+                "AsyncClient surfaces only `*_async` historical methods plus \
                  streaming lifecycle helpers; `{name}` is not on the async surface. \
-                 Use `ThetaDataDxClient` for the synchronous historical methods."
+                 Use `Client` for the synchronous historical methods."
             )));
         }
         let bound = self.inner.bind(py);
@@ -1698,14 +1698,14 @@ impl AsyncThetaDataDxClient {
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let bound = self.inner.bind(py);
         let inner_repr: String = bound.call_method0("__repr__")?.extract()?;
-        Ok(inner_repr.replace("ThetaDataDxClient", "AsyncThetaDataDxClient"))
+        Ok(inner_repr.replace("Client", "AsyncClient"))
     }
 }
 
 // ── Typed-pyclass FPSS event path ─────────────────────────────────────────
 //
 // All FPSS `#[pyclass]` definitions and the `fpss_event_to_typed`
-// dispatcher (borrowed `&FpssEvent` → pyclass, single pass, no
+// dispatcher (borrowed `&StreamEvent` → pyclass, single pass, no
 // intermediate) live in a generated file whose SSOT is
 // `crates/thetadatadx/fpss_event_schema.toml`. The generator is
 // `crates/thetadatadx/build_support/fpss_events/`; regenerate via
@@ -1849,10 +1849,10 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
-    m.add_class::<ThetaDataDxClient>()?;
-    m.add_class::<AsyncThetaDataDxClient>()?;
-    m.add_class::<fpss_client::FpssClient>()?;
-    m.add_class::<mdds_client::MddsClient>()?;
+    m.add_class::<Client>()?;
+    m.add_class::<AsyncClient>()?;
+    m.add_class::<fpss_client::StreamingClient>()?;
+    m.add_class::<mdds_client::HistoricalClient>()?;
     m.add_class::<StreamingSession>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
@@ -1871,7 +1871,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
-    // Introspection helper for the offline `MddsClient` block-list
+    // Introspection helper for the offline `HistoricalClient` block-list
     // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
     m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
     Ok(())

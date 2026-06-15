@@ -7,7 +7,7 @@ use super::common::{
 };
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
-/// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `ThetaDataDxClient`.
+/// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `Client`.
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
@@ -18,7 +18,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     // never drift below the actual generated surface.
     out.push_str(
         "/// Names of every FPSS-touching method emitted on \
-         `ThetaDataDxClient`.\n",
+         `Client`.\n",
     );
     out.push_str(
         "/// SSOT for cross-class block-list drift checks (see \
@@ -31,7 +31,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     out.push_str("];\n\n");
 
     out.push_str("#[pymethods]\n");
-    out.push_str("impl ThetaDataDxClient {\n");
+    out.push_str("impl Client {\n");
     for method in methods {
         out.push_str(&python_streaming_method(method));
         out.push('\n');
@@ -248,7 +248,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // with debug-format strings, which contradicted the
             // `List[Subscription]` claim in the .pyi stub and broke the
             // `for sub in client.active_subscriptions(): client.unsubscribe(sub)`
-            // user pattern. The hand-written `FpssClient` projection
+            // user pattern. The hand-written `StreamingClient` projection
             // already followed this shape; this brings the unified
             // pyclass into lockstep.
             writeln!(
@@ -291,7 +291,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  Requires a prior `start_streaming(callback)`; raises\n\
                  `RuntimeError` if no callback is registered. All\n\
                  active subscriptions are restored on the new\n\
-                 connection — see `thetadatadx::ThetaDataDxClient::reconnect_streaming`\n\
+                 connection — see `thetadatadx::Client::reconnect_streaming`\n\
                  for partial-failure semantics.\n\
                  \n\
                  # Callback lifetime across `stop_streaming`\n\
@@ -361,8 +361,8 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // stop / shutdown then sees a clean slot.
             //
             // Detach the GIL while the Rust teardown runs.
-            // `ThetaDataDxClient::stop_streaming` drops the slot `Arc`;
-            // if its refcount reaches zero the `FpssClient` drop joins
+            // `Client::stop_streaming` drops the slot `Arc`;
+            // if its refcount reaches zero the `StreamingClient` drop joins
             // the dispatcher thread, which re-acquires the GIL on every
             // event via `Python::attach`. Holding the GIL across the
             // join would deadlock.

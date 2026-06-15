@@ -41,12 +41,12 @@ def main() -> int:
     parser.add_argument("--right", default="C", help="Option right (`C` or `P`)")
     args = parser.parse_args()
 
-    from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient  # type: ignore
+    from thetadatadx import Config, Contract, Credentials, Client  # type: ignore
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
     cfg.derive_ohlcvc = False
-    client = ThetaDataDxClient(Credentials.from_file(args.creds), cfg)
+    client = Client(Credentials.from_file(args.creds), cfg)
 
     # Push-callback delivery — fan events into a thread-safe queue so
     # the main thread can drive the smoke assertions synchronously

@@ -12,7 +12,7 @@ ring but not yet drained into the callback, and capacity is the
 configured ``fpss_ring_size``. ``dropped_event_count()`` only moves
 AFTER data has been lost; a rising occupancy approaching capacity
 predicts those drops. Both forward through
-``thetadatadx::ThetaDataDxClient`` so the values match every other
+``thetadatadx::Client`` so the values match every other
 binding.
 
 This shape mirrors the TypeScript binding's
@@ -22,7 +22,7 @@ across SDKs.
 
 Surface-existence checks run offline against the pyclass types; the
 lifecycle checks are gated on ``THETADX_TEST_CREDS=path/to/creds.txt``
-because ``ThetaDataDxClient`` needs a live FPSS handshake, mirroring
+because ``Client`` needs a live FPSS handshake, mirroring
 the dropped-events test.
 
 What this test does NOT assert:
@@ -55,7 +55,7 @@ def _import_module():
 
 @pytest.fixture
 def tdx():
-    """Build a real `ThetaDataDxClient` client or skip the test."""
+    """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
@@ -65,7 +65,7 @@ def tdx():
 
     creds = thetadatadx.Credentials.from_file(creds_path)
     config = thetadatadx.Config.production()
-    client = thetadatadx.ThetaDataDxClient(creds, config)
+    client = thetadatadx.Client(creds, config)
     yield client
     # Best-effort teardown; stop_streaming on a client that never
     # started is a noop per the Rust side contract.
@@ -84,10 +84,10 @@ def _noop_callback(_event):
 
 def test_ring_occupancy_surface_exists_offline() -> None:
     """Both getters must exist on the unified client AND the standalone
-    `FpssClient` pyclass, mirroring `dropped_event_count`. Method
+    `StreamingClient` pyclass, mirroring `dropped_event_count`. Method
     presence on the type is checkable without a live connection."""
     mod = _import_module()
-    for cls_name in ("ThetaDataDxClient", "FpssClient"):
+    for cls_name in ("Client", "StreamingClient"):
         cls = getattr(mod, cls_name)
         assert hasattr(cls, "ring_occupancy"), (
             f"{cls_name} must expose ring_occupancy() alongside "

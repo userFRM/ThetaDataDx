@@ -1,5 +1,5 @@
-MddsClient MddsClient::connect(const Credentials& creds, const Config& config) {
-    auto h = tdx_mdds_client_connect(creds.get(), config.get());
+HistoricalClient HistoricalClient::connect(const Credentials& creds, const Config& config) {
+    auto h = tdx_historical_connect(creds.get(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return MddsClient(h);
+    return HistoricalClient(h);
 }

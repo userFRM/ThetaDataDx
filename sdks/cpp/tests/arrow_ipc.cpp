@@ -1,7 +1,7 @@
 // Arrow-IPC terminal on the history result vectors (M.2).
 //
 // Mirrors the FlatFiles `FlatFileRowList::to_arrow_ipc()` exit for the
-// typed history rows: `tdx::<tick>_to_arrow_ipc(std::vector<Tick>)`
+// typed history rows: `thetadatadx::<tick>_to_arrow_ipc(std::vector<Tick>)`
 // serialises the rows to an Arrow IPC stream so a C++ caller can hand the
 // bytes to arrow-cpp — the same columnar exit Python exposes via
 // `<TickName>List.to_arrow()`. Offline: builds tick vectors in-process and
@@ -31,7 +31,7 @@ bool looks_like_arrow_ipc_stream(const std::vector<uint8_t>& bytes) {
 } // namespace
 
 TEST_CASE("eod_ticks_to_arrow_ipc serialises a populated vector", "[arrow][offline]") {
-    std::vector<tdx::EodTick> rows;
+    std::vector<thetadatadx::EodTick> rows;
     TdxEodTick a{};
     a.open = 1.0;
     a.high = 2.0;
@@ -47,14 +47,14 @@ TEST_CASE("eod_ticks_to_arrow_ipc serialises a populated vector", "[arrow][offli
     b.date = 20260116;
     rows.push_back(b);
 
-    const auto ipc = tdx::eod_ticks_to_arrow_ipc(rows);
+    const auto ipc = thetadatadx::eod_ticks_to_arrow_ipc(rows);
     REQUIRE(looks_like_arrow_ipc_stream(ipc));
 }
 
 TEST_CASE("an empty history vector still yields a valid schema-only stream",
           "[arrow][offline]") {
-    const std::vector<tdx::TradeTick> empty;
-    const auto ipc = tdx::trade_ticks_to_arrow_ipc(empty);
+    const std::vector<thetadatadx::TradeTick> empty;
+    const auto ipc = thetadatadx::trade_ticks_to_arrow_ipc(empty);
     // A zero-row result is a valid Arrow stream carrying the schema, not an
     // error — the terminal must not throw on it.
     REQUIRE(looks_like_arrow_ipc_stream(ipc));
@@ -64,9 +64,9 @@ TEST_CASE("the columnar terminal is present for several history tick types",
           "[arrow][offline]") {
     // A representative spread across the tick families confirms the
     // generator emitted the terminal for each, not just EOD.
-    REQUIRE(looks_like_arrow_ipc_stream(tdx::ohlc_ticks_to_arrow_ipc({})));
-    REQUIRE(looks_like_arrow_ipc_stream(tdx::quote_ticks_to_arrow_ipc({})));
-    REQUIRE(looks_like_arrow_ipc_stream(tdx::greeks_all_ticks_to_arrow_ipc({})));
-    REQUIRE(looks_like_arrow_ipc_stream(tdx::interest_rate_ticks_to_arrow_ipc({})));
-    REQUIRE(looks_like_arrow_ipc_stream(tdx::calendar_days_to_arrow_ipc({})));
+    REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::ohlc_ticks_to_arrow_ipc({})));
+    REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::quote_ticks_to_arrow_ipc({})));
+    REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::greeks_all_ticks_to_arrow_ipc({})));
+    REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::interest_rate_ticks_to_arrow_ipc({})));
+    REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::calendar_days_to_arrow_ipc({})));
 }

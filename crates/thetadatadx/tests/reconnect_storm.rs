@@ -36,7 +36,7 @@ use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssControl, FpssEvent};
+use thetadatadx::fpss::{StreamControl, StreamEvent};
 
 const STORM_CYCLES: usize = 20;
 
@@ -122,11 +122,11 @@ fn reconnect_storm_preserves_framing_invariants() {
                         true,
                     );
                     if let Some(internal) = primary {
-                        if let Some(FpssEvent::Control(c)) = internal.as_public() {
+                        if let Some(StreamEvent::Control(c)) = internal.as_public() {
                             match c {
-                                FpssControl::LoginSuccess { .. } => cycle_logins += 1,
-                                FpssControl::Disconnected { .. } => cycle_disconnects += 1,
-                                FpssControl::ContractAssigned { id, contract } => {
+                                StreamControl::LoginSuccess { .. } => cycle_logins += 1,
+                                StreamControl::Disconnected { .. } => cycle_disconnects += 1,
+                                StreamControl::ContractAssigned { id, contract } => {
                                     cycle_contracts.push((cycle, contract.symbol.to_string()));
                                     assert_eq!(
                                         *id, 1,
@@ -241,7 +241,7 @@ fn post_storm_normal_operation_resumes_immediately() {
     let post_login_contract = events.iter().any(|e| {
         matches!(
             e,
-            FpssEvent::Control(FpssControl::ContractAssigned { id: 42, .. })
+            StreamEvent::Control(StreamControl::ContractAssigned { id: 42, .. })
         )
     });
     assert!(

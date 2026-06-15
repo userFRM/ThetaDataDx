@@ -1,4 +1,4 @@
-//! FPSS frame decoder: wire frame -> typed [`FpssEvent`] pairs.
+//! FPSS frame decoder: wire frame -> typed [`StreamEvent`] pairs.
 //!
 //! [`decode_frame`] is the dispatch core of the I/O loop. It runs FIT
 //! decompression through [`super::delta::DeltaState`], updates the
@@ -16,7 +16,7 @@ use metrics::Counter;
 
 use super::accumulator::OhlcvcAccumulator;
 use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
-use super::events::{FpssControl, FpssData, FpssEventInternal};
+use super::events::{FpssEventInternal, StreamControl, StreamData};
 use super::framing;
 use super::protocol::{
     parse_contract_message, parse_disconnect_reason, parse_req_response, Contract,
@@ -200,7 +200,7 @@ fn warn_invalid_price_type(kind: &'static str, contract_id: i32, price_type: i32
 ///
 /// Downstream consumers (notably the WS bridge) parse the suffix back
 /// into an `i32` to surface `unresolved_contract_id` to operators
-/// without re-introducing the wire id on the public `FpssData` surface.
+/// without re-introducing the wire id on the public `StreamData` surface.
 /// Production callbacks should detect the sentinel via
 /// `contract.sec_type == SecType::Unknown` — the prefix is a diagnostic
 /// payload, not a stable identifier.
@@ -220,11 +220,11 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
     })
 }
 
-/// Decode a frame into zero, one, or two `FpssEvent`s.
+/// Decode a frame into zero, one, or two `StreamEvent`s.
 ///
 /// Returns `(primary, secondary)` where `secondary` is only `Some` for Trade
 /// frames that also produce a derived OHLCVC event. This eliminates the
-/// per-frame `Vec<FpssEvent>` allocation that was on the hot path.
+/// per-frame `Vec<StreamEvent>` allocation that was on the hot path.
 ///
 /// This is the frame dispatch logic of the reader thread. Tick data frames
 /// (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and delta-decompressed
@@ -294,7 +294,7 @@ pub fn decode_frame(
     // window, rate-limited at every 1024th hit (matches the slow-
     // callback / clock-skew warn cadence). MISS_COUNT is process-
     // global so the "1 of every 1024" rate aggregates across every
-    // FpssClient in the same process.
+    // StreamingClient in the same process.
     let warn_unknown_contract =
         |contract_id: i32,
          kind: &str,
@@ -308,7 +308,7 @@ pub fn decode_frame(
                         contract_id,
                         kind,
                         miss_count = prev + 1,
-                        "no contract for ID (1 of every 1024 emitted across all FpssClients in this process)"
+                        "no contract for ID (1 of every 1024 emitted across all streaming clients in this process)"
                     );
                 }
             }
@@ -316,7 +316,7 @@ pub fn decode_frame(
 
     // Stack-allocated tick buffer reused across every FIT-decoded arm. The
     // decoder writes the absolute field values directly here; the match arm
-    // reads `buf[i]` to construct the public `FpssData` variant. Sized at
+    // reads `buf[i]` to construct the public `StreamData` variant. Sized at
     // the widest tick shape (`TRADE_FIELDS = 16`) so every arm shares one
     // buffer with zero heap traffic on the decode hot path.
     let mut buf: TickFields = [0; super::delta::MAX_DATA_FIELDS];
@@ -325,7 +325,7 @@ pub fn decode_frame(
         StreamMsgType::Metadata => {
             // Can arrive again after reconnection.
             // The payload is the server's opaque "Bundle" string -- see
-            // FpssControl::LoginSuccess docs for why we don't parse it.
+            // StreamControl::LoginSuccess docs for why we don't parse it.
             let permissions = String::from_utf8_lossy(payload).to_string();
             // The Bundle string carries the account's subscription scope
             // (e.g. `STOCK.PRO, OPTION.PRO, INDEX.PRO`) — operationally
@@ -334,7 +334,7 @@ pub fn decode_frame(
             tracing::trace!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
             (
-                Some(FpssEventInternal::Control(FpssControl::LoginSuccess {
+                Some(FpssEventInternal::Control(StreamControl::LoginSuccess {
                     permissions,
                 })),
                 None,
@@ -356,17 +356,19 @@ pub fn decode_frame(
                 // longer holds wire-internal `contract_id` state.
                 local_contracts.insert(id, Arc::clone(&arc_contract));
                 (
-                    Some(FpssEventInternal::Control(FpssControl::ContractAssigned {
-                        id,
-                        contract: arc_contract,
-                    })),
+                    Some(FpssEventInternal::Control(
+                        StreamControl::ContractAssigned {
+                            id,
+                            contract: arc_contract,
+                        },
+                    )),
                     None,
                 )
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse CONTRACT message");
                 (
-                    Some(FpssEventInternal::Control(FpssControl::Error {
+                    Some(FpssEventInternal::Control(StreamControl::Error {
                         message: format!("failed to parse CONTRACT message: {e}"),
                     })),
                     None,
@@ -390,7 +392,7 @@ pub fn decode_frame(
                     };
                     FPSS_QUOTE_EVENTS.increment(1);
                     (
-                        Some(FpssEventInternal::Data(FpssData::Quote {
+                        Some(FpssEventInternal::Data(StreamData::Quote {
                             contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: buf[0],
                             bid_size: buf[1],
@@ -448,7 +450,7 @@ pub fn decode_frame(
 
                     let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = if n_data <= 8 {
-                        FpssEventInternal::Data(FpssData::Trade {
+                        FpssEventInternal::Data(StreamData::Trade {
                             contract: Arc::clone(&contract_arc),
                             ms_of_day: buf[0],
                             sequence: buf[1],
@@ -468,7 +470,7 @@ pub fn decode_frame(
                             received_at_ns,
                         })
                     } else {
-                        FpssEventInternal::Data(FpssData::Trade {
+                        FpssEventInternal::Data(StreamData::Trade {
                             contract: Arc::clone(&contract_arc),
                             ms_of_day: buf[0],
                             sequence: buf[1],
@@ -510,7 +512,7 @@ pub fn decode_frame(
                                     strict_fpss_price(acc.close, apt),
                                 ) {
                                     (Some(o), Some(h), Some(l), Some(c)) => {
-                                        Some(FpssEventInternal::Data(FpssData::Ohlcvc {
+                                        Some(FpssEventInternal::Data(StreamData::Ohlcvc {
                                             contract: Arc::clone(&contract_arc),
                                             ms_of_day: acc.ms_of_day,
                                             open: o,
@@ -562,7 +564,7 @@ pub fn decode_frame(
                     );
                     FPSS_OI_EVENTS.increment(1);
                     (
-                        Some(FpssEventInternal::Data(FpssData::OpenInterest {
+                        Some(FpssEventInternal::Data(StreamData::OpenInterest {
                             contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: buf[0],
                             open_interest: buf[1],
@@ -613,7 +615,7 @@ pub fn decode_frame(
                         buf[0], buf[1], buf[2], buf[3], buf[4], volume, count, buf[7], buf[8],
                     );
                     (
-                        Some(FpssEventInternal::Data(FpssData::Ohlcvc {
+                        Some(FpssEventInternal::Data(StreamData::Ohlcvc {
                             contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: buf[0],
                             open: o,
@@ -669,7 +671,7 @@ pub fn decode_frame(
                     };
                     FPSS_MARKET_VALUE_EVENTS.increment(1);
                     (
-                        Some(FpssEventInternal::Data(FpssData::MarketValue {
+                        Some(FpssEventInternal::Data(StreamData::MarketValue {
                             contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: buf[0],
                             market_bid,
@@ -693,7 +695,7 @@ pub fn decode_frame(
             Ok((req_id, result)) => {
                 tracing::debug!(req_id, result = ?result, "subscription response");
                 (
-                    Some(FpssEventInternal::Control(FpssControl::ReqResponse {
+                    Some(FpssEventInternal::Control(StreamControl::ReqResponse {
                         req_id,
                         result,
                     })),
@@ -703,7 +705,7 @@ pub fn decode_frame(
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse REQ_RESPONSE");
                 (
-                    Some(FpssEventInternal::Control(FpssControl::Error {
+                    Some(FpssEventInternal::Control(StreamControl::Error {
                         message: format!("failed to parse REQ_RESPONSE: {e}"),
                     })),
                     None,
@@ -716,7 +718,7 @@ pub fn decode_frame(
             delta_state.clear();
             local_contracts.clear(); // mirrors idToContract.clear() on the wire
             (
-                Some(FpssEventInternal::Control(FpssControl::MarketOpen)),
+                Some(FpssEventInternal::Control(StreamControl::MarketOpen)),
                 None,
             )
         }
@@ -727,7 +729,7 @@ pub fn decode_frame(
             delta_state.clear();
             local_contracts.clear(); // mirrors idToContract.clear() on the wire
             (
-                Some(FpssEventInternal::Control(FpssControl::MarketClose)),
+                Some(FpssEventInternal::Control(StreamControl::MarketClose)),
                 None,
             )
         }
@@ -747,7 +749,7 @@ pub fn decode_frame(
                 let message = String::from_utf8_lossy(payload).to_string();
                 tracing::warn!(message = %message, "server error");
                 (
-                    Some(FpssEventInternal::Control(FpssControl::ServerError {
+                    Some(FpssEventInternal::Control(StreamControl::ServerError {
                         message,
                     })),
                     None,
@@ -774,7 +776,7 @@ pub fn decode_frame(
             }
 
             (
-                Some(FpssEventInternal::Control(FpssControl::Disconnected {
+                Some(FpssEventInternal::Control(StreamControl::Disconnected {
                     reason,
                 })),
                 None,
@@ -784,13 +786,13 @@ pub fn decode_frame(
         // Known server→client control frames. Each of these previously
         // fell through to `UnknownFrame`, leaving consumers to filter
         // noise they did not ask for. Each now maps to its own typed
-        // `FpssControl` variant so downstream code can match directly.
+        // `StreamControl` variant so downstream code can match directly.
         StreamMsgType::Connected => {
             // Code 4: connection ack. Logs "connected" and returns — no
             // side effects other than acknowledging the transition.
             tracing::debug!("FPSS server CONNECTED frame received");
             (
-                Some(FpssEventInternal::Control(FpssControl::Connected)),
+                Some(FpssEventInternal::Control(StreamControl::Connected)),
                 None,
             )
         }
@@ -802,7 +804,7 @@ pub fn decode_frame(
             // raw payload for diagnostics so anomalous heartbeats can be
             // inspected after-the-fact.
             (
-                Some(FpssEventInternal::Control(FpssControl::Ping {
+                Some(FpssEventInternal::Control(StreamControl::Ping {
                     payload: payload.to_vec(),
                 })),
                 None,
@@ -811,14 +813,14 @@ pub fn decode_frame(
 
         StreamMsgType::Reconnected => {
             // Code 13: server-side reconnect ack. Distinct from
-            // `FpssControl::Reconnected` which the client emits when its
+            // `StreamControl::Reconnected` which the client emits when its
             // own auto-reconnect state machine completes. Both can be
             // observed in the same session — e.g. a client-side
             // reconnect produces `Reconnected`, while a transparent
             // server-side reconnect produces `ReconnectedServer`.
             tracing::debug!("FPSS server RECONNECTED frame received");
             (
-                Some(FpssEventInternal::Control(FpssControl::ReconnectedServer)),
+                Some(FpssEventInternal::Control(StreamControl::ReconnectedServer)),
                 None,
             )
         }
@@ -834,7 +836,10 @@ pub fn decode_frame(
             tracing::info!("FPSS server RESTART frame received");
             delta_state.clear();
             local_contracts.clear();
-            (Some(FpssEventInternal::Control(FpssControl::Restart)), None)
+            (
+                Some(FpssEventInternal::Control(StreamControl::Restart)),
+                None,
+            )
         }
 
         // Emit unrecognized frame codes as UnknownFrame events with raw
@@ -843,7 +848,7 @@ pub fn decode_frame(
         other => {
             tracing::warn!(code = ?other, payload_len = payload.len(), "unrecognized FPSS frame code");
             (
-                Some(FpssEventInternal::Control(FpssControl::UnknownFrame {
+                Some(FpssEventInternal::Control(StreamControl::UnknownFrame {
                     code: other as u8,
                     payload: payload.to_vec(),
                 })),
@@ -856,7 +861,7 @@ pub fn decode_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fpss::FpssEvent;
+    use crate::fpss::StreamEvent;
 
     // -----------------------------------------------------------------------
     // FIT encoding helpers for trade mapping tests
@@ -918,7 +923,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// Drive `decode_frame` with a synthetic FIT-encoded `Trade` frame
-    /// and assert on the resulting `FpssEvent::Data(FpssData::Trade{..})`.
+    /// and assert on the resulting `StreamEvent::Data(StreamData::Trade{..})`.
     /// Asserting on the production decode-entry point pins the
     /// integration contract (FIT decode + tick-buffer -> field
     /// extraction + Arc<Contract> resolution + Price reassembly) rather
@@ -967,7 +972,7 @@ mod tests {
         let evt = primary.expect("decode_frame must emit a primary Trade event");
         let public = expect_public(&evt);
         match public {
-            FpssEvent::Data(FpssData::Trade {
+            StreamEvent::Data(StreamData::Trade {
                 contract,
                 ms_of_day,
                 sequence,
@@ -1009,7 +1014,7 @@ mod tests {
                 assert_eq!(*volume_type, 0);
                 assert_eq!(*records_back, 0);
             }
-            other => panic!("expected FpssEvent::Data(Trade), got {other:?}"),
+            other => panic!("expected StreamEvent::Data(Trade), got {other:?}"),
         }
     }
 
@@ -1018,7 +1023,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// 16-field production trade layout — drives `decode_frame` so the
-    /// FIT decode + every field on the public `FpssData::Trade` variant
+    /// FIT decode + every field on the public `StreamData::Trade` variant
     /// (including the extended-condition + flag fields the 8-field
     /// layout zeroes out) is asserted against the real decode path
     /// rather than a hand-copied mapping.
@@ -1069,7 +1074,7 @@ mod tests {
         let evt = primary.expect("decode_frame must emit a primary Trade event");
         let public = expect_public(&evt);
         match public {
-            FpssEvent::Data(FpssData::Trade {
+            StreamEvent::Data(StreamData::Trade {
                 contract,
                 ms_of_day,
                 sequence,
@@ -1135,18 +1140,18 @@ mod tests {
     }
 
     /// Reborrow a primary `FpssEventInternal` from `decode_frame` as a
-    /// public `&FpssEvent` for assertions, panicking on the
+    /// public `&StreamEvent` for assertions, panicking on the
     /// internal-only variants the tests do not expect.
-    fn expect_public(evt: &FpssEventInternal) -> &FpssEvent {
+    fn expect_public(evt: &FpssEventInternal) -> &StreamEvent {
         evt.as_public()
-            .expect("decode_frame primary event must reborrow as &FpssEvent")
+            .expect("decode_frame primary event must reborrow as &StreamEvent")
     }
 
     #[test]
     fn decode_code_4_connected_emits_typed_variant() {
         let evt = decode_ctrl(StreamMsgType::Connected, &[]);
         match expect_public(&evt) {
-            FpssEvent::Control(FpssControl::Connected) => {}
+            StreamEvent::Control(StreamControl::Connected) => {}
             other => panic!("expected Control(Connected), got {other:?}"),
         }
     }
@@ -1156,7 +1161,7 @@ mod tests {
         // Observed on production FPSS streams: 1-byte payload `[0]`.
         let evt = decode_ctrl(StreamMsgType::Ping, &[0u8]);
         match expect_public(&evt) {
-            FpssEvent::Control(FpssControl::Ping { payload }) => {
+            StreamEvent::Control(StreamControl::Ping { payload }) => {
                 assert_eq!(payload.as_slice(), &[0u8]);
             }
             other => panic!("expected Control(Ping), got {other:?}"),
@@ -1167,7 +1172,7 @@ mod tests {
     fn decode_code_13_reconnected_server_emits_typed_variant() {
         let evt = decode_ctrl(StreamMsgType::Reconnected, &[]);
         match expect_public(&evt) {
-            FpssEvent::Control(FpssControl::ReconnectedServer) => {}
+            StreamEvent::Control(StreamControl::ReconnectedServer) => {}
             other => panic!("expected Control(ReconnectedServer), got {other:?}"),
         }
     }
@@ -1197,7 +1202,7 @@ mod tests {
         );
         let primary_internal = primary.expect("Restart must emit a primary event");
         match expect_public(&primary_internal) {
-            FpssEvent::Control(FpssControl::Restart) => {}
+            StreamEvent::Control(StreamControl::Restart) => {}
             other => panic!("expected Control(Restart), got {other:?}"),
         }
         assert!(
@@ -1240,7 +1245,7 @@ mod tests {
 
         let primary_internal = primary.expect("ContractAssigned must emit a primary event");
         let assigned_arc: Arc<Contract> = match expect_public(&primary_internal) {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
+            StreamEvent::Control(StreamControl::ContractAssigned { id, contract }) => {
                 assert_eq!(*id, 777);
                 assert_eq!(&*contract.symbol, "AAPL");
                 // The Arc inside the event and the Arc in the thread-local
@@ -1262,7 +1267,7 @@ mod tests {
             other => panic!("expected Control(ContractAssigned), got {other:?}"),
         };
 
-        // Every FpssData event decoded after the assignment must carry
+        // Every StreamData event decoded after the assignment must carry
         // an Arc<Contract> pointing at that same heap allocation. Verify
         // via the resolve_contract helper path (quote frame).
         //
@@ -1302,7 +1307,7 @@ mod tests {
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
-            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+            StreamEvent::Data(StreamData::Quote { contract, .. }) => {
                 assert_eq!(&*contract.symbol, "AAPL");
                 // Arc::ptr_eq proves both events share the SAME heap
                 // allocation — `assert_eq!(contract.symbol, "AAPL")` alone
@@ -1368,7 +1373,7 @@ mod tests {
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
-            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+            StreamEvent::Data(StreamData::Quote { contract, .. }) => {
                 // The type-safe sentinel check: sec_type is Unknown,
                 // not Stock. Consumers no longer have to rely on
                 // `root.is_empty()` to detect the pre-ContractAssigned
@@ -1382,7 +1387,7 @@ mod tests {
                 // under the `__pending:` prefix so downstream consumers
                 // (notably the WS bridge) can surface the diagnostic
                 // without re-introducing the wire id on the public
-                // `FpssData` surface.
+                // `StreamData` surface.
                 assert_eq!(
                     &*contract.symbol, "__pending:999",
                     "unresolved sentinel must encode the wire id under \
@@ -1405,7 +1410,7 @@ mod tests {
         // so post-hoc trace inspection catches anomalous heartbeats.
         let evt = decode_ctrl(StreamMsgType::Ping, &[0u8, 1u8, 2u8]);
         match expect_public(&evt) {
-            FpssEvent::Control(FpssControl::Ping { payload }) => {
+            StreamEvent::Control(StreamControl::Ping { payload }) => {
                 assert_eq!(payload.as_slice(), &[0u8, 1u8, 2u8]);
             }
             other => panic!("expected Control(Ping), got {other:?}"),
@@ -1442,7 +1447,7 @@ mod tests {
         );
         let primary_internal = primary.expect("Restart must emit a primary event");
         match expect_public(&primary_internal) {
-            FpssEvent::Control(FpssControl::Restart) => {}
+            StreamEvent::Control(StreamControl::Restart) => {}
             other => panic!("expected Control(Restart), got {other:?}"),
         }
         assert!(
@@ -1487,7 +1492,7 @@ mod tests {
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
-            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+            StreamEvent::Data(StreamData::Quote { contract, .. }) => {
                 assert_eq!(
                     contract.sec_type,
                     crate::tdbe::types::enums::SecType::Unknown,
@@ -1691,7 +1696,7 @@ mod tests {
         );
         assert!(secondary.is_none());
         match primary {
-            Some(FpssEventInternal::Data(FpssData::Ohlcvc { volume, count, .. })) => {
+            Some(FpssEventInternal::Data(StreamData::Ohlcvc { volume, count, .. })) => {
                 assert_eq!(volume, 2_225_611_194_i64, "volume must decode as unsigned");
                 assert_eq!(count, 2_286_840_317_i64, "count must decode as unsigned");
             }
@@ -1829,7 +1834,7 @@ mod tests {
 
     /// Drive the full `decode_frame` pipeline with a synthetic FIT
     /// MARKET_VALUE frame (same 11-field quote layout) and assert the
-    /// emitted `FpssData::MarketValue` carries the calculated bid/ask/price
+    /// emitted `StreamData::MarketValue` carries the calculated bid/ask/price
     /// reassembled to dollars via the same `Price` path as every other tick.
     #[test]
     fn decode_frame_market_value_emits_calculated_fields() {
@@ -1871,7 +1876,7 @@ mod tests {
         );
         let evt = primary.expect("decode_frame must emit a primary MarketValue event");
         match expect_public(&evt) {
-            FpssEvent::Data(FpssData::MarketValue {
+            StreamEvent::Data(StreamData::MarketValue {
                 contract,
                 ms_of_day,
                 market_bid,
@@ -1942,7 +1947,7 @@ mod tests {
         );
         let evt = primary.expect("in-range Quote frame must emit a primary event");
         match expect_public(&evt) {
-            FpssEvent::Data(FpssData::Quote { bid, ask, .. }) => {
+            StreamEvent::Data(StreamData::Quote { bid, ask, .. }) => {
                 assert!((*bid - Price::new(15_025, 8).to_f64()).abs() < f64::EPSILON);
                 assert!((*ask - Price::new(15_030, 8).to_f64()).abs() < f64::EPSILON);
             }

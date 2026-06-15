@@ -117,7 +117,7 @@ def test_historical_releases_gil() -> None:
 
     creds = td.Credentials.from_file(os.environ["THETADX_TEST_CREDS"])
     config = td.Config.production()
-    client = td.ThetaDataDxClient(creds, config)
+    client = td.Client(creds, config)
 
     # Use a same-day stock snapshot to keep the wire payload small and
     # the per-call wall clock dominated by the network round-trip and

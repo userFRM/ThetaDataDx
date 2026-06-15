@@ -14,17 +14,17 @@ Every streaming update reaches your callback as one typed event. There are four 
 <template #rust>
 
 ```rust
-use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};
 
-tdx.start_streaming(|event: &FpssEvent| {
+tdx.start_streaming(|event: &StreamEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+        StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) => {
             println!("{} bid={bid} ask={ask}", contract.symbol);
         }
-        FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+        StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) => {
             println!("{} {price} x {size}", contract.symbol);
         }
-        FpssEvent::Control(FpssControl::Disconnected { .. }) => {
+        StreamEvent::Control(StreamControl::Disconnected { .. }) => {
             eprintln!("disconnected; automatic reconnect underway");
         }
         _ => {}
@@ -82,7 +82,7 @@ tdx.startStreaming((event) => {
 <template #cpp>
 
 ```cpp
-client.set_callback([](const tdx::FpssEvent& event) {
+client.set_callback([](const thetadatadx::StreamEvent& event) {
     switch (event.kind) {
     case TDX_FPSS_QUOTE: {
         auto& q = event.quote;

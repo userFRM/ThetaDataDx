@@ -1,13 +1,13 @@
 //! Shared application state for the REST + WebSocket server.
 //!
-//! Holds the unified `ThetaDataDxClient` client, connection flags, per-client
+//! Holds the unified `Client` client, connection flags, per-client
 //! WebSocket channels, and shutdown plumbing. All fields are `Send + Sync`
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use thetadatadx::ThetaDataDxClient;
+use thetadatadx::Client;
 use tokio::sync::{mpsc, RwLock};
 
 /// Constant-time byte-slice equality.
@@ -49,8 +49,8 @@ pub struct AppState {
 }
 
 struct Inner {
-    /// Unified client (historical via Deref to MddsClient, streaming via start_streaming).
-    tdx: ThetaDataDxClient,
+    /// Unified client (historical via Deref to HistoricalClient, streaming via start_streaming).
+    tdx: Client,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,
     /// Whether FPSS is connected (set by the FPSS bridge callback).
@@ -79,8 +79,8 @@ struct Inner {
 }
 
 impl AppState {
-    /// Create new app state wrapping a connected `ThetaDataDxClient`.
-    pub fn new(tdx: ThetaDataDxClient, shutdown_token: String) -> Self {
+    /// Create new app state wrapping a connected `Client`.
+    pub fn new(tdx: Client, shutdown_token: String) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tdx,
@@ -113,8 +113,8 @@ impl AppState {
         self.inner.fpss_broadcast_dropped.load(Ordering::Relaxed)
     }
 
-    /// Borrow the unified `ThetaDataDxClient` client.
-    pub fn tdx(&self) -> &ThetaDataDxClient {
+    /// Borrow the unified `Client` client.
+    pub fn tdx(&self) -> &Client {
         &self.inner.tdx
     }
 
@@ -278,7 +278,7 @@ mod tests {
 
     /// Stand-in for the `Inner.ws_session` slot so the begin/end
     /// semantics can be pinned without constructing a live
-    /// `ThetaDataDxClient`. Mirrors `AppState::begin_ws_session` /
+    /// `Client`. Mirrors `AppState::begin_ws_session` /
     /// `end_ws_session` exactly.
     struct SessionSlot(std::sync::Mutex<Option<Arc<tokio::sync::Notify>>>);
 

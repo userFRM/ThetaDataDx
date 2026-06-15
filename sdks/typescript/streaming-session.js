@@ -1,6 +1,6 @@
 /**
  * `await using session = await tdx.streaming(callback)` (TC39 explicit
- * resource management) wrapper for the ThetaDataDxClient FPSS streaming
+ * resource management) wrapper for the Client FPSS streaming
  * lifecycle.
  *
  * On `[Symbol.asyncDispose]`, `stopStreaming()` is called and then the
@@ -9,11 +9,11 @@
  * before the JS callback closure can be released. This mirrors the
  * C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
  *
- * Every public method on `ThetaDataDxClient` (subscribe_*,
+ * Every public method on `Client` (subscribe_*,
  * unsubscribe_*, activeSubscriptions, droppedEventCount, reconnect,
  * ...) is reachable on the session via a `Proxy` `get` trap. There is
  * no hand-listed mirror of subscription methods here -- adding a new
- * method to the napi-rs `ThetaDataDxClient` makes it callable through the
+ * method to the napi-rs `Client` makes it callable through the
  * session automatically, with zero drift surface.
  *
  * Loaded as the package's CommonJS entry point (`main` in
@@ -194,18 +194,18 @@ const EXIT_DRAIN_TIMEOUT_MS = 5000;
 
 // Wrapper-defined member names. Lookups for these resolve on the
 // session itself; everything else proxies to the underlying
-// `ThetaDataDxClient`. Symbol.asyncDispose is included so `await using`
+// `Client`. Symbol.asyncDispose is included so `await using`
 // finds the wrapper's dispose, not anything on the native binding.
 const WRAPPER_OWN = new Set(['_tdx', 'constructor']);
 
 class StreamingSession {
   /**
-   * Construct a session bound to a `ThetaDataDxClient` instance. Returns a
+   * Construct a session bound to a `Client` instance. Returns a
    * Proxy that forwards every unknown attribute access to the
    * underlying instance, so adding a `subscribe_X` method to the napi
    * binding makes it callable through the session with no drift.
    *
-   * @param {InstanceType<typeof native.ThetaDataDxClient>} tdx
+   * @param {InstanceType<typeof native.Client>} tdx
    * @returns {StreamingSession}
    */
   constructor(tdx) {
@@ -214,7 +214,7 @@ class StreamingSession {
       get(target, prop, receiver) {
         // Wrapper-defined members (Symbol.asyncDispose, _tdx,
         // constructor) take precedence; everything else forwards to
-        // the underlying ThetaDataDxClient instance.
+        // the underlying Client instance.
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) {
           return Reflect.get(target, prop, receiver);
         }
@@ -260,7 +260,7 @@ class StreamingSession {
     const drained = await this._tdx.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
     if (!drained) {
       console.warn(
-        `ThetaDataDxClient streaming drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+        `Client streaming drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
           'consumer callback may still be firing. The JS callback closure ' +
           'will remain referenced until the consumer exits.',
       );
@@ -269,15 +269,15 @@ class StreamingSession {
 }
 
 // Monkey-patch `streaming(callback)` onto the napi-generated
-// `ThetaDataDxClient` class. Returning a `Promise<StreamingSession>` matches
+// `Client` class. Returning a `Promise<StreamingSession>` matches
 // the spec example (`await using session = await tdx.streaming(cb)`)
 // and leaves room for an async startup path in the future without an
 // API break.
 if (
-  native.ThetaDataDxClient &&
-  typeof native.ThetaDataDxClient.prototype.streaming !== 'function'
+  native.Client &&
+  typeof native.Client.prototype.streaming !== 'function'
 ) {
-  native.ThetaDataDxClient.prototype.streaming = async function streaming(callback) {
+  native.Client.prototype.streaming = async function streaming(callback) {
     this.startStreaming(callback);
     return new StreamingSession(this);
   };
@@ -352,7 +352,7 @@ function wrapInstanceMethods(klass) {
 
 // Re-expose a native class through a thin subclass whose static methods
 // carry the typed-error interceptor. napi-rs seals factory statics
-// (`ThetaDataDxClient.connectFromFile`, `Contract.option`, ...) as
+// (`Client.connectFromFile`, `Contract.option`, ...) as
 // non-writable, non-configurable own props, so they cannot be patched
 // in place; a subclass owns fresh static slots that shadow them while
 // inheriting everything else. Each wrapped static invokes the native

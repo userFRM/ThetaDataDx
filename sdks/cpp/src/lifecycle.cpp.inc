@@ -18,15 +18,15 @@ Config Config::dev() { return Config(tdx_config_dev()); }
 
 Config Config::stage() { return Config(tdx_config_stage()); }
 
-MddsClient MddsClient::connect(const Credentials& creds, const Config& config) {
-    auto h = tdx_mdds_client_connect(creds.get(), config.get());
+HistoricalClient HistoricalClient::connect(const Credentials& creds, const Config& config) {
+    auto h = tdx_historical_connect(creds.get(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return MddsClient(h);
+    return HistoricalClient(h);
 }
 
-MddsClient MddsClient::from_file(const std::string& path, const Config& config) {
-    auto h = tdx_mdds_client_connect_from_file(path.c_str(), config.get());
+HistoricalClient HistoricalClient::from_file(const std::string& path, const Config& config) {
+    auto h = tdx_historical_connect_from_file(path.c_str(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return MddsClient(h);
+    return HistoricalClient(h);
 }
 

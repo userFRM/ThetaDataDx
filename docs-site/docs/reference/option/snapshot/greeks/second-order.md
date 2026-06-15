@@ -44,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_snapshot_greeks_second_order(
+Client.option_snapshot_greeks_second_order(
     symbol, expiration,
     *,
     strike=None, right=None, annual_dividend=None, rate_type=None,
@@ -100,13 +100,13 @@ std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_annual_dividend(...)`, `.with_rate_type(...)`, `.with_rate_value(...)`, `.with_stock_price(...)`, `.with_version(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_min_time(...)`, `.with_use_market_value(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_annual_dividend(...)`, `.with_rate_type(...)`, `.with_rate_value(...)`, `.with_stock_price(...)`, `.with_version(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_min_time(...)`, `.with_use_market_value(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_snapshot_greeks_second_order("SPY", "20250321",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.gamma << ' ' << t.vanna << ' ' << t.charm << "\n";
 }

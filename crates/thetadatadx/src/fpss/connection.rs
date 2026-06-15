@@ -56,7 +56,7 @@ pub(crate) struct TcpKeepaliveSpec {
     pub retries: u32,
 }
 
-/// Parameter bundle for [`super::FpssClient::connect_with_stream`].
+/// Parameter bundle for [`super::StreamingClient::connect_with_stream`].
 ///
 /// Carries every connection-side knob plus the user callback. Bundled
 /// into a struct so the call site stays linear instead of as a

@@ -1,14 +1,14 @@
-//! gRPC response-stream helpers on [`MddsClient`].
+//! gRPC response-stream helpers on [`HistoricalClient`].
 //!
 //! MDDS RPCs are server-streaming: each call yields a
 //! [`crate::grpc::ServerStreaming`] of `ResponseData` messages whose
 //! payloads are zstd-compressed `DataTable` chunks. Two collection
 //! strategies are provided:
 //!
-//! - [`collect_stream`](MddsClient::collect_stream) (crate-private) — drains
+//! - [`collect_stream`](HistoricalClient::collect_stream) (crate-private) — drains
 //!   the stream into a single merged `DataTable`. Used by the generated list
 //!   and parsed endpoint macros where the caller expects a finite result.
-//! - [`for_each_chunk`](MddsClient::for_each_chunk) (public) — streams each
+//! - [`for_each_chunk`](HistoricalClient::for_each_chunk) (public) — streams each
 //!   chunk into a caller-supplied closure without materializing every row.
 //!   Used by the generated streaming builders and public enough for callers
 //!   processing multi-million-row responses.
@@ -20,9 +20,9 @@ use crate::error::Error;
 use crate::grpc::ServerStreaming;
 use crate::proto;
 
-use super::client::MddsClient;
+use super::client::HistoricalClient;
 
-impl MddsClient {
+impl HistoricalClient {
     /// Collect all streamed `ResponseData` chunks into a single `DataTable`.
     ///
     /// MDDS returns server-streaming responses where each chunk is a zstd-
@@ -108,7 +108,7 @@ impl MddsClient {
     ///
     /// ```rust,ignore
     /// // `ignore` here because the example needs a live authenticated
-    /// // `MddsClient` to open a server-streaming gRPC channel — no
+    /// // `HistoricalClient` to open a server-streaming gRPC channel — no
     /// // in-process fixture can stand in.
     /// let request = /* build your gRPC request */;
     /// // Bind the channel lease so its pre-dispatch reservation

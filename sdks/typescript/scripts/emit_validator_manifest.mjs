@@ -25,7 +25,7 @@
 //    `export interface X { ... }` block (the tick types and FPSS
 //    event payloads).
 // 3. Walk every `methodName(...): Array<X> | X` declaration on
-//    `ThetaDataDxClient` and record `{ method, returnType, fields }`.
+//    `Client` and record `{ method, returnType, fields }`.
 // 4. Project a representative sub-set of methods (chosen to mirror the
 //    "shape drift is most painful" methods called out by the cross-language agreement
 //    spec) into the artifact's `records` shape so the existing
@@ -46,7 +46,7 @@ const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const DTS_PATH = path.join(REPO_ROOT, 'sdks', 'typescript', 'index.d.ts');
 const ARTIFACT_PATH = path.join(REPO_ROOT, 'artifacts', 'validator_typescript.json');
 
-// Per-method projection: which `ThetaDataDxClient` methods feed into which
+// Per-method projection: which `Client` methods feed into which
 // `(endpoint, mode)` agreement cell. Mirrors the cells that the
 // Python / CLI / C++ validators populate so the Python diff engine
 // can pair them up. Restricted to the high-signal endpoints
@@ -122,7 +122,7 @@ function parseInterfaces(source) {
 }
 
 function parseMethods(source) {
-  // Find `methodName(...): ReturnType` declarations on `ThetaDataDxClient`.
+  // Find `methodName(...): ReturnType` declarations on `Client`.
   // The class block is large; we scope the parse to its braces so
   // helper class methods on `FlatFilesNamespace` etc. don't leak in.
   const lines = source.split('\n');
@@ -131,7 +131,7 @@ function parseMethods(source) {
   let depth = 0;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith('export declare class ThetaDataDxClient')) {
+    if (trimmed.startsWith('export declare class Client')) {
       inClass = true;
       depth = 1;
       continue;

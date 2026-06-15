@@ -237,9 +237,9 @@ pub struct ReconnectConfig {
     /// [`Self::jitter`]. Default `250`.
     ///
     /// Plumbed into the FPSS I/O loop through
-    /// [`crate::fpss::FpssClientBuilder::reconnect_wait_ms`] at
-    /// [`crate::ThetaDataDxClient::start_streaming`] /
-    /// [`crate::ThetaDataDxClient::reconnect_streaming`] connect time.
+    /// [`crate::fpss::StreamingClientBuilder::reconnect_wait_ms`] at
+    /// [`crate::Client::start_streaming`] /
+    /// [`crate::Client::reconnect_streaming`] connect time.
     pub wait_ms: u64,
 
     /// Upper bound (ms) on the exponential generic-transient reconnect

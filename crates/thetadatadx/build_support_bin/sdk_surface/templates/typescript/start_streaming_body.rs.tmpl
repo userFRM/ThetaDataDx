@@ -5,7 +5,7 @@
         // registration cleanly.
         let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         // Reject double-registration with a clear napi error. The
-        // underlying `ThetaDataDxClient::start_streaming` would also error,
+        // underlying `Client::start_streaming` would also error,
         // but matching the napi binding's own state first gives a
         // language-idiomatic message.
         if cb_guard.is_some() {
@@ -14,7 +14,7 @@
             ));
         }
         // Bind the callback behind a cheap `Arc` so the FPSS callback
-        // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
+        // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
         // is `Send + Sync` but does not implement `Clone` in napi-rs
         // 3.x — the outer `Arc` is the canonical way to share the
@@ -23,8 +23,8 @@
         let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
-            .start_streaming(move |event: &fpss::FpssEvent| {
-                // Convert to the typed `FpssEvent` napi object on the
+            .start_streaming(move |event: &fpss::StreamEvent| {
+                // Convert to the typed `StreamEvent` napi object on the
                 // dispatcher thread, then hand the value
                 // to `ThreadsafeFunction::call`. napi-rs' internal
                 // `uv_async_t` queue routes the call onto the Node

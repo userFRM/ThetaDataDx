@@ -37,7 +37,7 @@ for value in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.index_list_dates(symbol, *, timeout_ms=None) -> StringList
+Client.index_list_dates(symbol, *, timeout_ms=None) -> StringList
 ```
 
 `index_list_dates_async(...)` awaits the same call shape.
@@ -79,7 +79,7 @@ std::vector<std::string> index_list_dates(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

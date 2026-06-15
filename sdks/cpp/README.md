@@ -54,9 +54,9 @@ cmake --build build/cpp --config Release --target thetadatadx_cpp
 #include <cstdio>
 
 int main() {
-    auto client = tdx::MddsClient::connect(
-        tdx::Credentials::from_file("creds.txt"),
-        tdx::Config::production());
+    auto client = thetadatadx::HistoricalClient::connect(
+        thetadatadx::Credentials::from_file("creds.txt"),
+        thetadatadx::Config::production());
 
     // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
     auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
@@ -82,27 +82,27 @@ auto exps   = client.option_list_expirations("SPY");
 
 ## Streaming
 
-Real-time streaming uses a dedicated `tdx::FpssClient` — separate from the historical `MddsClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
+Real-time streaming uses a dedicated `thetadatadx::StreamingClient` — separate from the historical `HistoricalClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
 
 ```cpp
 #include <thetadx.hpp>
 #include <cstdio>
 
 int main() {
-    auto creds  = tdx::Credentials::from_file("creds.txt");
-    auto config = tdx::Config::production();
+    auto creds  = thetadatadx::Credentials::from_file("creds.txt");
+    auto config = thetadatadx::Config::production();
 
-    tdx::FpssClient fpss(creds, config);
+    thetadatadx::StreamingClient fpss(creds, config);
     auto format_contract = [](const auto& contract) {
         std::ostringstream out;
         out << (contract.symbol ? contract.symbol : "<pending>");
         if (contract.has_expiration) out << ' ' << contract.expiration;
-        if (auto strike = tdx::strike(contract)) out << ' ' << *strike;
-        if (auto right = tdx::right(contract)) out << ' ' << *right;
+        if (auto strike = thetadatadx::strike(contract)) out << ' ' << *strike;
+        if (auto right = thetadatadx::right(contract)) out << ' ' << *right;
         return out.str();
     };
 
-    fpss.set_callback([format_contract](const tdx::FpssEvent& event) {
+    fpss.set_callback([format_contract](const thetadatadx::StreamEvent& event) {
         switch (event.kind) {
             case TDX_FPSS_TRADE:
                 std::cout << format_contract(event.trade.contract)
@@ -131,8 +131,8 @@ int main() {
     });
 
     // Fluent contract-first subscriptions.
-    auto stock  = tdx::Contract::stock("AAPL");
-    auto option = tdx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"});
+    auto stock  = thetadatadx::Contract::stock("AAPL");
+    auto option = thetadatadx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"});
 
     fpss.subscribe(stock.quote());
     fpss.subscribe_many({option.quote(), option.trade()});
@@ -146,13 +146,13 @@ int main() {
 Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup:
 
 ```cpp
-fpss.subscribe(tdx::SecType::option().full_trades());   // the callback runs per event — keep it fast
+fpss.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
 ```
 
 > [!TIP]
 > On an involuntary disconnect the client recovers on its own — exponential
 > backoff with jitter, host failover, then a paced re-subscribe of every active
-> contract. `FpssClient` is non-copyable but movable, and its destructor stops
+> contract. `StreamingClient` is non-copyable but movable, and its destructor stops
 > the stream and waits for the callback to quiesce before returning.
 
 ## Greeks calculator
@@ -160,22 +160,22 @@ fpss.subscribe(tdx::SecType::option().full_trades());   // the callback runs per
 A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver — runs locally, no connection required:
 
 ```cpp
-auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
+auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
 std::printf("IV=%.4f delta=%.4f gamma=%.6f vega=%.4f\n", g.iv, g.delta, g.gamma, g.vega);
 
-auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
+auto [iv, err] = thetadatadx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
 ```
 
 `right` accepts `"C"` / `"P"` or `"call"` / `"put"` (case-insensitive).
 
 ## Flat files
 
-Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `tdx::ThetaDataDxClient`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
+Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `thetadatadx::Client`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
 
 ```cpp
-auto unified = tdx::ThetaDataDxClient::connect(
-    tdx::Credentials::from_file("creds.txt"),
-    tdx::Config::production());
+auto unified = thetadatadx::Client::connect(
+    thetadatadx::Credentials::from_file("creds.txt"),
+    thetadatadx::Config::production());
 
 auto rows = unified.flat_files().option_quote("20260428");
 auto ipc  = rows.to_arrow_ipc();              // std::vector<uint8_t>, Arrow IPC stream
@@ -187,7 +187,7 @@ auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
 unified.flat_files().to_path("OPTION", "QUOTE", "20260428", "/tmp/option-quote", "csv");
 ```
 
-Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `tdx::MddsClient` remains the historical-only entry point; `tdx::ThetaDataDxClient` adds streaming and flat files on the same connection.
+Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
 
 ## Endpoint coverage
 
@@ -201,7 +201,7 @@ Available `flat_files().*` methods: `option_quote`, `option_trade`, `option_trad
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every historical endpoint is a method on `tdx::MddsClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every historical endpoint is a method on `thetadatadx::HistoricalClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

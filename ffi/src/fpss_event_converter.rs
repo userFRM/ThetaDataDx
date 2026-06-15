@@ -2,13 +2,13 @@
 // FPSS event → FFI buffered-event converter. `include!`'d from
 // `ffi/src/lib.rs` after `FfiBufferedEvent` is in scope.
 
-pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
-    use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
+pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBufferedEvent {
+    use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};
 
     fn unknown_control_event() -> FfiBufferedEvent {
         FfiBufferedEvent {
-            event: TdxFpssEvent {
-                kind: TdxFpssEventKind::UnknownControl,
+            event: TdxStreamEvent {
+                kind: TdxStreamEventKind::UnknownControl,
                 unknown_control: ZERO_UNKNOWN_CONTROL,
                 market_value: ZERO_MARKET_VALUE,
                 ohlcvc: ZERO_OHLCVC,
@@ -40,7 +40,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
     }
 
     match event {
-        FpssEvent::Data(FpssData::MarketValue {
+        StreamEvent::Data(StreamData::MarketValue {
             contract,
             ms_of_day,
             market_bid,
@@ -69,9 +69,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::MarketValue,
-                    market_value: TdxFpssMarketValue {
+                event: TdxStreamEvent {
+                    kind: TdxStreamEventKind::MarketValue,
+                    market_value: TdxStreamMarketValue {
                         contract: tdx_contract,
                         ms_of_day: *ms_of_day,
                         market_bid: *market_bid,
@@ -109,7 +109,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             }
         }
 
-        FpssEvent::Data(FpssData::Ohlcvc {
+        StreamEvent::Data(StreamData::Ohlcvc {
             contract,
             ms_of_day,
             open,
@@ -141,9 +141,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::Ohlcvc,
-                    ohlcvc: TdxFpssOhlcvc {
+                event: TdxStreamEvent {
+                    kind: TdxStreamEventKind::Ohlcvc,
+                    ohlcvc: TdxStreamOhlcvc {
                         contract: tdx_contract,
                         ms_of_day: *ms_of_day,
                         open: *open,
@@ -184,7 +184,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             }
         }
 
-        FpssEvent::Data(FpssData::OpenInterest {
+        StreamEvent::Data(StreamData::OpenInterest {
             contract,
             ms_of_day,
             open_interest,
@@ -211,9 +211,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::OpenInterest,
-                    open_interest: TdxFpssOpenInterest {
+                event: TdxStreamEvent {
+                    kind: TdxStreamEventKind::OpenInterest,
+                    open_interest: TdxStreamOpenInterest {
                         contract: tdx_contract,
                         ms_of_day: *ms_of_day,
                         open_interest: *open_interest,
@@ -249,7 +249,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             }
         }
 
-        FpssEvent::Data(FpssData::Quote {
+        StreamEvent::Data(StreamData::Quote {
             contract,
             ms_of_day,
             bid_size,
@@ -283,9 +283,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::Quote,
-                    quote: TdxFpssQuote {
+                event: TdxStreamEvent {
+                    kind: TdxStreamEventKind::Quote,
+                    quote: TdxStreamQuote {
                         contract: tdx_contract,
                         ms_of_day: *ms_of_day,
                         bid_size: *bid_size,
@@ -328,7 +328,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             }
         }
 
-        FpssEvent::Data(FpssData::Trade {
+        StreamEvent::Data(StreamData::Trade {
             contract,
             ms_of_day,
             sequence,
@@ -367,9 +367,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 strike: contract.strike_dollars().unwrap_or(0.0),
             };
             FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::Trade,
-                    trade: TdxFpssTrade {
+                event: TdxStreamEvent {
+                    kind: TdxStreamEventKind::Trade,
+                    trade: TdxStreamTrade {
                         contract: tdx_contract,
                         ms_of_day: *ms_of_day,
                         sequence: *sequence,
@@ -417,12 +417,12 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             }
         }
 
-        FpssEvent::Control(ctrl) => match ctrl {
-            FpssControl::Connected => {
+        StreamEvent::Control(ctrl) => match ctrl {
+            StreamControl::Connected => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Connected,
-                        connected: TdxFpssConnected {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Connected,
+                        connected: TdxStreamConnected {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -453,7 +453,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::ContractAssigned { id, contract } => {
+            StreamControl::ContractAssigned { id, contract } => {
                 let contract_symbol_cstring = if contract.symbol.is_empty() {
                     None
                 } else {
@@ -473,9 +473,9 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     strike: contract.strike_dollars().unwrap_or(0.0),
                 };
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ContractAssigned,
-                        contract_assigned: TdxFpssContractAssigned {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ContractAssigned,
+                        contract_assigned: TdxStreamContractAssigned {
                             id: *id,
                             contract: tdx_contract,
                         },
@@ -507,11 +507,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::Disconnected { reason } => {
+            StreamControl::Disconnected { reason } => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Disconnected,
-                        disconnected: TdxFpssDisconnected {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Disconnected,
+                        disconnected: TdxStreamDisconnected {
                             reason: *reason as i32,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -542,13 +542,13 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::LoginSuccess { permissions } => {
+            StreamControl::LoginSuccess { permissions } => {
                 let cstring_owned = std::ffi::CString::new(permissions.as_str()).ok();
                 let permissions_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::LoginSuccess,
-                        login_success: TdxFpssLoginSuccess {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::LoginSuccess,
+                        login_success: TdxStreamLoginSuccess {
                             permissions: permissions_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -579,11 +579,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::MarketClose => {
+            StreamControl::MarketClose => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::MarketClose,
-                        market_close: TdxFpssMarketClose {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::MarketClose,
+                        market_close: TdxStreamMarketClose {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -614,11 +614,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::MarketOpen => {
+            StreamControl::MarketOpen => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::MarketOpen,
-                        market_open: TdxFpssMarketOpen {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::MarketOpen,
+                        market_open: TdxStreamMarketOpen {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -649,13 +649,13 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::Error { message } => {
+            StreamControl::Error { message } => {
                 let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ParseError,
-                        parse_error: TdxFpssParseError {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ParseError,
+                        parse_error: TdxStreamParseError {
                             message: message_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -686,14 +686,14 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::Ping { payload } => {
+            StreamControl::Ping { payload } => {
                 let bytes_owned = payload.clone();
                 let payload_ptr = bytes_owned.as_ptr();
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Ping,
-                        ping: TdxFpssPing {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Ping,
+                        ping: TdxStreamPing {
                             payload: payload_ptr,
                             payload_len: payload_len_val,
                         },
@@ -725,11 +725,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: Some(bytes_owned),
                 }
             }
-            FpssControl::Reconnected => {
+            StreamControl::Reconnected => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Reconnected,
-                        reconnected: TdxFpssReconnected {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Reconnected,
+                        reconnected: TdxStreamReconnected {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -760,11 +760,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::ReconnectedServer => {
+            StreamControl::ReconnectedServer => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ReconnectedServer,
-                        reconnected_server: TdxFpssReconnectedServer {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ReconnectedServer,
+                        reconnected_server: TdxStreamReconnectedServer {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -795,11 +795,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::Reconnecting { reason, attempt, delay_ms } => {
+            StreamControl::Reconnecting { reason, attempt, delay_ms } => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Reconnecting,
-                        reconnecting: TdxFpssReconnecting {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Reconnecting,
+                        reconnecting: TdxStreamReconnecting {
                             reason: *reason as i32,
                             attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                             delay_ms: *delay_ms,
@@ -832,11 +832,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::ReconnectsExhausted { reason, attempts } => {
+            StreamControl::ReconnectsExhausted { reason, attempts } => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ReconnectsExhausted,
-                        reconnects_exhausted: TdxFpssReconnectsExhausted {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ReconnectsExhausted,
+                        reconnects_exhausted: TdxStreamReconnectsExhausted {
                             reason: *reason as i32,
                             attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                         },
@@ -868,11 +868,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::ReqResponse { req_id, result } => {
+            StreamControl::ReqResponse { req_id, result } => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ReqResponse,
-                        req_response: TdxFpssReqResponse {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ReqResponse,
+                        req_response: TdxStreamReqResponse {
                             req_id: *req_id,
                             result: *result as i32,
                         },
@@ -904,11 +904,11 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::Restart => {
+            StreamControl::Restart => {
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::Restart,
-                        restart: TdxFpssRestart {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::Restart,
+                        restart: TdxStreamRestart {
                             _padding: 0,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -939,13 +939,13 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::ServerError { message } => {
+            StreamControl::ServerError { message } => {
                 let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::ServerError,
-                        server_error: TdxFpssServerError {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::ServerError,
+                        server_error: TdxStreamServerError {
                             message: message_ptr,
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -976,14 +976,14 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                     _payload_bytes: None,
                 }
             }
-            FpssControl::UnknownFrame { code, payload } => {
+            StreamControl::UnknownFrame { code, payload } => {
                 let bytes_owned = payload.clone();
                 let payload_ptr = bytes_owned.as_ptr();
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
-                    event: TdxFpssEvent {
-                        kind: TdxFpssEventKind::UnknownFrame,
-                        unknown_frame: TdxFpssUnknownFrame {
+                    event: TdxStreamEvent {
+                        kind: TdxStreamEventKind::UnknownFrame,
+                        unknown_frame: TdxStreamUnknownFrame {
                             code: *code,
                             payload: payload_ptr,
                             payload_len: payload_len_val,

@@ -1,13 +1,13 @@
 //! FPSS streaming and unified client surface.
 //!
-//! Contains the streaming-specific handles (`TdxUnified`, `TdxFpssHandle`),
+//! Contains the streaming-specific handles (`TdxClient`, `TdxStreamHandle`),
 //! the `#[repr(C)]` FPSS event types (generated — `include!`'d), the tagged
-//! subscription / contract-map arrays, and every `tdx_unified_*` /
-//! `tdx_fpss_*` `extern "C" fn`.
+//! subscription / contract-map arrays, and every `tdx_client_*` /
+//! `tdx_streaming_*` `extern "C" fn`.
 //!
 //! # Callback C ABI
 //!
-//! Both [`TdxUnified`] and [`TdxFpssHandle`] expose a single callback-
+//! Both [`TdxClient`] and [`TdxStreamHandle`] expose a single callback-
 //! registration entry point that wires user `extern "C"` functions
 //! through a single-queue event pipeline:
 //!
@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
 use crate::error::{set_error, set_error_from};
-use crate::types::{TdxConfig, TdxCredentials, TdxMddsClient};
+use crate::types::{TdxConfig, TdxCredentials, TdxHistoricalClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 // ── Callback C ABI types ──
@@ -41,17 +41,17 @@ use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 /// `ctx` is the opaque user context pointer registered alongside the
 /// callback (`tdx_*_set_callback(handle, fn, ctx)`); it is passed back
 /// unchanged on every invocation.
-pub type TdxFpssCallback = extern "C" fn(event: *const TdxFpssEvent, ctx: *mut c_void);
+pub type TdxStreamCallback = extern "C" fn(event: *const TdxStreamEvent, ctx: *mut c_void);
 
 /// Bundle of `(callback, ctx)` stored inside a Rust closure registered
-/// with [`thetadatadx::ThetaDataDxClient::start_streaming`]. The bundle is
+/// with [`thetadatadx::Client::start_streaming`]. The bundle is
 /// `Send + Sync + Copy` so the LMAX event-dispatch consumer thread can call
 /// into the user's `extern "C" fn` from a non-FFI thread, and so the
 /// same bundle can be re-registered on `tdx_*_reconnect` without
 /// re-invoking the user.
 #[derive(Clone, Copy)]
 struct FfiCallback {
-    callback: TdxFpssCallback,
+    callback: TdxStreamCallback,
     ctx: *mut c_void,
 }
 
@@ -66,7 +66,7 @@ unsafe impl Send for FfiCallback {}
 unsafe impl Sync for FfiCallback {}
 
 impl FfiCallback {
-    fn invoke(&self, event: &thetadatadx::fpss::FpssEvent) {
+    fn invoke(&self, event: &thetadatadx::fpss::StreamEvent) {
         // Convert the Rust event to the FFI `#[repr(C)]` struct. The
         // returned `FfiBufferedEvent` owns the heap memory backing every
         // borrowed pointer in the event (`Contract.symbol`,
@@ -74,9 +74,9 @@ impl FfiCallback {
         // `Error.message`, `UnknownFrame.payload`, `Ping.payload`);
         // it is dropped at the end of this function,
         // after the user callback returns. The user MUST NOT retain the
-        // `*const TdxFpssEvent` pointer past the callback boundary.
+        // `*const TdxStreamEvent` pointer past the callback boundary.
         let buffered = fpss_event_to_ffi(event);
-        let event_ptr: *const TdxFpssEvent = std::ptr::from_ref(&buffered.event);
+        let event_ptr: *const TdxStreamEvent = std::ptr::from_ref(&buffered.event);
         (self.callback)(event_ptr, self.ctx);
     }
 }
@@ -84,10 +84,10 @@ impl FfiCallback {
 // ── Unified + FPSS handles ──
 
 /// Opaque unified client handle — wraps both historical and streaming.
-pub struct TdxUnified {
-    pub(crate) inner: thetadatadx::ThetaDataDxClient,
-    /// Callback registered via `tdx_unified_set_callback`. `None` until
-    /// the first registration; persisted across `tdx_unified_reconnect`
+pub struct TdxClient {
+    pub(crate) inner: thetadatadx::Client,
+    /// Callback registered via `tdx_client_set_callback`. `None` until
+    /// the first registration; persisted across `tdx_client_reconnect`
     /// so the reconnect path can re-attach the same C user function
     /// without re-asking the caller for it.
     callback: Mutex<Option<FfiCallback>>,
@@ -99,11 +99,11 @@ pub struct TdxUnified {
 // definitions (client.rs / streaming.rs / fpss_client.rs) are consolidated
 // there to eliminate drift risk.
 
-/// FPSS handle lifecycle state — see [`TdxFpssHandle::state`].
+/// FPSS handle lifecycle state — see [`TdxStreamHandle::state`].
 ///
 /// The C ABI documents a strict three-state machine on every FPSS
-/// handle. `tdx_fpss_set_callback` and `_reconnect` enforce the
-/// transitions; `tdx_fpss_shutdown` is terminal (no further
+/// handle. `tdx_streaming_set_callback` and `_reconnect` enforce the
+/// transitions; `tdx_streaming_shutdown` is terminal (no further
 /// registration / reconnect / shutdown calls succeed).
 const FPSS_STATE_FRESH: u8 = 0;
 const FPSS_STATE_ACTIVE: u8 = 1;
@@ -111,9 +111,9 @@ const FPSS_STATE_SHUTDOWN: u8 = 2;
 
 /// Opaque FPSS streaming client handle.
 ///
-/// `tdx_fpss_connect` allocates the handle and stores connection
+/// `tdx_streaming_connect` allocates the handle and stores connection
 /// parameters; the actual FPSS TLS connection is opened on the first
-/// call to `tdx_fpss_set_callback`. This mirrors the unified handle's
+/// call to `tdx_streaming_set_callback`. This mirrors the unified handle's
 /// lifecycle (`connect` then `set_callback`).
 ///
 /// # Lifecycle state machine
@@ -121,22 +121,22 @@ const FPSS_STATE_SHUTDOWN: u8 = 2;
 /// `state` enforces the public C ABI contract:
 ///
 /// - `FPSS_STATE_FRESH`  -> `FPSS_STATE_ACTIVE` on the first successful
-///   `tdx_fpss_set_callback`. A second registration on an already-
+///   `tdx_streaming_set_callback`. A second registration on an already-
 ///   `ACTIVE` handle returns -1 with "FPSS callback already installed
 ///   -- only one set_callback call is permitted per handle".
 /// - `FPSS_STATE_ACTIVE` -> `FPSS_STATE_SHUTDOWN` on
-///   `tdx_fpss_shutdown`. Shutdown is terminal: every subsequent
+///   `tdx_streaming_shutdown`. Shutdown is terminal: every subsequent
 ///   register / reconnect / shutdown call returns -1 with
 ///   "FPSS handle has already been shut down -- this is terminal".
 /// - `FPSS_STATE_FRESH` directly to `FPSS_STATE_SHUTDOWN` is allowed
 ///   (caller shut down a handle before installing a callback).
-pub struct TdxFpssHandle {
-    inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::FpssClient>>>>,
+pub struct TdxStreamHandle {
+    inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::StreamingClient>>>>,
     /// Saved connection parameters used at `set_callback` time and on
-    /// every subsequent `tdx_fpss_reconnect`.
+    /// every subsequent `tdx_streaming_reconnect`.
     connect_params: FpssConnectParams,
-    /// User callback recorded at `tdx_fpss_set_callback` time. Stored
-    /// on the handle so `tdx_fpss_reconnect` can re-register the same
+    /// User callback recorded at `tdx_streaming_set_callback` time. Stored
+    /// on the handle so `tdx_streaming_reconnect` can re-register the same
     /// callback on the new FPSS connection without forcing the caller
     /// to re-supply it.
     callback: Mutex<Option<FfiCallback>>,
@@ -148,9 +148,9 @@ pub struct TdxFpssHandle {
     /// observational from the perspective of the C ABI fast paths.
     state: AtomicU8,
     /// Quiescence flags for every superseded FPSS session that has
-    /// not yet drained, captured during `tdx_fpss_reconnect` /
-    /// `tdx_fpss_shutdown` before the previous client is dropped.
-    /// `tdx_fpss_await_drain` waits for ALL flags to flip so callers
+    /// not yet drained, captured during `tdx_streaming_reconnect` /
+    /// `tdx_streaming_shutdown` before the previous client is dropped.
+    /// `tdx_streaming_await_drain` waits for ALL flags to flip so callers
     /// can confirm every old user callback has stopped firing before
     /// freeing the previous `ctx`. Stacked reconnect/shutdown cycles
     /// layer multiple in-flight generations on top of each other; a
@@ -181,13 +181,13 @@ struct FpssConnectParams {
 }
 
 /// Thread every connection-side knob from a [`FpssConnectParams`]
-/// snapshot into an [`thetadatadx::fpss::FpssClientBuilder`].
+/// snapshot into an [`thetadatadx::fpss::StreamingClientBuilder`].
 ///
 /// The single source of truth for the FFI's two build sites (initial
-/// `set_callback` connect and `tdx_fpss_reconnect`) so a future knob
+/// `set_callback` connect and `tdx_streaming_reconnect`) so a future knob
 /// cannot be wired into one and silently dropped from the other.
-fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::FpssClientBuilder<'_> {
-    thetadatadx::fpss::FpssClient::builder(&params.creds, &params.fpss.hosts)
+fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
+    thetadatadx::fpss::StreamingClient::builder(&params.creds, &params.fpss.hosts)
         .ring_size(params.fpss.ring_size)
         .flush_mode(params.fpss.flush_mode)
         .reconnect_policy(params.reconnect.policy.clone())
@@ -217,7 +217,7 @@ fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::FpssClientBuil
 //  All of the kind-enum / per-variant struct / ZERO_* const definitions
 //  are generated from `crates/thetadatadx/fpss_event_schema.toml`. The
 //  hand-written wrapper `FfiBufferedEvent` below owns the backing memory
-//  for every borrowed pointer the generated `TdxFpssEvent` exposes
+//  for every borrowed pointer the generated `TdxStreamEvent` exposes
 //  (the `Contract.symbol` C strings, the typed control variants'
 //  `permissions` / `message` strings, and the `Ping` / `UnknownFrame`
 //  byte payloads). Split into two include points so the
@@ -227,7 +227,7 @@ fn fpss_builder(params: &FpssConnectParams) -> thetadatadx::fpss::FpssClientBuil
 
 include!("fpss_event_structs.rs");
 
-/// Internal buffered event — owns heap data that backs the `TdxFpssEvent`.
+/// Internal buffered event — owns heap data that backs the `TdxStreamEvent`.
 ///
 /// Constructed once per delivered FPSS event inside the user-callback
 /// boundary (see `FfiCallback::invoke`); lives only for the duration of
@@ -241,11 +241,11 @@ include!("fpss_event_structs.rs");
 /// (mutually exclusive variants), and `_payload_bytes` for
 /// `UnknownFrame.payload` / `Ping.payload`. The
 /// borrowed `*const c_char` / `*const u8` pointers in the public
-/// `TdxFpssEvent` reference INTO these slots; users MUST NOT retain
+/// `TdxStreamEvent` reference INTO these slots; users MUST NOT retain
 /// those pointers past the callback boundary.
 #[repr(C)]
 pub(crate) struct FfiBufferedEvent {
-    pub(crate) event: TdxFpssEvent,
+    pub(crate) event: TdxStreamEvent,
     /// Owns the `CString` backing every data event's `Contract.symbol`
     /// pointer and `ContractAssigned.contract.symbol`.
     _contract_symbol: Option<CString>,
@@ -276,8 +276,8 @@ pub struct TdxSubscription {
     pub contract: *const c_char,
 }
 
-/// Array of active subscriptions returned by `tdx_unified_active_subscriptions`
-/// and `tdx_fpss_active_subscriptions`.
+/// Array of active subscriptions returned by `tdx_client_active_subscriptions`
+/// and `tdx_streaming_active_subscriptions`.
 #[repr(C)]
 pub struct TdxSubscriptionArray {
     /// Pointer to the first element; null when empty.
@@ -357,8 +357,8 @@ where
     Box::into_raw(Box::new(TdxSubscriptionArray { data, len }))
 }
 
-/// Free a `TdxSubscriptionArray` returned by `tdx_unified_active_subscriptions`
-/// or `tdx_fpss_active_subscriptions`.
+/// Free a `TdxSubscriptionArray` returned by `tdx_client_active_subscriptions`
+/// or `tdx_streaming_active_subscriptions`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionArray) {
     ffi_boundary!((), {
@@ -395,15 +395,15 @@ pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionAr
 
 /// Connect to `ThetaData` (historical only — FPSS streaming is NOT started).
 ///
-/// Authenticates once, opens gRPC channel. Call `tdx_unified_set_callback()`
+/// Authenticates once, opens gRPC channel. Call `tdx_client_set_callback()`
 /// later to start FPSS. Historical endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_connect(
+pub unsafe extern "C" fn tdx_client_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
-) -> *mut TdxUnified {
+) -> *mut TdxClient {
     ffi_boundary!(ptr::null_mut(), {
         crate::ensure_crypto_provider();
         if creds.is_null() {
@@ -420,9 +420,9 @@ pub unsafe extern "C" fn tdx_unified_connect(
         let config = unsafe { &*config };
 
         match crate::runtime_from_config(&config.inner.runtime).block_on(
-            thetadatadx::ThetaDataDxClient::connect(&creds.inner, config.inner.clone()),
+            thetadatadx::Client::connect(&creds.inner, config.inner.clone()),
         ) {
-            Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
+            Ok(tdx) => Box::into_raw(Box::new(TdxClient {
                 inner: tdx,
                 callback: Mutex::new(None),
             })),
@@ -438,18 +438,18 @@ pub unsafe extern "C" fn tdx_unified_connect(
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
 /// One-call equivalent of `tdx_credentials_from_file` followed by
-/// `tdx_unified_connect`: the credentials are opened from `path`,
+/// `tdx_client_connect`: the credentials are opened from `path`,
 /// consumed for the connect, and freed internally. The returned handle
 /// and its ownership / free convention are identical to
-/// `tdx_unified_connect` (free with `tdx_unified_free`).
+/// `tdx_client_connect` (free with `tdx_client_free`).
 ///
 /// Returns null on argument validation or connection/auth failure
 /// (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_connect_from_file(
+pub unsafe extern "C" fn tdx_client_connect_from_file(
     path: *const c_char,
     config: *const TdxConfig,
-) -> *mut TdxUnified {
+) -> *mut TdxClient {
     ffi_boundary!(ptr::null_mut(), {
         // SAFETY: `path` is a NUL-terminated C string valid for the call;
         // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
@@ -459,11 +459,11 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
             return ptr::null_mut();
         }
         // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
-        // and is owned by this function; `tdx_unified_connect` borrows it
+        // and is owned by this function; `tdx_client_connect` borrows it
         // and we free it unconditionally below.
-        let handle = unsafe { tdx_unified_connect(creds, config) };
+        let handle = unsafe { tdx_client_connect(creds, config) };
         // SAFETY: `creds` is the non-null handle checked above;
-        // `tdx_unified_connect` only borrowed it, so this scope still owns
+        // `tdx_client_connect` only borrowed it, so this scope still owns
         // it and frees it exactly once.
         unsafe { crate::auth::tdx_credentials_free(creds) };
         handle
@@ -478,7 +478,7 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
 /// does not kill the consumer. The TLS reader publishes events into a
 /// pre-allocated ring via `Producer::try_publish`; on overflow the
 /// event is dropped and the per-handle drop counter (queryable via
-/// `tdx_unified_dropped_events`) ticks. The reader thread NEVER blocks
+/// `tdx_client_dropped_events`) ticks. The reader thread NEVER blocks
 /// on `callback`.
 ///
 /// # `ctx` lifetime + thread affinity
@@ -486,18 +486,18 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
 /// `ctx` is an opaque pointer passed back unchanged on every invocation.
 /// It MUST remain valid until ONE of the following barriers completes:
 ///
-/// - `tdx_unified_free` returns. `_free` calls `stop_streaming`
+/// - `tdx_client_free` returns. `_free` calls `stop_streaming`
 ///   internally and polls the post-stop drain barrier with a 5-second
 ///   timeout, so on a non-overrun return the previous Disruptor
 ///   consumer has finished firing the callback. In the
 ///   timeout-overrun path (rare; emits a `tracing::error!`) the
 ///   consumer may still be firing, so under that diagnostic `ctx`
 ///   MUST remain valid past return.
-/// - `tdx_unified_stop_streaming` / `tdx_unified_reconnect` returns
-///   AND `tdx_unified_await_drain` has returned `1` for the prior
+/// - `tdx_client_stop_streaming` / `tdx_client_reconnect` returns
+///   AND `tdx_client_await_drain` has returned `1` for the prior
 ///   session.
-/// - A successful replacement `tdx_unified_set_callback` has returned
-///   AND `tdx_unified_await_drain` has returned `1` (the replacement
+/// - A successful replacement `tdx_client_set_callback` has returned
+///   AND `tdx_client_await_drain` has returned `1` (the replacement
 ///   path races against the prior session's residual events the same
 ///   way stop / reconnect does).
 ///
@@ -507,8 +507,8 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
 /// TLS reader thread). The consumer invokes `callback(event, ctx)`
 /// serially on a single thread, so the user does not need internal
 /// locks for callback-private state. Freeing `ctx` early — including
-/// the moment `tdx_unified_stop_streaming` / `_reconnect` returns
-/// without an intervening `_await_drain`, or before `tdx_unified_free`
+/// the moment `tdx_client_stop_streaming` / `_reconnect` returns
+/// without an intervening `_await_drain`, or before `tdx_client_free`
 /// returns — is undefined behavior: the consumer continues firing
 /// in-flight events until its exit path joins.
 ///
@@ -518,22 +518,22 @@ pub unsafe extern "C" fn tdx_unified_connect_from_file(
 ///
 /// # Lifecycle contract (REPLACEMENT after stop)
 ///
-/// After `tdx_unified_stop_streaming` the unified client accepts a
-/// fresh `tdx_unified_set_callback`; the new `(callback, ctx)` REPLACES
+/// After `tdx_client_stop_streaming` the unified client accepts a
+/// fresh `tdx_client_set_callback`; the new `(callback, ctx)` REPLACES
 /// the saved registration. This is intentionally different from the
 /// FPSS-handle one-shot rule: the unified path is the high-level API,
-/// where stop+restart is a normal user flow (`tdx_unified_reconnect`
+/// where stop+restart is a normal user flow (`tdx_client_reconnect`
 /// is built on top of it).
 ///
-/// On the first call after `tdx_unified_connect` this is the initial
-/// registration. Calling `tdx_unified_set_callback` while streaming is
+/// On the first call after `tdx_client_connect` this is the initial
+/// registration. Calling `tdx_client_set_callback` while streaming is
 /// already active returns -1 with `"streaming already started"`.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_set_callback(
-    handle: *const TdxUnified,
-    callback: TdxFpssCallback,
+pub unsafe extern "C" fn tdx_client_set_callback(
+    handle: *const TdxClient,
+    callback: TdxStreamCallback,
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -557,7 +557,7 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
         }
         match handle
             .inner
-            .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+            .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
                 cb.invoke(event);
             }) {
             Ok(()) => 0,
@@ -736,8 +736,8 @@ unsafe fn coerce_subscription(
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_subscribe(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_subscribe(
+    handle: *const TdxClient,
     request: *const TdxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -750,7 +750,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe(
             Some(s) => s,
             None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const TdxUnified` returned by `tdx_unified_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: `handle` is a non-null `*const TdxClient` returned by `tdx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         match handle.inner.subscribe(sub) {
             Ok(()) => 0,
@@ -766,8 +766,8 @@ pub unsafe extern "C" fn tdx_unified_subscribe(
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_unsubscribe(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_unsubscribe(
+    handle: *const TdxClient,
     request: *const TdxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -780,7 +780,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe(
             Some(s) => s,
             None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const TdxUnified` returned by `tdx_unified_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: `handle` is a non-null `*const TdxClient` returned by `tdx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         match handle.inner.unsubscribe(sub) {
             Ok(()) => 0,
@@ -803,7 +803,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe(
 /// everything.
 ///
 /// Requires that a callback has already been installed via
-/// `tdx_unified_set_callback`. Returns -1 if no callback was registered
+/// `tdx_client_set_callback`. Returns -1 if no callback was registered
 /// (the new ABI has no out-of-band buffer to fall back on).
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
@@ -823,12 +823,12 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe(
 /// is opened immediately after the swap, but the old consumer keeps
 /// firing the previous registration's callback until its exit path
 /// joins. From the C ABI side that means freeing or replacing `ctx`
-/// based on `tdx_unified_reconnect` returning is unsound — the old
+/// based on `tdx_client_reconnect` returning is unsound — the old
 /// callback is still in flight. Drive reconnect from a separate
-/// thread and call `tdx_unified_await_drain` between stop and any
+/// thread and call `tdx_client_await_drain` between stop and any
 /// `ctx` replacement.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32 {
+pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -857,7 +857,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
         };
 
         // Look up the previously-registered callback so we can re-attach
-        // it on the new FPSS connection. `tdx_unified_reconnect` requires
+        // it on the new FPSS connection. `tdx_client_reconnect` requires
         // a prior `set_callback` — without one there is no destination
         // for the new stream's events.
         let cb = {
@@ -869,8 +869,8 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
                 Some(cb) => cb,
                 None => {
                     set_error(
-                        "no callback registered -- call tdx_unified_set_callback \
-                         before tdx_unified_reconnect",
+                        "no callback registered -- call tdx_client_set_callback \
+                         before tdx_client_reconnect",
                     );
                     return -1;
                 }
@@ -906,7 +906,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
 
         let result = handle
             .inner
-            .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+            .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
                 cb.invoke(event);
             });
         if let Err(e) = result {
@@ -939,7 +939,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
 
 /// Check if streaming is active on the unified client.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_is_streaming(handle: *const TdxUnified) -> i32 {
+pub unsafe extern "C" fn tdx_client_is_streaming(handle: *const TdxClient) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
             return 0;
@@ -954,8 +954,8 @@ pub unsafe extern "C" fn tdx_unified_is_streaming(handle: *const TdxUnified) -> 
 ///
 /// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_active_subscriptions(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_active_subscriptions(
+    handle: *const TdxClient,
 ) -> *mut TdxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
         if handle.is_null() {
@@ -989,8 +989,8 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
 ///
 /// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_active_full_subscriptions(
+    handle: *const TdxClient,
 ) -> *mut TdxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
         if handle.is_null() {
@@ -1014,20 +1014,22 @@ pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
 
 /// Borrow the historical client from a unified handle.
 ///
-/// Returns a `*const TdxMddsClient` that can be passed to all `tdx_stock_*`,
+/// Returns a `*const TdxHistoricalClient` that can be passed to all `tdx_stock_*`,
 /// `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, and `tdx_interest_rate_*`
-/// functions. This avoids a second `tdx_mdds_client_connect()` call and reuses
+/// functions. This avoids a second `tdx_historical_connect()` call and reuses
 /// the same authenticated session.
 ///
-/// The returned pointer is **NOT owned** -- do NOT call `tdx_mdds_client_free`
-/// on it. It is valid as long as the `TdxUnified` handle is alive.
+/// The returned pointer is **NOT owned** -- do NOT call `tdx_historical_free`
+/// on it. It is valid as long as the `TdxClient` handle is alive.
 ///
 /// # Safety
 ///
-/// This cast is sound because `TdxMddsClient` is `#[repr(transparent)]` over
-/// `MddsClient`, and `ThetaDataDxClient` Derefs to `&MddsClient`.
+/// This cast is sound because `TdxHistoricalClient` is `#[repr(transparent)]` over
+/// `HistoricalClient`, and `Client` Derefs to `&HistoricalClient`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxMddsClient {
+pub unsafe extern "C" fn tdx_client_historical(
+    handle: *const TdxClient,
+) -> *const TdxHistoricalClient {
     ffi_boundary!(std::ptr::null(), {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -1035,9 +1037,10 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        // TdxMddsClient is #[repr(transparent)] over MddsClient, so this cast is safe.
-        let mdds_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
-        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(mdds_ref).cast::<TdxMddsClient>()
+        // TdxHistoricalClient is #[repr(transparent)] over HistoricalClient, so this cast is safe.
+        let mdds_ref: &thetadatadx::mdds::HistoricalClient = &handle.inner;
+        std::ptr::from_ref::<thetadatadx::mdds::HistoricalClient>(mdds_ref)
+            .cast::<TdxHistoricalClient>()
     })
 }
 
@@ -1048,10 +1051,10 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
 /// state cell is swapped to `Stopped`. The old consumer continues
 /// firing the previously-registered C callback for any events still
 /// in-flight in the ring buffer until its exit path joins. Use
-/// `tdx_unified_await_drain` to confirm the consumer has finished
+/// `tdx_client_await_drain` to confirm the consumer has finished
 /// firing the callback before freeing `ctx` or replacing the
 /// callback registration. The saved `(callback, ctx)` itself is
-/// preserved so a subsequent `tdx_unified_reconnect` can re-attach it
+/// preserved so a subsequent `tdx_client_reconnect` can re-attach it
 /// without the caller re-supplying the function pointer.
 ///
 /// # Lifecycle restriction
@@ -1061,9 +1064,9 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
 /// firing on the event-dispatch consumer thread; freeing or replacing
 /// `ctx` based on stop returning will trigger use-after-free in the
 /// callback. Drive stop / reconnect from a separate thread instead,
-/// then call `tdx_unified_await_drain` for the quiescence barrier.
+/// then call `tdx_client_await_drain` for the quiescence barrier.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
+pub unsafe extern "C" fn tdx_client_stop_streaming(handle: *const TdxClient) {
     ffi_boundary!((), {
         if handle.is_null() {
             return;
@@ -1086,8 +1089,8 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
 /// streaming has not started or no frame has been received yet
 /// (`*out_ms` is left `0`), `-1` on a null pointer.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_millis_since_last_event(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_millis_since_last_event(
+    handle: *const TdxClient,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1120,11 +1123,11 @@ pub unsafe extern "C" fn tdx_unified_millis_since_last_event(
 /// streaming frame of any kind on this unified handle. Returns `0`
 /// when the handle is null, streaming has not started, or no frame
 /// has been received yet. Raw feed for
-/// `tdx_unified_millis_since_last_event`, exposed for callers
+/// `tdx_client_millis_since_last_event`, exposed for callers
 /// correlating against their own pipeline timestamps.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_last_event_received_at_unix_nanos(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_last_event_received_at_unix_nanos(
+    handle: *const TdxClient,
 ) -> i64 {
     ffi_boundary!(0, {
         if handle.is_null() {
@@ -1142,8 +1145,8 @@ pub unsafe extern "C" fn tdx_unified_last_event_received_at_unix_nanos(
 /// `tdx_string_free`, or null when streaming has not started (or the
 /// handle is null).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_last_connected_addr(
-    handle: *const TdxUnified,
+pub unsafe extern "C" fn tdx_client_last_connected_addr(
+    handle: *const TdxClient,
 ) -> *mut std::os::raw::c_char {
     ffi_boundary!(ptr::null_mut(), {
         if handle.is_null() {
@@ -1177,7 +1180,7 @@ pub unsafe extern "C" fn tdx_unified_last_connected_addr(
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -> u64 {
+pub unsafe extern "C" fn tdx_client_dropped_events(handle: *const TdxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -1191,9 +1194,9 @@ pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -
 /// ring but not yet drained into the registered callback — the
 /// in-flight depth between the I/O thread and the dispatcher.
 ///
-/// The leading back-pressure signal: `tdx_unified_dropped_events`
+/// The leading back-pressure signal: `tdx_client_dropped_events`
 /// only moves AFTER data has been lost, while a rising occupancy that
-/// approaches `tdx_unified_ring_capacity` predicts those drops while
+/// approaches `tdx_client_ring_capacity` predicts those drops while
 /// there is still time to react. Sampling never blocks the feed —
 /// it is a pair of relaxed atomic loads on the calling thread; safe
 /// to poll from any thread at any cadence.
@@ -1201,7 +1204,7 @@ pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_ring_occupancy(handle: *const TdxUnified) -> u64 {
+pub unsafe extern "C" fn tdx_client_ring_occupancy(handle: *const TdxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -1213,14 +1216,14 @@ pub unsafe extern "C" fn tdx_unified_ring_occupancy(handle: *const TdxUnified) -
 
 /// Configured capacity of the streaming event ring in slots (the
 /// `fpss_ring_size` setting, a power of two) — the fixed denominator
-/// for `tdx_unified_ring_occupancy`. When the occupancy sample
+/// for `tdx_client_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
-/// will be dropped (counted by `tdx_unified_dropped_events`).
+/// will be dropped (counted by `tdx_client_dropped_events`).
 ///
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_ring_capacity(handle: *const TdxUnified) -> u64 {
+pub unsafe extern "C" fn tdx_client_ring_capacity(handle: *const TdxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -1241,7 +1244,7 @@ pub unsafe extern "C" fn tdx_unified_ring_capacity(handle: *const TdxUnified) ->
 ///
 /// Returns 0 if the handle is null or no callback has been installed yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_panic_count(handle: *const TdxUnified) -> u64 {
+pub unsafe extern "C" fn tdx_client_panic_count(handle: *const TdxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -1253,14 +1256,14 @@ pub unsafe extern "C" fn tdx_unified_panic_count(handle: *const TdxUnified) -> u
 
 /// Wait for the previously-superseded streaming session to quiesce.
 ///
-/// Returns `1` once the previous `tdx_unified_stop_streaming` /
+/// Returns `1` once the previous `tdx_client_stop_streaming` /
 /// `_reconnect` session's event-dispatch consumer thread has finished
 /// firing the registered callback. Returns `0` on timeout or when no
 /// stream has been stopped on this handle.
 ///
 /// # When to call
 ///
-/// After `tdx_unified_stop_streaming` or `tdx_unified_reconnect`
+/// After `tdx_client_stop_streaming` or `tdx_client_reconnect`
 /// returns, before freeing `ctx` or registering a fresh callback whose
 /// captures must not alias the previous registration's still-running
 /// invocations.
@@ -1277,10 +1280,7 @@ pub unsafe extern "C" fn tdx_unified_panic_count(handle: *const TdxUnified) -> u
 /// production callers should pick a value larger than the worst-case
 /// in-flight callback latency they tolerate.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_await_drain(
-    handle: *const TdxUnified,
-    timeout_ms: u64,
-) -> i32 {
+pub unsafe extern "C" fn tdx_client_await_drain(handle: *const TdxClient, timeout_ms: u64) -> i32 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -1306,13 +1306,13 @@ pub unsafe extern "C" fn tdx_unified_await_drain(
 /// not deeply backlogged), drain completes in low single-digit
 /// milliseconds and `ctx` is safe to free immediately on return.
 ///
-/// Calling `tdx_unified_await_drain` from another thread before invoking
-/// `tdx_unified_free` is no longer required for callback-context lifetime
+/// Calling `tdx_client_await_drain` from another thread before invoking
+/// `tdx_client_free` is no longer required for callback-context lifetime
 /// safety — `_free` now serves as the public drain barrier as well.
 ///
 /// # Lifecycle restriction
 ///
-/// Do NOT call `tdx_unified_free` from inside the user callback. The
+/// Do NOT call `tdx_client_free` from inside the user callback. The
 /// callback runs on the dispatcher thread; `_free` waits for that
 /// thread to exit before destroying the handle. Issuing `_free` from
 /// inside the callback means the dispatcher cannot exit while
@@ -1321,7 +1321,7 @@ pub unsafe extern "C" fn tdx_unified_await_drain(
 /// then returns into the user callback which is now operating
 /// against freed memory. Drive `_free` from a separate thread.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
+pub unsafe extern "C" fn tdx_client_free(handle: *mut TdxClient) {
     ffi_boundary!((), {
         if handle.is_null() {
             return;
@@ -1335,7 +1335,7 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
         // client's `prev_drained` slot — the flag we poll below.
         //
         // Importantly, if the caller already invoked
-        // `tdx_unified_stop_streaming` before `_free`, `is_streaming()`
+        // `tdx_client_stop_streaming` before `_free`, `is_streaming()`
         // is already `false` here, but `prev_drained` was populated by
         // that earlier `stop_streaming` call. The barrier MUST poll
         // `prev_drained` regardless of the current slot state — the
@@ -1370,7 +1370,7 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
             tracing::error!(
                 target: "thetadatadx::ffi",
                 timeout_ms = FREE_DRAIN_TIMEOUT.as_millis() as u64,
-                "tdx_unified_free: drain barrier exceeded timeout -- callback may still \
+                "tdx_client_free: drain barrier exceeded timeout -- callback may still \
                  be firing on the consumer thread; user ctx must remain valid past return",
             );
         }
@@ -1387,17 +1387,17 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
 /// Allocate an FPSS handle and stash the connection parameters.
 ///
 /// **Does NOT open the FPSS TLS connection** — connection is deferred
-/// until the caller installs a callback via `tdx_fpss_set_callback`.
-/// This is required because `FpssClient::connect` registers its event
+/// until the caller installs a callback via `tdx_streaming_set_callback`.
+/// This is required because `StreamingClient::connect` registers its event
 /// handler at connect time; deferring the connect until callback
 /// installation lets us avoid an internal queue.
 ///
 /// Returns null on argument validation failure (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_connect(
+pub unsafe extern "C" fn tdx_streaming_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
-) -> *mut TdxFpssHandle {
+) -> *mut TdxStreamHandle {
     ffi_boundary!(std::ptr::null_mut(), {
         crate::ensure_crypto_provider();
         if creds.is_null() {
@@ -1418,7 +1418,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
         // first client created in the process; the worker pool is built once.
         crate::runtime_from_config(&config.inner.runtime);
 
-        Box::into_raw(Box::new(TdxFpssHandle {
+        Box::into_raw(Box::new(TdxStreamHandle {
             inner: Arc::new(Mutex::new(None)),
             connect_params: FpssConnectParams {
                 creds: creds.inner.clone(),
@@ -1437,19 +1437,19 @@ pub unsafe extern "C" fn tdx_fpss_connect(
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
 /// One-call equivalent of `tdx_credentials_from_file` followed by
-/// `tdx_fpss_connect`: the credentials are opened from `path`, consumed
-/// for the connect, and freed internally. As with `tdx_fpss_connect`
+/// `tdx_streaming_connect`: the credentials are opened from `path`, consumed
+/// for the connect, and freed internally. As with `tdx_streaming_connect`
 /// this does NOT open the FPSS TLS connection — connection is deferred
-/// until `tdx_fpss_set_callback`. The returned handle and its ownership
-/// / free convention are identical to `tdx_fpss_connect` (free with
-/// `tdx_fpss_free`).
+/// until `tdx_streaming_set_callback`. The returned handle and its ownership
+/// / free convention are identical to `tdx_streaming_connect` (free with
+/// `tdx_streaming_free`).
 ///
 /// Returns null on argument validation failure (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_connect_from_file(
+pub unsafe extern "C" fn tdx_streaming_connect_from_file(
     path: *const c_char,
     config: *const TdxConfig,
-) -> *mut TdxFpssHandle {
+) -> *mut TdxStreamHandle {
     ffi_boundary!(std::ptr::null_mut(), {
         // SAFETY: `path` is a NUL-terminated C string valid for the call;
         // `tdx_credentials_from_file` validates non-null + UTF-8 and sets
@@ -1459,11 +1459,11 @@ pub unsafe extern "C" fn tdx_fpss_connect_from_file(
             return std::ptr::null_mut();
         }
         // SAFETY: `creds` was just allocated by `tdx_credentials_from_file`
-        // and is owned by this function; `tdx_fpss_connect` clones what it
+        // and is owned by this function; `tdx_streaming_connect` clones what it
         // needs and we free it unconditionally below.
-        let handle = unsafe { tdx_fpss_connect(creds, config) };
+        let handle = unsafe { tdx_streaming_connect(creds, config) };
         // SAFETY: `creds` is the non-null handle checked above;
-        // `tdx_fpss_connect` cloned what it needed, so this scope still owns
+        // `tdx_streaming_connect` cloned what it needed, so this scope still owns
         // it and frees it exactly once.
         unsafe { crate::auth::tdx_credentials_free(creds) };
         handle
@@ -1475,9 +1475,9 @@ pub unsafe extern "C" fn tdx_fpss_connect_from_file(
 ///
 /// Returns `true` if the caller should proceed (handle is `Fresh`);
 /// `false` after setting `tdx_last_error()` to a contract-specific
-/// message. Used by `tdx_fpss_set_callback` to enforce one-shot
+/// message. Used by `tdx_streaming_set_callback` to enforce one-shot
 /// registration and the terminal-shutdown rule.
-fn reject_if_not_fresh(handle: &TdxFpssHandle) -> bool {
+fn reject_if_not_fresh(handle: &TdxStreamHandle) -> bool {
     match handle.state.load(AtomicOrdering::Relaxed) {
         FPSS_STATE_FRESH => true,
         FPSS_STATE_ACTIVE => {
@@ -1500,9 +1500,9 @@ fn reject_if_not_fresh(handle: &TdxFpssHandle) -> bool {
 }
 
 /// Reject the call if the handle has been shut down. Used by
-/// `tdx_fpss_reconnect` and `tdx_fpss_shutdown` (the latter to make
+/// `tdx_streaming_reconnect` and `tdx_streaming_shutdown` (the latter to make
 /// double-shutdown a clean error rather than silently no-op).
-fn reject_if_shutdown(handle: &TdxFpssHandle) -> bool {
+fn reject_if_shutdown(handle: &TdxStreamHandle) -> bool {
     if handle.state.load(AtomicOrdering::Relaxed) == FPSS_STATE_SHUTDOWN {
         set_error("FPSS handle has already been shut down -- this is terminal");
         false
@@ -1513,26 +1513,26 @@ fn reject_if_shutdown(handle: &TdxFpssHandle) -> bool {
 
 /// Open the FPSS connection if not already open.
 ///
-/// Internal helper used by `tdx_fpss_set_callback`. The caller supplies
-/// a Rust closure that consumes `FpssEvent` references; this is the
-/// closure registered with `FpssClient::connect` and lives for the
+/// Internal helper used by `tdx_streaming_set_callback`. The caller supplies
+/// a Rust closure that consumes `StreamEvent` references; this is the
+/// closure registered with `StreamingClient::connect` and lives for the
 /// lifetime of the connection. Returns -1 on connect failure (error
 /// already set), 0 on success.
 ///
 /// Lifecycle enforcement (one-shot registration, terminal shutdown)
 /// happens upstream in [`reject_if_not_fresh`]; this helper only
-/// touches the inner `FpssClient` slot and spawns the dispatcher.
+/// touches the inner `StreamingClient` slot and spawns the dispatcher.
 ///
 /// Returns the spawned `JoinHandle` on success; callers store it in
 /// `handle.dispatcher`.  On failure the error is already set via
 /// [`set_error`] / [`set_error_from`] and the caller returns `-1`.
 fn open_fpss<F>(
-    handle: &TdxFpssHandle,
+    handle: &TdxStreamHandle,
     callback: Option<FfiCallback>,
     mut on_event: F,
 ) -> Result<std::thread::JoinHandle<()>, ()>
 where
-    F: FnMut(&thetadatadx::fpss::FpssEvent) + Send + 'static,
+    F: FnMut(&thetadatadx::fpss::StreamEvent) + Send + 'static,
 {
     let mut guard = handle
         .inner
@@ -1576,7 +1576,7 @@ where
             let spawn_result = std::thread::Builder::new()
                 .name("tdx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
-                    // `FpssClient::for_each` drives `poll_batch`, which wraps
+                    // `StreamingClient::for_each` drives `poll_batch`, which wraps
                     // each callback invocation in its own `catch_unwind`.  A
                     // panic in the handler is caught, recorded via
                     // `panic_count()`, and does not stop event delivery for
@@ -1629,18 +1629,18 @@ where
 /// invocation wrapped in [`std::panic::catch_unwind`] so a C/C++ panic
 /// does not kill the consumer. The TLS reader publishes events via
 /// `Producer::try_publish`; on ring overflow events are dropped and
-/// counted (queryable via `tdx_fpss_dropped_events`). The reader
+/// counted (queryable via `tdx_streaming_dropped_events`). The reader
 /// thread NEVER blocks on `callback`.
 ///
 /// `ctx` is an opaque pointer passed back unchanged on every invocation.
 /// It MUST remain valid until ONE of the following barriers completes:
 ///
-/// - `tdx_fpss_free` returns (the simple path; `_free` performs the
+/// - `tdx_streaming_free` returns (the simple path; `_free` performs the
 ///   shutdown if the handle is still live and internally polls the
 ///   drain barrier with a 5-second timeout, so on a non-overrun return
 ///   the consumer thread has finished firing the callback);
-/// - `tdx_fpss_shutdown` (or `tdx_fpss_reconnect`) returns AND
-///   `tdx_fpss_await_drain` has confirmed `1`. Stop / reconnect return
+/// - `tdx_streaming_shutdown` (or `tdx_streaming_reconnect`) returns AND
+///   `tdx_streaming_await_drain` has confirmed `1`. Stop / reconnect return
 ///   asynchronously; events still in the ring continue flowing through
 ///   the old callback until the consumer exits.
 ///
@@ -1649,12 +1649,12 @@ where
 /// so under that diagnostic `ctx` MUST remain valid past return; the
 /// caller is expected to investigate the wedged callback rather than
 /// race destruction. The event-dispatch consumer thread accesses `ctx` on
-/// every event and on every `tdx_fpss_reconnect`.
+/// every event and on every `tdx_streaming_reconnect`.
 ///
 /// # Lifecycle contract (FPSS one-shot rule)
 ///
 /// May only be called ONCE per handle, and ONLY before
-/// `tdx_fpss_shutdown`. Subsequent calls — including any call after
+/// `tdx_streaming_shutdown`. Subsequent calls — including any call after
 /// shutdown — return -1 with an error message:
 ///
 /// - second register on an already-active handle:
@@ -1663,16 +1663,16 @@ where
 ///   `"FPSS handle has already been shut down -- this is terminal"`
 ///
 /// This is intentionally stricter than the unified C ABI's
-/// `tdx_unified_set_callback`, which supports stop-then-re-register as
+/// `tdx_client_set_callback`, which supports stop-then-re-register as
 /// a normal user flow. The FPSS handle is the low-level surface; the
 /// unified handle is the high-level surface. See
-/// [`tdx_unified_set_callback`] for the replacement contract.
+/// [`tdx_client_set_callback`] for the replacement contract.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_set_callback(
-    handle: *const TdxFpssHandle,
-    callback: TdxFpssCallback,
+pub unsafe extern "C" fn tdx_streaming_set_callback(
+    handle: *const TdxStreamHandle,
+    callback: TdxStreamCallback,
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1699,7 +1699,7 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
         match open_fpss(
             handle,
             Some(cb),
-            move |event: &thetadatadx::fpss::FpssEvent| {
+            move |event: &thetadatadx::fpss::StreamEvent| {
                 dispatch_cb.invoke(event);
             },
         ) {
@@ -1716,7 +1716,7 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
 ///
 /// Returns 1 if authenticated, 0 if not (or if handle is null).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle) -> i32 {
+pub unsafe extern "C" fn tdx_streaming_is_authenticated(handle: *const TdxStreamHandle) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
             return 0;
@@ -1738,7 +1738,7 @@ pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle)
                     tracing::debug!(
                         target: "thetadatadx::ffi",
                         reason = %reason,
-                        "tdx_fpss_is_authenticated: dispatcher failed",
+                        "tdx_streaming_is_authenticated: dispatcher failed",
                     );
                     true
                 } else {
@@ -1756,8 +1756,8 @@ pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle)
 /// Returns a heap-allocated `TdxSubscriptionArray` (null on error).
 /// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_active_subscriptions(
+    handle: *const TdxStreamHandle,
 ) -> *mut TdxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
         if handle.is_null() {
@@ -1773,7 +1773,7 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client not started -- call tdx_fpss_set_callback first, or has been shut down");
+            set_error("FPSS client not started -- call tdx_streaming_set_callback first, or has been shut down");
             return ptr::null_mut();
         };
         let subs = client.active_subscriptions();
@@ -1789,12 +1789,12 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Polymorphic subscribe on the standalone FPSS client. Mirrors the
-/// Rust `FpssClient::subscribe(Subscription)` shape.
+/// Rust `StreamingClient::subscribe(Subscription)` shape.
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_subscribe(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_subscribe(
+    handle: *const TdxStreamHandle,
     request: *const TdxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1807,7 +1807,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
             Some(s) => s,
             None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const TdxFpssHandle` returned by `tdx_fpss_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: `handle` is a non-null `*const TdxStreamHandle` returned by `tdx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1817,7 +1817,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
             c
         } else {
             set_error(
-                "FPSS client not started -- call tdx_fpss_set_callback first, or has been shut down",
+                "FPSS client not started -- call tdx_streaming_set_callback first, or has been shut down",
             );
             return -1;
         };
@@ -1835,8 +1835,8 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_unsubscribe(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_unsubscribe(
+    handle: *const TdxStreamHandle,
     request: *const TdxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1849,7 +1849,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
             Some(s) => s,
             None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const TdxFpssHandle` returned by `tdx_fpss_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: `handle` is a non-null `*const TdxStreamHandle` returned by `tdx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1859,7 +1859,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
             c
         } else {
             set_error(
-                "FPSS client not started -- call tdx_fpss_set_callback first, or has been shut down",
+                "FPSS client not started -- call tdx_streaming_set_callback first, or has been shut down",
             );
             return -1;
         };
@@ -1879,10 +1879,10 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
 
 /// Reconnect the FPSS streaming client, re-subscribing all previous subscriptions.
 ///
-/// Reuses the credentials/config saved at `tdx_fpss_connect` time and
-/// the C callback registered via the most recent `tdx_fpss_set_callback`.
+/// Reuses the credentials/config saved at `tdx_streaming_connect` time and
+/// the C callback registered via the most recent `tdx_streaming_set_callback`.
 /// Returns -1 if no callback was ever installed or if the handle has
-/// been shut down (shutdown is terminal — see [`tdx_fpss_shutdown`]).
+/// been shut down (shutdown is terminal — see [`tdx_streaming_shutdown`]).
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 ///
@@ -1900,11 +1900,11 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
 /// MUST NOT be called from inside the user callback. The new
 /// connection is opened immediately after the old client is dropped,
 /// but the old consumer thread keeps firing the previous callback
-/// until its exit path joins. Pair with `tdx_fpss_await_drain` from
+/// until its exit path joins. Pair with `tdx_streaming_await_drain` from
 /// a separate thread when the application needs to free `ctx` or
 /// otherwise rely on the old callback having stopped firing.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32 {
+pub unsafe extern "C" fn tdx_streaming_reconnect(handle: *const TdxStreamHandle) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
             set_error("FPSS handle is null");
@@ -1922,7 +1922,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         let params = &handle.connect_params;
 
         // Look up the previously-registered C callback. Reconnect cannot
-        // make forward progress without one — `FpssClient::connect`
+        // make forward progress without one — `StreamingClient::connect`
         // requires an event handler at construction time.
         let cb = {
             let guard = handle
@@ -1933,8 +1933,8 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 Some(cb) => cb,
                 None => {
                     set_error(
-                        "no callback registered -- call tdx_fpss_set_callback \
-                         before tdx_fpss_reconnect",
+                        "no callback registered -- call tdx_streaming_set_callback \
+                         before tdx_streaming_reconnect",
                     );
                     return -1;
                 }
@@ -1955,13 +1955,13 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
 
         // 2. Shut down the old client. With the SSOT pipeline there is
         // no separate dispatcher to tear down — the Disruptor consumer
-        // joins inside `FpssClient::Drop` when the last `Arc` goes
+        // joins inside `StreamingClient::Drop` when the last `Arc` goes
         // away. Capture the drain flag BEFORE dropping `old` so a
-        // subsequent `tdx_fpss_await_drain` poll observes the previous
+        // subsequent `tdx_streaming_await_drain` poll observes the previous
         // session's quiescence even though `Drop` runs asynchronously
         // when invoked from the consumer thread.
-        // Take the previous `Arc<FpssClient>` OUT of the inner lock so
-        // a callback re-entering any `tdx_fpss_*` API that needs
+        // Take the previous `Arc<StreamingClient>` OUT of the inner lock so
+        // a callback re-entering any `tdx_streaming_*` API that needs
         // `handle.inner.lock()` never sees the lock held while the old
         // session tears down.
         let taken_old = handle
@@ -2025,14 +2025,14 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         };
 
         // Hold `handle.inner` for the entire publish-and-spawn so a
-        // racing `tdx_fpss_subscribe` / `_unsubscribe` /
+        // racing `tdx_streaming_subscribe` / `_unsubscribe` /
         // `_active_subscriptions` (the lock-free control surface that
         // only takes `inner.lock`) either serialises in front of the
         // publish (sees `None`) or behind both publish and spawn
-        // (sees a fully wired session). `tdx_fpss_shutdown` / `_free`
+        // (sees a fully wired session). `tdx_streaming_shutdown` / `_free`
         // / `_set_callback` are already serialised against this
         // function by `handle.dispatcher` (held by the caller for
-        // the whole `tdx_fpss_reconnect` body). The spawned dispatcher
+        // the whole `tdx_streaming_reconnect` body). The spawned dispatcher
         // iterates the FPSS client poller via its own internal mutex
         // and never touches `handle.inner`, so the held guard does
         // NOT deadlock the dispatcher.
@@ -2047,7 +2047,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             let spawn_result = std::thread::Builder::new()
                 .name("tdx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
-                    // `FpssClient::for_each` drives `poll_batch`, which wraps
+                    // `StreamingClient::for_each` drives `poll_batch`, which wraps
                     // each callback invocation in its own `catch_unwind`.  A
                     // panic in the handler is caught, recorded via
                     // `panic_count()`, and does not stop event delivery for
@@ -2067,7 +2067,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 Ok(h) => Ok(h),
                 Err(e) => {
                     // Roll publication back inside the same locked
-                    // section so no concurrent `tdx_fpss_*` call ever
+                    // section so no concurrent `tdx_streaming_*` call ever
                     // observes the transient `Some(client)` state.
                     let taken = guard.take();
                     if let Some(client) = taken {
@@ -2153,12 +2153,12 @@ fn downcast_ffi_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String 
 
 /// Milliseconds since the most recent inbound streaming frame of any
 /// kind on this FPSS handle. Same contract as
-/// `tdx_unified_millis_since_last_event`: returns `0` on success with
+/// `tdx_client_millis_since_last_event`: returns `0` on success with
 /// the value in `*out_ms`, `1` when no session is live or no frame
 /// has been received yet, `-1` on a null pointer.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_millis_since_last_event(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_millis_since_last_event(
+    handle: *const TdxStreamHandle,
     out_ms: *mut u64,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -2199,8 +2199,8 @@ pub unsafe extern "C" fn tdx_fpss_millis_since_last_event(
 /// the handle is null, no session is live, or no frame has been
 /// received yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_last_event_received_at_unix_nanos(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_last_event_received_at_unix_nanos(
+    handle: *const TdxStreamHandle,
 ) -> i64 {
     ffi_boundary!(0, {
         if handle.is_null() {
@@ -2223,8 +2223,8 @@ pub unsafe extern "C" fn tdx_fpss_last_event_received_at_unix_nanos(
 /// auto-reconnects. Returns a heap-owned C string the caller must
 /// release with `tdx_string_free`, or null when no session is live.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_last_connected_addr(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_last_connected_addr(
+    handle: *const TdxStreamHandle,
 ) -> *mut std::os::raw::c_char {
     ffi_boundary!(ptr::null_mut(), {
         if handle.is_null() {
@@ -2260,7 +2260,7 @@ pub unsafe extern "C" fn tdx_fpss_last_connected_addr(
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -> u64 {
+pub unsafe extern "C" fn tdx_streaming_dropped_events(handle: *const TdxStreamHandle) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -2279,15 +2279,15 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
 /// but not yet drained into the registered callback — the in-flight
 /// depth between the I/O thread and the dispatcher.
 ///
-/// The leading back-pressure signal: `tdx_fpss_dropped_events` only
+/// The leading back-pressure signal: `tdx_streaming_dropped_events` only
 /// moves AFTER data has been lost, while a rising occupancy that
-/// approaches `tdx_fpss_ring_capacity` predicts those drops while
+/// approaches `tdx_streaming_ring_capacity` predicts those drops while
 /// there is still time to react. Sampling never blocks the feed; safe
 /// to poll from any thread at any cadence.
 ///
 /// Returns 0 if the handle is null or has been shut down.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_ring_occupancy(handle: *const TdxFpssHandle) -> u64 {
+pub unsafe extern "C" fn tdx_streaming_ring_occupancy(handle: *const TdxStreamHandle) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -2304,13 +2304,13 @@ pub unsafe extern "C" fn tdx_fpss_ring_occupancy(handle: *const TdxFpssHandle) -
 
 /// Configured capacity of the FPSS event ring in slots (the
 /// `fpss_ring_size` setting, a power of two) — the fixed denominator
-/// for `tdx_fpss_ring_occupancy`. When the occupancy sample
+/// for `tdx_streaming_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
-/// will be dropped (counted by `tdx_fpss_dropped_events`).
+/// will be dropped (counted by `tdx_streaming_dropped_events`).
 ///
 /// Returns 0 if the handle is null or has been shut down.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_ring_capacity(handle: *const TdxFpssHandle) -> u64 {
+pub unsafe extern "C" fn tdx_streaming_ring_capacity(handle: *const TdxStreamHandle) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -2336,7 +2336,7 @@ pub unsafe extern "C" fn tdx_fpss_ring_capacity(handle: *const TdxFpssHandle) ->
 ///
 /// Returns 0 if the handle is null or no callback has been installed yet.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_panic_count(handle: *const TdxFpssHandle) -> u64 {
+pub unsafe extern "C" fn tdx_streaming_panic_count(handle: *const TdxStreamHandle) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
@@ -2355,24 +2355,24 @@ pub unsafe extern "C" fn tdx_fpss_panic_count(handle: *const TdxFpssHandle) -> u
 ///
 /// # Lifecycle contract (terminal)
 ///
-/// Shutdown is terminal: every subsequent `tdx_fpss_set_callback` /
+/// Shutdown is terminal: every subsequent `tdx_streaming_set_callback` /
 /// `_reconnect` / `_shutdown` call on this handle returns -1 with the
 /// error message
 /// `"FPSS handle has already been shut down -- this is terminal"`. The
-/// handle remains valid for `tdx_fpss_free()` only.
+/// handle remains valid for `tdx_streaming_free()` only.
 ///
 /// Idempotency: calling shutdown twice on the same handle is rejected
 /// rather than silently no-op'd, so a misuse caller cannot accidentally
 /// observe "success" after the resource is gone.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
+pub unsafe extern "C" fn tdx_streaming_shutdown(handle: *const TdxStreamHandle) {
     ffi_boundary!((), {
         if handle.is_null() {
             return;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        // Serialise with `tdx_fpss_set_callback` / `tdx_fpss_reconnect`
+        // Serialise with `tdx_streaming_set_callback` / `tdx_streaming_reconnect`
         // so an in-flight install cannot publish a fresh client AFTER
         // we have flipped the state to `SHUTDOWN`. Without this lock
         // the terminal-shutdown contract is violated: a concurrent
@@ -2384,7 +2384,7 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
             // Double-shutdown -- error already set, nothing to drop.
             return;
         }
-        // Take the FpssClient Arc OUT of `handle.inner` under the lock,
+        // Take the StreamingClient Arc OUT of `handle.inner` under the lock,
         // release the lock, then signal shutdown so a dispatcher
         // attempting to re-enter `handle.inner` via the user callback
         // never sees the lock held.
@@ -2418,8 +2418,8 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
 
 /// Wait for every superseded FPSS session to quiesce.
 ///
-/// Returns `1` once **all** prior `tdx_fpss_reconnect` /
-/// `tdx_fpss_shutdown` sessions' Disruptor consumers have finished
+/// Returns `1` once **all** prior `tdx_streaming_reconnect` /
+/// `tdx_streaming_shutdown` sessions' Disruptor consumers have finished
 /// firing the registered callback. Returns `0` on timeout or when no
 /// session has been superseded on this handle.
 ///
@@ -2430,7 +2430,7 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
 ///
 /// # When to call
 ///
-/// After `tdx_fpss_reconnect` or `tdx_fpss_shutdown` returns, before
+/// After `tdx_streaming_reconnect` or `tdx_streaming_shutdown` returns, before
 /// freeing `ctx` or otherwise relying on the old callback having
 /// stopped firing.
 ///
@@ -2440,8 +2440,8 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
 /// consumer thread. Calling it from inside the user callback would
 /// block the helper the consumer is waiting on and always time out.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_await_drain(
-    handle: *const TdxFpssHandle,
+pub unsafe extern "C" fn tdx_streaming_await_drain(
+    handle: *const TdxStreamHandle,
     timeout_ms: u64,
 ) -> i32 {
     ffi_boundary!(0, {
@@ -2454,7 +2454,7 @@ pub unsafe extern "C" fn tdx_fpss_await_drain(
         // poll. New stops landing during the wait join the next call's
         // working set — `await_drain` semantics are "wait for what was
         // outstanding when I started", which mirrors the in-process
-        // `ThetaDataDxClient::await_drain` contract.
+        // `Client::await_drain` contract.
         let initial = {
             let guard = handle
                 .prev_drained
@@ -2495,15 +2495,15 @@ pub unsafe extern "C" fn tdx_fpss_await_drain(
 ///
 /// # Lifecycle contract
 ///
-/// `tdx_fpss_free` accepts the handle in either state:
+/// `tdx_streaming_free` accepts the handle in either state:
 ///
-/// - **Already shut down**: the prior `tdx_fpss_shutdown` (or
-///   `tdx_fpss_reconnect`) populated the drain flag; `_free` polls that
+/// - **Already shut down**: the prior `tdx_streaming_shutdown` (or
+///   `tdx_streaming_reconnect`) populated the drain flag; `_free` polls that
 ///   flag with a 5-second internal timeout so it returns only after the
 ///   superseded session's Disruptor consumer has finished firing the
 ///   registered callback.
 /// - **Not yet shut down**: `_free` performs the equivalent of
-///   `tdx_fpss_shutdown` first (drops the FPSS client, captures the
+///   `tdx_streaming_shutdown` first (drops the FPSS client, captures the
 ///   drain flag, marks the state terminal) and then polls the same
 ///   barrier.
 ///
@@ -2515,13 +2515,13 @@ pub unsafe extern "C" fn tdx_fpss_await_drain(
 /// single-digit milliseconds and `ctx` is safe to free immediately on
 /// return.
 ///
-/// Calling `tdx_fpss_await_drain` from another thread before invoking
-/// `tdx_fpss_free` is no longer required for callback-context lifetime
+/// Calling `tdx_streaming_await_drain` from another thread before invoking
+/// `tdx_streaming_free` is no longer required for callback-context lifetime
 /// safety — `_free` now serves as the public drain barrier as well.
 ///
 /// # Lifecycle restriction
 ///
-/// Do NOT call `tdx_fpss_free` from inside the user callback. The
+/// Do NOT call `tdx_streaming_free` from inside the user callback. The
 /// callback runs on the dispatcher thread; `_free` first acquires
 /// `handle.dispatcher` and then waits for the dispatcher's drain flag.
 /// Issuing `_free` from inside the callback means the dispatcher is
@@ -2534,14 +2534,14 @@ pub unsafe extern "C" fn tdx_fpss_await_drain(
 /// non-callback thread invoke `_free` (or `_shutdown` followed by
 /// `_await_drain` then `_free`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
+pub unsafe extern "C" fn tdx_streaming_free(handle: *mut TdxStreamHandle) {
     ffi_boundary!((), {
         if handle.is_null() {
             return;
         }
 
         // Shut down first if the handle is still live, mirroring
-        // `tdx_fpss_shutdown` so callers who skip the explicit shutdown
+        // `tdx_streaming_shutdown` so callers who skip the explicit shutdown
         // call still get a quiesced consumer thread by the time `_free`
         // returns. Detect "already shut down" via the lifecycle state
         // so we never attempt a double shutdown.
@@ -2549,7 +2549,7 @@ pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
             // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
             let h = unsafe { &*handle };
             // Acquire `dispatcher` so an in-flight
-            // `tdx_fpss_set_callback` / `tdx_fpss_reconnect` cannot be
+            // `tdx_streaming_set_callback` / `tdx_streaming_reconnect` cannot be
             // mid-publish when we destroy the handle. The lock is held
             // for the duration of the teardown sequence (including the
             // 5 s drain wait); concurrent installs serialise behind it
@@ -2606,7 +2606,7 @@ pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
                         target: "thetadatadx::ffi",
                         timeout_ms = FREE_DRAIN_TIMEOUT.as_millis() as u64,
                         pending_generations = pending.len(),
-                        "tdx_fpss_free: drain barrier exceeded timeout -- callback may still \
+                        "tdx_streaming_free: drain barrier exceeded timeout -- callback may still \
                          be firing on the consumer thread; user ctx must remain valid past return",
                     );
                 }
@@ -2625,13 +2625,13 @@ mod panic_isolation_tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use thetadatadx::fpss::{FpssClient, HarnessPublishMode};
+    use thetadatadx::fpss::{HarnessPublishMode, StreamingClient};
 
     fn wait_for_drain(drained: &std::sync::atomic::AtomicBool) {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while !drained.load(Ordering::Acquire) {
             if std::time::Instant::now() > deadline {
-                panic!("FpssClient did not drain within 5 seconds");
+                panic!("StreamingClient did not drain within 5 seconds");
             }
             std::thread::sleep(Duration::from_millis(1));
         }
@@ -2651,11 +2651,11 @@ mod panic_isolation_tests {
         }
     }
 
-    /// The FFI dispatch path uses `FpssClient::for_each` (via `poll_batch`)
+    /// The FFI dispatch path uses `StreamingClient::for_each` (via `poll_batch`)
     /// as its event vehicle.  `poll_batch` wraps every callback invocation
-    /// in `catch_unwind` and increments `FpssClient::panic_count()` on
+    /// in `catch_unwind` and increments `StreamingClient::panic_count()` on
     /// each caught panic.  This test exercises the panic counter directly
-    /// on the same `FpssClient` type the FFI layer wraps, confirming the
+    /// on the same `StreamingClient` type the FFI layer wraps, confirming the
     /// shared counter is incremented and event delivery continues.
     ///
     /// Contract: `client.panic_count() == 1` AND `delivered == N_EVENTS - 1`.
@@ -2667,7 +2667,7 @@ mod panic_isolation_tests {
         let delivered_c = Arc::clone(&delivered);
         let mut call_index: u64 = 0;
 
-        let client = FpssClient::for_self_join_test(
+        let client = StreamingClient::for_self_join_test(
             N_EVENTS,
             64,
             HarnessPublishMode::BlockingPublish,
@@ -2699,7 +2699,7 @@ mod panic_isolation_tests {
 
         assert_eq!(
             observed_panics, 1,
-            "FpssClient::panic_count() must equal 1 after one caught panic; \
+            "StreamingClient::panic_count() must equal 1 after one caught panic; \
              got {observed_panics}"
         );
         assert_eq!(

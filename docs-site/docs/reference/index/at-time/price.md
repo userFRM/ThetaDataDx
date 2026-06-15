@@ -44,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.index_at_time_price(
+Client.index_at_time_price(
     symbol, start_date, end_date, time_of_day,
     *,
     timeout_ms=None,
@@ -96,7 +96,7 @@ std::vector<IndexPriceAtTimeTick> index_at_time_price(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

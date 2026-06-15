@@ -1,21 +1,21 @@
-//! Standalone TypeScript (napi-rs) `FpssClient` — FPSS streaming only.
+//! Standalone TypeScript (napi-rs) `StreamingClient` — FPSS streaming only.
 //!
 //! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus HTTP
 //! authentication, no historical / Treasury / Calendar surface. Mirrors
-//! the Python `FpssClient` (`sdks/python/src/fpss_client.rs`), the C++
-//! `tdx::FpssClient` (`sdks/cpp/include/thetadx.hpp`), and the standalone
+//! the Python `StreamingClient` (`sdks/python/src/fpss_client.rs`), the C++
+//! `tdx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`), and the standalone
 //! C ABI entry points (`tdx_fpss_*` in `ffi/src/streaming.rs`), letting a
 //! Node.js caller run an FPSS-only session alongside an externally
 //! managed MDDS process without the bundled
-//! [`crate::ThetaDataDxClient`] preempting the parallel MDDS work at the
+//! [`crate::Client`] preempting the parallel MDDS work at the
 //! Nexus session layer.
 //!
 //! # Why a hand-written module
 //!
-//! The unified [`crate::ThetaDataDxClient`] drives the high-level
-//! `thetadatadx::ThetaDataDxClient::start_streaming` convenience, which
+//! The unified [`crate::Client`] drives the high-level
+//! `thetadatadx::Client::start_streaming` convenience, which
 //! owns its own dispatcher thread and `DispatcherSession`. The standalone
-//! client wraps `thetadatadx::fpss::FpssClient` directly — the lower-level
+//! client wraps `thetadatadx::fpss::StreamingClient` directly — the lower-level
 //! FPSS primitive that exposes `for_each_scoped` / `subscribe` / `shutdown`
 //! but no dispatcher management — so this module spins the dispatcher
 //! thread itself, exactly as the Python and C ABI standalone clients do.
@@ -28,12 +28,12 @@
 //! This client does NOT issue a Nexus authentication. FPSS speaks its own
 //! protocol-level `CREDENTIALS` handshake on the TLS connection itself; no
 //! separate Nexus session is acquired. Run the bundled
-//! [`crate::ThetaDataDxClient`] when you need the MDDS surface and Nexus
+//! [`crate::Client`] when you need the MDDS surface and Nexus
 //! session machinery side by side.
 //!
 //! # Lifecycle
 //!
-//! 1. `FpssClient.connect(...)` / `connectFromFile(...)` — snapshots the
+//! 1. `StreamingClient.connect(...)` / `connectFromFile(...)` — snapshots the
 //!    connect parameters. The FPSS TLS connection is opened lazily by
 //!    `startStreaming` (matching the FFI's deferred-connect contract).
 //! 2. `startStreaming(callback)` — opens the FPSS TLS connection and
@@ -49,7 +49,7 @@ use std::time::{Duration, Instant};
 use thetadatadx::auth::{self, Credentials as RustCredentials};
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::SubscriptionKind;
-use thetadatadx::fpss::{self, FpssClient as RustFpssClient};
+use thetadatadx::fpss::{self, StreamingClient as RustStreamingClient};
 use thetadatadx::DispatcherSession;
 
 use crate::fluent::Subscription;
@@ -96,8 +96,8 @@ impl FpssParams {
         }
     }
 
-    fn builder(&self) -> fpss::FpssClientBuilder<'_> {
-        fpss::FpssClientBuilder::new(&self.creds, &self.hosts)
+    fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
+        fpss::StreamingClientBuilder::new(&self.creds, &self.hosts)
             .ring_size(self.ring_size)
             .flush_mode(self.flush_mode)
             .reconnect_policy(self.policy.clone())
@@ -112,11 +112,11 @@ impl FpssParams {
 
 /// Build the snapshot from an owned [`DirectConfig`], rejecting a config
 /// with no FPSS hosts before any TLS work begins. Mirrors the Python
-/// `FpssClient.__new__` empty-hosts guard.
+/// `StreamingClient.__new__` empty-hosts guard.
 fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::Result<FpssParams> {
     if direct.fpss.hosts.is_empty() {
         return Err(crate::invalid_parameter_err(
-            "FpssClient: config.fpss.hosts is empty (use Config.production() or set the FPSS hosts)",
+            "StreamingClient: config.fpss.hosts is empty (use Config.production() or set the FPSS hosts)",
         ));
     }
     Ok(FpssParams::from_config(creds, direct))
@@ -127,32 +127,32 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
 /// Opens ONLY the FPSS TLS transport — no historical data channel, no
 /// Nexus HTTP authentication. Use when a parallel historical process is
 /// already running in the same environment and you need to stream FPSS
-/// without the bundled `ThetaDataDxClient` taking over the Nexus session
+/// without the bundled `Client` taking over the Nexus session
 /// at connect time.
 ///
 /// ```js
-/// const { FpssClient, Config, Contract } = require("@thetadatadx/sdk");
-/// const fpss = FpssClient.connectFromFile("creds.txt");
+/// const { StreamingClient, Config, Contract } = require("@thetadatadx/sdk");
+/// const fpss = StreamingClient.connectFromFile("creds.txt");
 /// fpss.startStreaming((event) => console.log(event.kind, event));
 /// fpss.subscribe(Contract.stock("AAPL").quote());
 /// // ... events arrive on the Node main thread ...
 /// fpss.stopStreaming();
 /// ```
 #[napi]
-pub struct FpssClient {
+pub struct StreamingClient {
     /// Connect parameters captured at construction time. Reused on every
     /// `startStreaming` / `reconnect`.
     params: FpssParams,
     /// Currently-open inner FPSS client. `None` between construction and
     /// `startStreaming`, and after `stopStreaming` / `shutdown`.
-    inner: Mutex<Option<Arc<RustFpssClient>>>,
+    inner: Mutex<Option<Arc<RustStreamingClient>>>,
     /// Most recently registered JS callback, behind an `Arc` so the
     /// dispatcher closure can hold its own ref-counted clone. Retained
     /// across `startStreaming` so `reconnect()` can re-register the same
     /// handler without the caller passing it again; cleared on
     /// `stopStreaming` / `shutdown` so a teardown the application has
     /// already observed releases the napi reference back to V8 — the same
-    /// explicit-handoff model as the unified [`crate::ThetaDataDxClient`].
+    /// explicit-handoff model as the unified [`crate::Client`].
     callback: Mutex<Option<Arc<TsfnCallback>>>,
     /// Quiescence flags of every superseded streaming session that has not
     /// yet drained. Mirrors the unified client's `prev_drained` field:
@@ -164,7 +164,7 @@ pub struct FpssClient {
     dispatcher: Mutex<DispatcherSession>,
 }
 
-impl Drop for FpssClient {
+impl Drop for StreamingClient {
     /// Signal shutdown and join the dispatcher thread so a callback in
     /// flight does not race destruction. Unlike the Python binding there
     /// is no GIL to release here: the dispatcher hands events to a
@@ -188,8 +188,8 @@ impl Drop for FpssClient {
     }
 }
 
-impl FpssClient {
-    fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustFpssClient>>> {
+impl StreamingClient {
+    fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustStreamingClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -205,7 +205,7 @@ impl FpssClient {
     /// a typed napi error when nothing is connected.
     fn with_live<R>(
         &self,
-        f: impl FnOnce(&RustFpssClient) -> Result<R, thetadatadx::Error>,
+        f: impl FnOnce(&RustStreamingClient) -> Result<R, thetadatadx::Error>,
     ) -> napi::Result<R> {
         let guard = self.lock_inner();
         let client = guard.as_ref().ok_or_else(|| {
@@ -264,7 +264,7 @@ impl FpssClient {
                 // logging dependency is pulled into this binding crate.
                 let _outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     dispatcher_client.for_each_scoped(
-                        |event: &fpss::FpssEvent| {
+                        |event: &fpss::StreamEvent| {
                             // Convert the borrowed event to the typed napi
                             // object on the dispatcher thread, then hand it
                             // to the `ThreadsafeFunction`, which routes the
@@ -306,7 +306,7 @@ impl FpssClient {
 }
 
 #[napi]
-impl FpssClient {
+impl StreamingClient {
     // Lifecycle: intentionally hand-written. The connect factories snapshot
     // the connect parameters but do NOT open the FPSS TLS connection —
     // connection is deferred to the first `startStreaming` call, matching
@@ -325,7 +325,7 @@ impl FpssClient {
     /// The config is snapshot at construction time: the `Config` handle
     /// may be reused or mutated afterward without affecting this client.
     #[napi(factory)]
-    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<FpssClient> {
+    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<StreamingClient> {
         let direct = config_or_production(config);
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
@@ -333,7 +333,7 @@ impl FpssClient {
         // `startStreaming`.
         crate::runtime_from_config(&direct.runtime);
         let params = params_from_direct(&creds.inner, &direct)?;
-        Ok(FpssClient::from_params(params))
+        Ok(StreamingClient::from_params(params))
     }
 
     /// Allocate a standalone FPSS handle with a credentials file (line 1 =
@@ -341,7 +341,10 @@ impl FpssClient {
     /// `Credentials.fromFile` + `connect`. Pass an optional `Config` to
     /// override the production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
-    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<FpssClient> {
+    pub fn connect_from_file(
+        path: String,
+        config: Option<&Config>,
+    ) -> napi::Result<StreamingClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let direct = config_or_production(config);
         // Seed the process-global runtime from this client's runtime config
@@ -350,7 +353,7 @@ impl FpssClient {
         // `startStreaming`.
         crate::runtime_from_config(&direct.runtime);
         let params = params_from_direct(&creds, &direct)?;
-        Ok(FpssClient::from_params(params))
+        Ok(StreamingClient::from_params(params))
     }
 
     /// Start FPSS streaming and register a JS callback for incoming events.
@@ -709,7 +712,7 @@ impl FpssClient {
     }
 }
 
-impl FpssClient {
+impl StreamingClient {
     /// Assemble an idle handle from a parameter snapshot. The FPSS TLS
     /// connection is not opened until `startStreaming`.
     fn from_params(params: FpssParams) -> Self {

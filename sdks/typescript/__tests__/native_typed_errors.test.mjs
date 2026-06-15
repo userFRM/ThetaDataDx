@@ -7,7 +7,7 @@
 // shim's `rethrowTyped` runs. Instance methods were wrapped already;
 // these tests pin the previously-unwrapped shapes:
 //
-//   * static / factory methods (`ThetaDataDxClient.connectFromFile`,
+//   * static / factory methods (`Client.connectFromFile`,
 //     `Contract.option`) — wrapped on the constructor object itself;
 //   * exported free functions (`calendarDayToArrowIpc`,
 //     `eodTickToArrowIpc`) — wrapped directly on the native binding.
@@ -55,7 +55,7 @@ const TEST_CREDS_PATH = process.env.THETADATADX_TEST_CREDS ?? '/home/theta-gamma
 function tryConnect(mod) {
   if (!existsSync(TEST_CREDS_PATH)) return null;
   try {
-    return mod.ThetaDataDxClient.connectFromFile(TEST_CREDS_PATH);
+    return mod.Client.connectFromFile(TEST_CREDS_PATH);
   } catch {
     return null;
   }
@@ -118,12 +118,12 @@ function validEodTick(right) {
 }
 
 describe('typed errors on static / factory entrypoints (native)', () => {
-  it('ThetaDataDxClient.connectFromFile on a missing path throws ThetaDataError', async () => {
+  it('Client.connectFromFile on a missing path throws ThetaDataError', async () => {
     const mod = await loadWrapped();
     if (!mod) return;
 
     assert.throws(
-      () => mod.ThetaDataDxClient.connectFromFile('/definitely/missing-creds.txt'),
+      () => mod.Client.connectFromFile('/definitely/missing-creds.txt'),
       (err) => err instanceof mod.ThetaDataError,
       'a static factory failure must reclassify to the typed hierarchy, not a plain Error',
     );

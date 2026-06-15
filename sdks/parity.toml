@@ -26,28 +26,28 @@ cpp = true
 
 
 [[class]]
-name = "ThetaDataDxClient"
+name = "Client"
 python = true
 typescript = true
-cpp = true          # exposed as `tdx::ThetaDataDxClient` (unified); `tdx::MddsClient` is the historical-only sibling
+cpp = true          # exposed as `thetadatadx::Client` (unified); `thetadatadx::HistoricalClient` is the historical-only sibling
 
 [[class]]
-name = "AsyncThetaDataDxClient"
+name = "AsyncClient"
 python = true
-typescript = false  # JS has no separate async client: the single ThetaDataDxClient's data-fetch methods each return a Promise resolved off the execution thread (the idiomatic JS shape), so an explicit async-twin class is redundant
+typescript = false  # JS has no separate async client: the single Client's data-fetch methods each return a Promise resolved off the execution thread (the idiomatic JS shape), so an explicit async-twin class is redundant
 cpp = false         # not yet ported — issue #545 follow-up
 
 [[class]]
-name = "FpssClient"
+name = "StreamingClient"
 python = true
-typescript = true   # standalone FPSS-only napi class over `thetadatadx::fpss::FpssClient`
+typescript = true   # standalone FPSS-only napi class over `thetadatadx::fpss::StreamingClient`
 cpp = true
 
 [[class]]
-name = "MddsClient"
+name = "HistoricalClient"
 python = true
 typescript = true   # standalone historical-only napi class; generated historical surface, no streaming methods
-cpp = true          # standalone historical-only client: `tdx::MddsClient`
+cpp = true          # standalone historical-only client: `thetadatadx::HistoricalClient`
 
 [[class]]
 name = "StreamingSession"
@@ -59,7 +59,7 @@ cpp = false         # C++ uses RAII guard pattern instead
 name = "Contract"
 python = true
 typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
-cpp = true          # exposed as `tdx::FluentContract`
+cpp = true          # exposed as `thetadatadx::FluentContract`
 
 [[class]]
 name = "ContractRef"
@@ -93,19 +93,19 @@ cpp = false         # canonical `DeadlineExceededError` only; no C++ alias
 name = "Subscription"
 python = true
 typescript = true
-cpp = true          # exposed as `tdx::FluentSubscription`
+cpp = true          # exposed as `thetadatadx::FluentSubscription`
 
 [[class]]
 name = "SecType"
 python = true
 typescript = true
-cpp = true          # exposed as `tdx::FluentSecType`
+cpp = true          # exposed as `thetadatadx::FluentSecType`
 
 [[class]]
 name = "FlatFilesNamespace"
 python = true
 typescript = true
-cpp = true          # exposed as `tdx::FlatFiles`
+cpp = true          # exposed as `thetadatadx::FlatFiles`
 
 [[class]]
 name = "FlatFileRowList"
@@ -212,7 +212,7 @@ cpp = true
 # Per-field access on the legacy `FlatFilesConfig` sub-config. Bound on
 # every binding: Python via `Config.flatfiles_*` setters/getters,
 # TypeScript via `Config.setFlatfiles*`, C++ via
-# `tdx::Config::set_flatfiles_*` (which forwards to the FFI
+# `thetadatadx::Config::set_flatfiles_*` (which forwards to the FFI
 # `tdx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
 # two `Duration` fields cross the binding boundary as `u64` seconds
 # (`initial_backoff_secs` / `max_backoff_secs`).
@@ -246,7 +246,7 @@ cpp = true
 # Tuning knobs on the MDDS sub-config exposed across every binding.
 # `concurrent_requests` / `warn_on_buffered_threshold_bytes` are bound
 # via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
-# `tdx::Config::set_<name>` (C++ forwarder over the C ABI).
+# `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
 
 [[class]]
 name = "MddsConfig.concurrent_requests"
@@ -265,7 +265,7 @@ cpp = true
 # FPSS reconnect policy + per-class attempt budgets + stable-window
 # timer. Bound on every binding: Python via `Config.reconnect_*`
 # setters, TypeScript via `Config.setReconnect*`, C++ via
-# `tdx::Config::set_reconnect_*` (which forwards to the FFI
+# `thetadatadx::Config::set_reconnect_*` (which forwards to the FFI
 # `tdx_config_set_reconnect_*` symbols). Dotted-name rows track
 # field-level parity; the parity script's class-existence check skips
 # dotted rows pending the per-field granularity tightening (issue
@@ -374,7 +374,7 @@ cpp = true
 # method-shape helpers that callers can recompute from the four field
 # values if needed. Field setters bound on every binding (Python via
 # `Config.retry_*`, TS via `Config.setRetry*`, C++ via
-# `tdx::Config::set_retry_*`); the dotted rows below track field-level
+# `thetadatadx::Config::set_retry_*`); the dotted rows below track field-level
 # parity and the parity script's class-existence check skips dotted
 # rows pending the per-field granularity tightening (issue referenced
 # in `scripts/check_binding_parity.py`).
@@ -412,17 +412,17 @@ cpp = true
 # ─── FPSS parse-error event class ─────────────────────────────────────
 #
 # Named `ParseError` on every binding (mirrors the Rust core's
-# `FpssControl::Error` variant) so no binding ships a class that
+# `StreamControl::Error` variant) so no binding ships a class that
 # collides with the language's own error types: Python's exception
 # hierarchy roots at `ThetaDataError`, the JS global `Error` stays
-# unshadowed, and C / C++ expose `TdxFpssParseError` /
-# `tdx::FpssParseError`.
+# unshadowed, and C / C++ expose `TdxStreamParseError` /
+# `thetadatadx::StreamParseError`.
 
 [[class]]
 name = "ParseError"
 python = true
-typescript = true   # `#[napi(object)]` interface `ParseError` + `FpssEvent.parseError`
-cpp = true          # `TdxFpssParseError` C struct, `tdx::FpssParseError` alias
+typescript = true   # `#[napi(object)]` interface `ParseError` + `StreamEvent.parseError`
+cpp = true          # `TdxStreamParseError` C struct, `thetadatadx::StreamParseError` alias
 
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
@@ -450,13 +450,13 @@ cpp = true          # `TdxFpssParseError` C struct, `tdx::FpssParseError` alias
 name = "GreeksEodTick.cross_binding_anchor"
 python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
 typescript = true   # `GreeksEodTick` napi class
-cpp = true          # `tdx::GreeksEodTick` alias over `TdxGreeksEodTick`
+cpp = true          # `thetadatadx::GreeksEodTick` alias over `TdxGreeksEodTick`
 
 [[class]]
 name = "IndexPriceAtTimeTick.cross_binding_anchor"
 python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
 typescript = true   # `IndexPriceAtTimeTick` napi class
-cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`
+cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`
 
 # ─── Rust-only MDDS / FPSS knobs (Gate 2 tightening / #595) ─────────────
 #
@@ -665,7 +665,7 @@ cpp = true
 # Bound on every binding: Python via `Config.nexus_url` /
 # `Config.client_type` / `Config.metrics_port` setters/getters,
 # TypeScript via `Config.setNexusUrl` / `setClientType` /
-# `setMetricsPort`, C++ via `tdx::Config::set_nexus_url` /
+# `setMetricsPort`, C++ via `thetadatadx::Config::set_nexus_url` /
 # `set_client_type` / `set_metrics_port` (which forward to the FFI
 # `tdx_config_set_nexus_url` / `_client_type` / `_metrics_port`
 # symbols). The two `AuthConfig` fields are `String` — the FFI
@@ -744,8 +744,8 @@ ffi = true
 
 # Conditions / exchange / calendar / sequence lookups. Exposed as the
 # `thetadatadx.util` submodule (Python), the `Util` namespace class
-# (TypeScript: `Util.conditionName(...)`), the `tdx::util` namespace plus
-# the `tdx::calendar_status_name` / `tdx::timestamp_ms` free functions
+# (TypeScript: `Util.conditionName(...)`), the `thetadatadx::util` namespace plus
+# the `thetadatadx::calendar_status_name` / `thetadatadx::timestamp_ms` free functions
 # (C++), and bare `tdx_*` symbols (the C ABI). The four predicate helpers
 # carry a disambiguating prefix on the C ABI symbol (`tdx_condition_is_cancel`
 # vs the bare `is_cancel` the managed bindings expose, so the quote-condition
@@ -892,7 +892,7 @@ ffi = true
 # ─── Method-level parity matrix ────────────────────────────────────────
 #
 # `[[method]]` rows pin the per-method binding state on the load-bearing
-# user-facing classes (`ThetaDataDxClient`, `FpssClient`, `Credentials`,
+# user-facing classes (`Client`, `StreamingClient`, `Credentials`,
 # `Config`). The class-level `[[class]]` rows above only record that
 # the class exists in each binding; without these `[[method]]` rows a
 # binding could quietly drop a public method (or fail to add a new one
@@ -926,303 +926,303 @@ ffi = true
 # above (e.g. `ReconnectConfig.wait_ms`) which already cover the
 # cross-binding setter contract at the field level.
 
-# ── ThetaDataDxClient (the unified entry-point client) ──
+# ── Client (the unified entry-point client) ──
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "startStreaming"
 python = true
 typescript = true
 cpp = false  # C++ uses `setCallback` for the same role; tracked below
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "stopStreaming"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "shutdown"
 python = true
 typescript = true
-cpp = false  # C++ frees through the RAII destructor on `ThetaDataDxClient`
+cpp = false  # C++ frees through the RAII destructor on `Client`
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "reconnect"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "isStreaming"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "awaitDrain"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "subscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "subscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "unsubscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "unsubscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "activeSubscriptions"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "activeFullSubscriptions"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "droppedEventCount"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "ringCapacity"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "panicCount"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "millisSinceLastEvent"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "lastEventReceivedAtUnixNanos"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "lastConnectedAddr"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "ThetaDataDxClient"
+class = "Client"
 name = "setCallback"
 python = false  # Python uses `startStreaming(callback)` for the same role
 typescript = false  # TypeScript uses `startStreaming(callback)` likewise
 cpp = true
 
-# ── FpssClient (the standalone streaming-only client) ──
+# ── StreamingClient (the standalone streaming-only client) ──
 #
 # Not on TypeScript today (tracked as a follow-up under issue #545 in
 # the class-level row above). Every `typescript = false` below reflects
 # the same gap and is NOT an action item by itself.
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "startStreaming"
 python = true
 typescript = true
 cpp = false  # C++ uses `setCallback` for the same role
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "stopStreaming"
 python = true
 typescript = true
-cpp = false  # C++ frees through the RAII destructor on `FpssClient`
+cpp = false  # C++ frees through the RAII destructor on `StreamingClient`
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "shutdown"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "reconnect"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "isStreaming"
 python = true
 typescript = true
-cpp = false  # C++ `FpssClient` is always live once constructed
+cpp = false  # C++ `StreamingClient` is always live once constructed
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "isAuthenticated"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "awaitDrain"
 python = true
 typescript = true
 cpp = false  # C++ drain barrier runs inside the RAII destructor
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "subscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "subscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "unsubscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "unsubscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "activeSubscriptions"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "activeFullSubscriptions"
 python = true
 typescript = true
-cpp = false  # C++ FpssClient surface omits the full-stream snapshot today
+cpp = false  # C++ StreamingClient surface omits the full-stream snapshot today
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "droppedEventCount"
 python = true
 typescript = true
 cpp = false  # C++ method is `dropped_events`, declared separately below
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "droppedEvents"
 python = false
 typescript = false
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "ringCapacity"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "panicCount"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "millisSinceLastEvent"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "lastEventReceivedAtUnixNanos"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "lastConnectedAddr"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "FpssClient"
+class = "StreamingClient"
 name = "setCallback"
 python = false
 typescript = false
@@ -1434,7 +1434,7 @@ typescript = "f64"
 #
 # The shape is the idiomatic one per binding, so the surface is not
 # uniform across them: Rust + Python expose methods / computed
-# properties, C++ exposes `tdx::<name>(const TradeTick&)` free functions
+# properties, C++ exposes `thetadatadx::<name>(const TradeTick&)` free functions
 # (tick rows are C struct aliases with no member methods), and
 # TypeScript carries precomputed `bool` fields on the `#[napi(object)]`
 # row (TS tick rows are plain data objects, also method-less). Only the
@@ -1474,7 +1474,7 @@ typescript = "bool"
 #
 # The shape is the idiomatic one per binding, so the surface is not
 # uniform across them: Rust + Python expose `Option<i64>` methods /
-# computed properties; C++ exposes one `tdx::timestamp_ms(date,
+# computed properties; C++ exposes one `thetadatadx::timestamp_ms(date,
 # ms_of_day)` free function reused for every `(date, *_ms_of_day)` pair
 # (tick rows are C struct aliases with no member methods) over the
 # `tdx_timestamp_ms` C ABI; TypeScript carries precomputed
@@ -1658,7 +1658,7 @@ typescript = "Option<BigInt>"
 # The columnar Arrow exit on an in-band history result is present on every
 # binding: Python via the `<TickName>List.to_arrow()` terminal, TypeScript
 # via the generated `<tick>ToArrowIpc(rows)` napi free functions, and C++
-# via the generated `tdx::<collection>_to_arrow_ipc(std::vector<Tick>)`
+# via the generated `thetadatadx::<collection>_to_arrow_ipc(std::vector<Tick>)`
 # free functions over the `tdx_<collection>_to_arrow_ipc` C ABI. All three
 # binding surfaces are generated from `tick_schema.toml` and funnel through
 # the one `TicksArrowExt::to_arrow` + Arrow IPC `StreamWriter` path, so they
@@ -1680,9 +1680,9 @@ typescript = "Option<BigInt>"
 #   python      — `.stream(handler)` + `.stream_async(handler)` on the
 #                 `<Endpoint>Builder` pyclass.
 #   typescript  — `<endpoint>Stream(...args, options, callback)` on the
-#                 `ThetaDataDxClient` napi class.
+#                 `Client` napi class.
 #   cpp         — `<endpoint>_stream(...args, callback, options)` on the
-#                 C++ `ThetaDataDxClient` wrapper.
+#                 C++ `Client` wrapper.
 #   ffi         — the `tdx_<endpoint>_stream(...)` extern "C" symbol.
 #
 # These terminals live on per-endpoint builders / as endpoint-named
@@ -1961,21 +1961,21 @@ ffi = true
 # class identifier (the same name used by the `[[class]]` rows).
 
 [[from_file]]
-name = "ThetaDataDxClient"
+name = "Client"
 python = true
 typescript = true
 cpp = true
 ffi = true
 
 [[from_file]]
-name = "MddsClient"
+name = "HistoricalClient"
 python = true
 typescript = true
 cpp = true
 ffi = true
 
 [[from_file]]
-name = "FpssClient"
+name = "StreamingClient"
 python = true
 typescript = true
 cpp = true

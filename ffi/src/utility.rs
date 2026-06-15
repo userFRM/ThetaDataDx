@@ -441,7 +441,7 @@ pub extern "C" fn tdx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
 ///
 /// # Safety
 /// `contract` must be a valid `TdxContract` pointer (e.g. the
-/// `event.<variant>.contract` field of a `TdxFpssEvent`). `out_dollars`
+/// `event.<variant>.contract` field of a `TdxStreamEvent`). `out_dollars`
 /// must be a valid, writable `double` pointer.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_contract_strike_dollars(

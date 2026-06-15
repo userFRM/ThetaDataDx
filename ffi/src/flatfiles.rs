@@ -25,7 +25,7 @@ use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
-use crate::streaming::TdxUnified;
+use crate::streaming::TdxClient;
 
 // ── Heap-owned row-list handle ─────────────────────────────────────────
 
@@ -119,7 +119,7 @@ unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
 /// The returned handle MUST be freed with `tdx_flatfile_rowlist_free`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_flatfile_request_decoded(
-    handle: *const TdxUnified,
+    handle: *const TdxClient,
     sec_type: *const c_char,
     req_type: *const c_char,
     date: *const c_char,
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn tdx_flatfile_rowlist_free(rowlist: *mut TdxFlatFileRowL
 /// step. Returns 0 on success, -1 on error; check `tdx_last_error()`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_flatfile_request_to_path(
-    handle: *const TdxUnified,
+    handle: *const TdxClient,
     sec_type: *const c_char,
     req_type: *const c_char,
     date: *const c_char,

@@ -1473,7 +1473,7 @@ pub struct StockHistoryOHLCRangeOptions {
 }
 
 #[napi]
-impl ThetaDataDxClient {
+impl Client {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
@@ -6880,7 +6880,7 @@ impl ThetaDataDxClient {
 
 }
 #[napi]
-impl MddsClient {
+impl HistoricalClient {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.

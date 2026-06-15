@@ -1,4 +1,4 @@
-//! Standalone Python `MddsClient` pyclass.
+//! Standalone Python `HistoricalClient` pyclass.
 //!
 //! Opens ONLY the MDDS channel and the Nexus HTTP authentication
 //! flow — no FPSS TLS connection, no event ring, no streaming
@@ -6,15 +6,15 @@
 //! (`tdx_client_*` in `ffi/src/auth.rs`) and the C++ `tdx::Client`
 //! pattern, letting Python users run a historical-only session
 //! alongside a parallel FPSS process without the bundled
-//! [`crate::ThetaDataDxClient`] preempting the parallel work at the
+//! [`crate::Client`] preempting the parallel work at the
 //! Nexus session layer.
 //!
 //! # Nexus session behaviour
 //!
-//! `MddsClient.__new__` issues exactly one Nexus authentication and
+//! `HistoricalClient.__new__` issues exactly one Nexus authentication and
 //! holds the resulting session UUID for the lifetime of the handle.
-//! When a parallel process (or another `MddsClient` / bundled
-//! `ThetaDataDxClient` in the same interpreter) authenticates against
+//! When a parallel process (or another `HistoricalClient` / bundled
+//! `Client` in the same interpreter) authenticates against
 //! Nexus with the same credentials, the upstream behaviour is the
 //! user's environment concern — the SDK does not invalidate, share,
 //! or coordinate session tokens across clients. The
@@ -24,36 +24,36 @@
 //!
 //! # Surface
 //!
-//! Internally this pyclass wraps an `Arc<thetadatadx::ThetaDataDxClient>`
+//! Internally this pyclass wraps an `Arc<thetadatadx::Client>`
 //! and forwards historical / list / snapshot / at-time / FLATFILES
 //! endpoint calls through PyO3 attribute lookup against an internally
-//! held [`crate::ThetaDataDxClient`] pyclass instance. The bundled
+//! held [`crate::Client`] pyclass instance. The bundled
 //! client opens MDDS + Nexus at construction time and never
 //! opens FPSS unless `start_streaming` is called — by construction
 //! and by allowlist enforcement here, no FPSS-touching method is
-//! reachable through `MddsClient`.
+//! reachable through `HistoricalClient`.
 //!
-//! This is the same delegation pattern [`crate::AsyncThetaDataDxClient`]
+//! This is the same delegation pattern [`crate::AsyncClient`]
 //! uses for its async-only surface, with an inverted allowlist
 //! (block streaming instead of permitting only async-suffixed).
 
 use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
 
-use crate::{Config, Credentials, ThetaDataDxClient};
+use crate::{Client, Config, Credentials};
 
-/// Methods on [`crate::ThetaDataDxClient`] that touch the FPSS
-/// transport. Reaching for any of these through `MddsClient` raises
+/// Methods on [`crate::Client`] that touch the FPSS
+/// transport. Reaching for any of these through `HistoricalClient` raises
 /// `AttributeError` so callers who chose the MDDS-only surface
 /// cannot accidentally open an FPSS connection that would conflict
 /// with a parallel FPSS process.
 ///
-/// The block-list approach (vs. the inverted `AsyncThetaDataDxClient`
+/// The block-list approach (vs. the inverted `AsyncClient`
 /// allowlist) keeps the historical / FLATFILES surface — which is
 /// 50+ generated `*_builder` factories plus per-endpoint sync and
 /// async terminals — accessible without listing each one. Adding a
-/// new historical endpoint to `ThetaDataDxClient` is automatically
-/// available on `MddsClient` with zero edit here.
+/// new historical endpoint to `Client` is automatically
+/// available on `HistoricalClient` with zero edit here.
 ///
 /// Drift guard: the compile-time assertion below pins the generator-emitted
 /// streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`, generated from
@@ -86,7 +86,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "active_full_subscriptions",
     "dropped_event_count",
     "panic_count",
-    // Hand-written `#[pymethods]` entries on `ThetaDataDxClient` /
+    // Hand-written `#[pymethods]` entries on `Client` /
     // sibling streaming pyclasses. These factories return a
     // streaming-session pyclass (sync, sync-iter, or asyncio) — the
     // session itself transitively opens the FPSS surface, so an
@@ -150,61 +150,61 @@ const _: () = {
 /// Authenticates once against Nexus at construction time. Use when a
 /// parallel FPSS process is already running in the same environment
 /// and you need to test historical / FLATFILES endpoints without the
-/// bundled [`crate::ThetaDataDxClient`] also opening an FPSS slot.
+/// bundled [`crate::Client`] also opening an FPSS slot.
 ///
 /// ```python
-/// from thetadatadx import MddsClient, Credentials, Config
+/// from thetadatadx import HistoricalClient, Credentials, Config
 ///
 /// creds = Credentials.from_file("creds.txt")
-/// mdds = MddsClient(creds, Config.production())
+/// mdds = HistoricalClient(creds, Config.production())
 ///
 /// eod = mdds.stock_history_eod("AAPL", "20240101", "20240301")
 /// print(eod.to_pandas().head())
 /// ```
 ///
 /// Calling streaming / subscribe methods on this pyclass raises
-/// `AttributeError` — use the standalone [`crate::FpssClient`] or the
-/// bundled [`crate::ThetaDataDxClient`] when you need both surfaces.
+/// `AttributeError` — use the standalone [`crate::StreamingClient`] or the
+/// bundled [`crate::Client`] when you need both surfaces.
 // `frozen` — every `#[pymethods]` entry takes `&self` (never
-// `&mut self`). The wrapped `inner: Py<ThetaDataDxClient>` carries its
+// `&mut self`). The wrapped `inner: Py<Client>` carries its
 // own interior state; the pyclass shell is immutable. A future
 // `&mut self` regression surfaces as a `cargo check` failure rather
 // than slipping silently.
-#[pyclass(module = "thetadatadx", name = "MddsClient", frozen)]
-pub(crate) struct MddsClient {
+#[pyclass(module = "thetadatadx", name = "HistoricalClient", frozen)]
+pub(crate) struct HistoricalClient {
     /// Hidden inner unified client. Opens MDDS + Nexus at
     /// `connect` time and lazily opens FPSS only on `start_streaming*`
     /// — neither of which we surface through this pyclass, so no FPSS
     /// TLS slot is ever opened for a session that lives entirely
-    /// through `MddsClient`.
-    inner: Py<ThetaDataDxClient>,
+    /// through `HistoricalClient`.
+    inner: Py<Client>,
 }
 
 #[pymethods]
-impl MddsClient {
+impl HistoricalClient {
     /// Connect to ThetaData and open the MDDS channel.
     ///
     /// Authenticates against Nexus once and opens the in-house gRPC
     /// channel pool — same first-step behaviour as
-    /// [`crate::ThetaDataDxClient`] but the FPSS streaming slot is
+    /// [`crate::Client`] but the FPSS streaming slot is
     /// never entered. A parallel FPSS process running under the same
     /// credentials is unaffected by this constructor's authentication
     /// (the Nexus-side parallel-session behaviour is the user's
     /// environment concern; see the module-level docstring).
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let inner = Py::new(py, ThetaDataDxClient::new(py, creds, config)?)?;
+        let inner = Py::new(py, Client::new(py, creds, config)?)?;
         Ok(Self { inner })
     }
 
-    /// Convenience constructor: `MddsClient.from_file("creds.txt")`.
+    /// Convenience constructor: `HistoricalClient.from_file("creds.txt")`.
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
     /// The `config` kwarg is optional: with no kwarg the constructor
     /// targets the production endpoint. Tests and dev / stage
     /// environments reach a single-arg constructor shape via
-    /// `MddsClient.from_file("creds.txt", config=Config.dev())`.
+    /// `HistoricalClient.from_file("creds.txt", config=Config.dev())`.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
@@ -217,12 +217,12 @@ impl MddsClient {
                 &owned_default
             }
         };
-        let inner = Py::new(py, ThetaDataDxClient::new(py, &creds, cfg)?)?;
+        let inner = Py::new(py, Client::new(py, &creds, cfg)?)?;
         Ok(Self { inner })
     }
 
     /// Forward unknown attribute access to the wrapped
-    /// [`crate::ThetaDataDxClient`].
+    /// [`crate::Client`].
     ///
     /// Block-list applied first: every FPSS-touching method raises
     /// `AttributeError` so an MDDS-only handle cannot accidentally
@@ -232,8 +232,8 @@ impl MddsClient {
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if FPSS_TOUCHING_METHODS.contains(&name) {
             return Err(PyAttributeError::new_err(format!(
-                "MddsClient is the standalone historical surface and does not expose `{name}`. \
-                 Use FpssClient(creds, config) for FPSS streaming, or ThetaDataDxClient(creds, config) \
+                "HistoricalClient is the standalone historical surface and does not expose `{name}`. \
+                 Use StreamingClient(creds, config) for FPSS streaming, or Client(creds, config) \
                  for the unified handle."
             )));
         }
@@ -247,7 +247,7 @@ impl MddsClient {
         // streaming state at all is misleading. The historical channel
         // is always connected by construction (the constructor errored
         // out otherwise).
-        "MddsClient(historical=connected)".to_string()
+        "HistoricalClient(historical=connected)".to_string()
     }
 }
 

@@ -48,7 +48,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_history_open_interest(
+Client.option_history_open_interest(
     symbol, expiration, date,
     *,
     strike=None, right=None, max_dte=None, strike_range=None, start_date=None,
@@ -106,13 +106,13 @@ std::vector<OpenInterestTick> option_history_open_interest(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_start_date(...)`, `.with_end_date(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_start_date(...)`, `.with_end_date(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_history_open_interest("SPY", "20250321", "20250303",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open_interest << "\n";
 }

@@ -1,8 +1,8 @@
 //! C++ layout-assert emitter for FPSS C mirror structs.
 //!
 //! Emits per-control-variant `static_assert(offsetof / sizeof)` coverage
-//! for the typed C structs (`TdxFpssLoginSuccess`, `TdxFpssDisconnected`,
-//! ...) alongside the data-variant + `TdxFpssEvent` checks. A schema
+//! for the typed C structs (`TdxStreamLoginSuccess`, `TdxStreamDisconnected`,
+//! ...) alongside the data-variant + `TdxStreamEvent` checks. A schema
 //! entry's columns expand into one offset assert per physical field —
 //! `Vec<u8>` columns split into `(<name>, <name>_len)` pairs.
 
@@ -13,7 +13,7 @@ use super::layout::{c_struct_offsets, c_struct_size, fpss_event_offsets, fpss_ev
 use super::schema::{sorted_control_events, sorted_data_events, EventDef, Schema};
 
 fn render_event_asserts(out: &mut String, event_name: &str, def: &EventDef) {
-    let alias = format!("TdxFpss{event_name}");
+    let alias = format!("TdxStream{event_name}");
     let field = snake_case(event_name);
     if def.columns.is_empty() {
         // Empty control variants have a single `_padding` byte. Emit a
@@ -47,7 +47,7 @@ fn render_event_asserts(out: &mut String, event_name: &str, def: &EventDef) {
     out.push('\n');
 }
 
-/// Renders the C++ `static_assert` block covering field offsets and sizes for every FPSS C mirror struct and the tagged `TdxFpssEvent` wrapper.
+/// Renders the C++ `static_assert` block covering field offsets and sizes for every FPSS C mirror struct and the tagged `TdxStreamEvent` wrapper.
 pub(super) fn render_cpp_fpss_layout_asserts(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -67,13 +67,13 @@ pub(super) fn render_cpp_fpss_layout_asserts(schema: &Schema) -> String {
     for (field_name, offset) in fpss_event_offsets(schema) {
         writeln!(
             out,
-            "static_assert(offsetof(TdxFpssEvent, {field_name}) == {offset},\n              \"TdxFpssEvent::{field_name} offset drifted\");"
+            "static_assert(offsetof(TdxStreamEvent, {field_name}) == {offset},\n              \"TdxStreamEvent::{field_name} offset drifted\");"
         )
         .unwrap();
     }
     writeln!(
         out,
-        "static_assert(sizeof(TdxFpssEvent) == {},\n              \"TdxFpssEvent total size drifted\");",
+        "static_assert(sizeof(TdxStreamEvent) == {},\n              \"TdxStreamEvent total size drifted\");",
         fpss_event_size(schema)
     )
     .unwrap();

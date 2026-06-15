@@ -101,9 +101,9 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 /// `connect(creds, config?)`.
 ///
 /// ```js
-/// const { Credentials, ThetaDataDxClient } = require("@thetadatadx/sdk");
+/// const { Credentials, Client } = require("@thetadatadx/sdk");
 /// const creds = Credentials.fromFile("creds.txt");
-/// const tdx = ThetaDataDxClient.connect(creds);
+/// const tdx = Client.connect(creds);
 /// ```
 #[napi]
 #[derive(Clone)]
@@ -274,7 +274,7 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
 
 /// Pin the ring rustls `CryptoProvider` as the process-wide default
 /// when the `.node` module is loaded by Node.js. Without this, the
-/// first `ThetaDataDxClient.connect()` call panics with
+/// first `Client.connect()` call panics with
 /// "Could not automatically determine the process-level CryptoProvider"
 /// — rustls 0.23 requires `install_default` before the first handshake
 /// even when a single provider is compiled in. The workspace builds
@@ -355,14 +355,14 @@ include!("_generated/buffered_event.rs");
 
 include!("_generated/utility_functions.rs");
 
-// ── Unified ThetaDataDxClient client ──
+// ── Unified Client client ──
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
-/// `FpssEvent` deliveries onto the Node main thread via napi-rs's
+/// `StreamEvent` deliveries onto the Node main thread via napi-rs's
 /// internal `uv_async_t` queue. The const generic `false` selects
 /// `ErrorStrategy::Fatal`, so the napi-rs `call` API takes the
-/// `FpssEvent` directly (not a `Result`) and the JS side relies on
-/// its own try/catch for user-callback failures. The two `FpssEvent`
+/// `StreamEvent` directly (not a `Result`) and the JS side relies on
+/// its own try/catch for user-callback failures. The two `StreamEvent`
 /// type parameters are the wire payload and the JS-call arg type
 /// respectively; both are the same concrete object here.
 ///
@@ -371,18 +371,23 @@ include!("_generated/utility_functions.rs");
 /// undefined behavior. The dispatcher's drain thread therefore hands
 /// every event to this `ThreadsafeFunction`, which queues it for the
 /// main thread via `napi_call_threadsafe_function`.
-pub(crate) type TsfnCallback =
-    napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>;
+pub(crate) type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
+    StreamEvent,
+    (),
+    StreamEvent,
+    napi::Status,
+    false,
+>;
 
 #[napi]
-pub struct ThetaDataDxClient {
+pub struct Client {
     /// Wrapped in `Arc` so async napi methods (e.g. `awaitDrain`) can
     /// clone a cheap handle into a `tokio::task::spawn_blocking` future
     /// without violating the `Send + 'static` bound. The inner
-    /// `thetadatadx::ThetaDataDxClient` is not `Clone` -- its FPSS mutex and
+    /// `thetadatadx::Client` is not `Clone` -- its FPSS mutex and
     /// subscription-tier state forbid that -- so the outer `Arc` is the
     /// only way to hand a borrow off the napi main thread.
-    tdx: Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: Arc<thetadatadx::Client>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
     /// `reconnect()` so the reconnect path can re-attach the same JS
@@ -391,7 +396,7 @@ pub struct ThetaDataDxClient {
     /// released back to V8 and a subsequent `startStreaming()` sees a
     /// clean slot.
     ///
-    /// Wrapped in `Arc` because the dispatcher closure (`Fn(&FpssEvent)
+    /// Wrapped in `Arc` because the dispatcher closure (`Fn(&StreamEvent)
     /// + Send + 'static`) needs its own ref-counted clone of the
     /// callback handle. `ThreadsafeFunction` itself does not implement
     /// `Clone` in napi-rs 3.x (its inner `napi_threadsafe_function`
@@ -402,7 +407,7 @@ pub struct ThetaDataDxClient {
 }
 
 #[napi]
-impl ThetaDataDxClient {
+impl Client {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
     /// Connect to ThetaData with a `Credentials` handle. Pass an
@@ -416,22 +421,19 @@ impl ThetaDataDxClient {
     ///
     /// ```js
     /// const creds = Credentials.fromFile("creds.txt");
-    /// const tdx = ThetaDataDxClient.connect(creds);
+    /// const tdx = Client.connect(creds);
     /// ```
     #[napi(factory)]
-    pub fn connect(
-        creds: &Credentials,
-        config: Option<&Config>,
-    ) -> napi::Result<ThetaDataDxClient> {
+    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
         let cfg = config_or_production(config);
         let tdx = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
+            .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
                 cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
+        Ok(Client {
             tdx: Arc::new(tdx),
             callback: Mutex::new(None),
         })
@@ -442,19 +444,16 @@ impl ThetaDataDxClient {
     /// `connect`. Pass an optional `Config` to override the
     /// production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
-    pub fn connect_from_file(
-        path: String,
-        config: Option<&Config>,
-    ) -> napi::Result<ThetaDataDxClient> {
+    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
         let tdx = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
+            .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
+        Ok(Client {
             tdx: Arc::new(tdx),
             callback: Mutex::new(None),
         })
@@ -595,14 +594,14 @@ impl ThetaDataDxClient {
     }
 }
 
-// ── Standalone MddsClient (historical-only) ──
+// ── Standalone HistoricalClient (historical-only) ──
 
 /// Standalone MDDS-only historical client.
 ///
 /// Opens ONLY the historical data channel and the Nexus authentication
 /// flow — no real-time streaming connection or streaming state machine.
 /// This lets a caller run a historical-only session alongside a parallel
-/// streaming process without the unified `ThetaDataDxClient` taking over
+/// streaming process without the unified `Client` taking over
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
@@ -610,54 +609,54 @@ impl ThetaDataDxClient {
 /// behaves exactly like `client.stockHistoryEod(...)`. The streaming and
 /// subscription methods are simply not present: there is no
 /// `startStreaming` / `subscribe` on this class, so an MDDS-only handle
-/// cannot open a streaming slot. Use `FpssClient` for streaming, or the
-/// unified `ThetaDataDxClient` when you need both surfaces.
+/// cannot open a streaming slot. Use `StreamingClient` for streaming, or the
+/// unified `Client` when you need both surfaces.
 ///
 /// ```js
-/// const { MddsClient, Config } = require("@thetadatadx/sdk");
-/// const mdds = MddsClient.connectFromFile("creds.txt");
+/// const { HistoricalClient, Config } = require("@thetadatadx/sdk");
+/// const mdds = HistoricalClient.connectFromFile("creds.txt");
 /// const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
-pub struct MddsClient {
+pub struct HistoricalClient {
     /// Wrapped in `Arc` so the generated async endpoint methods can
     /// clone a cheap `'static` handle into the worker future, exactly
     /// like the unified client's `tdx` field. The generated method
     /// bodies reference `self.tdx`, so the historical impl block the
     /// codegen projects onto this class compiles unchanged. This client
-    /// holds the same `thetadatadx::ThetaDataDxClient` core but never
+    /// holds the same `thetadatadx::Client` core but never
     /// reaches its streaming methods — no FPSS TLS slot is opened for a
-    /// session that lives entirely through `MddsClient`.
-    tdx: Arc<thetadatadx::ThetaDataDxClient>,
+    /// session that lives entirely through `HistoricalClient`.
+    tdx: Arc<thetadatadx::Client>,
 }
 
 #[napi]
-impl MddsClient {
+impl HistoricalClient {
     // Lifecycle: intentionally hand-written (language-specific constructor
-    // semantics), mirroring the unified `ThetaDataDxClient` factories. The
-    // connect core is identical — `thetadatadx::ThetaDataDxClient::connect`
+    // semantics), mirroring the unified `Client` factories. The
+    // connect core is identical — `thetadatadx::Client::connect`
     // opens MDDS + Nexus and never opens FPSS until a streaming method is
     // called, which this class does not surface.
 
     /// Connect to ThetaData with a `Credentials` handle and open the
     /// historical data channel. Historical only — this client never
     /// opens the FPSS streaming transport. Pass an optional `Config` to
-    /// override the production-default endpoint. Use `FpssClient` for
+    /// override the production-default endpoint. Use `StreamingClient` for
     /// real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
     /// reused or mutated afterward without affecting this client.
     #[napi(factory)]
-    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<MddsClient> {
+    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<HistoricalClient> {
         let cfg = config_or_production(config);
         let tdx = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
+            .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds.inner,
                 cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(MddsClient { tdx: Arc::new(tdx) })
+        Ok(HistoricalClient { tdx: Arc::new(tdx) })
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 =
@@ -665,23 +664,26 @@ impl MddsClient {
     /// `connect`. Historical only. Pass an optional
     /// `Config` to override the production-default endpoint.
     #[napi(factory, js_name = "connectFromFile")]
-    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<MddsClient> {
+    pub fn connect_from_file(
+        path: String,
+        config: Option<&Config>,
+    ) -> napi::Result<HistoricalClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
         let tdx = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
+            .block_on(thetadatadx::Client::connect(
                 // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
                 &creds, cfg,
             ))
             .map_err(to_napi_err)?;
-        Ok(MddsClient { tdx: Arc::new(tdx) })
+        Ok(HistoricalClient { tdx: Arc::new(tdx) })
     }
 }
 
 // Generated historical endpoint methods. The codegen projects the same
-// per-endpoint method bodies onto both `ThetaDataDxClient` and
-// `MddsClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
-// emitter); both classes expose an `Arc<thetadatadx::ThetaDataDxClient>`
+// per-endpoint method bodies onto both `Client` and
+// `HistoricalClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
+// emitter); both classes expose an `Arc<thetadatadx::Client>`
 // field named `tdx`, so the shared bodies compile against either.
 include!("_generated/historical_methods.rs");
 
@@ -718,17 +720,17 @@ pub use fluent::{ContractRef, SecType, Subscription};
 mod util_helpers;
 pub use util_helpers::Util;
 
-// Standalone FPSS-only streaming client. Adds the `FpssClient` napi class
-// over `thetadatadx::fpss::FpssClient` (the FPSS primitive), mirroring the
-// Python `FpssClient` and the C++ `tdx::FpssClient`. It opens only the FPSS
+// Standalone FPSS-only streaming client. Adds the `StreamingClient` napi class
+// over `thetadatadx::fpss::StreamingClient` (the FPSS primitive), mirroring the
+// Python `StreamingClient` and the C++ `tdx::StreamingClient`. It opens only the FPSS
 // TLS transport — no MDDS / Nexus — and drives its own dispatcher thread,
 // routing events through the same `TsfnCallback` mechanism as the unified
 // client's streaming surface.
 mod fpss_client;
-pub use fpss_client::FpssClient;
+pub use fpss_client::StreamingClient;
 
 #[napi]
-impl ThetaDataDxClient {
+impl Client {
     /// Polymorphic subscribe — primary fluent entry point. Accepts the
     /// `Subscription` value returned by `Contract.quote()` /
     /// `Contract.trade()` / `Contract.openInterest()` (per-contract
@@ -762,4 +764,4 @@ impl ThetaDataDxClient {
     }
 }
 
-// `ThetaDataDxClient` is the public name (rename complete; no alias).
+// `Client` is the public name (rename complete; no alias).

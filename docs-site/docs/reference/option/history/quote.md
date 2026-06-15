@@ -49,7 +49,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_history_quote(
+Client.option_history_quote(
     symbol, expiration, date,
     *,
     strike=None, right=None, interval=None, start_time=None, end_time=None,
@@ -109,13 +109,13 @@ std::vector<QuoteTick> option_history_quote(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_interval(...)`, `.with_start_time(...)`, `.with_end_time(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_start_date(...)`, `.with_end_date(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_interval(...)`, `.with_start_time(...)`, `.with_end_time(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_start_date(...)`, `.with_end_date(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_history_quote("SPY", "20250321", "20250303",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_interval("1m"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_interval("1m"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.bid << ' ' << t.ask << "\n";
 }

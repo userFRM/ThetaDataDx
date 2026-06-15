@@ -1,8 +1,8 @@
 """Fetch historical stock and option data from ThetaData via Rust SDK."""
-from thetadatadx import Credentials, Config, ThetaDataDxClient
+from thetadatadx import Credentials, Config, Client
 
 creds = Credentials.from_file("creds.txt")
-client = ThetaDataDxClient(creds, Config.production())
+client = Client(creds, Config.production())
 
 # End-of-day stock data
 print("=== AAPL EOD (Jan-Mar 2024) ===")

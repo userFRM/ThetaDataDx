@@ -8,10 +8,10 @@
 // Run with: `npx tsx flatfiles_quotes_to_arrow.ts`
 // Requires: `npm i apache-arrow` (peer dep, not bundled by thetadatadx).
 
-import { ThetaDataDxClient } from "thetadatadx";
+import { Client } from "thetadatadx";
 import { tableFromIPC } from "apache-arrow";
 
-const tdx = ThetaDataDxClient.connectFromFile("creds.txt");
+const tdx = Client.connectFromFile("creds.txt");
 
 // Whole-universe option quotes for one trading day.
 const rows = tdx.flatFiles.optionQuote("20260428");

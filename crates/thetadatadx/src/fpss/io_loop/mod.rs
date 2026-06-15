@@ -65,7 +65,7 @@ use crate::error::Error;
 use super::connection;
 use super::decode::decode_frame;
 use super::delta::DeltaState;
-use super::events::{FpssControl, FpssEventInternal, IoCommand};
+use super::events::{FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
     self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
     write_raw_frame_no_flush, Frame, FrameReadState,
@@ -114,7 +114,7 @@ type ActiveFullSubs = Arc<
 /// `producer` is the ring publisher built by the caller via
 /// [`build_poller_producer`]. The io_loop only ever calls
 /// [`RingProducer::try_publish`] on it; the consumer side is driven
-/// on the caller's own thread through `FpssClient::next_event` /
+/// on the caller's own thread through `StreamingClient::next_event` /
 /// `poll_batch` / `for_each` (or by the per-binding dispatcher thread
 /// each language SDK owns).
 pub(in crate::fpss) struct IoLoopArgs<P> {
@@ -125,7 +125,7 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub shutdown: Arc<AtomicBool>,
     pub authenticated: Arc<AtomicBool>,
     pub permissions: String,
-    pub pending_control: Vec<FpssControl>,
+    pub pending_control: Vec<StreamControl>,
     pub derive_ohlcvc: bool,
     pub flush_mode: FpssFlushMode,
     pub policy: ReconnectPolicy,
@@ -238,11 +238,11 @@ where
         next_req_id,
     } = args;
     // `ring_size` was validated upstream by `ring::check_ring_size` at
-    // the public `FpssClient::connect` boundary; silent rounding here
+    // the public `StreamingClient::connect` boundary; silent rounding here
     // would rewrite the caller's stated buffer budget after the fact.
     debug_assert!(
         ring_size >= ring::MIN_RING_SIZE && ring_size.is_power_of_two(),
-        "io_loop received unvalidated ring_size {ring_size}; check upstream FpssClientBuilder",
+        "io_loop received unvalidated ring_size {ring_size}; check upstream StreamingClientBuilder",
     );
 
     // The producer was built by the caller via
@@ -281,7 +281,7 @@ where
     // Publish login success event (non-blocking — same policy as above).
     if producer
         .try_publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
+            slot.event = FpssEventInternal::Control(StreamControl::LoginSuccess { permissions });
         })
         .is_err()
     {
@@ -425,7 +425,7 @@ where
                     tracing::warn!("FPSS connection closed by server");
                     if producer
                         .try_publish(|slot| {
-                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
                                 reason: RemoveReason::Unspecified,
                             });
                         })
@@ -467,7 +467,7 @@ where
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
-                                    FpssEventInternal::Control(FpssControl::Disconnected {
+                                    FpssEventInternal::Control(StreamControl::Disconnected {
                                         reason: RemoveReason::TimedOut,
                                     });
                             })
@@ -505,7 +505,7 @@ where
                     tracing::error!(error = %e, "FPSS read error");
                     if producer
                         .try_publish(|slot| {
-                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
                                 reason: RemoveReason::Unspecified,
                             });
                         })
@@ -586,7 +586,7 @@ where
                 if producer
                     .try_publish(|slot| {
                         slot.event =
-                            FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+                            FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
                                 reason,
                                 attempts: $attempts,
                             });
@@ -730,7 +730,7 @@ where
         FPSS_RECONNECTS.increment(1);
         if producer
             .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
+                slot.event = FpssEventInternal::Control(StreamControl::Reconnecting {
                     reason,
                     attempt: reconnect_attempt,
                     delay_ms,
@@ -817,7 +817,7 @@ where
             continue 'session;
         }
 
-        let mut reconnect_pending_control: Vec<FpssControl> = Vec::new();
+        let mut reconnect_pending_control: Vec<StreamControl> = Vec::new();
         let login_result = match wait_for_login(&mut new_stream, &mut reconnect_pending_control) {
             Ok(r) => r,
             Err(e) => {
@@ -861,7 +861,7 @@ where
                     if producer
                         .try_publish(|slot| {
                             slot.event =
-                                FpssEventInternal::Control(FpssControl::Disconnected { reason });
+                                FpssEventInternal::Control(StreamControl::Disconnected { reason });
                         })
                         .is_err()
                     {
@@ -878,7 +878,7 @@ where
                     if producer
                         .try_publish(|slot| {
                             slot.event =
-                                FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+                                FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
                                     reason,
                                     attempts: reconnect_attempt,
                                 });
@@ -908,7 +908,7 @@ where
 
         // Set the short I/O read timeout on the new stream so the io
         // loop can drain commands between reads. Matches the
-        // initial-connect path in `FpssClient::connect_with_stream`.
+        // initial-connect path in `StreamingClient::connect_with_stream`.
         if let Err(e) = new_stream.sock.set_read_timeout(Some(io_read_slice)) {
             tracing::warn!(error = %e, "failed to set read timeout on reconnect");
             continue 'session;
@@ -953,7 +953,7 @@ where
         }
         if producer
             .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
+                slot.event = FpssEventInternal::Control(StreamControl::LoginSuccess {
                     permissions: new_permissions,
                 });
             })
@@ -967,7 +967,7 @@ where
         }
         if producer
             .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
+                slot.event = FpssEventInternal::Control(StreamControl::Reconnected);
             })
             .is_err()
         {
@@ -1100,8 +1100,8 @@ where
     } // end 'session loop
 
     // Dropping the producer at scope exit stores the shutdown sequence
-    // on the ring. The caller's consumer loop (`FpssClient::next_event`
-    // / `poll_batch` / `for_each` / `Iterator for &FpssClient`) observes
+    // on the ring. The caller's consumer loop (`StreamingClient::next_event`
+    // / `poll_batch` / `for_each` / `Iterator for &StreamingClient`) observes
     // `Polling::Shutdown` once it has drained every published event.
     drop(producer);
     tracing::debug!("fpss-io thread exiting");
@@ -1113,13 +1113,13 @@ where
 /// **no** consumer thread is spawned and **no** intermediate
 /// queue is allocated. The returned producer is moved into the I/O
 /// thread; the returned `EventPoller` is bundled into the assembled
-/// `FpssClient` and drained by `next_event` / `poll_batch` /
-/// `for_each` / the `Iterator for &FpssClient` impl.
+/// `StreamingClient` and drained by `next_event` / `poll_batch` /
+/// `for_each` / the `Iterator for &StreamingClient` impl.
 ///
 /// `cursors` is the shared occupancy cursor pair: the returned
 /// producer records every successfully published sequence into it,
 /// and the consumer drain records batch completions, so
-/// `FpssClient::ring_occupancy` can sample in-flight depth.
+/// `StreamingClient::ring_occupancy` can sample in-flight depth.
 ///
 /// Dropping the producer at io_loop exit stores the shutdown sequence
 /// on the ring; the consumer side then drains every published event

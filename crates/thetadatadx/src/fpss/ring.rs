@@ -18,7 +18,7 @@
 //! ```
 //!
 //! Pipeline: blocking TLS `read` -> event ring -> user's
-//! `FnMut(&FpssEvent)` callback.
+//! `FnMut(&StreamEvent)` callback.
 //!
 //! No tokio, no channels, no async. The blocking read thread IS the ring
 //! producer. Events are pre-allocated in the ring buffer (zero allocation on
@@ -114,16 +114,16 @@ impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
 /// field is an [`FpssEventInternal`] — its `Empty` variant marks an
 /// unwritten / drained slot, while `Data`, `Control`, and `Unparseable`
 /// carry decoder output. The Disruptor consumer reborrows `Data` /
-/// `Control` slots to a public `&FpssEvent` via
+/// `Control` slots to a public `&StreamEvent` via
 /// [`FpssEventInternal::as_public`] and skips the internal-only
 /// (`Empty`, `Unparseable`) discriminants.
 ///
-/// # Why not store `FpssEvent` directly?
+/// # Why not store `StreamEvent` directly?
 ///
-/// The public `FpssEvent` enum hides the ring-buffer pre-allocation
+/// The public `StreamEvent` enum hides the ring-buffer pre-allocation
 /// placeholder and the decode-failure fallback by design;
 /// only `FpssEventInternal` carries those slots. `FpssEventInternal`
-/// also dispenses with the `Option<FpssEvent>` discriminant by folding
+/// also dispenses with the `Option<StreamEvent>` discriminant by folding
 /// the `None` case into its `Empty` variant, so the consumer pays one
 /// branch instead of two.
 // `RingEvent` is `pub` (and re-exported under `__test-helpers`) so the
@@ -153,23 +153,23 @@ unsafe impl Sync for RingEvent {}
 ///
 /// The `event` field is `pub(crate)`, so an external bench crate cannot
 /// touch it even through a re-exported `RingEvent`. These two methods are
-/// the typed seam: write a published [`FpssEvent`] into the slot and read
+/// the typed seam: write a published [`StreamEvent`] into the slot and read
 /// the public projection back, without exposing the internal
 /// [`FpssEventInternal`] discriminant. Feature-gated on `__test-helpers`
 /// so they never enter a shipped build.
 #[cfg(any(test, feature = "__test-helpers"))]
 impl RingEvent {
-    /// Place a published [`crate::fpss::FpssEvent`] into this slot,
+    /// Place a published [`crate::fpss::StreamEvent`] into this slot,
     /// folding it into the internal representation the consumer reads.
-    pub fn set_public(&mut self, event: crate::fpss::FpssEvent) {
+    pub fn set_public(&mut self, event: crate::fpss::StreamEvent) {
         self.event = event.into();
     }
 
-    /// Borrow the slot's payload as a public [`crate::fpss::FpssEvent`],
+    /// Borrow the slot's payload as a public [`crate::fpss::StreamEvent`],
     /// or `None` for the pre-allocation placeholder / decode-failure
     /// fallback slots that never surface to a consumer.
     #[must_use]
-    pub fn as_public(&self) -> Option<&crate::fpss::FpssEvent> {
+    pub fn as_public(&self) -> Option<&crate::fpss::StreamEvent> {
         self.event.as_public()
     }
 }
@@ -188,7 +188,7 @@ impl RingEvent {
 /// [`super::io_loop::build_poller_producer`] records the published
 /// ring sequence into [`RingCursors`] on each successful
 /// `try_publish`, which feeds the public
-/// `FpssClient::ring_occupancy` sample without touching any call
+/// `StreamingClient::ring_occupancy` sample without touching any call
 /// site.
 // Declared `pub` so the `__test-helpers`-gated `fpss::__test_internals`
 // re-export can name the publish trait the out-of-crate streaming bench
@@ -271,7 +271,7 @@ where
 
 /// Producer and consumer progress cursors for the FPSS event ring,
 /// sampled by the public occupancy surface
-/// ([`crate::fpss::FpssClient::ring_occupancy`]).
+/// ([`crate::fpss::StreamingClient::ring_occupancy`]).
 ///
 /// Both cursors hold the ring sequence (`i64`, `-1` = nothing yet) of
 /// the most recent slot the respective side has finished with:
@@ -363,7 +363,7 @@ pub(crate) use crate::util::ring::{check_ring_size, MIN_RING_SIZE};
 mod tests {
     use super::super::events::FpssEventInternal;
     use super::*;
-    use crate::fpss::{FpssControl, FpssData, FpssEvent};
+    use crate::fpss::{StreamControl, StreamData, StreamEvent};
     use crate::tdbe::types::enums::RemoveReason;
     use disruptor::{build_single_producer, Producer};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -445,13 +445,13 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+            slot.event = FpssEventInternal::Control(StreamControl::MarketOpen);
         });
         producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::MarketClose);
+            slot.event = FpssEventInternal::Control(StreamControl::MarketClose);
         });
         producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::ServerError {
+            slot.event = FpssEventInternal::Control(StreamControl::ServerError {
                 message: "test".to_string(),
             });
         });
@@ -484,7 +484,7 @@ mod tests {
 
         let ring_contract = std::sync::Arc::new(crate::fpss::protocol::Contract::stock("AAPL"));
         producer.publish(|slot| {
-            slot.event = FpssEventInternal::Data(FpssData::Quote {
+            slot.event = FpssEventInternal::Data(StreamData::Quote {
                 contract: std::sync::Arc::clone(&ring_contract),
                 ms_of_day: 34200000,
                 bid_size: 100,
@@ -505,7 +505,7 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FpssEvent::Data(FpssData::Quote {
+            StreamEvent::Data(StreamData::Quote {
                 contract, bid, ask, ..
             }) => {
                 assert_eq!(&*contract.symbol, "AAPL");
@@ -541,7 +541,7 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
                 reason: RemoveReason::ServerRestarting,
             });
         });
@@ -551,7 +551,7 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FpssEvent::Control(FpssControl::Disconnected { reason }) => {
+            StreamEvent::Control(StreamControl::Disconnected { reason }) => {
                 assert_eq!(*reason, RemoveReason::ServerRestarting);
             }
             other => panic!("expected Control(Disconnected), got {other:?}"),
@@ -584,7 +584,7 @@ mod tests {
         for _ in 0..count {
             let contract_clone = std::sync::Arc::clone(&throughput_contract);
             producer.publish(|slot| {
-                slot.event = FpssEventInternal::Data(FpssData::Quote {
+                slot.event = FpssEventInternal::Data(StreamData::Quote {
                     contract: contract_clone,
                     ms_of_day: 0,
                     bid_size: 0,
@@ -636,7 +636,7 @@ mod tests {
                     break;
                 }
                 producer.publish(|slot| {
-                    slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+                    slot.event = FpssEventInternal::Control(StreamControl::MarketOpen);
                 });
             }
             // Producer dropped here -> consumer drains and joins.

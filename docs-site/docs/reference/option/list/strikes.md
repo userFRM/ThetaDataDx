@@ -38,11 +38,7 @@ for value in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_list_strikes(
-    symbol, expiration,
-    *,
-    timeout_ms=None,
-) -> StringList
+Client.option_list_strikes(symbol, expiration, *, timeout_ms=None) -> StringList
 ```
 
 `option_list_strikes_async(...)` awaits the same call shape.
@@ -87,7 +83,7 @@ std::vector<std::string> option_list_strikes(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

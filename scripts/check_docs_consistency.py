@@ -176,17 +176,14 @@ def check_static_docs() -> None:
         expect_not_contains(path, "&ivl=")
 
     sdk_overview = ROOT / "sdks/README.md"
-    expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
-    expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
-    # Wave K consolidated 8 subscribe_* + 8 unsubscribe_* surface into the
-    # polymorphic tdx_fpss_subscribe / _unsubscribe pair on
-    # TdxSubscriptionRequest, so the standalone FPSS surface dropped from
-    # 25 to 11 entry points. Wave M added 4 more for pull-iter delivery
-    # (tdx_unified_start_streaming_iter, tdx_fpss_event_iter_next /
-    # _close / _free) but those live under the unified row, not the
-    # standalone FPSS row. The contract here is "the standalone-FPSS
-    # row leads with tdx_fpss_connect" — exact wording sufficient.
-    expect_contains(sdk_overview, "**Standalone FPSS** | `tdx_fpss_connect`")
+    expect_contains(sdk_overview, "`TdxClient` / `TdxStreamHandle`")
+    expect_contains(sdk_overview, "| **Unified** | `tdx_client_connect`, `tdx_client_historical`, `tdx_client_*`, `tdx_client_free` |")
+    # The streaming surface exposes a polymorphic
+    # tdx_streaming_subscribe / _unsubscribe pair over
+    # TdxSubscriptionRequest. The contract here is "the standalone
+    # streaming row leads with tdx_streaming_connect" — exact wording
+    # sufficient.
+    expect_contains(sdk_overview, "**Standalone FPSS** | `tdx_streaming_connect`")
 
     # Strikes are dollars on every public surface; the scaled-integer
     # vocabulary must never reappear (the WebSocket envelope's
@@ -255,16 +252,16 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "streaming_iter")
         expect_not_contains(streaming_page, "streaming_async")
         expect_not_contains(streaming_page, "startStreamingIter")
-        expect_not_contains(streaming_page, "FpssEventPoller")
+        expect_not_contains(streaming_page, "StreamEventPoller")
         expect_not_contains(streaming_page, "EventIterator")
-        expect_not_contains(streaming_page, "tdx_fpss_event_iter")
+        expect_not_contains(streaming_page, "tdx_streaming_event_iter")
         expect_not_contains(streaming_page, "```go [Go]")
         expect_not_contains(streaming_page, "contract_map")
         expect_not_contains(streaming_page, "contract_lookup")
         expect_not_contains(streaming_page, "SubscribeOptionQuotes")
         expect_not_contains(streaming_page, 'event.kind == "simple"')
         expect_not_contains(streaming_page, "event.event_type")
-        expect_not_contains(streaming_page, "FpssEvent::RawData")
+        expect_not_contains(streaming_page, "StreamEvent::RawData")
         expect_not_contains(streaming_page, "RawData (undecoded fallback)")
         expect_not_contains(streaming_page, "ring-reader thread")
         expect_not_contains(streaming_page, "subscribe_option_")
@@ -286,8 +283,8 @@ def check_static_docs() -> None:
         expect_not_contains(vue_file, "streaming_async")
         expect_not_contains(vue_file, "startStreamingIter")
         expect_not_contains(vue_file, "EventIterator")
-        expect_not_contains(vue_file, "FpssEventPoller")
-        expect_not_contains(vue_file, "tdx_fpss_event_iter")
+        expect_not_contains(vue_file, "StreamEventPoller")
+        expect_not_contains(vue_file, "tdx_streaming_event_iter")
 
 
 def endpoint_page_path(endpoint: dict) -> Path:

@@ -45,7 +45,7 @@ try:
     # `cfg.runtime` before the connect handshake runs. The connect itself
     # is expected to fail on throwaway credentials — we only care that the
     # runtime was built at the configured size.
-    tdx.MddsClient(tdx.Credentials("nobody@example.invalid", "x"), cfg)
+    tdx.HistoricalClient(tdx.Credentials("nobody@example.invalid", "x"), cfg)
 except Exception:
     pass
 

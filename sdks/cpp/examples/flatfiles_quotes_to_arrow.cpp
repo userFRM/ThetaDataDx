@@ -13,9 +13,9 @@
 
 int main() {
     try {
-        auto creds = tdx::Credentials::from_file("creds.txt");
-        auto config = tdx::Config::production();
-        auto unified = tdx::ThetaDataDxClient::connect(creds, config);
+        auto creds = thetadatadx::Credentials::from_file("creds.txt");
+        auto config = thetadatadx::Config::production();
+        auto unified = thetadatadx::Client::connect(creds, config);
 
         // Whole-universe option quotes for one trading day.
         auto rows = unified.flat_files().option_quote("20260428");

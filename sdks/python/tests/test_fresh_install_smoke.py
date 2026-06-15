@@ -28,10 +28,10 @@ PUBLIC_CLASSES = [
     "Credentials",
     "Config",
     # Sync + async clients
-    "ThetaDataDxClient",
-    "AsyncThetaDataDxClient",
-    "FpssClient",
-    "MddsClient",
+    "Client",
+    "AsyncClient",
+    "StreamingClient",
+    "HistoricalClient",
     # Streaming sessions
     "StreamingSession",
     # Fluent surface

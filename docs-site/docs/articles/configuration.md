@@ -21,10 +21,10 @@ from thetadatadx import Config
 cfg = Config.production()
 cfg.retry_max_attempts = 5
 cfg.flush_mode = "immediate"
-tdx = ThetaDataDxClient(creds, cfg)
+tdx = Client(creds, cfg)
 ```
 
-In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.fpss.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `tdx::Config::set_retry_max_attempts(5)`.
+In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.fpss.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
 
 ## The knobs that matter
 

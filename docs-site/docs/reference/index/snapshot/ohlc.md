@@ -38,11 +38,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.index_snapshot_ohlc(
-    symbols,
-    *,
-    min_time=None, timeout_ms=None,
-) -> list[OhlcTick]
+Client.index_snapshot_ohlc(symbols, *, min_time=None, timeout_ms=None) -> list[OhlcTick]
 ```
 
 `index_snapshot_ohlc_async(...)` awaits the same call shape.
@@ -84,7 +80,7 @@ std::vector<OhlcTick> index_snapshot_ohlc(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

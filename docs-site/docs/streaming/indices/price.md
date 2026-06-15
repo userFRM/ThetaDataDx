@@ -17,10 +17,10 @@ The snippets below assume a connected client with streaming started — see [Get
 
 ```rust
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
 
-tdx.start_streaming(|event: &FpssEvent| {
-    if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+tdx.start_streaming(|event: &StreamEvent| {
+    if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
         println!("{} price={price} size={size}", contract.symbol);
     }
 })?;
@@ -78,14 +78,14 @@ tdx.unsubscribe(sub);
 <template #cpp>
 
 ```cpp
-client.set_callback([](const tdx::FpssEvent& event) {
+client.set_callback([](const thetadatadx::StreamEvent& event) {
     if (event.kind == TDX_FPSS_TRADE) {
         auto& e = event.trade;
         std::cout << e.contract.symbol << " price=" << e.price << " size=" << e.size << "\n";
     }
 });
 
-auto sub = tdx::Contract::index("SPX").trade();
+auto sub = thetadatadx::Contract::index("SPX").trade();
 client.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.

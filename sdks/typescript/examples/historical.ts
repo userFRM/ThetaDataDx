@@ -13,10 +13,10 @@
 // execution thread, so each call is awaited and the Node event loop
 // stays free while a request is in flight.
 
-import { ThetaDataDxClient } from "thetadatadx";
+import { Client } from "thetadatadx";
 
 async function main(): Promise<void> {
-  const client = ThetaDataDxClient.connectFromFile("creds.txt");
+  const client = Client.connectFromFile("creds.txt");
 
   // End-of-day stock data.
   console.log("=== AAPL EOD (Jan-Mar 2024) ===");

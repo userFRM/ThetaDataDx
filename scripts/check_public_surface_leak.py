@@ -27,8 +27,8 @@ references internals:
 * `node_modules/`, build/target directories.
 
 Vendor names that are *intentionally* part of the public vocabulary
-(`fpss`, `mdds`, `FpssClient`, `MddsClient`, `FIC`, `FIT`,
-`Theta Terminal`, `Interp3`) are allow-listed: the forbidden-token match
+(`fpss`, `mdds`, `FIC`, `FIT`, `Theta Terminal`, `Interp3`) are
+allow-listed: the forbidden-token match
 is suppressed when the only reason a line matched was a vendor term.
 
 Run::
@@ -123,8 +123,6 @@ FORBIDDEN_RE = re.compile(
 ALLOWLISTED_VENDOR_NAMES = (
     "fpss",
     "mdds",
-    "FpssClient",
-    "MddsClient",
     "FIC",
     "FIT",
     "Theta Terminal",
@@ -204,11 +202,11 @@ def _selftest() -> int:
     )
     clean_stub = (
         "def connect(host: str) -> Client:\n"
-        '    """Open a session against the Theta Terminal via FpssClient."""\n'
+        '    """Open a session against the Theta Terminal (fpss feed)."""\n'
         "    ...\n"
     )
     vendor_only = (
-        "// FpssClient and MddsClient expose FIC / FIT feeds.\n"
+        "// The fpss and mdds feeds expose FIC / FIT data.\n"
         "// Interp3 curve interpolation is part of the public surface.\n"
     )
 

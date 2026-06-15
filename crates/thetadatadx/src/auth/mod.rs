@@ -23,9 +23,9 @@ pub(crate) mod session;
 pub use creds::Credentials;
 
 // `authenticate` and the associated response types are session-internal:
-// they support the `MddsClient` auth handshake and the CLI's explicit
+// they support the `HistoricalClient` auth handshake and the CLI's explicit
 // re-auth path. Both require `__internal` to be enabled; external crates
-// working through `ThetaDataDxClient` never need to call `authenticate`
+// working through `Client` never need to call `authenticate`
 // directly — the client handles re-auth internally.
 //
 // In non-`__internal` builds, `authenticate_at` and `SessionToken` are

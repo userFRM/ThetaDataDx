@@ -42,7 +42,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.index_history_eod(
+Client.index_history_eod(
     symbol, start_date, end_date,
     *,
     timeout_ms=None,
@@ -93,7 +93,7 @@ std::vector<EodTick> index_history_eod(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

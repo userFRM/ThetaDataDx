@@ -32,7 +32,7 @@
 #include <span>
 #endif
 
-namespace tdx {
+namespace thetadatadx {
 
 // ── Chunk view for the server-stream callbacks ──
 //
@@ -108,7 +108,7 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 // Generated layout guards for the C mirror tick structs.
 #include "tick_layout_asserts.hpp.inc"
 
-// Generated boolean flag-word accessors (`tdx::is_cancelled(...)`, ...)
+// Generated boolean flag-word accessors (`thetadatadx::is_cancelled(...)`, ...)
 // decoded from the integer condition / flag columns. Free functions
 // because the tick types above are C struct aliases with no member
 // methods; mirrors the Python computed properties and TypeScript
@@ -117,7 +117,7 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 
 // ── FPSS event struct layout guards ──
 //
-// Field-level offsetof guards. The `TdxFpssEvent` data-variant field
+// Field-level offsetof guards. The `TdxStreamEvent` data-variant field
 // order is generated from `fpss_event_schema.toml` — the same schema
 // every binding is emitted from — so the C++ consumer and the data
 // producer agree on member order by construction rather than by
@@ -558,14 +558,14 @@ struct ConfigDeleter {
     void operator()(TdxConfig* p) const { if (p) tdx_config_free(p); }
 };
 
-/// `unique_ptr` deleter that releases a `TdxMddsClient*` via `tdx_mdds_client_free`.
-struct MddsClientDeleter {
-    void operator()(TdxMddsClient* p) const { if (p) tdx_mdds_client_free(p); }
+/// `unique_ptr` deleter that releases a `TdxHistoricalClient*` via `tdx_historical_free`.
+struct HistoricalClientDeleter {
+    void operator()(TdxHistoricalClient* p) const { if (p) tdx_historical_free(p); }
 };
 
-/// `unique_ptr` deleter that releases a `TdxFpssHandle*` via `tdx_fpss_free`.
-struct FpssHandleDeleter {
-    void operator()(TdxFpssHandle* p) const { if (p) tdx_fpss_free(p); }
+/// `unique_ptr` deleter that releases a `TdxStreamHandle*` via `tdx_streaming_free`.
+struct StreamingHandleDeleter {
+    void operator()(TdxStreamHandle* p) const { if (p) tdx_streaming_free(p); }
 };
 
 // ── Credentials ──
@@ -578,14 +578,14 @@ public:
      *  @param path File whose first line is the email and second line
      *         the password.
      *  @return An owning `Credentials` holder.
-     *  @throws tdx::ThetaDataError if the file is unreadable or malformed. */
+     *  @throws thetadatadx::ThetaDataError if the file is unreadable or malformed. */
     static Credentials from_file(const std::string& path);
 
     /** Create credentials from an email and password pair.
      *  @param email Account email.
      *  @param password Account password.
      *  @return An owning `Credentials` holder.
-     *  @throws tdx::ThetaDataError if the credentials cannot be built. */
+     *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_email(const std::string& email, const std::string& password);
 
     /** Borrow the underlying `TdxCredentials*` for a connect call.
@@ -620,7 +620,7 @@ public:
     static Config stage();
 
     /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. Throws
-     *  @c tdx::InvalidParameterError when @p policy is outside the
+     *  @c thetadatadx::InvalidParameterError when @p policy is outside the
      *  documented `{0, 1}` set, matching the Python `ValueError` /
      *  TypeScript `InvalidParameterError` rather than silently coercing
      *  an unknown value to Auto. */
@@ -757,8 +757,8 @@ public:
     }
 
     /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
-     *  2=Decorrelated, 3=None. Throws @c tdx::InvalidParameterError on
-     *  an out-of-domain mode (and @c tdx::ThetaDataError on a null
+     *  2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
+     *  an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
      *  handle), routing through the typed leaf the FFI error code
      *  selects. */
     void set_reconnect_jitter(int32_t mode) {
@@ -929,8 +929,8 @@ public:
     }
 
     /** Set the FPSS host-selection policy: 0=Shuffled (default),
-     *  1=FixedOrder. Throws @c tdx::InvalidParameterError on an
-     *  out-of-domain policy (and @c tdx::ThetaDataError on a null
+     *  1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
+     *  out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
      *  handle), routing through the typed leaf the FFI error code
      *  selects. */
     void set_fpss_host_selection(int32_t policy) {
@@ -1094,7 +1094,7 @@ public:
      * Set the Nexus auth URL. Default is the upstream production
      * endpoint; redirect at a staging cluster for testing.
      *
-     * Throws a @c tdx::ThetaDataError leaf if the FFI rejects the value
+     * Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
      * (null handle or non-UTF-8 input), routing through the typed class
      * the FFI error code selects.
      */
@@ -1116,7 +1116,7 @@ public:
      * @c "rust-thetadatadx"; override to identify a deployment fleet
      * in server-side dashboards.
      *
-     * Throws a @c tdx::ThetaDataError leaf if the FFI rejects the value
+     * Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
      * (null handle or non-UTF-8 input), routing through the typed class
      * the FFI error code selects.
      */
@@ -1141,7 +1141,7 @@ public:
      * @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
      * when the @c metrics-prometheus feature is compiled in.
      *
-     * Throws a @c tdx::ThetaDataError leaf on a null-handle FFI failure,
+     * Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
      * routing through the typed class the FFI error code selects.
      */
     void set_metrics_port(std::optional<std::uint16_t> port) {
@@ -1157,7 +1157,7 @@ public:
      * @c std::nullopt for the disabled sentinel; returns the wrapped
      * @c std::uint16_t when an explicit port is set.
      *
-     * Throws a @c tdx::ThetaDataError leaf on a null-handle FFI failure,
+     * Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
      * routing through the typed class the FFI error code selects.
      */
     std::optional<std::uint16_t> get_metrics_port() const {
@@ -1170,8 +1170,8 @@ public:
     }
 
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. Throws
-     *  @c tdx::InvalidParameterError when @p mode is outside the
-     *  documented `{0, 1}` set (and @c tdx::ThetaDataError on a null
+     *  @c thetadatadx::InvalidParameterError when @p mode is outside the
+     *  documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
      *  handle), routing through the typed leaf the FFI error code
      *  selects. */
     void set_flush_mode(int mode) {
@@ -1206,7 +1206,7 @@ public:
 
     /** Set the historical (MDDS) gRPC host. Defaults to the upstream
      *  production endpoint; redirect the historical channel at a known
-     *  host for testing. Throws a @c tdx::ThetaDataError leaf if the FFI
+     *  host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
      *  rejects the value (null handle or non-UTF-8 input). */
     void set_mdds_host(const std::string& host) {
         if (tdx_config_set_mdds_host(handle_.get(), host.c_str()) != 0) {
@@ -1294,21 +1294,21 @@ private:
     std::unique_ptr<TdxConfig, ConfigDeleter> handle_;
 };
 
-// ── MddsClient ──
+// ── HistoricalClient ──
 
 /// RAII wrapper around a historical (MDDS) gRPC client handle
-/// (`TdxMddsClient*`), freed automatically on destruction. The recommended
+/// (`TdxHistoricalClient*`), freed automatically on destruction. The recommended
 /// entry point for pure-historical access; the generated historical query
 /// methods are mixed in from `historical.hpp.inc`.
-class MddsClient {
+class HistoricalClient {
 public:
     /** Connect a historical (MDDS) client to ThetaData servers.
      *  @param creds Authenticated credentials.
      *  @param config Client configuration.
-     *  @return A connected, owning `MddsClient`.
-     *  @throws tdx::ThetaDataError (or a typed leaf) on connection or
+     *  @return A connected, owning `HistoricalClient`.
+     *  @throws thetadatadx::ThetaDataError (or a typed leaf) on connection or
      *          authentication failure. */
-    static MddsClient connect(const Credentials& creds, const Config& config);
+    static HistoricalClient connect(const Credentials& creds, const Config& config);
 
     /** Connect a historical (MDDS) client, loading credentials from a
      *  file. One-call equivalent of `Credentials::from_file(path)`
@@ -1317,16 +1317,16 @@ public:
      *         the password.
      *  @param config Client configuration; defaults to the production
      *         preset.
-     *  @return A connected, owning `MddsClient`.
-     *  @throws tdx::ThetaDataError (or a typed leaf) on an unreadable
+     *  @return A connected, owning `HistoricalClient`.
+     *  @throws thetadatadx::ThetaDataError (or a typed leaf) on an unreadable
      *          credentials file or a connection / authentication failure. */
-    static MddsClient from_file(const std::string& path, const Config& config = Config::production());
+    static HistoricalClient from_file(const std::string& path, const Config& config = Config::production());
 
     #include "historical.hpp.inc"
 
 private:
-    explicit MddsClient(TdxMddsClient* h) : handle_(h) {}
-    std::unique_ptr<TdxMddsClient, MddsClientDeleter> handle_;
+    explicit HistoricalClient(TdxHistoricalClient* h) : handle_(h) {}
+    std::unique_ptr<TdxHistoricalClient, HistoricalClientDeleter> handle_;
 };
 
 // ── FPSS event types (re-exported from thetadx.h) ──
@@ -1336,33 +1336,33 @@ private:
 // `event.kind` and read the matching `event.<variant>` payload
 // (`event.login_success.permissions`, `event.disconnected.reason`,
 // etc.). The aliases below mirror every generated type so C++ users can
-// stay in the `tdx::` namespace.
+// stay in the `thetadatadx::` namespace.
 
-using FpssEventKind = TdxFpssEventKind;
-using FpssQuote = TdxFpssQuote;
-using FpssTrade = TdxFpssTrade;
-using FpssOpenInterest = TdxFpssOpenInterest;
-using FpssOhlcvc = TdxFpssOhlcvc;
-using FpssMarketValue = TdxFpssMarketValue;
+using StreamEventKind = TdxStreamEventKind;
+using StreamQuote = TdxStreamQuote;
+using StreamTrade = TdxStreamTrade;
+using StreamOpenInterest = TdxStreamOpenInterest;
+using StreamOhlcvc = TdxStreamOhlcvc;
+using StreamMarketValue = TdxStreamMarketValue;
 // Typed control variants — one alias per control event type.
-using FpssConnected = TdxFpssConnected;
-using FpssContractAssigned = TdxFpssContractAssigned;
-using FpssDisconnected = TdxFpssDisconnected;
-using FpssParseError = TdxFpssParseError;
-using FpssLoginSuccess = TdxFpssLoginSuccess;
-using FpssMarketClose = TdxFpssMarketClose;
-using FpssMarketOpen = TdxFpssMarketOpen;
-using FpssPing = TdxFpssPing;
-using FpssReconnected = TdxFpssReconnected;
-using FpssReconnectedServer = TdxFpssReconnectedServer;
-using FpssReconnecting = TdxFpssReconnecting;
-using FpssReconnectsExhausted = TdxFpssReconnectsExhausted;
-using FpssReqResponse = TdxFpssReqResponse;
-using FpssRestart = TdxFpssRestart;
-using FpssServerError = TdxFpssServerError;
-using FpssUnknownControl = TdxFpssUnknownControl;
-using FpssUnknownFrame = TdxFpssUnknownFrame;
-using FpssEvent = TdxFpssEvent;
+using StreamConnected = TdxStreamConnected;
+using StreamContractAssigned = TdxStreamContractAssigned;
+using StreamDisconnected = TdxStreamDisconnected;
+using StreamParseError = TdxStreamParseError;
+using StreamLoginSuccess = TdxStreamLoginSuccess;
+using StreamMarketClose = TdxStreamMarketClose;
+using StreamMarketOpen = TdxStreamMarketOpen;
+using StreamPing = TdxStreamPing;
+using StreamReconnected = TdxStreamReconnected;
+using StreamReconnectedServer = TdxStreamReconnectedServer;
+using StreamReconnecting = TdxStreamReconnecting;
+using StreamReconnectsExhausted = TdxStreamReconnectsExhausted;
+using StreamReqResponse = TdxStreamReqResponse;
+using StreamRestart = TdxStreamRestart;
+using StreamServerError = TdxStreamServerError;
+using StreamUnknownControl = TdxStreamUnknownControl;
+using StreamUnknownFrame = TdxStreamUnknownFrame;
+using StreamEvent = TdxStreamEvent;
 
 // ── Real-time streaming client ──
 //
@@ -1372,16 +1372,16 @@ using FpssEvent = TdxFpssEvent;
 // thread never blocks on user code; on ring overflow events are dropped
 // and counted via `dropped_events()`.
 //
-// The FpssClient owns the `std::function`. A free `extern "C"` shim retrieves
+// The StreamingClient owns the `std::function`. A free `extern "C"` shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
-// the event reference. The shim converts `const TdxFpssEvent*` (the C ABI
-// payload type) to `const FpssEvent&` (the C++ alias) at the boundary.
+// the event reference. The shim converts `const TdxStreamEvent*` (the C ABI
+// payload type) to `const StreamEvent&` (the C++ alias) at the boundary.
 // Callback storage outlives the consumer thread because the destruction
-// path always routes through `tdx_fpss_free`, which performs an internal
+// path always routes through `tdx_streaming_free`, which performs an internal
 // drain barrier (5 s timeout) so the consumer has stopped firing the
 // callback before the storage is released.
 
-class FpssClient {
+class StreamingClient {
 public:
     #include "fpss.hpp.inc"
 
@@ -1393,11 +1393,11 @@ public:
     inline void unsubscribe(const class FluentSubscription& sub) const;
     inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
 
-    ~FpssClient();
+    ~StreamingClient();
 
-    FpssClient(const FpssClient&) = delete;
-    FpssClient& operator=(const FpssClient&) = delete;
-    FpssClient(FpssClient&& other) noexcept
+    StreamingClient(const StreamingClient&) = delete;
+    StreamingClient& operator=(const StreamingClient&) = delete;
+    StreamingClient(StreamingClient&& other) noexcept
         // Initialiser order MUST follow declaration order; see the
         // ordering invariant comment above the member declarations.
         : callback_(std::move(other.callback_)),
@@ -1407,8 +1407,8 @@ public:
      *  existing `callback_` storage. We must drain that wiring on the
      *  C ABI side BEFORE destroying the old `callback_`, otherwise
      *  the consumer thread could invoke through a dangling `void*`
-     *  ctx. `tdx_fpss_shutdown` returns asynchronously, so we follow
-     *  it with `tdx_fpss_await_drain` (5 s budget, matching the free
+     *  ctx. `tdx_streaming_shutdown` returns asynchronously, so we follow
+     *  it with `tdx_streaming_await_drain` (5 s budget, matching the free
      *  contract) to confirm the consumer thread has stopped firing
      *  the callback before releasing the storage.
      *
@@ -1420,13 +1420,13 @@ public:
      *  helper bounds the consumer's worst-case lifetime to its own
      *  ring drain, so 30 s is a generous upper bound and lets the move
      *  proceed without observable liveness loss to the caller. */
-    FpssClient& operator=(FpssClient&& other) noexcept {
+    StreamingClient& operator=(StreamingClient&& other) noexcept {
         if (this != &other) {
             if (handle_) {
-                tdx_fpss_shutdown(handle_.get());
+                tdx_streaming_shutdown(handle_.get());
                 // Block until the consumer thread quiesces. The 5 s
-                // budget matches `tdx_fpss_free`'s internal barrier.
-                int drained = tdx_fpss_await_drain(handle_.get(), 5000);
+                // budget matches `tdx_streaming_free`'s internal barrier.
+                int drained = tdx_streaming_await_drain(handle_.get(), 5000);
                 if (drained == 0) {
                     // Drain barrier timed out: the consumer may still
                     // be firing through `callback_`'s storage. Detach
@@ -1462,9 +1462,9 @@ public:
      *  The wrapper owns a `std::unique_ptr<std::function>` whose
      *  address is what the consumer thread receives as `ctx`. That
      *  address must outlive every consumer-thread invocation;
-     *  destruction routes through `tdx_fpss_free`, which performs the
+     *  destruction routes through `tdx_streaming_free`, which performs the
      *  shutdown + drain barrier internally, and move-assign calls
-     *  `tdx_fpss_shutdown` followed by `tdx_fpss_await_drain` (5 s
+     *  `tdx_streaming_shutdown` followed by `tdx_streaming_await_drain` (5 s
      *  budget) before releasing the storage — so no thread can
      *  observe a dangling ctx. The consumer invokes `fn` serially on
      *  a single thread, so no internal locks are needed for
@@ -1474,7 +1474,7 @@ public:
      *
      *  The C ABI permits exactly one successful callback registration
      *  per handle, and rejects every register / reconnect / shutdown
-     *  call after `tdx_fpss_shutdown`. A second call on a still-live
+     *  call after `tdx_streaming_shutdown`. A second call on a still-live
      *  handle returns -1 and KEEPS the previously installed
      *  (callback, ctx) wired into the dispatcher. We therefore
      *  stage the new `std::function` into a local `unique_ptr`,
@@ -1482,9 +1482,9 @@ public:
      *  adopt it into `callback_` after the FFI reports success. On
      *  failure the existing `callback_` is left untouched so the
      *  still-live registration keeps pointing at valid storage. */
-    void set_callback(std::function<void(const FpssEvent&)> fn) {
-        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
-        int rc = tdx_fpss_set_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
+    void set_callback(std::function<void(const StreamEvent&)> fn) {
+        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
+        int rc = tdx_streaming_set_callback(handle_.get(), &StreamingClient::callback_shim, staged.get());
         if (rc < 0) {
             detail::throw_last_ffi_error();
         }
@@ -1496,7 +1496,7 @@ public:
      *  and the ring was full. Returns 0 when no callback has been
      *  installed yet. Safe to call on a moved-from client. */
     uint64_t dropped_events() const {
-        return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
+        return handle_ ? tdx_streaming_dropped_events(handle_.get()) : 0;
     }
 
     /** Point-in-time count of streaming events published into the
@@ -1507,7 +1507,7 @@ public:
      *  feed and is safe from any thread. Returns 0 when no session is
      *  live. Safe to call on a moved-from client. */
     uint64_t ring_occupancy() const {
-        return handle_ ? tdx_fpss_ring_occupancy(handle_.get()) : 0;
+        return handle_ ? tdx_streaming_ring_occupancy(handle_.get()) : 0;
     }
 
     /** Configured capacity of the streaming event ring in slots (the
@@ -1515,7 +1515,7 @@ public:
      *  denominator for ring_occupancy(). Returns 0 when no session is
      *  live. Safe to call on a moved-from client. */
     uint64_t ring_capacity() const {
-        return handle_ ? tdx_fpss_ring_capacity(handle_.get()) : 0;
+        return handle_ ? tdx_streaming_ring_capacity(handle_.get()) : 0;
     }
 
     /** Cumulative count of user-callback failures contained by the
@@ -1525,7 +1525,7 @@ public:
      *  next event continues normally. Returns 0 when no callback has been
      *  installed yet. Safe to call from any thread without blocking. */
     uint64_t panic_count() const {
-        return handle_ ? tdx_fpss_panic_count(handle_.get()) : 0;
+        return handle_ ? tdx_streaming_panic_count(handle_.get()) : 0;
     }
 
     /** Milliseconds since the most recent inbound streaming frame of
@@ -1533,14 +1533,14 @@ public:
      *  when no session is live or no frame has been received yet, -1
      *  on a null handle. */
     int32_t millis_since_last_event(uint64_t* out_ms) const {
-        return handle_ ? tdx_fpss_millis_since_last_event(handle_.get(), out_ms) : -1;
+        return handle_ ? tdx_streaming_millis_since_last_event(handle_.get(), out_ms) : -1;
     }
 
     /** UNIX-nanosecond receive timestamp of the most recent inbound
      *  streaming frame. 0 when no session is live or no frame has
      *  arrived yet. */
     int64_t last_event_received_at_unix_nanos() const {
-        return handle_ ? tdx_fpss_last_event_received_at_unix_nanos(handle_.get()) : 0;
+        return handle_ ? tdx_streaming_last_event_received_at_unix_nanos(handle_.get()) : 0;
     }
 
     /** Address (host:port) of the server the current session is
@@ -1548,7 +1548,7 @@ public:
      *  Empty when no session is live. */
     std::string last_connected_addr() const {
         if (!handle_) return {};
-        char* raw = tdx_fpss_last_connected_addr(handle_.get());
+        char* raw = tdx_streaming_last_connected_addr(handle_.get());
         if (!raw) return {};
         std::string out(raw);
         tdx_string_free(raw);
@@ -1560,8 +1560,8 @@ private:
     // Free C-ABI shim that the dispatcher invokes. `ctx` is the
     // `std::function*` we registered alongside the callback. The event
     // pointer is non-null and valid only for the duration of this call.
-    static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
-        auto* fn = static_cast<std::function<void(const FpssEvent&)>*>(ctx);
+    static void callback_shim(const TdxStreamEvent* event, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
         if (fn == nullptr || event == nullptr) return;
         try {
             (*fn)(*event);
@@ -1575,23 +1575,23 @@ private:
     // ── Member ordering invariant (do not reorder) ──
     //
     // C++ destructs members in REVERSE declaration order. The C ABI
-    // contract for `tdx_fpss_free` is "drain the user-callback path
+    // contract for `tdx_streaming_free` is "drain the user-callback path
     // before this call returns" — the FFI's deleter runs that drain
     // barrier internally (5 s budget). For the barrier to be safe the
     // `std::function` storage backing the registered `void* ctx` MUST
-    // still be alive while `tdx_fpss_free` is polling the drain flag,
+    // still be alive while `tdx_streaming_free` is polling the drain flag,
     // because the consumer thread may still be invoking through it.
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
-    // destruction destroys `handle_` first → `tdx_fpss_free` runs and
+    // destruction destroys `handle_` first → `tdx_streaming_free` runs and
     // its drain barrier returns → `callback_` storage is then released.
     // Reordering these two members reintroduces the use-after-free.
     //
     // `callback_` is a `unique_ptr<std::function<...>>` so the address
     // handed to the C ABI as `ctx` is stable across moves of the owning
-    // `FpssClient`.
-    std::unique_ptr<std::function<void(const FpssEvent&)>> callback_;
-    std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
+    // `StreamingClient`.
+    std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
+    std::unique_ptr<TdxStreamHandle, StreamingHandleDeleter> handle_;
 };
 
 // ── Standalone Greeks functions ──
@@ -1617,7 +1617,7 @@ struct FlatFileRowListDeleter {
 /// RAII wrapper around an opaque `TdxFlatFileRowList*`. Move-only.
 /// Built by `FlatFiles::request(...)`; expose either Arrow IPC bytes
 /// via `to_arrow_ipc()` or use the free `to_path` variant on the
-/// owning `ThetaDataDxClient`.
+/// owning `Client`.
 class FlatFileRowList {
 public:
     FlatFileRowList(FlatFileRowList&&) = default;
@@ -1723,20 +1723,20 @@ public:
     }
 
 private:
-    friend class ThetaDataDxClient;
-    explicit FlatFiles(const TdxUnified* h) : handle_(h) {}
-    const TdxUnified* handle_;
+    friend class Client;
+    explicit FlatFiles(const TdxClient* h) : handle_(h) {}
+    const TdxClient* handle_;
 };
 
-/// `unique_ptr` deleter that releases a `TdxUnified*` via `tdx_unified_free`.
+/// `unique_ptr` deleter that releases a `TdxClient*` via `tdx_client_free`.
 struct UnifiedDeleter {
-    void operator()(TdxUnified* p) const {
-        if (p) tdx_unified_free(p);
+    void operator()(TdxClient* p) const {
+        if (p) tdx_client_free(p);
     }
 };
 
 /// Full-stream subscription descriptor returned by
-/// `ThetaDataDxClient::active_full_subscriptions`. `sec_type` carries the
+/// `Client::active_full_subscriptions`. `sec_type` carries the
 /// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
 /// full-stream subscription is bound to; `kind` is the snake_case
 /// full-stream kind label (`"full_trades"` / `"full_open_interest"`),
@@ -1746,7 +1746,7 @@ struct FullSubscription {
     std::string sec_type;
 };
 
-/// RAII wrapper around a unified client handle (`TdxUnified*`).
+/// RAII wrapper around a unified client handle (`TdxClient*`).
 /// The unified handle owns both the historical (gRPC/MDDS) and
 /// streaming (FPSS) sub-clients; the C++ wrapper exposes the
 /// FLATFILES surface, the polymorphic `subscribe(spec)` /
@@ -1755,23 +1755,23 @@ struct FullSubscription {
 /// and the lifecycle methods (`stop_streaming`,
 /// `reconnect`, `await_drain`, `dropped_event_count`, `is_streaming`,
 /// `active_subscriptions`, `active_full_subscriptions`). For
-/// pure-historical gRPC use, `MddsClient` remains the recommended entry
+/// pure-historical gRPC use, `HistoricalClient` remains the recommended entry
 /// point.
-class ThetaDataDxClient {
+class Client {
 public:
     /// Connect a unified client (historical + streaming through one
     /// handle).
     /// @param creds Authenticated credentials.
     /// @param config Client configuration.
-    /// @return A connected, owning `ThetaDataDxClient`.
-    /// @throws tdx::ThetaDataError (or a typed leaf) on an
+    /// @return A connected, owning `Client`.
+    /// @throws thetadatadx::ThetaDataError (or a typed leaf) on an
     ///         authentication or handshake failure.
-    static ThetaDataDxClient connect(const Credentials& creds, const Config& config) {
-        TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
+    static Client connect(const Credentials& creds, const Config& config) {
+        TdxClient* h = tdx_client_connect(creds.get(), config.get());
         if (h == nullptr) {
             detail::throw_last_ffi_error();
         }
-        return ThetaDataDxClient(h);
+        return Client(h);
     }
 
     /// Connect a unified client, loading credentials from a file.
@@ -1781,21 +1781,21 @@ public:
     ///        the password.
     /// @param config Client configuration; defaults to the production
     ///        preset.
-    /// @return A connected, owning `ThetaDataDxClient`.
-    /// @throws tdx::ThetaDataError (or a typed leaf) on an unreadable
+    /// @return A connected, owning `Client`.
+    /// @throws thetadatadx::ThetaDataError (or a typed leaf) on an unreadable
     ///         credentials file or an authentication / handshake failure.
-    static ThetaDataDxClient from_file(const std::string& path,
+    static Client from_file(const std::string& path,
                                        const Config& config = Config::production()) {
-        TdxUnified* h = tdx_unified_connect_from_file(path.c_str(), config.get());
+        TdxClient* h = tdx_client_connect_from_file(path.c_str(), config.get());
         if (h == nullptr) {
             detail::throw_last_ffi_error();
         }
-        return ThetaDataDxClient(h);
+        return Client(h);
     }
 
-    ThetaDataDxClient(const ThetaDataDxClient&) = delete;
-    ThetaDataDxClient& operator=(const ThetaDataDxClient&) = delete;
-    ThetaDataDxClient(ThetaDataDxClient&& other) noexcept
+    Client(const Client&) = delete;
+    Client& operator=(const Client&) = delete;
+    Client(Client&& other) noexcept
         // Initialiser order MUST follow declaration order; see the
         // ordering invariant above the member declarations below.
         : callback_(std::move(other.callback_)),
@@ -1803,14 +1803,14 @@ public:
     /** Move-assign. The receiver may already hold a live streaming
      *  session whose consumer thread is invoking through the
      *  `callback_` storage. Drain the consumer before releasing the
-     *  storage — same discipline as `FpssClient::operator=`. On drain
+     *  storage — same discipline as `StreamingClient::operator=`. On drain
      *  timeout, detach the callback storage onto a helper thread for a
      *  30 s grace window so destruction happens off the move path. */
-    ThetaDataDxClient& operator=(ThetaDataDxClient&& other) noexcept {
+    Client& operator=(Client&& other) noexcept {
         if (this != &other) {
             if (handle_) {
-                tdx_unified_stop_streaming(handle_.get());
-                int drained = tdx_unified_await_drain(handle_.get(), 5000);
+                tdx_client_stop_streaming(handle_.get());
+                int drained = tdx_client_await_drain(handle_.get(), 5000);
                 if (drained == 0) {
                     std::thread([cb = std::move(callback_)]() mutable {
                         std::this_thread::sleep_for(std::chrono::seconds(30));
@@ -1836,9 +1836,9 @@ public:
     // drains a large historical result chunk-by-chunk through a
     // `std::function<void(Span<const Tick>)>` handler, bounding peak memory to
     // a single chunk. They borrow the historical client from this unified
-    // handle (`tdx_unified_historical`), so they share the authenticated
+    // handle (`tdx_client_historical`), so they share the authenticated
     // session — no second connection. Included here so the declarations extend
-    // the `ThetaDataDxClient` body and count toward the cross-binding parity gate.
+    // the `Client` body and count toward the cross-binding parity gate.
     #include "historical_stream.hpp.inc"
 
     /// Polymorphic subscribe — primary fluent entry point. Defined
@@ -1857,7 +1857,7 @@ public:
 
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
-    const TdxUnified* get() const noexcept { return handle_.get(); }
+    const TdxClient* get() const noexcept { return handle_.get(); }
 
     /** Register a streaming push callback and open the streaming session.
      *  `fn` runs on the consumer thread inside an isolation boundary, never
@@ -1870,15 +1870,15 @@ public:
      *  The wrapper owns a `std::unique_ptr<std::function>` whose
      *  address is the `void* ctx` registered with the dispatcher.
      *  That address must outlive every consumer-thread invocation;
-     *  destruction routes through `tdx_unified_free`, which performs
+     *  destruction routes through `tdx_client_free`, which performs
      *  the shutdown + drain barrier internally, and move-assign /
-     *  replacement calls `tdx_unified_stop_streaming` followed by
-     *  `tdx_unified_await_drain(5000)` before releasing the storage
+     *  replacement calls `tdx_client_stop_streaming` followed by
+     *  `tdx_client_await_drain(5000)` before releasing the storage
      *  — so no thread can observe a dangling ctx.
      *
      *  ## Lifecycle contract (unified replace-allowed rule)
      *
-     *  Unlike `FpssClient::set_callback` (one-shot), the unified path
+     *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
      *  permits stop+register as a normal user flow: after
      *  `stop_streaming()` another `set_callback` REPLACES the saved
      *  `(callback, ctx)`. `reconnect()` is built on top of this.
@@ -1886,15 +1886,15 @@ public:
      *  replaces — the previous (callback, ctx) is drained out before
      *  the new one is wired in, with the same `await_drain(5000)`
      *  budget. */
-    void set_callback(std::function<void(const FpssEvent&)> fn) {
+    void set_callback(std::function<void(const StreamEvent&)> fn) {
         // Drain the existing wiring first so the consumer thread
         // stops invoking through the old `callback_` storage before
         // we release it. Matches the C ABI's replace-allowed contract:
         // a successful replacement registration leaves the old `ctx`
         // observable only inside the drain barrier window.
         if (callback_) {
-            tdx_unified_stop_streaming(handle_.get());
-            int drained = tdx_unified_await_drain(handle_.get(), 5000);
+            tdx_client_stop_streaming(handle_.get());
+            int drained = tdx_client_await_drain(handle_.get(), 5000);
             if (drained == 0) {
                 // Drain barrier timed out: detach old storage to a
                 // helper thread for a 30 s grace window so destruction
@@ -1908,8 +1908,8 @@ public:
                 callback_.reset();
             }
         }
-        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
-        int rc = tdx_unified_set_callback(handle_.get(), &ThetaDataDxClient::callback_shim, staged.get());
+        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
+        int rc = tdx_client_set_callback(handle_.get(), &Client::callback_shim, staged.get());
         if (rc < 0) {
             detail::throw_last_ffi_error();
         }
@@ -1922,7 +1922,7 @@ public:
     /// dropping any captured state.
     void stop_streaming() {
         if (handle_) {
-            tdx_unified_stop_streaming(handle_.get());
+            tdx_client_stop_streaming(handle_.get());
         }
     }
 
@@ -1930,7 +1930,7 @@ public:
     /// subscription. Returns true on full success. Throws on failure
     /// — the wrapped C ABI sets the last-error slot on `-1` return.
     void reconnect() {
-        int rc = tdx_unified_reconnect(handle_.get());
+        int rc = tdx_client_reconnect(handle_.get());
         if (rc < 0) {
             detail::throw_last_ffi_error();
         }
@@ -1944,7 +1944,7 @@ public:
         const uint64_t ms = timeout.count() < 0
                                 ? 0
                                 : static_cast<uint64_t>(timeout.count());
-        return tdx_unified_await_drain(handle_.get(), ms) == 1;
+        return tdx_client_await_drain(handle_.get(), ms) == 1;
     }
 
     /// Cumulative count of streaming events the TLS reader could not
@@ -1952,7 +1952,7 @@ public:
     /// and the ring was full. Returns 0 when no callback has been
     /// installed yet. Safe to call on a moved-from client.
     uint64_t dropped_event_count() const {
-        return handle_ ? tdx_unified_dropped_events(handle_.get()) : 0;
+        return handle_ ? tdx_client_dropped_events(handle_.get()) : 0;
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1964,7 +1964,7 @@ public:
     /// callback has been installed yet. Safe to call on a moved-from
     /// client.
     uint64_t ring_occupancy() const {
-        return handle_ ? tdx_unified_ring_occupancy(handle_.get()) : 0;
+        return handle_ ? tdx_client_ring_occupancy(handle_.get()) : 0;
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1972,7 +1972,7 @@ public:
     /// denominator for ring_occupancy(). Returns 0 when no callback
     /// has been installed yet. Safe to call on a moved-from client.
     uint64_t ring_capacity() const {
-        return handle_ ? tdx_unified_ring_capacity(handle_.get()) : 0;
+        return handle_ ? tdx_client_ring_capacity(handle_.get()) : 0;
     }
 
     /// Cumulative count of user-callback failures contained by the
@@ -1982,7 +1982,7 @@ public:
     /// next event continues normally. Returns 0 when no callback has been
     /// installed yet. Safe to call from any thread without blocking.
     uint64_t panic_count() const {
-        return handle_ ? tdx_unified_panic_count(handle_.get()) : 0;
+        return handle_ ? tdx_client_panic_count(handle_.get()) : 0;
     }
 
     /** Milliseconds since the most recent inbound streaming frame of
@@ -1990,14 +1990,14 @@ public:
      *  when streaming has not started or no frame has been received
      *  yet, -1 on a null handle. */
     int32_t millis_since_last_event(uint64_t* out_ms) const {
-        return handle_ ? tdx_unified_millis_since_last_event(handle_.get(), out_ms) : -1;
+        return handle_ ? tdx_client_millis_since_last_event(handle_.get(), out_ms) : -1;
     }
 
     /** UNIX-nanosecond receive timestamp of the most recent inbound
      *  streaming frame. 0 when streaming has not started or no frame
      *  has arrived yet. */
     int64_t last_event_received_at_unix_nanos() const {
-        return handle_ ? tdx_unified_last_event_received_at_unix_nanos(handle_.get()) : 0;
+        return handle_ ? tdx_client_last_event_received_at_unix_nanos(handle_.get()) : 0;
     }
 
     /** Address (host:port) of the streaming server the current
@@ -2005,7 +2005,7 @@ public:
      *  auto-reconnects. Empty when streaming has not started. */
     std::string last_connected_addr() const {
         if (!handle_) return {};
-        char* raw = tdx_unified_last_connected_addr(handle_.get());
+        char* raw = tdx_client_last_connected_addr(handle_.get());
         if (!raw) return {};
         std::string out(raw);
         tdx_string_free(raw);
@@ -2017,13 +2017,13 @@ public:
     /// and stop_streaming /
     /// terminal close has not).
     bool is_streaming() const {
-        return handle_ && tdx_unified_is_streaming(handle_.get()) == 1;
+        return handle_ && tdx_client_is_streaming(handle_.get()) == 1;
     }
 
     /// Snapshot the currently-active per-contract subscriptions.
     /// Throws on FFI error.
     std::vector<Subscription> active_subscriptions() const {
-        TdxSubscriptionArray* arr = tdx_unified_active_subscriptions(handle_.get());
+        TdxSubscriptionArray* arr = tdx_client_active_subscriptions(handle_.get());
         if (arr == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -2046,7 +2046,7 @@ public:
     /// (the entire universe for a given sec_type + kind, not bound
     /// to a single contract). Throws on FFI error.
     std::vector<FullSubscription> active_full_subscriptions() const {
-        TdxSubscriptionArray* arr = tdx_unified_active_full_subscriptions(handle_.get());
+        TdxSubscriptionArray* arr = tdx_client_active_full_subscriptions(handle_.get());
         if (arr == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -2069,8 +2069,8 @@ private:
     // Free C-ABI shim that the dispatcher invokes. `ctx` is the
     // `std::function*` we registered alongside the callback. The event
     // pointer is non-null and valid only for the duration of this call.
-    static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
-        auto* fn = static_cast<std::function<void(const FpssEvent&)>*>(ctx);
+    static void callback_shim(const TdxStreamEvent* event, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
         if (fn == nullptr || event == nullptr) return;
         try {
             (*fn)(*event);
@@ -2081,26 +2081,26 @@ private:
         }
     }
 
-    explicit ThetaDataDxClient(TdxUnified* h) : handle_(h) {}
+    explicit Client(TdxClient* h) : handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
     // C++ destructs members in REVERSE declaration order. The C ABI
-    // contract for `tdx_unified_free` is "drain the user-callback path
+    // contract for `tdx_client_free` is "drain the user-callback path
     // before this call returns" — the FFI's deleter runs that drain
     // barrier internally (5 s budget). For the barrier to be safe the
     // `std::function` storage backing the registered `void* ctx` MUST
-    // still be alive while `tdx_unified_free` is polling the drain
+    // still be alive while `tdx_client_free` is polling the drain
     // flag, because the consumer thread may still be invoking through
     // it.
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
-    // destruction destroys `handle_` first → `tdx_unified_free` runs
+    // destruction destroys `handle_` first → `tdx_client_free` runs
     // and its drain barrier returns → `callback_` storage is then
     // released. Reordering these two members reintroduces the
     // use-after-free.
-    std::unique_ptr<std::function<void(const FpssEvent&)>> callback_;
-    std::unique_ptr<TdxUnified, UnifiedDeleter> handle_;
+    std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
+    std::unique_ptr<TdxClient, UnifiedDeleter> handle_;
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2111,14 +2111,14 @@ private:
 //
 // The fluent contract-first surface mirrored across every binding:
 //
-//     auto stock  = tdx::Contract::stock("AAPL");
-//     auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
+//     auto stock  = thetadatadx::Contract::stock("AAPL");
+//     auto option = thetadatadx::Contract::option("SPY", "20260620", "550", "C");
 //     client.subscribe(stock.quote());
 //     client.subscribe(option.trade());
-//     client.subscribe(tdx::SecType::option().full_trades());
+//     client.subscribe(thetadatadx::SecType::option().full_trades());
 //
 // Pure-header layer over the existing C ABI subscribe entry points
-// (`tdx_unified_subscribe` / `_unsubscribe`, polymorphic over
+// (`tdx_client_subscribe` / `_unsubscribe`, polymorphic over
 // `TdxSubscriptionRequest`). No
 // new C ABI symbols — the value type just routes the existing call
 // dispatch by stored kind + payload.
@@ -2134,7 +2134,7 @@ class FluentSecType;
 /// `Contract::trade` / `Contract::open_interest` (per-contract) or by
 /// `SecType::option().full_trades()` /
 /// `.full_open_interest()` (full-stream). Pass into
-/// `ThetaDataDxClient::subscribe(sub)` or `subscribe_many(...)`.
+/// `Client::subscribe(sub)` or `subscribe_many(...)`.
 class FluentSubscription {
 public:
     /// Whether the subscription targets a single contract or the full
@@ -2239,7 +2239,7 @@ private:
 /// All three are strings, so a positional `(expiration, strike, right)`
 /// argument list lets a transposed pair compile silently. Passing them as
 /// named members — ideally via designated initialisers,
-/// `tdx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
+/// `thetadatadx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
 /// "C"}` — makes the contract identity non-transposable.
 struct OptionLeg {
     /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
@@ -2409,10 +2409,10 @@ inline std::string str(const FluentSubscription& sub) {
     return os.str();
 }
 
-// User-facing aliases — the documented surface (`Contract`, `SecType`)
-// per `report/...md`. The class names above are prefixed `Fluent*` to
-// keep them out of the namespace search path of any user code that
-// might also `using namespace tdx;` together with a free-standing
+// User-facing aliases — the documented surface (`Contract`, `SecType`).
+// The class names above are prefixed `Fluent*` to keep them out of the
+// namespace search path of any user code that might also
+// `using namespace thetadatadx;` together with a free-standing
 // `Contract` from another library.
 using Contract = FluentContract;
 // `Subscription` is already taken in this namespace by the active-
@@ -2424,12 +2424,12 @@ using Contract = FluentContract;
 using SubscriptionRef = FluentSubscription;
 using SecType = FluentSecType;
 
-// ── ThetaDataDxClient::subscribe(...) inline definitions ───────────────────
+// ── Client::subscribe(...) inline definitions ───────────────────
 //
 // Implemented out-of-class so the class body can reference the fluent
 // types by forward declaration, then dispatch at the call site through
-// the polymorphic C ABI (`tdx_unified_subscribe` /
-// `tdx_unified_unsubscribe`), the same subscribe surface every binding
+// the polymorphic C ABI (`tdx_client_subscribe` /
+// `tdx_client_unsubscribe`), the same subscribe surface every binding
 // exposes.
 
 namespace detail {
@@ -2465,58 +2465,58 @@ inline TdxSubscriptionRequest build_subscription_request(const FluentSubscriptio
 
 } // namespace detail
 
-inline void ThetaDataDxClient::subscribe(const FluentSubscription& sub) const {
+inline void Client::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_unified_subscribe(handle_.get(), &req) != 0) {
+    if (tdx_client_subscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void ThetaDataDxClient::subscribe_many(
+inline void Client::subscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) subscribe(s);
 }
 
-inline void ThetaDataDxClient::unsubscribe(const FluentSubscription& sub) const {
+inline void Client::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_unified_unsubscribe(handle_.get(), &req) != 0) {
+    if (tdx_client_unsubscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void ThetaDataDxClient::unsubscribe_many(
+inline void Client::unsubscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) unsubscribe(s);
 }
 
-// ── FpssClient::subscribe(...) inline definitions ─────────────────────
+// ── StreamingClient::subscribe(...) inline definitions ─────────────────────
 
-inline void FpssClient::subscribe(const FluentSubscription& sub) const {
+inline void StreamingClient::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_fpss_subscribe(handle_.get(), &req) != 0) {
+    if (tdx_streaming_subscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void FpssClient::subscribe_many(
+inline void StreamingClient::subscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) subscribe(s);
 }
 
-inline void FpssClient::unsubscribe(const FluentSubscription& sub) const {
+inline void StreamingClient::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_fpss_unsubscribe(handle_.get(), &req) != 0) {
+    if (tdx_streaming_unsubscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void FpssClient::unsubscribe_many(
+inline void StreamingClient::unsubscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) unsubscribe(s);
 }
 
 // Generated Arrow-IPC terminals on the history result vectors
-// (`tdx::eod_ticks_to_arrow_ipc(...)`, ...). Placed after the `detail`
+// (`thetadatadx::eod_ticks_to_arrow_ipc(...)`, ...). Placed after the `detail`
 // namespace and the tick-type aliases so the wrappers can throw through
 // `detail::throw_last_ffi_error` on a serialisation failure. Mirrors
 // `FlatFileRowList::to_arrow_ipc()` and the Python columnar exit.
@@ -2586,7 +2586,7 @@ inline std::string exchange_symbol(int32_t code) {
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
 /// monotonic form. `signed_value` must lie in the 32-bit signed wire range
 /// (`-2'147'483'648 ..= 2'147'483'647`); a value outside that domain
-/// throws @c tdx::InvalidParameterError rather than being silently
+/// throws @c thetadatadx::InvalidParameterError rather than being silently
 /// reinterpreted, matching the Python `ValueError` / TypeScript
 /// `InvalidParameterError` for the same input.
 inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
@@ -2600,7 +2600,7 @@ inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
 /// Convert an unsigned monotonic trade-sequence value back to its
 /// signed wire encoding. `unsigned_value` must lie in the unsigned wire range
 /// (`0 ..= 2^32 - 1`); a value above that domain throws
-/// @c tdx::InvalidParameterError rather than being silently
+/// @c thetadatadx::InvalidParameterError rather than being silently
 /// reinterpreted.
 inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
     int64_t out = 0;
@@ -2624,7 +2624,7 @@ inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
 /// contracts. `TdxContract.strike` already carries dollars — this
 /// helper only folds the `has_strike` presence flag into
 /// `std::optional`, so user code reads the dollar notation it writes
-/// when calling `tdx::Contract::option(symbol, expiration, strike,
+/// when calling `thetadatadx::Contract::option(symbol, expiration, strike,
 /// right)`.
 inline std::optional<double> strike(const TdxContract& c) noexcept {
     if (!c.has_strike) {
@@ -2727,6 +2727,6 @@ inline std::string_view reason_name(int32_t reason) noexcept {
     }
 }
 
-} // namespace tdx
+} // namespace thetadatadx
 
 #endif /* THETADX_HPP */

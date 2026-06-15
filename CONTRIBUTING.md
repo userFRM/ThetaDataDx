@@ -131,7 +131,7 @@ perf(core): use precomputed pow10 table in price decoding
 Add `!` after the type or a `BREAKING CHANGE:` footer:
 
 ```
-feat(core)!: replace MddsClient with ThetaDataDx unified client
+feat(core)!: replace HistoricalClient with the unified Client
 ```
 
 ## How to Add a New Endpoint
@@ -142,7 +142,7 @@ The endpoint-facing source of truth is split across:
 - `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
 
 The build expands that metadata into the registry, shared endpoint runtime, and
-`MddsClient` declarations automatically.
+`HistoricalClient` declarations automatically.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `crates/thetadatadx/proto/mdds.proto`

@@ -1,7 +1,6 @@
 //! Fluent contract-first Python surface.
 //!
-//! Mirrors the Rust API laid out in
-//! `report/ThetaDataDxClient_API_DX_Review_Rust_Python.md`:
+//! Mirrors the contract-first Rust API:
 //!
 //! ```python
 //! from thetadatadx import Contract, SecType

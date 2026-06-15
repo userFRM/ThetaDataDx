@@ -3236,7 +3236,7 @@ components:
       name: X-Session-UUID
       description: |
         Session UUID obtained by authenticating credentials against the Nexus HTTP API.
-        The SDK handles this automatically via `ThetaDataDx::connect()`.
+        The SDK handles this automatically via `Client::connect()`.
     shutdownToken:
       type: apiKey
       in: header
@@ -3301,7 +3301,7 @@ components:
       format: double
       description: All prices are decoded to f64 (double) during parsing.
 
-    FpssEventKind:
+    StreamEventKind:
       type: string
       description: |
         Discriminator for FPSS event variants. This is a literal-union
@@ -3316,7 +3316,7 @@ components:
         - simple
         - raw_data
 
-    FpssEvent:
+    StreamEvent:
       type: object
       description: Real-time streaming event from FPSS
       oneOf:
@@ -3434,7 +3434,7 @@ components:
         - type: object
           description: |
             Control / diagnostic event (FPSS stream lifecycle). SDKs flatten
-            every `FpssControl` variant into a single `Simple` pyclass / TS
+            every `StreamControl` variant into a single `Simple` pyclass / TS
             object with `kind: "simple"` and an `event_type` discriminator.
             Use `event_type` to branch on the concrete variant; `detail` is
             a free-form diagnostic string; `id` is the contract_id / req_id

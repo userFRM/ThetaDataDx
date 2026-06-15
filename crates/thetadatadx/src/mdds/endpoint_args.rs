@@ -514,7 +514,7 @@ pub enum EndpointOutput {
 /// (`_permit`, `tonic::Streaming`) drop with it, releasing the request
 /// semaphore and cancelling the in-flight gRPC stream — and the call
 /// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
-/// Subsequent calls on the same `MddsClient` succeed.
+/// Subsequent calls on the same `HistoricalClient` succeed.
 ///
 /// # Errors
 ///
@@ -526,7 +526,7 @@ pub enum EndpointOutput {
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint(
-    client: &crate::mdds::MddsClient,
+    client: &crate::mdds::HistoricalClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {
@@ -571,7 +571,7 @@ pub async fn invoke_endpoint(
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint_stream(
-    client: &crate::mdds::MddsClient,
+    client: &crate::mdds::HistoricalClient,
     name: &str,
     args: &EndpointArgs,
     handler: impl FnMut(*const core::ffi::c_void, usize) + Send,

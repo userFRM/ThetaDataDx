@@ -25,45 +25,45 @@ Produces:
 |--------|--------|------|
 | `TdxCredentials` | `tdx_credentials_from_email`, `tdx_credentials_from_file` | `tdx_credentials_free` |
 | `TdxConfig` | `tdx_config_production`, `tdx_config_dev` | `tdx_config_free` |
-| `TdxMddsClient` | `tdx_mdds_client_connect` | `tdx_mdds_client_free` |
-| `TdxUnified` | `tdx_unified_connect` | `tdx_unified_free` |
-| `TdxFpssHandle` | `tdx_fpss_connect` | `tdx_fpss_free` |
+| `TdxHistoricalClient` | `tdx_historical_connect` | `tdx_historical_free` |
+| `TdxClient` | `tdx_client_connect` | `tdx_client_free` |
+| `TdxStreamHandle` | `tdx_streaming_connect` | `tdx_streaming_free` |
 
-### Historical (via TdxMddsClient or TdxUnified)
+### Historical (via TdxHistoricalClient or TdxClient)
 
-Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxMddsClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
+Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxHistoricalClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
 
-`tdx_unified_historical()` returns a borrowed `*const TdxMddsClient` from a unified handle - same session, no double auth.
+`tdx_client_historical()` returns a borrowed `*const TdxHistoricalClient` from a unified handle - same session, no double auth.
 
-### Streaming (via TdxUnified)
-
-| Function | Description |
-|----------|-------------|
-| `tdx_unified_set_callback` | Register the user callback on the unified handle. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
-| `tdx_unified_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` (per-contract or full-stream) |
-| `tdx_unified_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
-| `tdx_unified_is_streaming` | Check if FPSS connection is live |
-| `tdx_unified_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
-| `tdx_unified_await_drain` | Block until the previous session's consumer has finished firing the callback (drain barrier) |
-| `tdx_unified_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
-| `tdx_unified_stop_streaming` | Stop streaming, historical stays alive |
-| `tdx_unified_free` | Free the unified handle |
-
-### Streaming (via TdxFpssHandle, standalone)
+### Streaming (via TdxClient)
 
 | Function | Description |
 |----------|-------------|
-| `tdx_fpss_connect` | Connect standalone FPSS client |
-| `tdx_fpss_set_callback` | Register the user callback. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
-| `tdx_fpss_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` |
-| `tdx_fpss_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
-| `tdx_fpss_is_authenticated` | Check if FPSS is authenticated |
-| `tdx_fpss_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
-| `tdx_fpss_dropped_events` | Cumulative count of events the TLS reader could not publish into the event ring |
-| `tdx_fpss_await_drain` | Block until the previous session's consumer has finished firing the callback |
-| `tdx_fpss_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
-| `tdx_fpss_shutdown` | Shut down FPSS client |
-| `tdx_fpss_free` | Free the FPSS handle |
+| `tdx_client_set_callback` | Register the user callback on the unified handle. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
+| `tdx_client_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` (per-contract or full-stream) |
+| `tdx_client_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
+| `tdx_client_is_streaming` | Check if FPSS connection is live |
+| `tdx_client_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
+| `tdx_client_await_drain` | Block until the previous session's consumer has finished firing the callback (drain barrier) |
+| `tdx_client_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
+| `tdx_client_stop_streaming` | Stop streaming, historical stays alive |
+| `tdx_client_free` | Free the unified handle |
+
+### Streaming (via TdxStreamHandle, standalone)
+
+| Function | Description |
+|----------|-------------|
+| `tdx_streaming_connect` | Connect standalone FPSS client |
+| `tdx_streaming_set_callback` | Register the user callback. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
+| `tdx_streaming_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` |
+| `tdx_streaming_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
+| `tdx_streaming_is_authenticated` | Check if FPSS is authenticated |
+| `tdx_streaming_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
+| `tdx_streaming_dropped_events` | Cumulative count of events the TLS reader could not publish into the event ring |
+| `tdx_streaming_await_drain` | Block until the previous session's consumer has finished firing the callback |
+| `tdx_streaming_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
+| `tdx_streaming_shutdown` | Shut down FPSS client |
+| `tdx_streaming_free` | Free the FPSS handle |
 
 ### Error handling
 
@@ -74,15 +74,15 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 - Opaque handles are heap-allocated via `Box::into_raw`, freed via `Box::from_raw` in the corresponding `*_free` function.
 - Data endpoints return typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray { data, len }`) - free with the corresponding `tdx_*_array_free` function.
 - List endpoints return `TdxStringArray` - free with `tdx_string_array_free`.
-- `tdx_fpss_active_subscriptions` returns `*mut TdxSubscriptionArray` - free with `tdx_subscription_array_free`.
+- `tdx_streaming_active_subscriptions` returns `*mut TdxSubscriptionArray` - free with `tdx_subscription_array_free`.
 - `tdx_last_error()` returns a borrowed pointer - do NOT free it.
-- `tdx_unified_historical()` returns a borrowed pointer - do NOT free it.
+- `tdx_client_historical()` returns a borrowed pointer - do NOT free it.
 
 ## Safety
 
 - All functions check for null handles before dereferencing.
 - Mutex locks use poison recovery (`unwrap_or_else(|e| e.into_inner())`).
-- `TdxMddsClient` is `#[repr(transparent)]` over `MddsClient` for safe pointer casting.
+- `TdxHistoricalClient` is `#[repr(transparent)]` over `HistoricalClient` for safe pointer casting.
 
 ### Panic boundary
 
