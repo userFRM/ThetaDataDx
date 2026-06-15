@@ -2,7 +2,7 @@
 //
 // Demonstrates the primary streaming surface on the TS SDK: typed
 // `Contract` / `Subscription` values feeding the polymorphic
-// `client.subscribe(...)` and `client.subscribeMany(...)` paths,
+// `client.stream.subscribe(...)` and `client.stream.subscribeMany(...)` paths,
 // plus the push-callback delivery contract.
 //
 // Run with valid `creds.txt` in the working directory:
@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // Register the per-event callback. The napi-rs binding hands every
   // FPSS event to the JS callback on the Node main thread via a
   // `ThreadsafeFunction`, so the libuv loop stays responsive.
-  client.startStreaming((event) => {
+  client.stream.startStreaming((event) => {
     switch (event.kind) {
       case "trade": {
         const trade = event.trade!;
@@ -44,24 +44,24 @@ async function main(): Promise<void> {
 
   try {
     // One subscription at a time.
-    client.subscribe(stock.quote());
-    client.subscribe(stock.trade());
+    client.stream.subscribe(stock.quote());
+    client.stream.subscribe(stock.trade());
 
     // Or many at once.
-    client.subscribeMany([
+    client.stream.subscribeMany([
       option.quote(),
       option.trade(),
       option.openInterest(),
     ]);
 
     // Full-stream — every option trade across the universe.
-    client.subscribe(SecType.option().fullTrades());
+    client.stream.subscribe(SecType.option().fullTrades());
 
     // Let events flow for 60 s.
     await new Promise((r) => setTimeout(r, 60_000));
   } finally {
-    client.stopStreaming();
-    await client.awaitDrain(5000);
+    client.stream.stopStreaming();
+    await client.stream.awaitDrain(5000);
   }
 }
 
