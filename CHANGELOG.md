@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The flat-file surface is restricted to the datasets the distribution actually serves — option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. The `option_quote`, `option_trade`, `option_ohlc`, `stock_quote`, and `stock_trade` convenience methods are removed from every binding (those request types are served by the historical endpoints, not as flat files), and the generic flat-file request path now rejects an unsupported `(security, request)` pair with a typed invalid-parameter error before any network round-trip instead of surfacing a server `INVALID_PARAMS` rejection.
 - Clients are named by their role. The unified client is `Client` (Rust `thetadatadx::Client`, Python `Client` with the async companion `AsyncClient`, TypeScript `Client`, C++ `thetadatadx::Client`); the historical-only client is `HistoricalClient` and the streaming-only client is `StreamingClient` on every binding. The prior long client name and the protocol-keyed `MddsClient` / `FpssClient` names are gone with no aliases. The streaming callback payload types are `StreamEvent`, `StreamData`, and `StreamControl` (the prior `FpssEvent` family is renamed in lockstep).
 - The `tdx` token is gone from the entire client-facing surface. C-ABI symbols carry the `thetadatadx_` prefix (was `tdx_`), C structs and handles carry the `ThetaDataDx` prefix (was `Tdx`, e.g. `ThetaDataDxConfig`), the C++ namespace is `thetadatadx` (was `tdx`), and the CLI binary is `thetadatadx` (was `tdx`). The credentials-from-memory constructor is `thetadatadx_credentials_from_email` / C++ `Credentials::from_email` with the `(email, password)` order unchanged. Recompilation and call-site renames are required; no short-prefix aliases remain.
-- C ABI — the public preprocessor constants are renamed from the `TDX_` prefix to `THETADATADX_` (`THETADATADX_ERR_*`, `THETADATADX_SUB_SCOPE_*` / `THETADATADX_SUB_KIND_*`, `THETADATADX_FPSS_*`, `THETADATADX_CALENDAR_STATUS_*`, `THETADATADX_RETRY_AFTER_NONE`, `THETADATADX_ALIGN64_*`) so the C header's constants match the `thetadatadx_` function prefix and the brand across every binding; the integer values are unchanged. Recompile and update any `#if`/`switch` on the old names; there is no alias.
+- C ABI — the public preprocessor constants are renamed from the `THETADATADX_` prefix to `THETADATADX_` (`THETADATADX_ERR_*`, `THETADATADX_SUB_SCOPE_*` / `THETADATADX_SUB_KIND_*`, `THETADATADX_FPSS_*`, `THETADATADX_CALENDAR_STATUS_*`, `THETADATADX_RETRY_AFTER_NONE`, `THETADATADX_ALIGN64_*`) so the C header's constants match the `thetadatadx_` function prefix and the brand across every binding; the integer values are unchanged. Recompile and update any `#if`/`switch` on the old names; there is no alias.
 - Config sections are role-named to match the clients: `config.historical` and `config.streaming` (Rust `HistoricalConfig` / `StreamingConfig`; the `DirectConfig` fields were `mdds` / `fpss`). The environment variables follow — `THETADATA_HISTORICAL_HOST` / `_PORT` and `THETADATA_STREAMING_HOST` / `_PORT` (were `THETADATA_MDDS_*` / `THETADATA_FPSS_*`) — and the C-ABI config getters and setters rekey accordingly (`thetadatadx_config_get_historical_host`, `thetadatadx_config_set_streaming_ring_size`, the full role-keyed family). The internal protocol modules keep their wire names; only the client-facing surface is role-named.
 - Data surfaces — the unified client exposes historical data through a `historical` sub-namespace and real-time streaming through a `stream` sub-namespace in every binding: Python getters (`client.historical.stock_history_eod(...)`, `client.stream.subscribe(...)`), TypeScript getters (`client.historical.stockHistoryEOD(...)`, `client.stream.startStreaming(...)`), and C++ view accessors (`client.historical().stock_history_eod(...)`, `client.stream().set_callback(...)`). The Rust core routes through `client.historical()` and `client.stream()`, and `StreamSurface` is exported from the crate root. Flat-file requests stay on the client directly (`client.flat_files` / `flat_files()`). The standalone `HistoricalClient` and `StreamingClient` keep their flat surfaces.
 - Streaming diagnostics live under the stream sub-namespace on the unified client: `panic_count()` and `active_full_subscriptions()` move off `Client` onto the stream view (`client.stream.panic_count()` / `client.stream.active_full_subscriptions()` in Python and TypeScript, `client.stream().panic_count()` in C++). The standalone `StreamingClient` keeps these on its flat surface.
@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust core — `Contract.symbol` type changed from `String` to `Arc<str>`. The field continues to deref through `&str`, `PartialEq<str>`, slicing, and `Display` so most call sites compile unchanged; deep-clone sites should switch to `Arc::clone` to benefit from the interned-symbol cache. The Rust decode path interns the symbol bytes inside the per-session contract cache so a sustained subscription set allocates once per unique symbol for the lifetime of the session. Python and TypeScript bindings retain `String` types at the language boundary (runtime ownership) populated via `.to_string()` on each delivered event.
 - Rust core — `ThetaDataDx::start_streaming_iter`, `start_streaming_iter_with_wake`, and `start_streaming_iter_with_wake_policy` removed. The push-callback `start_streaming(callback)` is preserved on the unified client; it internally spawns a dedicated `"client-fpss-dispatcher"` thread that drives the event-queue iterator behind a one-shot startup gate so the first delivered event only fires once the streaming slot is fully installed.
 - Rust core — REST fallback escape hatch (`Config::with_rest_fallback`, `FallbackPolicy`, `option_history_*_with_fallback`) removed. The library now speaks ThetaData's historical gRPC endpoint, streaming feed, and the native flat-file distribution directly; the standalone `tools/server` binary retains its terminal-compatible HTTP / WebSocket front end for existing consumers.
-- C ABI — `thetadatadx_config_set_flush_mode(ThetaDataDxConfig*, int32_t mode)` returns `int32_t` (was `void`). Pass `0` for Batched or `1` for Immediate. Any other integer (including null `ThetaDataDxConfig*`) returns `-1` and sets `thetadatadx_last_error` plus `thetadatadx_last_error_code = TDX_ERR_CONFIG`. The C++ wrapper (`set_flush_mode(int)`) translates the failure into `std::runtime_error`, mirroring the existing `set_nexus_url` pattern.
+- C ABI — `thetadatadx_config_set_flush_mode(ThetaDataDxConfig*, int32_t mode)` returns `int32_t` (was `void`). Pass `0` for Batched or `1` for Immediate. Any other integer (including null `ThetaDataDxConfig*`) returns `-1` and sets `thetadatadx_last_error` plus `thetadatadx_last_error_code = THETADATADX_ERR_CONFIG`. The C++ wrapper (`set_flush_mode(int)`) translates the failure into `std::runtime_error`, mirroring the existing `set_nexus_url` pattern.
 - C ABI — pull-iterator surfaces (`ThetaDataDxStreamEventIterator`, `thetadatadx_client_start_streaming_iter`, `thetadatadx_streaming_event_iter_next`, `thetadatadx_streaming_event_iter_close`, `thetadatadx_streaming_event_iter_free`) removed. Use `thetadatadx_client_set_callback` or `thetadatadx_streaming_set_callback` for delivery. The `thetadatadx_streaming_free` and `thetadatadx_client_free` docstrings document the lifecycle restriction: do not call them from inside the user callback.
 - Python — pull-iterator surfaces (`streaming_iter`, `streaming_async`, `streaming_async_batches`) and their session pyclasses (`EventIterator`, `StreamingIterSession`, `StreamingAsyncSession`, `StreamingAsyncBatchesSession`, `BackpressurePolicy`) removed. Use `client.start_streaming(callback)` (one-shot) or `with client.streaming(callback): ...` (context manager).
 - TypeScript — `EventIterator` napi class and `client.startStreamingIter()` removed. Use `client.startStreaming(callback)`.
@@ -499,22 +499,22 @@ Field-by-field mapping for every control variant:
 
 | v9.0.x (flat envelope) | v9.1.0 (typed struct) |
 |---|---|
-| `kind == TDX_FPSS_CONTROL && control.kind == 0; control.detail` | `kind == TDX_FPSS_LOGIN_SUCCESS; login_success.permissions` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 1; control.id, control.detail` | `kind == TDX_FPSS_CONTRACT_ASSIGNED; contract_assigned.id, contract_assigned.contract` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 2; control.id, control.detail` | `kind == TDX_FPSS_REQ_RESPONSE; req_response.req_id, req_response.result` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 3` | `kind == TDX_FPSS_MARKET_OPEN` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 4` | `kind == TDX_FPSS_MARKET_CLOSE` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 5; control.detail` | `kind == TDX_FPSS_SERVER_ERROR; server_error.message` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 6; control.detail (formatted)` | `kind == TDX_FPSS_DISCONNECTED; disconnected.reason` (i32 RemoveReason) |
-| `kind == TDX_FPSS_CONTROL && control.kind == 8; control.id, control.detail` | `kind == TDX_FPSS_RECONNECTING; reconnecting.reason, reconnecting.attempt, reconnecting.delay_ms` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 9` | `kind == TDX_FPSS_RECONNECTED` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 10; control.detail` | `kind == TDX_FPSS_ERROR; error.message` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 11; control.id, control.detail (hex)` | `kind == TDX_FPSS_UNKNOWN_FRAME; unknown_frame.code, unknown_frame.payload, unknown_frame.payload_len` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 12` | `kind == TDX_FPSS_UNKNOWN_CONTROL` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 13` | `kind == TDX_FPSS_CONNECTED` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 14; control.detail (hex)` | `kind == TDX_FPSS_PING; ping.payload, ping.payload_len` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 15` | `kind == TDX_FPSS_RECONNECTED_SERVER` |
-| `kind == TDX_FPSS_CONTROL && control.kind == 16` | `kind == TDX_FPSS_RESTART` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 0; control.detail` | `kind == THETADATADX_FPSS_LOGIN_SUCCESS; login_success.permissions` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 1; control.id, control.detail` | `kind == THETADATADX_FPSS_CONTRACT_ASSIGNED; contract_assigned.id, contract_assigned.contract` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 2; control.id, control.detail` | `kind == THETADATADX_FPSS_REQ_RESPONSE; req_response.req_id, req_response.result` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 3` | `kind == THETADATADX_FPSS_MARKET_OPEN` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 4` | `kind == THETADATADX_FPSS_MARKET_CLOSE` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 5; control.detail` | `kind == THETADATADX_FPSS_SERVER_ERROR; server_error.message` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 6; control.detail (formatted)` | `kind == THETADATADX_FPSS_DISCONNECTED; disconnected.reason` (i32 RemoveReason) |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 8; control.id, control.detail` | `kind == THETADATADX_FPSS_RECONNECTING; reconnecting.reason, reconnecting.attempt, reconnecting.delay_ms` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 9` | `kind == THETADATADX_FPSS_RECONNECTED` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 10; control.detail` | `kind == THETADATADX_FPSS_ERROR; error.message` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 11; control.id, control.detail (hex)` | `kind == THETADATADX_FPSS_UNKNOWN_FRAME; unknown_frame.code, unknown_frame.payload, unknown_frame.payload_len` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 12` | `kind == THETADATADX_FPSS_UNKNOWN_CONTROL` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 13` | `kind == THETADATADX_FPSS_CONNECTED` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 14; control.detail (hex)` | `kind == THETADATADX_FPSS_PING; ping.payload, ping.payload_len` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 15` | `kind == THETADATADX_FPSS_RECONNECTED_SERVER` |
+| `kind == THETADATADX_FPSS_CONTROL && control.kind == 16` | `kind == THETADATADX_FPSS_RESTART` |
 
 Field-by-field mapping for the data-variant `contract_id` removal
 and the hidden internal-only `RawData` / `Empty` variants:
@@ -531,7 +531,7 @@ and the hidden internal-only `RawData` / `Empty` variants:
 | `StreamEvent::Empty` queue-slot placeholder visible to user code | Removed; queue slots use the crate-private `FpssEventInternal::Empty`, filtered before user delivery. |
 
 Numeric values of `ThetaDataDxStreamEventKind` renumber alphabetically; reach
-for the symbolic names (`TDX_FPSS_LOGIN_SUCCESS` in C,
+for the symbolic names (`THETADATADX_FPSS_LOGIN_SUCCESS` in C,
 `FpssLoginSuccessEvent` in Go) — they are stable across the rename.
 C++ consumers using `thetadatadx::Fpss<Variant>` aliases get the same
 borrowed-pointer ownership rules as before: pointers are valid only
@@ -559,7 +559,7 @@ code does not change.
   `event.Disconnected.Reason`, ...). The `ThetaDataDxStreamEventKind` enum
   gains one discriminant per control variant — numeric values
   renumber alphabetically; symbolic names
-  (`TDX_FPSS_LOGIN_SUCCESS`, `FpssLoginSuccessEvent`, etc.) are
+  (`THETADATADX_FPSS_LOGIN_SUCCESS`, `FpssLoginSuccessEvent`, etc.) are
   stable. Schema bumped to version 5
   (`fpss_event_schema.toml`); generated outputs
   regenerated; codegen idempotency check enforced in CI. See the
