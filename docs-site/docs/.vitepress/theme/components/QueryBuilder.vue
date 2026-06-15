@@ -590,15 +590,15 @@ function symsListRust(): string {
 }
 
 function pyHeader(): string {
-  return `from thetadatadx import ThetaDataDxClient, Credentials, Config
+  return `from thetadatadx import Client, Credentials, Config
 
 creds = Credentials.from_file("creds.txt")
 # Or inline: creds = Credentials("user@example.com", "your-password")
-client = ThetaDataDxClient(creds, Config.production())`
+client = Client(creds, Config.production())`
 }
 
 function rustHeader(): string {
-  return `use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};`
+  return `use thetadatadx::{Client, Credentials, DirectConfig};`
 }
 
 function rustMain(body: string): string {
@@ -608,7 +608,7 @@ function rustMain(body: string): string {
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
 ${body}
     Ok(())
@@ -1233,7 +1233,7 @@ use thetadatadx::fpss::protocol::Contract;
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     println!("Monitoring quotes for: [${symsListRust()}]");
     println!("{:<8}  {:>8}  {:>8}  {:>8}  {:>8}", "Symbol", "Bid", "Ask", "Spread", "Mid");
@@ -1264,7 +1264,7 @@ use thetadatadx::fpss::protocol::Contract;
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     println!("Trade tape for: [${symsListRust()}]");
     println!("{:>12}  {:<8}  {:>8}  {:>8}", "Time", "Symbol", "Price", "Size");
@@ -1299,7 +1299,7 @@ use thetadatadx::SecType;
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     let min_size: i32 = ${minSize()};
 
@@ -1337,7 +1337,7 @@ use thetadatadx::fpss::protocol::Contract;
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     let symbol = "${sym()}";
     let exp    = "${exp()}";

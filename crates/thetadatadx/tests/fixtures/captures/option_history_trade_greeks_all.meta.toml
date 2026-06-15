@@ -1,4 +1,4 @@
-# Verified-live wire shape captured via the terminal jar build `202605221`:
+# Wire shape captured from the live server:
 #   curl http://127.0.0.1:25503/v3/option/history/trade_greeks/all?\
 #     symbol=SPY&expiration=20260116&start_date=20250502&end_date=20250502&\
 #     right=C&strike=540

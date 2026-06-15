@@ -56,12 +56,29 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 # its doc comments to docs.rs. Generated `.rs` is included on purpose:
 # the checked-in generated tick classes render exactly like hand-written
 # source, so they must clear the same bar.
+#
+# The non-`.rs` schema descriptors below ride the crate `include` list in
+# `crates/thetadatadx/Cargo.toml`, so their comments land in the crates.io
+# tarball exactly like source. The `examples/` and `tests/` trees are not
+# packaged but are GitHub-visible, and their doc comments are read as
+# authoritative protocol notes — they clear the same bar.
 SCAN_GLOBS = (
     "crates/thetadatadx/src/**/*.rs",
     "ffi/src/**/*.rs",
     "sdks/python/src/**/*.rs",
     "sdks/typescript/src/**/*.rs",
     "sdks/typescript/src/**/*.ts",
+    # Schema / surface descriptors shipped via the crate `include` list.
+    "crates/thetadatadx/tick_schema.toml",
+    "crates/thetadatadx/endpoint_surface.toml",
+    "crates/thetadatadx/sdk_surface.toml",
+    "crates/thetadatadx/fpss_event_schema.toml",
+    "crates/thetadatadx/data/*.toml",
+    "sdks/parity.toml",
+    # GitHub-visible examples and regression tests.
+    "crates/thetadatadx/examples/**/*.rs",
+    "crates/thetadatadx/tests/**/*.rs",
+    "crates/thetadatadx/tests/**/*.toml",
 )
 
 
@@ -169,10 +186,14 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str, str]]:
 def _selftest() -> int:
     """Plant RE framing in a synthetic source file and confirm the gate fires.
 
-    Three cases:
+    Four cases:
 
     * A file with `reverse-engineered the Java terminal` plus a jar-build
       provenance note — must be flagged.
+    * A shipped non-`.rs` schema descriptor (`tick_schema.toml`) carrying
+      a `jar build NNN` provenance comment — must be flagged. This is the
+      class of leak that previously evaded the `.rs`-only scan and shipped
+      in the crates.io tarball.
     * A clean file that names only the allow-listed "JVM terminal" /
       "Theta Terminal" parity reference — must pass.
     * A clean file whose factual wire description shares a line with the
@@ -184,6 +205,11 @@ def _selftest() -> int:
         "//! We reverse-engineered the Java terminal to learn this layout.\n"
         "/// Wire layout verified-live against terminal jar build `202605221`.\n"
         "/// Source: `Contract.toBytes()` in `Contract.java`.\n"
+    )
+    leaky_schema = (
+        'doc = """OHLC tick -- 9 fields.\n'
+        "Wire layout verified-live against terminal jar build `202605221`.\n"
+        '"""\n'
     )
     clean = (
         "//! Matches the JVM terminal byte-for-byte on the wire.\n"
@@ -201,6 +227,10 @@ def _selftest() -> int:
         leaky_path.parent.mkdir(parents=True, exist_ok=True)
         leaky_path.write_text(leaky, encoding="utf-8")
 
+        schema_path = root / "crates" / "thetadatadx" / "tick_schema.toml"
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_path.write_text(leaky_schema, encoding="utf-8")
+
         clean_path = root / "ffi" / "src" / "clean.rs"
         clean_path.parent.mkdir(parents=True, exist_ok=True)
         clean_path.write_text(clean, encoding="utf-8")
@@ -214,6 +244,13 @@ def _selftest() -> int:
         leaky_hits = [h for h in hits if h[0].name == "leaky.rs"]
         if not leaky_hits:
             print("selftest FAILED: the planted RE-framing line was not flagged")
+            return 1
+        schema_hits = [h for h in hits if h[0].name == "tick_schema.toml"]
+        if not schema_hits:
+            print(
+                "selftest FAILED: the planted jar-build line in the shipped "
+                "schema descriptor was not flagged"
+            )
             return 1
         if any(rel.name == "clean.rs" for (rel, _, _, _) in hits):
             print("selftest FAILED: a clean JVM-terminal file was flagged")

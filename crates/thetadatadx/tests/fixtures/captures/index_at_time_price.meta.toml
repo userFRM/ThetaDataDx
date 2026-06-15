@@ -1,4 +1,4 @@
-# Verified-live wire shape captured via the terminal jar build `202605221`:
+# Wire shape captured from the live server:
 #   curl 'http://127.0.0.1:25503/v3/index/at_time/price?symbol=SPX&\
 #     start_date=20240614&end_date=20240614&time_of_day=10:30:00'
 # Synthesised into a single-row `proto::ResponseData` by the

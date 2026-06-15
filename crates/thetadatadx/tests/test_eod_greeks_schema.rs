@@ -1,7 +1,6 @@
 //! EOD-Greek and index-price schema regression tests.
 //!
-//! Two fixtures replay the verified-live wire shapes (terminal jar build
-//! `202605221`) for:
+//! Two fixtures replay the captured wire shapes for:
 //!
 //!   * `option_history_greeks_eod` -- an earlier `GreeksAllTick` routing
 //!     (28 columns) dropped the twelve EOD trade/quote columns

@@ -205,6 +205,22 @@ def check_static_docs() -> None:
         if re.search(r"\b500000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
 
+    # The interactive query builder generates copy-paste Python and Rust
+    # snippets. The emitted client identifier must be the symbol the SDK
+    # actually exports — Python `from thetadatadx import Client` /
+    # `Client(...)`, Rust `use thetadatadx::{Client, ...}` /
+    # `Client::connect(...)`. `ThetaDataDxClient` is only the C-ABI
+    # opaque-handle name; it is not a Python or Rust symbol, so a generated
+    # Python/Rust snippet that names it does not compile. Pin the real
+    # names and forbid the handle name in this component (which carries no
+    # C-ABI branch).
+    query_builder = DOCS_SITE / ".vitepress/theme/components/QueryBuilder.vue"
+    expect_contains(query_builder, "from thetadatadx import Client")
+    expect_contains(query_builder, "client = Client(creds, Config.production())")
+    expect_contains(query_builder, "use thetadatadx::{Client, Credentials, DirectConfig};")
+    expect_contains(query_builder, "Client::connect(&creds, DirectConfig::production())")
+    expect_not_contains(query_builder, "ThetaDataDxClient")
+
     expect_contains(
         ROOT / "crates/thetadatadx/endpoint_surface.toml",
         'description = "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',

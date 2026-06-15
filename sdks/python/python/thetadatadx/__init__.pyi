@@ -1676,7 +1676,21 @@ class InvalidParameterError(ThetaDataError):
     Distinct from the root :class:`ThetaDataError` so a malformed-but-
     rejected argument (bad value, out-of-range number, missing required
     field) is distinguishable by class from an unrelated configuration
-    fault (config-file I/O, TOML parse), which stays on the root class.
+    fault (config-file I/O, TOML parse), which is raised as
+    :class:`ConfigError`.
+    """
+
+    ...
+
+
+@final
+class ConfigError(ThetaDataError):
+    """An environmental configuration fault.
+
+    Raised on a config-file read failure, a TOML parse error, or an
+    internal config invariant. Distinct from :class:`InvalidParameterError`
+    (a rejected user-supplied argument): a :class:`ConfigError` is the
+    environment, not the call site.
     """
 
     ...

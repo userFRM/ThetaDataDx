@@ -7,8 +7,8 @@
 //! call returned `DecodeError::TypeMismatch { expected: "Number|Timestamp",
 //! observed: "Text" }`.
 //!
-//! This test reconstructs the verified-live wire shape (terminal jar build
-//! `202605221`, SOFR 2025-04-28..2025-05-02) as a synthetic `DataTable` and
+//! This test reconstructs the captured wire shape (SOFR
+//! 2025-04-28..2025-05-02) as a synthetic `DataTable` and
 //! asserts the decoded `InterestRateTick` carries the expected
 //! `date=20250428` / `rate=4.36` values for the first row. It pins:
 //!
@@ -48,8 +48,7 @@ fn row(values: Vec<wire::DataValue>) -> wire::DataValueList {
     wire::DataValueList { values }
 }
 
-/// Reference wire dump (verified-live 2026-05-22 against terminal jar
-/// build `202605221`, MDDS endpoint `interest_rate/history/eod`, symbol
+/// Reference wire dump (MDDS endpoint `interest_rate/history/eod`, symbol
 /// `SOFR`, date range 2025-04-28..2025-05-02):
 ///
 /// ```text
