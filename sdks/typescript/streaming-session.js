@@ -7,7 +7,7 @@
  * async drain barrier `awaitDrain(5000)` is awaited so the consumer
  * thread is guaranteed to have finished firing the registered callback
  * before the JS callback closure can be released. This mirrors the
- * C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
+ * C++ RAII destructor in `sdks/cpp/src/thetadatadx.cpp`.
  *
  * Every public method on `Client` (subscribe_*,
  * unsubscribe_*, activeSubscriptions, droppedEventCount, reconnect,
@@ -185,7 +185,7 @@ function rethrowTyped(err) {
 }
 
 // Drain timeout applied on `[Symbol.asyncDispose]`. Matches the C++
-// destructor's 5 s budget in `sdks/cpp/src/thetadx.cpp` and the FFI
+// destructor's 5 s budget in `sdks/cpp/src/thetadatadx.cpp` and the FFI
 // free-path budget in `ffi/src/streaming.rs::FREE_DRAIN_TIMEOUT`.
 // Cross-binding parity matters more than tunability here -- a slow
 // JS callback that needs more than 5 s to drain is already a contract

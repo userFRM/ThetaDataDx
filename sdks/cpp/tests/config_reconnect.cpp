@@ -18,8 +18,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "thetadx.h"
-#include "thetadx.hpp"
+#include "thetadatadx.h"
+#include "thetadatadx.hpp"
 
 TEST_CASE("Config::set_reconnect_policy accepts Auto and Manual selectors",
           "[config][reconnect][offline]") {

@@ -26,7 +26,7 @@
 #include <sys/stat.h>
 #include <utility>
 #include <vector>
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 namespace {
 

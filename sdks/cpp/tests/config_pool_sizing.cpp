@@ -8,8 +8,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "thetadx.h"
-#include "thetadx.hpp"
+#include "thetadatadx.h"
+#include "thetadatadx.hpp"
 
 TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][pool_sizing][offline]") {
     auto cfg = thetadatadx::Config::production();

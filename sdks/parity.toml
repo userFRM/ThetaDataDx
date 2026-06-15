@@ -1,7 +1,7 @@
 # Cross-binding parity matrix (Gate 2 / issue #545).
 #
 # Every user-facing class registered on Python is declared here with
-# its current state in TypeScript (napi) and C++ (`thetadx.hpp`).
+# its current state in TypeScript (napi) and C++ (`thetadatadx.hpp`).
 # `scripts/check_binding_parity.py` parses this file and compares the
 # actual binding state of each SDK to the declared state; mismatches
 # fail CI.
@@ -132,7 +132,7 @@ cpp = true
 # ...) are identical across Python, TypeScript, and C++, so a handler
 # ports across bindings by class name.
 #
-# C++ exposes one class per leaf in `thetadx.hpp`, matching the Python
+# C++ exposes one class per leaf in `thetadatadx.hpp`, matching the Python
 # tree. TypeScript also exposes one runtime class per leaf, but they
 # live in the package entry point `streaming-session.{js,d.ts}` (the
 # napi shim re-casts every `[ClassName] ...`-prefixed rejection into the
@@ -728,7 +728,7 @@ cpp = true
 #                 TypeScript surface.
 #   cpp         — `true` iff the wrapper declares the function in
 #                 `sdks/cpp/include/utilities.hpp.inc` (folded into the
-#                 `thetadatadx` namespace of `thetadx.hpp`).
+#                 `thetadatadx` namespace of `thetadatadx.hpp`).
 #   ffi         — `true` iff the `thetadatadx_<name>` C ABI symbol exists in
 #                 `ffi/src/`. Every higher-level binding except Python /
 #                 TypeScript (which call the Rust core directly) forwards
@@ -924,7 +924,7 @@ ffi = true
 #   typescript  — `true` iff a `#[napi(js_name = "<camelCase>")]`
 #                 attribute appears anywhere in `sdks/typescript/src/`.
 #   cpp         — `true` iff a `<snake_case>(` member declaration
-#                 appears inside the C++ class body in `thetadx.hpp`.
+#                 appears inside the C++ class body in `thetadatadx.hpp`.
 #
 # Set a column to `false` to record a deliberate cross-binding
 # asymmetry (e.g. the TS unified client deliberately exposes

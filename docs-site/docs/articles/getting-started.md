@@ -61,7 +61,7 @@ cd sdks/cpp
 cmake -B build && cmake --build build
 ```
 
-Include `sdks/cpp/include/thetadx.hpp` (header-only over the C ABI) and link the built `thetadatadx_ffi` library. Any other language with C interop can target the same C ABI directly.
+Include `sdks/cpp/include/thetadatadx.hpp` (header-only over the C ABI) and link the built `thetadatadx_ffi` library. Any other language with C interop can target the same C ABI directly.
 
 </template>
 
@@ -145,7 +145,7 @@ for (const t of rows) {
 <template #cpp>
 
 ```cpp
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 #include <iostream>
 
 int main() {

@@ -440,9 +440,9 @@ def check_endpoint_option_surface() -> None:
 
     for path in [
         ROOT / "ffi/src/lib.rs",
-        ROOT / "sdks/cpp/include/thetadx.h",
-        ROOT / "sdks/cpp/include/thetadx.hpp",
-        ROOT / "sdks/cpp/src/thetadx.cpp",
+        ROOT / "sdks/cpp/include/thetadatadx.h",
+        ROOT / "sdks/cpp/include/thetadatadx.hpp",
+        ROOT / "sdks/cpp/src/thetadatadx.cpp",
         ROOT / "sdks/cpp/README.md",
         DOCS_SITE / "reference/option/history/greeks/eod.md",
     ]:

@@ -6,7 +6,7 @@
 
 #include <iostream>
 #include <iomanip>
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 int main() {
     try {

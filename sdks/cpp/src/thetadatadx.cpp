@@ -6,7 +6,7 @@
  * No JSON parsing required — the tick structs are layout-compatible with Rust.
  */
 
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 #include <chrono>
 #include <stdexcept>

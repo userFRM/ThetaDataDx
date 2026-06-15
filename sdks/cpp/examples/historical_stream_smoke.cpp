@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 namespace {
 

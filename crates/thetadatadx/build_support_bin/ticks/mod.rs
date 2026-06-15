@@ -107,7 +107,7 @@ fn render_sdk_generated_files(
         },
         GeneratedSourceFile {
             // C++ free-function flag-word accessors (`thetadatadx::is_cancelled`,
-            // ...). Included from `thetadx.hpp`; mirrors the Python
+            // ...). Included from `thetadatadx.hpp`; mirrors the Python
             // computed properties and TypeScript precomputed fields from
             // the same schema flag_accessors rows.
             relative_path: "sdks/cpp/include/tick_flag_accessors.hpp.inc",
@@ -116,7 +116,7 @@ fn render_sdk_generated_files(
         GeneratedSourceFile {
             // C++ Arrow-IPC terminals on the history result vectors
             // (`thetadatadx::eod_ticks_to_arrow_ipc(...)`). Included from
-            // `thetadx.hpp`; mirrors `FlatFileRowList::to_arrow_ipc()` and
+            // `thetadatadx.hpp`; mirrors `FlatFileRowList::to_arrow_ipc()` and
             // the Python `<TickName>List.to_arrow()` columnar exit.
             relative_path: "sdks/cpp/include/tick_arrow_ipc.hpp.inc",
             contents: cpp::render_cpp_tick_arrow_ipc(&schema),

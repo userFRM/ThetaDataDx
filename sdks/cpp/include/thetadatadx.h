@@ -14,8 +14,8 @@
  *   thread-local error string retrievable via thetadatadx_last_error().
  */
 
-#ifndef THETADX_H
-#define THETADX_H
+#ifndef THETADATADX_H
+#define THETADATADX_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -1992,7 +1992,7 @@ int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t
 
 /* Streaming event structs are schema-driven. The include below pulls in
  * the typedefs generated at build time from the canonical wire schema — so
- * the C++ header can never drift from it again. See `thetadx.hpp` for
+ * the C++ header can never drift from it again. See `thetadatadx.hpp` for
  * `static_assert(offsetof)` guards that fail the build at compile time if
  * the schema and the C++ consumer ever disagree.
  *
@@ -2511,4 +2511,4 @@ int thetadatadx_flatfile_request_to_path(
 }
 #endif
 
-#endif /* THETADX_H */
+#endif /* THETADATADX_H */

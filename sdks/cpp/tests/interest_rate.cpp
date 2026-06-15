@@ -16,8 +16,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "thetadx.h"
-#include "thetadx.hpp"
+#include "thetadatadx.h"
+#include "thetadatadx.hpp"
 
 TEST_CASE("ThetaDataDxInterestRateTick has the 2-field shape", "[interest_rate][schema][offline]") {
     // The C struct must be 64 bytes total (cache-line aligned) with

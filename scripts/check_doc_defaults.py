@@ -547,7 +547,7 @@ def build_surfaces() -> list[Surface]:
     surfaces.append(ffi)
 
     # C++ Doxygen — the `.h` (C ABI) header.
-    cpp_h = Surface("cpp.h", pathlib.Path("sdks/cpp/include/thetadx.h"))
+    cpp_h = Surface("cpp.h", pathlib.Path("sdks/cpp/include/thetadatadx.h"))
     cpp_h.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(
