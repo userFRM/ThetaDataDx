@@ -160,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
-- `option_history_greeks_eod` return type changes from `Vec<GreeksAllTick>` to `Vec<GreeksEodTick>`. The v10 routing returned a 28-column interval-sampled Greeks shape and dropped the twelve EOD trade/quote columns the server emits on this endpoint (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`). Greek field names are unchanged on `GreeksEodTick`; consumers that need the EOD bar + closing NBBO snapshot must add reads for the new columns. Wire layout verified against terminal jar build `202605221`.
+- `option_history_greeks_eod` return type changes from `Vec<GreeksAllTick>` to `Vec<GreeksEodTick>`. The v10 routing returned a 28-column interval-sampled Greeks shape and dropped the twelve EOD trade/quote columns the server emits on this endpoint (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`). Greek field names are unchanged on `GreeksEodTick`; consumers that need the EOD bar + closing NBBO snapshot must add reads for the new columns. Wire layout verified against the live server.
 - `index_at_time_price` return type changes from `Vec<PriceTick>` to `Vec<IndexPriceAtTimeTick>`. The v10 routing returned a 3-column shape and dropped the seven trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`). `ms_of_day`, `price`, and `date` field names are unchanged; consumers that need the per-row SIP source attribution must read the new `exchange` column.
 - Five `option_history_trade_greeks_*` endpoint return types change shape: `Vec<GreeksAllTick>` to `Vec<TradeGreeksAllTick>`, `Vec<GreeksFirstOrderTick>` to `Vec<TradeGreeksFirstOrderTick>`, `Vec<GreeksSecondOrderTick>` to `Vec<TradeGreeksSecondOrderTick>`, `Vec<GreeksThirdOrderTick>` to `Vec<TradeGreeksThirdOrderTick>`, `Vec<IvTick>` to `Vec<TradeGreeksImpliedVolatilityTick>`. The new types carry the nine trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`) the per-OPRA-trade endpoints actually emit; Greek field names are unchanged.
 - `IvTick` recovers seven columns the v3 server emits on `option_history_greeks_implied_volatility` and the pre-v11 decoder dropped: `bid`, `bid_implied_volatility`, `midpoint`, `ask`, `ask_implied_volatility`, `underlying_ms_of_day`, `underlying_price`. Struct size grows from 64 to 128 bytes; the wire headers `bid_implied_vol` / `ask_implied_vol` resolve through new `HEADER_ALIASES` rows.
@@ -261,7 +261,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flatfile server: scratch path is now unique per request with an atomic rename on completion, closing a concurrent-write race that could surface partial bytes to a reader.
 - Removed the speculative numeric status arm in `parse_calendar_days_v3`; upstream uses text-only status, and the numeric arm could mask real decode failures.
 - `flatfiles_byte_match` test hard-fails on a missing fixture once `THETADATADX_FLATFILE_FIXTURES_PATH` is set, replacing the prior silent skip that defeated the opt-in flag.
-- `InterestRateTick` schema corrected to two columns (`created` as ISO-date Text, `rate` as percent Number). The pre-v11 decoder errored `column 0: expected Number|Timestamp, got Text` on every `interest_rate_history_eod` call. Verified against terminal jar build `202605221` and `docs.thetadata.us/operations/interest_rate_history_eod.html`. Cross-binding regression coverage in `tests/test_interest_rate_schema.rs`, `sdks/python/tests/test_interest_rate.py`, `sdks/typescript/__tests__/interest_rate.test.mjs`, and `sdks/cpp/tests/interest_rate.cpp`.
+- `InterestRateTick` schema corrected to two columns (`created` as ISO-date Text, `rate` as percent Number). The pre-v11 decoder errored `column 0: expected Number|Timestamp, got Text` on every `interest_rate_history_eod` call. Verified against the live server and `docs.thetadata.us/operations/interest_rate_history_eod.html`. Cross-binding regression coverage in `tests/test_interest_rate_schema.rs`, `sdks/python/tests/test_interest_rate.py`, `sdks/typescript/__tests__/interest_rate.test.mjs`, and `sdks/cpp/tests/interest_rate.cpp`.
 - `next_req_id` widened from `AtomicI32` to `AtomicI64` with a `wire_req_id` clamp at every wire-boundary call site. The previous 32-bit counter could wrap into the wire protocol's `-1` "uncorrelated" sentinel after roughly 2^31 allocations (~5 days at 5k subs/sec). The clamp masks the sign bit (`x & 0x7FFF_FFFF`) so wire ids stay strictly non-negative even past `i32::MAX`.
 - Per-frame `received_at_ns` cast uses saturating `u64::try_from` so the schema timestamp stops wrapping at the 2554 boundary.
 - `AuthUser::max_concurrent_requests` routes the subscription-tier shift through `SubscriptionTier::from_wire`. Out-of-range wire bytes (negative, `> 3`, `i32::MAX`) fold to `Free=1` and emit a `warn` instead of panicking on the old `1usize << tier` path.
@@ -1163,11 +1163,9 @@ code does not change.
 
 ### Changed
 
-- Stripped 76 per-line Java reverse-engineering breadcrumbs across the
-  FPSS, MDDS, and config trees; ADR-001
-  (`docs/architecture/ADR-001-java-terminal-parity.md`) is now the
-  single anchor for that work, referenced from one module-header line
-  in each affected file.
+- Stripped 76 per-line internal provenance comments across the
+  FPSS, MDDS, and config trees, consolidating the protocol-parity
+  rationale into a single module-header note in each affected file.
 - Split the FPSS `io_loop.rs` module into
   `io_loop/{mod.rs, login.rs, ping.rs}` so the login handshake and
   ping heartbeat live next to the main I/O loop without sharing a
@@ -2172,7 +2170,7 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   example.
 - `tests/flatfiles_byte_match.rs` live integration
   test (`live-tests` feature gate) that byte-matches CSV output
-  against the vendor terminal jar.
+  against the vendor reference output.
 
 ### Changed
 
