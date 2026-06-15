@@ -43,8 +43,8 @@ describe('streaming-session wrapper', () => {
   it('Symbol.asyncDispose pairs stopStreaming with awaitDrain', async () => {
     const calls = [];
     // The unified client's streaming surface lives on the `client.stream`
-    // sub-namespace view, so the session resolves these through `_tdx.stream`.
-    const fakeTdx = {
+    // sub-namespace view, so the session resolves these through `_client.stream`.
+    const fakeClient = {
       stream: {
         stopStreaming() { calls.push('stopStreaming'); },
         async awaitDrain(timeoutMs) {
@@ -54,7 +54,7 @@ describe('streaming-session wrapper', () => {
         subscribe(sub) { calls.push(['subscribe', sub]); },
       },
     };
-    const session = new mod.StreamingSession(fakeTdx);
+    const session = new mod.StreamingSession(fakeClient);
 
     // Proxy SSOT: `subscribe(sub)` proxies through to the wrapped client.
     const fakeSub = { kind: 'quote', isFull: false };
@@ -67,13 +67,13 @@ describe('streaming-session wrapper', () => {
   });
 
   it('warns to console when awaitDrain returns false', async () => {
-    const fakeTdx = {
+    const fakeClient = {
       stream: {
         stopStreaming() {},
         async awaitDrain() { return false; },
       },
     };
-    const session = new mod.StreamingSession(fakeTdx);
+    const session = new mod.StreamingSession(fakeClient);
 
     const originalWarn = console.warn;
     const warned = [];
@@ -93,7 +93,7 @@ describe('streaming-session wrapper', () => {
     // proxy through to the client. This is the SSOT property: adding a new
     // method to the napi binding makes it reachable on the session
     // automatically without a wrapper-side mirror.
-    const fakeTdx = {
+    const fakeClient = {
       stream: {
         stopStreaming() {},
         async awaitDrain() { return true; },
@@ -101,7 +101,7 @@ describe('streaming-session wrapper', () => {
         droppedEventCount() { return 42n; },
       },
     };
-    const session = new mod.StreamingSession(fakeTdx);
+    const session = new mod.StreamingSession(fakeClient);
     assert.deepEqual(session.activeSubscriptions(), [{ kind: 'Trade', contract: 'AAPL' }]);
     assert.equal(session.droppedEventCount(), 42n);
   });

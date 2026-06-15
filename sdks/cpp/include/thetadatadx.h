@@ -906,9 +906,14 @@ int32_t thetadatadx_last_error_code(void);
  *  thread, in milliseconds. Set only for a rate-limit error whose upstream
  *  status attached the hint. The C++ RateLimitError::retry_after() surfaces
  *  this as a typed value.
- *  @return The back-off in milliseconds, or -1 when the error carries no
- *          retry hint (every non-rate-limit error reads -1). */
+ *  @return The back-off in milliseconds, or THETADATADX_RETRY_AFTER_NONE when
+ *          the error carries no retry hint (every non-rate-limit error reads
+ *          this sentinel). */
 int64_t thetadatadx_last_error_retry_after_ms(void);
+
+/* Sentinel returned by `thetadatadx_last_error_retry_after_ms()` when the last
+ * error carries no rate-limit back-off hint. */
+#define THETADATADX_RETRY_AFTER_NONE (-1)
 
 /* Error-code discriminants returned by `thetadatadx_last_error_code()`. */
 #define THETADATADX_ERR_NONE 0
