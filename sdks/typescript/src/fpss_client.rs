@@ -3,7 +3,7 @@
 //! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus HTTP
 //! authentication, no historical / Treasury / Calendar surface. Mirrors
 //! the Python `StreamingClient` (`sdks/python/src/fpss_client.rs`), the C++
-//! `thetadatadx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`), and the standalone
+//! `thetadatadx::StreamingClient` (`sdks/cpp/include/thetadatadx.hpp`), and the standalone
 //! C ABI entry points (`thetadatadx_fpss_*` in `ffi/src/streaming.rs`), letting a
 //! Node.js caller run an FPSS-only session alongside an externally
 //! managed MDDS process without the bundled

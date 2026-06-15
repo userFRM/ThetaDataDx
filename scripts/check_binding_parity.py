@@ -12,7 +12,7 @@ Class-level rows (no dot in `name`):
 - TypeScript: `export declare class X` / `export class X` declarations
   in `sdks/typescript/index.d.ts`.
 - C++: `^class X` / `^struct X` declarations in
-  `sdks/cpp/include/thetadx.hpp`. The `.h` header is C-only and not
+  `sdks/cpp/include/thetadatadx.hpp`. The `.h` header is C-only and not
   considered for parity.
 
 Field-level rows (dotted `name`, e.g. `ReconnectConfig.wait_ms`):
@@ -23,8 +23,8 @@ Field-level rows (dotted `name`, e.g. `ReconnectConfig.wait_ms`):
   matching getter declaration in `sdks/typescript/src/*.rs`. The
   CamelCase form lifts the snake_case canonical name.
 - C++: `set_<canonical>` / `get_<canonical>` member functions on the
-  `class Config { ... }` body in `thetadx.hpp` PLUS the matching
-  `thetadatadx_config_set_<canonical>` C-ABI declaration in `thetadx.h`.
+  `class Config { ... }` body in `thetadatadx.hpp` PLUS the matching
+  `thetadatadx_config_set_<canonical>` C-ABI declaration in `thetadatadx.h`.
 - FFI: `thetadatadx_config_set_<canonical>` AND
   `thetadatadx_config_get_<canonical>` (or the `_explicit` widened-ABI shape)
   parsed from `ffi/src/*.rs`. Any binding flagged `true` on a field
@@ -60,8 +60,8 @@ PARITY_TOML = REPO_ROOT / "sdks" / "parity.toml"
 PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
 TS_DTS = REPO_ROOT / "sdks" / "typescript" / "index.d.ts"
 TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
-CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadx.hpp"
-CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadx.h"
+CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.hpp"
+CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "ffi" / "src"
 CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
 
@@ -384,7 +384,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
 def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]:
     """C++ wrapper exposes setters as inline `set_<name>(<type>)` on
     the `class Config { ... }` body. The matching
-    `thetadatadx_config_set_<name>` declaration in `thetadx.h` is the C ABI
+    `thetadatadx_config_set_<name>` declaration in `thetadatadx.h` is the C ABI
     surface the wrapper forwards to; the parity gate requires both
     halves so a forgotten C header declaration trips at link time.
     Getter presence is not gated — several write-only knobs have no
@@ -1057,7 +1057,7 @@ def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
 def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     """Return `{class_name: {method, ...}}` for every C++ class.
 
-    Parses each `class X { ... };` body in `thetadx.hpp` and collects
+    Parses each `class X { ... };` body in `thetadatadx.hpp` and collects
     every member declaration with a `name(` shape. The first identifier
     before the `(` is the method name. Bounded brace-counting keeps
     nested types (e.g. lambdas inside default-arg initializers) from
@@ -1182,7 +1182,7 @@ def _check_method_rows(
             )
 
         # C++: `<snake>(` member declaration inside the matching
-        # class body in `thetadx.hpp`. C++ alias names route through
+        # class body in `thetadatadx.hpp`. C++ alias names route through
         # `CPP_ALIASES` (`Contract` -> `FluentContract`). Readback
         # getters on the C++ `Config` carry a uniform `get_` prefix
         # (`get_flush_mode`), where Python exposes the field-shaped
@@ -1199,7 +1199,7 @@ def _check_method_rows(
                 f"  {class_name}.{camel}.cpp: declared={declared_cpp}, "
                 f"actual={actual_cpp} ({verb} -- expected `{snake}(` "
                 f"or `get_{snake}(` inside `class {cpp_class}` body in "
-                f"sdks/cpp/include/thetadx.hpp)"
+                f"sdks/cpp/include/thetadatadx.hpp)"
             )
 
     return errors
@@ -1327,7 +1327,7 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
     namespace of the C++ wrapper.
 
     The calculator declarations live in
-    `sdks/cpp/include/utilities.hpp.inc`, pulled into `thetadx.hpp` via
+    `sdks/cpp/include/utilities.hpp.inc`, pulled into `thetadatadx.hpp` via
     `#include "utilities.hpp.inc"`. `_expand_cpp_includes` inlines the
     `.inc` first, then a `<ret> <name>(` shape outside any `class {...}`
     body is a free function. The collector blanks class bodies (mirroring
@@ -1639,7 +1639,7 @@ def _collect_binding_subscription_kinds(fluent_rs: pathlib.Path) -> set[str]:
 
 def _collect_cpp_subscription_kinds(cpp_hpp: pathlib.Path) -> set[str]:
     """Kind labels emitted by the C++ `FluentSubscription::kind_string`
-    switch in `thetadx.hpp`. The method is the only place in the header
+    switch in `thetadatadx.hpp`. The method is the only place in the header
     that returns these snake_case labels, so a header-wide harvest of the
     canonical vocabulary captures exactly its emitted set (and any
     fictitious `full_*` label, which the canonical-set assertion then
@@ -1669,7 +1669,7 @@ def _collect_cpp_subscription_kinds(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_subscription_kinds(cpp_h: pathlib.Path) -> set[str]:
-    """Kind labels documented as the C ABI contract in `thetadx.h`.
+    """Kind labels documented as the C ABI contract in `thetadatadx.h`.
 
     The C ABI surfaces the kind as the `ThetaDataDxSubscription.kind` string field,
     populated by the Rust core's `kind_str` / `full_kind_str` (so the C ABI
@@ -1905,7 +1905,7 @@ def _collect_ffi_error_codes_dispatched(ffi_error_rs: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_error_codes(cpp_h: pathlib.Path) -> dict[str, int]:
-    """`TDX_ERR_*` codes defined in the C ABI header `thetadx.h`.
+    """`TDX_ERR_*` codes defined in the C ABI header `thetadatadx.h`.
 
     Returns `{code_name: int_value}` for every `#define TDX_ERR_* N`. The
     header is hand-maintained; the gate asserts it matches the FFI Rust
@@ -1995,7 +1995,7 @@ def _check_error_leaf_parity(
             if name not in cpp_codes:
                 errors.append(
                     f"  cpp header: `{name}` defined in ffi/src/error.rs but "
-                    f"missing from sdks/cpp/include/thetadx.h"
+                    f"missing from sdks/cpp/include/thetadatadx.h"
                 )
             elif cpp_codes[name] != value:
                 errors.append(
@@ -2081,7 +2081,7 @@ def _endpoint_method_to_snake(name: str) -> str:
 #     `sdks/typescript/src/_generated/historical_methods.rs`).
 #   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
 #   * C++: an `<endpoint>_stream` member on the `Client` wrapper
-#     (`thetadx.hpp` + its `.inc` fragments).
+#     (`thetadatadx.hpp` + its `.inc` fragments).
 #
 # These methods live on per-endpoint builders / as endpoint-named
 # methods, NOT on a class the `[[method]]` rows already cover, so without
@@ -2182,7 +2182,7 @@ def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[st
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. The
     server-stream companions live on the `client.historical()`
-    `Historical` view body in `thetadx.hpp`. A member whose snake_case
+    `Historical` view body in `thetadatadx.hpp`. A member whose snake_case
     name ends in `_stream` is a server-stream terminal; strip the suffix
     to recover the endpoint name.
     """
@@ -2610,7 +2610,7 @@ def _cpp_struct_field_type(hpp: pathlib.Path, struct: str, field: str) -> str | 
     """Declared C++ type of `field` on `struct` in the C++ wrapper header.
 
     Mirrors [`_struct_field_type`] for the hand-written C++ value structs
-    (`OptionContract`, etc.) whose field types live in `thetadx.hpp`
+    (`OptionContract`, etc.) whose field types live in `thetadatadx.hpp`
     rather than a Rust binding crate. Returns `None` when the struct or
     field is absent. A `cpp` key on a `[[value_field]]` row pins the
     type this returns, closing the gap that let a C++ value struct
@@ -3587,7 +3587,7 @@ def _run_selftest() -> int:
                 "}\n",
                 encoding="utf-8",
             )
-            hpp = pathlib.Path(tmp) / "thetadx.hpp"
+            hpp = pathlib.Path(tmp) / "thetadatadx.hpp"
             hpp.write_text(
                 "struct OptionContract {\n    char right;\n}\n",
                 encoding="utf-8",
@@ -3614,7 +3614,7 @@ def _run_selftest() -> int:
     def _case_value_field_cpp_type_mismatch_trips() -> None:
         """A C++ value struct that surfaces the raw integer trips."""
         with tempfile.TemporaryDirectory() as tmp:
-            hpp = pathlib.Path(tmp) / "thetadx.hpp"
+            hpp = pathlib.Path(tmp) / "thetadatadx.hpp"
             hpp.write_text(
                 "struct OptionContract {\n    int32_t right;\n}\n",
                 encoding="utf-8",

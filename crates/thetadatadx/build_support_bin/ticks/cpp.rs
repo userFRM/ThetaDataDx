@@ -16,7 +16,7 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
     // Drive every static_assert off the schema. `OptionContract` is
     // intentionally skipped: its FFI mirror carries a `const char* root`
     // pointer, so the C++ wrapper exposes a `std::string`-backed
-    // hand-written struct (see `sdks/cpp/include/thetadx.hpp::OptionContract`)
+    // hand-written struct (see `sdks/cpp/include/thetadatadx.hpp::OptionContract`)
     // rather than the FFI-layout `ThetaDataDxOptionContract`. Adding any other
     // tick type to `tick_schema.toml` flows through here automatically.
     for type_name in sorted_type_names(schema) {

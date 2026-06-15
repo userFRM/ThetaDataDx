@@ -48,7 +48,7 @@ pub(crate) struct TickTypeDef {
     /// `crates/thetadatadx/src/tdbe/types/tick.rs`; this list is the single source
     /// the SDK emitters project into Python (computed `#[getter]`),
     /// TypeScript (precomputed `#[napi(object)]` field), and C++ (a free
-    /// function in `thetadx.hpp`) so a binding caller never hand-decodes
+    /// function in `thetadatadx.hpp`) so a binding caller never hand-decodes
     /// `condition_flags` / `price_flags`. Empty for most tick types.
     #[serde(default)]
     pub(crate) flag_accessors: Vec<FlagAccessorDef>,

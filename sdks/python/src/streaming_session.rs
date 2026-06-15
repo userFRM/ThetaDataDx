@@ -22,7 +22,7 @@ use pyo3::prelude::*;
 use crate::fpss_client::StreamingClient;
 
 /// Drain timeout applied on `__exit__`. Matches the C++ destructor's
-/// 5 s budget in `sdks/cpp/src/thetadx.cpp` and the FFI free-path
+/// 5 s budget in `sdks/cpp/src/thetadatadx.cpp` and the FFI free-path
 /// budget in `ffi/src/streaming.rs::FREE_DRAIN_TIMEOUT`. Cross-binding
 /// parity matters more than tunability here -- a slow Python callback
 /// that needs >5 s to drain is already a contract violation worth
@@ -220,7 +220,7 @@ impl crate::Client {
     /// `with client.streaming(callback) as session:` registers `callback`
     /// via `start_streaming` on enter and pairs `stop_streaming()` +
     /// `await_drain(5_000)` on exit, mirroring the C++ RAII destructor
-    /// in `sdks/cpp/src/thetadx.cpp`. Subscription methods on the bound
+    /// in `sdks/cpp/src/thetadatadx.cpp`. Subscription methods on the bound
     /// `session` forward to the underlying `Client` via
     /// `StreamingSession.__getattr__`, so the public surface stays a
     /// single source of truth rooted in the wrapped class.

@@ -90,7 +90,7 @@ setTimeout(() => client.stream.stopStreaming(), 60_000);
 <template #cpp>
 
 ```cpp
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 #include <iostream>
 #include <thread>
 

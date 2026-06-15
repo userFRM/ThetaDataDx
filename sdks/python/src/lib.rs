@@ -1497,7 +1497,7 @@ impl StreamView {
     ///
     /// Mirrors the cross-binding contract on the C++
     /// `Stream::active_full_subscriptions` (see
-    /// `sdks/cpp/include/thetadx.hpp`) and the standalone
+    /// `sdks/cpp/include/thetadatadx.hpp`) and the standalone
     /// [`crate::fpss_client::StreamingClient::active_full_subscriptions`].
     fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;

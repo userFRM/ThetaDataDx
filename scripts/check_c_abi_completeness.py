@@ -3,7 +3,7 @@
 
 Every exported `thetadatadx_*` C ABI symbol that ends up in the compiled
 shared library `libthetadatadx_ffi.so` MUST appear by name in
-`sdks/cpp/include/thetadx.h` (or one of its `.inc` includes).
+`sdks/cpp/include/thetadatadx.h` (or one of its `.inc` includes).
 Drift on the C-side header is invisible to `cargo build` because the
 headers are hand-maintained and the link contract only breaks at the
 user's compile time, after they've already pip-installed or fetched
@@ -159,7 +159,7 @@ def collect_header_symbols() -> set[str]:
 # extending this list.
 HEADER_ONLY_ALLOWLIST: set[str] = {
     # `thetadatadx_exchange_` (trailing underscore) is the symbol-family
-    # prose mention `thetadatadx_exchange_*` in `thetadx.h:785`. The
+    # prose mention `thetadatadx_exchange_*` in `thetadatadx.h:785`. The
     # regex captures `thetadatadx_exchange_` from the wildcard form. Real
     # exports are `thetadatadx_exchange_name` / `thetadatadx_exchange_symbol`.
     "thetadatadx_exchange_",
@@ -178,7 +178,7 @@ def main() -> int:
         for name in missing_in_header:
             print(f"  {name}")
         print(
-            "\nFix: add the missing decl(s) to sdks/cpp/include/thetadx.h "
+            "\nFix: add the missing decl(s) to sdks/cpp/include/thetadatadx.h "
             "(or the appropriate `*.inc` include). The C++ wrapper "
             "compiles against these headers — a missing decl breaks "
             "user builds at the link step, not at `cargo build`."

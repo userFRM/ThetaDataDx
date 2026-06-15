@@ -31,10 +31,10 @@ targets = ["python_unified", "typescript_napi"]
 # `unsubscribe(Subscription)` / `unsubscribe_many([...])` paths are
 # implemented directly on the unified client surface in each binding
 # (Python: `sdks/python/src/lib.rs`, TypeScript: `sdks/typescript/src/lib.rs`,
-# C++: `sdks/cpp/include/thetadx.hpp`). The fluent `Contract` /
+# C++: `sdks/cpp/include/thetadatadx.hpp`). The fluent `Contract` /
 # `Subscription` / `SecType` value types are exposed through
 # language-native modules (`fluent.rs` for Python and TypeScript,
-# `thetadx.hpp` for C++).
+# `thetadatadx.hpp` for C++).
 
 [[methods]]
 name = "active_subscriptions"

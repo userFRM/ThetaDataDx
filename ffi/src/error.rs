@@ -30,7 +30,7 @@ pub const TDX_RETRY_AFTER_NONE: i64 = -1;
 /// Typed error-code discriminants surfaced via [`thetadatadx_last_error_code`].
 ///
 /// Higher-level bindings (the C++ exception hierarchy in
-/// `sdks/cpp/include/thetadx.hpp`, the typed napi error subclasses in
+/// `sdks/cpp/include/thetadatadx.hpp`, the typed napi error subclasses in
 /// `sdks/typescript/src/lib.rs`) use these codes to choose which
 /// concrete exception / error subclass to throw without having to
 /// substring-match the formatted error string. The mapping mirrors

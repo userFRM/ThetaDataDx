@@ -4,7 +4,7 @@
  * `await using session = await client.streaming(callback)` (TC39 explicit
  * resource management) registers the callback via `startStreaming`
  * and pairs `stopStreaming()` + `awaitDrain(5000)` on dispose, mirroring
- * the C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
+ * the C++ RAII destructor in `sdks/cpp/src/thetadatadx.cpp`.
  *
  * The runtime wrapper proxies every attribute access to the underlying
  * `Client`, so the type surface here just extends
@@ -113,7 +113,7 @@ declare module './index' {
      * `await using session = await client.streaming(callback)` registers
      * `callback` via `startStreaming` and pairs `stopStreaming()` +
      * `awaitDrain(5000)` on scope exit, mirroring the C++ RAII
-     * destructor in `sdks/cpp/src/thetadx.cpp`. If the drain barrier
+     * destructor in `sdks/cpp/src/thetadatadx.cpp`. If the drain barrier
      * times out, `console.warn` fires but the `using` scope exits
      * normally so any error from the body is not masked.
      */

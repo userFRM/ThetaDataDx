@@ -228,7 +228,7 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
 }
 
 /// Emit the out-of-line `Client::<endpoint>_stream(...)`
-/// definitions, included in `thetadx.cpp` via
+/// definitions, included in `thetadatadx.cpp` via
 /// `sdks/cpp/src/historical_stream.cpp.inc`.
 ///
 /// Each borrows the historical `ThetaDataDxHistoricalClient*` from the unified handle

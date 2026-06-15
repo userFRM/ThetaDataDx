@@ -11,7 +11,7 @@
 #include <string>
 #include <thread>
 
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 namespace {
 

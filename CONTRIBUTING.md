@@ -62,7 +62,7 @@ cargo test --manifest-path tools/cli/Cargo.toml
 # 6. Language SDK smoke checks (if modified)
 cargo check --manifest-path sdks/python/Cargo.toml
 (cd sdks/typescript && npm run build)
-c++ -std=c++17 -fsyntax-only -I sdks/cpp/include sdks/cpp/src/thetadx.cpp
+c++ -std=c++17 -fsyntax-only -I sdks/cpp/include sdks/cpp/src/thetadatadx.cpp
 cmake -S sdks/cpp -B build/cpp
 cmake --build build/cpp --target thetadatadx_cpp
 ```

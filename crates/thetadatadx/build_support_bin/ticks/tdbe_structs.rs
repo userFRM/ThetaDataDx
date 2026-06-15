@@ -116,7 +116,7 @@ pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, Strin
 ///   * `align_of::<T>()`          (catches `align(N)` drift),
 ///   * `offset_of!(T, field)`     for every column the parser fills, plus
 ///     the `contract_id` triple and `QuoteTick.midpoint` tail. This is the
-///     ABI that the C-mirror in `sdks/cpp/include/thetadx.h` and the
+///     ABI that the C-mirror in `sdks/cpp/include/thetadatadx.h` and the
 ///     layout-assert `*.hpp.inc` all index into via `offsetof()`.
 ///
 /// `OptionContract` is skipped: its FFI mirror carries a `*const c_char`

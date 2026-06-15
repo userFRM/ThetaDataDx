@@ -113,7 +113,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi_rust::render_ffi_fpss_event_converter(&schema),
         },
         // C header mirror of the FFI event structs. `#include`'d from
-        // `sdks/cpp/include/thetadx.h` for the C++ SDK. Keeping the
+        // `sdks/cpp/include/thetadatadx.h` for the C++ SDK. Keeping the
         // schema as SSOT means C++ can never drift from Rust in field
         // order again.
         GeneratedSourceFile {

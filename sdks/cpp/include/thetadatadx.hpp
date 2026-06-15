@@ -8,10 +8,10 @@
  * The C++ tick types are layout-compatible with the C ABI structs.
  */
 
-#ifndef THETADX_HPP
-#define THETADX_HPP
+#ifndef THETADATADX_HPP
+#define THETADATADX_HPP
 
-#include "thetadx.h"
+#include "thetadatadx.h"
 
 #include <chrono>
 #include <cstddef>
@@ -78,8 +78,8 @@ private:
 };
 #endif
 
-// ── Tick types (re-exported from thetadx.h for C++ convenience) ──
-// These are typedef aliases to the C types defined in thetadx.h.
+// ── Tick types (re-exported from thetadatadx.h for C++ convenience) ──
+// These are typedef aliases to the C types defined in thetadatadx.h.
 // They are fixed-layout and ABI-compatible with those C structs.
 
 using EodTick = ThetaDataDxEodTick;
@@ -361,7 +361,7 @@ namespace detail {
 
 /// Throw the [`ThetaDataError`] leaf that matches the typed C ABI
 /// discriminant `code` (one of the `TDX_ERR_*` constants in
-/// `thetadx.h`). Used by every wrapper that already has the formatted
+/// `thetadatadx.h`). Used by every wrapper that already has the formatted
 /// message in hand and wants the right leaf class without re-parsing.
 /// Read the thread-local rate-limit back-off hint and convert it to
 /// seconds, or `std::nullopt` when the FFI slot carries no hint (`-1`).
@@ -1337,7 +1337,7 @@ private:
     std::unique_ptr<ThetaDataDxHistoricalClient, HistoricalClientDeleter> handle_;
 };
 
-// ── FPSS event types (re-exported from thetadx.h) ──
+// ── FPSS event types (re-exported from thetadatadx.h) ──
 //
 // Each control variant has its own typed C struct rather than a single
 // flat `{ kind, id, detail }` envelope. Consumers dispatch via
@@ -1608,7 +1608,7 @@ private:
 
 // ── FLATFILES surface ────────────────────────────────────────────────
 //
-// Thin RAII wrappers over the C ABI in `thetadx.h`. The dynamic schema
+// Thin RAII wrappers over the C ABI in `thetadatadx.h`. The dynamic schema
 // (one column set per (sec_type, req_type)) is opaque on the C++ side
 // — typed access is via the Arrow IPC bytes returned by
 // `FlatFileRowList::to_arrow_ipc()`. Pair with arrow-cpp on the
@@ -2594,7 +2594,7 @@ inline void StreamingClient::unsubscribe_many(
 // ── Cross-language utility helpers ──────────────────────────────────────
 //
 // Thin std::string wrappers over the process-lifetime C-string accessors
-// in `thetadx.h`. Each call copies the table entry once into a
+// in `thetadatadx.h`. Each call copies the table entry once into a
 // std::string so consumers don't need to think about C-string
 // lifetimes. The underlying C functions are zero-cost lookups
 // (no heap allocation, table-bounded).
@@ -2798,4 +2798,4 @@ inline std::string_view reason_name(int32_t reason) noexcept {
 
 } // namespace thetadatadx
 
-#endif /* THETADX_HPP */
+#endif /* THETADATADX_HPP */

@@ -123,7 +123,7 @@ Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for 
 
 ## C++ SDK
 
-**Binding technology:** RAII C++ wrappers around the C FFI header (`thetadx.h`)
+**Binding technology:** RAII C++ wrappers around the C FFI header (`thetadatadx.h`)
 
 ```bash
 # Build the FFI library first
@@ -137,7 +137,7 @@ make
 ```
 
 ```cpp
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 auto creds = thetadatadx::Credentials::from_file("creds.txt");
 auto client = thetadatadx::HistoricalClient::connect(creds, thetadatadx::Config::production());

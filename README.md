@@ -143,7 +143,7 @@ client.stream.subscribeMany([
 ### C++
 
 ```cpp
-#include <thetadx.hpp>
+#include <thetadatadx.hpp>
 #include <cstdio>
 
 int main() {

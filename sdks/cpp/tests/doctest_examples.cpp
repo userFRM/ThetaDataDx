@@ -1,7 +1,7 @@
 // Gate 3 - C++ side: doctest gate.
 //
 // Compiles every `// @example` block extracted from the public C++
-// headers (`thetadx.hpp` + `.inc` includes). The C++ harness piggybacks
+// headers (`thetadatadx.hpp` + `.inc` includes). The C++ harness piggybacks
 // on the existing Catch2 test binary - `cpp-tests` runs us at the same
 // time as every other offline test.
 //
@@ -23,11 +23,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 TEST_CASE("C++ doctest harness compiles against the public header",
           "[doctest][offline]") {
-    // Smoke: the harness binary links against `thetadx.hpp` and every
+    // Smoke: the harness binary links against `thetadatadx.hpp` and every
     // hand-translated example below sees the full public surface.
     // Adding new `// @example` blocks to headers requires translating
     // them into TEST_CASEs here - the gate is "every example block in

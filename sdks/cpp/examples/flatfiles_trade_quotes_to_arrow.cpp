@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "thetadx.hpp"
+#include "thetadatadx.hpp"
 
 int main() {
     try {

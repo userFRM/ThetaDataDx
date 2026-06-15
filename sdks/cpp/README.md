@@ -17,11 +17,11 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
 - **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
-- **Header plus one library** — a single `thetadx.hpp` over a prebuilt C ABI shared library.
+- **Header plus one library** — a single `thetadatadx.hpp` over a prebuilt C ABI shared library.
 
 ## Install
 
-The SDK is a single header (`sdks/cpp/include/thetadx.hpp`) over a prebuilt C ABI library. Build the library once, then point your compiler at the header and link the library.
+The SDK is a single header (`sdks/cpp/include/thetadatadx.hpp`) over a prebuilt C ABI library. Build the library once, then point your compiler at the header and link the library.
 
 ```bash
 # Build the FFI library
@@ -50,7 +50,7 @@ cmake --build build/cpp --config Release --target thetadatadx_cpp
 > `Credentials::from_email(email, password)`.
 
 ```cpp
-#include <thetadx.hpp>
+#include <thetadatadx.hpp>
 #include <cstdio>
 
 int main() {
@@ -85,7 +85,7 @@ auto exps   = client.option_list_expirations("SPY");
 Real-time streaming uses a dedicated `thetadatadx::StreamingClient` — separate from the historical `HistoricalClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
 
 ```cpp
-#include <thetadx.hpp>
+#include <thetadatadx.hpp>
 #include <cstdio>
 
 int main() {
@@ -201,7 +201,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every historical endpoint is a method on `thetadatadx::HistoricalClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadx.hpp`](include/thetadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every historical endpoint is a method on `thetadatadx::HistoricalClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadatadx.hpp`](include/thetadatadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 
