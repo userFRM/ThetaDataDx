@@ -172,8 +172,8 @@ Whole-universe daily snapshots for one `(security type, request type, date)` at 
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 
 let path = thetadatadx::flatfile_request(
-    &creds, SecType::Option, ReqType::Quote, "20260428",
-    std::path::Path::new("/tmp/option-quote"), FlatFileFormat::Csv,
+    &creds, SecType::Option, ReqType::TradeQuote, "20260428",
+    std::path::Path::new("/tmp/option-trade-quote"), FlatFileFormat::Csv,
 ).await?;
 ```
 
