@@ -194,7 +194,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30 / 365, 8.50, "C")
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so flat-file results chain through the same DataFrame terminals as history:
 
 ```python
-rows = client.flat_files.option_quote(date="20260428")
+rows = client.flat_files.option_trade_quote(date="20260428")
 print(len(rows))
 df = rows.to_polars()                       # or .to_pandas() / .to_arrow() / .to_list()
 
@@ -202,11 +202,11 @@ df = rows.to_polars()                       # or .to_pandas() / .to_arrow() / .t
 oi = client.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
 
 # Or write the raw vendor file straight to disk — no decode, no row materialise
-path = client.flatfile_to_path("OPTION", "QUOTE", "20260428",
-                            "/tmp/option-quote", format="csv")
+path = client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20260428",
+                            "/tmp/option-trade-quote", format="csv")
 ```
 
-Available `flat_files.*` methods: `option_quote`, `option_trade`, `option_trade_quote`, `option_ohlc`, `option_open_interest`, `option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`, `stock_eod`, plus `request(sec_type, req_type, date)`.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flat_files.*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(sec_type, req_type, date)`. The generic `request(...)` and `flatfile_to_path(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 

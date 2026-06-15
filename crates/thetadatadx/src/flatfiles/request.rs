@@ -36,7 +36,9 @@ use crate::error::Error;
 use crate::flatfiles::framing::{msg, read_frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
 use crate::flatfiles::session::{connect_and_login, MddsHost};
-use crate::flatfiles::types::{FlatFilesUnavailableReason, ReqType, SecType};
+use crate::flatfiles::types::{
+    flat_file_serves, req_dataset_name, FlatFilesUnavailableReason, ReqType, SecType,
+};
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
 /// use an `AtomicI64` so concurrent `flatfile_request_raw` calls cannot
@@ -63,6 +65,26 @@ fn build_flat_file_payload(id: i64, sec: SecType, req: ReqType, date: &str) -> V
         sec.as_wire(),
     )
     .into_bytes()
+}
+
+/// Reject any `(sec, req)` pair the flat-file distribution does not
+/// serve, before any connection is opened. Returns a typed
+/// invalid-parameter error naming the unserved dataset so the caller
+/// gets a deterministic local failure instead of a server-side
+/// `INVALID_PARAMS` rejection after a round-trip. See
+/// [`crate::flatfiles::types::flat_file_serves`] for the served matrix.
+fn validate_dataset(sec: SecType, req: ReqType) -> Result<(), Error> {
+    if flat_file_serves(sec, req) {
+        return Ok(());
+    }
+    Err(Error::config_invalid(
+        "flatfiles.dataset",
+        format!(
+            "flat-file service does not serve {} {}",
+            sec.as_wire().to_ascii_lowercase(),
+            req_dataset_name(req)
+        ),
+    ))
 }
 
 /// Validate that `date` is exactly 8 ASCII digits AND a real Gregorian
@@ -158,6 +180,7 @@ pub async fn flatfile_request_raw_with_config(
     output_path: impl AsRef<Path>,
     config: &FlatFilesConfig,
 ) -> Result<PathBuf, Error> {
+    validate_dataset(sec, req)?;
     validate_date(date)?;
     let output_path = output_path.as_ref().to_path_buf();
     if let Some(parent) = output_path.parent() {
@@ -351,6 +374,48 @@ mod tests {
             s,
             "MSG_CODE=217&id=9001&start_date=20260428&REQ=103&SEC=OPTION&rth=true&ivl=0"
         );
+    }
+
+    #[test]
+    fn dataset_gate_accepts_the_five_served_combos() {
+        for (sec, req) in [
+            (SecType::Option, ReqType::TradeQuote),
+            (SecType::Option, ReqType::OpenInterest),
+            (SecType::Option, ReqType::Eod),
+            (SecType::Stock, ReqType::TradeQuote),
+            (SecType::Stock, ReqType::Eod),
+        ] {
+            assert!(
+                validate_dataset(sec, req).is_ok(),
+                "{sec} {req:?} must pass the flat-file dataset gate"
+            );
+        }
+    }
+
+    #[test]
+    fn dataset_gate_rejects_unserved_combos_with_typed_error() {
+        // Representative unserved pairs across both security types.
+        for (sec, req, needle) in [
+            (SecType::Option, ReqType::Quote, "option quote"),
+            (SecType::Option, ReqType::Trade, "option trade"),
+            (SecType::Option, ReqType::Ohlc, "option ohlc"),
+            (SecType::Stock, ReqType::Quote, "stock quote"),
+            (SecType::Stock, ReqType::Trade, "stock trade"),
+            (SecType::Stock, ReqType::Ohlc, "stock ohlc"),
+            (SecType::Stock, ReqType::OpenInterest, "stock open_interest"),
+            (SecType::Index, ReqType::Eod, "index eod"),
+        ] {
+            let err = validate_dataset(sec, req).expect_err("unserved pair must be rejected");
+            // Typed invalid-parameter leaf, not a network failure.
+            assert!(
+                matches!(&err, Error::Config { kind, .. } if matches!(kind, crate::error::ConfigErrorKind::InvalidValue { .. })),
+                "{sec} {req:?} must surface the typed invalid-parameter error, got {err:?}"
+            );
+            assert!(
+                err.to_string().contains(needle),
+                "error for {sec} {req:?} must name the unserved pair, got {err}"
+            );
+        }
     }
 
     #[test]

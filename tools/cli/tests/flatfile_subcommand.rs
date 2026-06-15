@@ -32,14 +32,9 @@ fn flatfile_help_lists_every_shortcut() {
     let combined = format!("{stdout}{stderr}");
 
     for sub in [
-        "quotes",
-        "trades",
         "trade_quote",
-        "ohlc",
         "open_interest",
         "eod",
-        "stock_quotes",
-        "stock_trades",
         "stock_trade_quote",
         "stock_eod",
         "request",
@@ -49,12 +44,21 @@ fn flatfile_help_lists_every_shortcut() {
             "thetadatadx flatfile --help should advertise `{sub}`; got:\n{combined}"
         );
     }
+
+    // The datasets the flat-file distribution does not serve must not be
+    // advertised as convenience subcommands.
+    for sub in ["quotes", "trades", "ohlc", "stock_quotes", "stock_trades"] {
+        assert!(
+            !combined.contains(&format!("  {sub} ")) && !combined.contains(&format!("  {sub}\n")),
+            "thetadatadx flatfile --help must not advertise unserved subcommand `{sub}`; got:\n{combined}"
+        );
+    }
 }
 
 #[test]
-fn flatfile_quotes_help_includes_format_flag() {
+fn flatfile_trade_quote_help_includes_format_flag() {
     let out = Command::new(binary())
-        .args(["flatfile", "quotes", "--help"])
+        .args(["flatfile", "trade_quote", "--help"])
         .output()
         .expect("thetadatadx binary should exist");
     let stdout = String::from_utf8_lossy(&out.stdout);
@@ -62,7 +66,7 @@ fn flatfile_quotes_help_includes_format_flag() {
     let combined = format!("{stdout}{stderr}");
     assert!(
         combined.contains("--format") && combined.contains("--output"),
-        "thetadatadx flatfile quotes --help should advertise --format / --output; got:\n{combined}"
+        "thetadatadx flatfile trade_quote --help should advertise --format / --output; got:\n{combined}"
     );
 }
 

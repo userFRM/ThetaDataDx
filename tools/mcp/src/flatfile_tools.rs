@@ -10,21 +10,19 @@
 //! `Client`):
 //!
 //!   thetadatadx_flatfile_request                     (generic)
-//!   thetadatadx_flatfile_option_quote
-//!   thetadatadx_flatfile_option_trade
 //!   thetadatadx_flatfile_option_trade_quote
-//!   thetadatadx_flatfile_option_ohlc
 //!   thetadatadx_flatfile_option_open_interest
 //!   thetadatadx_flatfile_option_eod
-//!   thetadatadx_flatfile_stock_quote
-//!   thetadatadx_flatfile_stock_trade
 //!   thetadatadx_flatfile_stock_trade_quote
 //!   thetadatadx_flatfile_stock_eod
 //!
-//! All ten convenience tools take `(date, output_path?, format?)`. The
+//! The convenience tools cover exactly the datasets the flat-file
+//! distribution serves, each taking `(date, output_path?, format?)`. The
 //! generic tool takes `(sec_type, req_type, date, output_path, format)`
-//! with case-insensitive enum strings. A missing `output_path` writes
-//! to a deterministic temp path and surfaces it in the response.
+//! with case-insensitive enum strings; an unserved `(sec_type, req_type)`
+//! pair surfaces a typed invalid-parameter error before any network
+//! round-trip. A missing `output_path` writes to a deterministic temp
+//! path and surfaces it in the response.
 
 use sonic_rs::{json, JsonValueTrait, Value};
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
@@ -51,20 +49,8 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
 
     let convenience = [
         (
-            "thetadatadx_flatfile_option_quote",
-            "Whole-universe option-quote flat file for a single date. Returns the written file path.",
-        ),
-        (
-            "thetadatadx_flatfile_option_trade",
-            "Whole-universe option-trade flat file for a single date. Returns the written file path.",
-        ),
-        (
             "thetadatadx_flatfile_option_trade_quote",
             "Whole-universe option trade-quote flat file for a single date. Returns the written file path.",
-        ),
-        (
-            "thetadatadx_flatfile_option_ohlc",
-            "Whole-universe option-OHLC flat file for a single date. Returns the written file path.",
         ),
         (
             "thetadatadx_flatfile_option_open_interest",
@@ -73,14 +59,6 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
         (
             "thetadatadx_flatfile_option_eod",
             "Whole-universe option end-of-day flat file for a single date. Returns the written file path.",
-        ),
-        (
-            "thetadatadx_flatfile_stock_quote",
-            "Whole-universe stock-quote flat file for a single date. Returns the written file path.",
-        ),
-        (
-            "thetadatadx_flatfile_stock_trade",
-            "Whole-universe stock-trade flat file for a single date. Returns the written file path.",
         ),
         (
             "thetadatadx_flatfile_stock_trade_quote",
@@ -183,19 +161,17 @@ fn arg_str_opt(args: &Value, key: &str) -> Option<String> {
 }
 
 /// Map a tool-name suffix to a `(SecType, ReqType)` pair, e.g.
-/// `"thetadatadx_flatfile_option_quote"` -> `Some((Option, Quote))`.
+/// `"thetadatadx_flatfile_option_eod"` -> `Some((Option, Eod))`. Only
+/// the datasets the flat-file distribution serves have a convenience
+/// tool; every other request type is reachable via the historical
+/// endpoints, not as a flat file.
 fn convenience_pair(tool_name: &str) -> Option<(SecType, ReqType)> {
     match tool_name {
-        "thetadatadx_flatfile_option_quote" => Some((SecType::Option, ReqType::Quote)),
-        "thetadatadx_flatfile_option_trade" => Some((SecType::Option, ReqType::Trade)),
         "thetadatadx_flatfile_option_trade_quote" => Some((SecType::Option, ReqType::TradeQuote)),
-        "thetadatadx_flatfile_option_ohlc" => Some((SecType::Option, ReqType::Ohlc)),
         "thetadatadx_flatfile_option_open_interest" => {
             Some((SecType::Option, ReqType::OpenInterest))
         }
         "thetadatadx_flatfile_option_eod" => Some((SecType::Option, ReqType::Eod)),
-        "thetadatadx_flatfile_stock_quote" => Some((SecType::Stock, ReqType::Quote)),
-        "thetadatadx_flatfile_stock_trade" => Some((SecType::Stock, ReqType::Trade)),
         "thetadatadx_flatfile_stock_trade_quote" => Some((SecType::Stock, ReqType::TradeQuote)),
         "thetadatadx_flatfile_stock_eod" => Some((SecType::Stock, ReqType::Eod)),
         _ => None,

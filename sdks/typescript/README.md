@@ -171,7 +171,7 @@ import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
 const client = Client.connectFromFile('creds.txt');
 
-const rows = client.flatFiles.optionQuote('20260428');
+const rows = client.flatFiles.optionTradeQuote('20260428');
 console.log(rows.len());
 
 const table = tableFromIPC(rows.toArrowIpc());
@@ -181,10 +181,10 @@ const table = tableFromIPC(rows.toArrowIpc());
 const oi = client.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428');
 
 // Or write the raw vendor file straight to disk
-client.flatFileToPath('OPTION', 'QUOTE', '20260428', '/tmp/option-quote', 'csv');
+client.flatFileToPath('OPTION', 'TRADE_QUOTE', '20260428', '/tmp/option-trade-quote', 'csv');
 ```
 
-Available `flatFiles.*` methods: `optionQuote`, `optionTrade`, `optionTradeQuote`, `optionOhlc`, `optionOpenInterest`, `optionEod`, `stockQuote`, `stockTrade`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flatFiles.*` methods: `optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`. The generic `request(...)` and `flatFileToPath(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 

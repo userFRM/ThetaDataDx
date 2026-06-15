@@ -1,7 +1,10 @@
 //! Hand-written `thetadatadx flatfile` subcommand surface.
 //!
-//! Wires `thetadatadx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
-//! to `thetadatadx::Client::flatfile_request`. Output goes to the
+//! Wires `thetadatadx flatfile {trade_quote,open_interest,eod,stock_trade_quote,stock_eod,request}`
+//! to `thetadatadx::Client::flatfile_request`. The convenience
+//! subcommands cover exactly the datasets the flat-file distribution
+//! serves; the generic `request` arm rejects an unserved `(sec_type,
+//! req_type)` pair with a typed invalid-parameter error. Output goes to the
 //! path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
 //! are streamed to stdout via `std::io::copy` from the file just written
 //! (the SDK's primary entry point writes to disk; the CLI reroutes on demand).
@@ -47,19 +50,7 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
         )
         .subcommand_required(true)
         .subcommand(common_args(
-            Command::new("quotes").about("Option quote flat file"),
-            true,
-        ))
-        .subcommand(common_args(
-            Command::new("trades").about("Option trade flat file"),
-            true,
-        ))
-        .subcommand(common_args(
             Command::new("trade_quote").about("Option trade-quote flat file"),
-            true,
-        ))
-        .subcommand(common_args(
-            Command::new("ohlc").about("Option OHLC flat file"),
             true,
         ))
         .subcommand(common_args(
@@ -68,14 +59,6 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
         ))
         .subcommand(common_args(
             Command::new("eod").about("Option EOD flat file"),
-            true,
-        ))
-        .subcommand(common_args(
-            Command::new("stock_quotes").about("Stock quote flat file"),
-            true,
-        ))
-        .subcommand(common_args(
-            Command::new("stock_trades").about("Stock trade flat file"),
             true,
         ))
         .subcommand(common_args(
@@ -134,14 +117,9 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
 /// (which carries explicit `--sec-type` / `--req-type` flags).
 fn sec_req_for_subcommand(name: &str) -> Option<(SecType, ReqType)> {
     Some(match name {
-        "quotes" => (SecType::Option, ReqType::Quote),
-        "trades" => (SecType::Option, ReqType::Trade),
         "trade_quote" => (SecType::Option, ReqType::TradeQuote),
-        "ohlc" => (SecType::Option, ReqType::Ohlc),
         "open_interest" => (SecType::Option, ReqType::OpenInterest),
         "eod" => (SecType::Option, ReqType::Eod),
-        "stock_quotes" => (SecType::Stock, ReqType::Quote),
-        "stock_trades" => (SecType::Stock, ReqType::Trade),
         "stock_trade_quote" => (SecType::Stock, ReqType::TradeQuote),
         "stock_eod" => (SecType::Stock, ReqType::Eod),
         _ => return None,
@@ -293,8 +271,8 @@ pub(crate) async fn try_dispatch(
         let _ = std::fs::remove_file(&written);
     } else {
         // Echo the written path to stderr so scripts capturing stdout
-        // (e.g. `thetadatadx flatfile quotes ... -o foo.csv`) still see "where
-        // it landed" without polluting the data stream.
+        // (e.g. `thetadatadx flatfile trade_quote ... -o foo.csv`) still see
+        // "where it landed" without polluting the data stream.
         eprintln!("wrote {}", written.display());
     }
 
