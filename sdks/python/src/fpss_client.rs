@@ -206,15 +206,34 @@ impl StreamingClient {
 
     /// Run a closure with a borrow of the live FPSS client, raising
     /// `RuntimeError` when nothing is connected.
+    ///
+    /// The user closure runs with the GIL RELEASED: the live client is
+    /// an `Arc<RustStreamingClient>` cloned out from under the binding
+    /// mutex, so the closure body (a blocking FPSS socket write) holds
+    /// no Python object and no binding lock. The inner mutex is taken
+    /// only briefly to clone the handle, then dropped before the
+    /// detached blocking section, so a concurrent `stop_streaming` on a
+    /// sibling thread cannot deadlock against an in-flight write. The
+    /// `thetadatadx::Error` is mapped to the typed Python exception
+    /// AFTER the GIL is re-acquired, leaving the error surface
+    /// unchanged.
     fn with_live<R>(
         &self,
-        f: impl FnOnce(&RustStreamingClient) -> Result<R, thetadatadx::Error>,
-    ) -> PyResult<R> {
-        let guard = self.lock_inner();
-        let client = guard.as_ref().ok_or_else(|| {
-            PyRuntimeError::new_err("streaming not started -- call start_streaming(callback) first")
-        })?;
-        f(client).map_err(to_py_err)
+        py: Python<'_>,
+        f: impl FnOnce(&RustStreamingClient) -> Result<R, thetadatadx::Error> + Send,
+    ) -> PyResult<R>
+    where
+        R: Send,
+    {
+        let client = {
+            let guard = self.lock_inner();
+            guard.as_ref().map(Arc::clone).ok_or_else(|| {
+                PyRuntimeError::new_err(
+                    "streaming not started -- call start_streaming(callback) first",
+                )
+            })?
+        };
+        py.detach(move || f(&client)).map_err(to_py_err)
     }
 }
 
@@ -312,7 +331,7 @@ impl StreamingClient {
     /// The reader never blocks on user code; on ring overflow events
     /// are dropped and counted via `dropped_event_count()`. User
     /// callback panics are caught and counted via `panic_count()`.
-    pub(crate) fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
+    pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         let mut cb_guard = self.lock_callback();
         if self.lock_inner().is_some() {
             return Err(PyRuntimeError::new_err(
@@ -323,10 +342,16 @@ impl StreamingClient {
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        let client = self
-            .params
-            .builder()
-            .build()
+        // The FPSS TLS connect (`StreamingClientBuilder::build`) performs
+        // the blocking socket connect + `CREDENTIALS` handshake on the
+        // calling thread. Release the GIL across it so a sibling Python
+        // thread keeps running while the handshake is in flight. The
+        // builder snapshot and the resulting `Result` are pure Rust — no
+        // Python object is touched inside the detached region. The
+        // `FpssError` is mapped to the typed Python exception AFTER the
+        // GIL is re-acquired, leaving the error surface unchanged.
+        let client = py
+            .detach(|| self.params.builder().build())
             .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
         let client_arc = Arc::new(client);
 
@@ -597,43 +622,43 @@ impl StreamingClient {
     /// any value returned by `Contract.quote()` / `Contract.trade()` /
     /// `Contract.open_interest()` (per-contract scope) or
     /// `SecType.OPTION.full_trades()` (full-stream scope).
-    fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn subscribe(&self, py: Python<'_>, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.with_live(|c| c.subscribe(inner))
+        self.with_live(py, move |c| c.subscribe(inner))
     }
 
     /// Bulk-subscribe a list of `Subscription` values.
     ///
-    /// Releases the inner mutex between iterations so a concurrent
-    /// `stop_streaming` on a sibling thread (today still serialised by
-    /// the GIL, but defensive against a future `py.detach` in the FPSS
-    /// connect path) cannot deadlock against a long batch. The core
-    /// FPSS protocol has no batched-subscribe wire frame today; a
-    /// future single-command `subscribe_many` on
+    /// Each iteration clones the live handle out from under the inner
+    /// mutex and releases the GIL across the blocking wire write (via
+    /// `with_live`), so a concurrent `stop_streaming` on a sibling
+    /// thread cannot deadlock against a long batch. The core FPSS
+    /// protocol has no batched-subscribe wire frame today; a future
+    /// single-command `subscribe_many` on
     /// `crates/thetadatadx/src/fpss/mod.rs` is tracked as a follow-up
     /// and would route through here without an API change.
-    fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn subscribe_many(&self, py: Python<'_>, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
         for sub in list {
-            self.with_live(|c| c.subscribe(sub))?;
+            self.with_live(py, move |c| c.subscribe(sub))?;
         }
         Ok(())
     }
 
     /// Polymorphic unsubscribe.
-    fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn unsubscribe(&self, py: Python<'_>, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.with_live(|c| c.unsubscribe(inner))
+        self.with_live(py, move |c| c.unsubscribe(inner))
     }
 
     /// Bulk-unsubscribe.
     ///
-    /// Releases the inner mutex between iterations — same rationale as
-    /// `subscribe_many`.
-    fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
+    /// Clones the live handle out and releases the GIL across each
+    /// blocking wire write — same rationale as `subscribe_many`.
+    fn unsubscribe_many(&self, py: Python<'_>, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
         for sub in list {
-            self.with_live(|c| c.unsubscribe(sub))?;
+            self.with_live(py, move |c| c.unsubscribe(sub))?;
         }
         Ok(())
     }
@@ -646,13 +671,11 @@ impl StreamingClient {
     ///
     /// Lock ordering: `callback` BEFORE `inner`, matching
     /// `start_streaming`. The two methods MUST agree on the order
-    /// they acquire the two `Mutex` slots — Python's GIL serialises
-    /// pyclass-method dispatch today, but a future revision that
-    /// releases the GIL across the FPSS connect (e.g. via
-    /// `py.detach` inside `start_streaming`) would let concurrent
-    /// `start_streaming` / `stop_streaming` interleave on the same
-    /// handle. Pinning the ordering here closes that race
-    /// proactively.
+    /// they acquire the two `Mutex` slots — `start_streaming`
+    /// releases the GIL across the FPSS connect (via `py.detach`), so
+    /// concurrent `start_streaming` / `stop_streaming` can interleave
+    /// on the same handle. Pinning the ordering here keeps that
+    /// interleaving deadlock-free.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         // Take the `Arc<RustStreamingClient>` out of `inner` and the stored
         // Python callable out of `callback` under the binding mutexes,
@@ -749,15 +772,16 @@ impl StreamingClient {
         //    returning `RuntimeError` — `reconnect()` only makes
         //    sense on a previously-started session anyway, so the
         //    error message is the same shape the unified client uses.
-        let (per_contract, full_stream) =
-            self.with_live(|c| Ok((c.active_subscriptions(), c.active_full_subscriptions())))?;
+        let (per_contract, full_stream) = self.with_live(py, |c| {
+            Ok((c.active_subscriptions(), c.active_full_subscriptions()))
+        })?;
 
         // 2. Stop + restart under the same callback. `start_streaming`
         //    repopulates `self.callback` with a freshly owned handle
         //    so subsequent `reconnect()` calls find the same state
         //    shape.
         self.stop_streaming(py);
-        self.start_streaming(stored)?;
+        self.start_streaming(py, stored)?;
 
         // 3. Re-apply every saved subscription against the freshly
         //    reconnected session through the core's paced replay

@@ -58,7 +58,7 @@ impl StreamableHandle {
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         match self {
             Self::Unified(handle) => handle.borrow(py).stream().start_streaming(callback),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming(callback),
+            Self::Fpss(handle) => handle.borrow(py).start_streaming(py, callback),
         }
     }
 

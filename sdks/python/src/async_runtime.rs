@@ -230,9 +230,14 @@ mod tests {
                 .qualname()
                 .and_then(|q| q.extract::<String>())
                 .expect("every pyo3 exception class has a qualname");
+            // `DeadlineExceededError` is the canonical deadline leaf;
+            // `TimeoutError` is registered as a same-object back-compat
+            // alias (`thetadatadx.TimeoutError is DeadlineExceededError`),
+            // so the raised class reports the canonical qualname while an
+            // `except thetadatadx.TimeoutError` clause still catches it.
             assert_eq!(
-                name, "TimeoutError",
-                "Error::Timeout must route to the TimeoutError subclass, got {name}"
+                name, "DeadlineExceededError",
+                "Error::Timeout must route to the DeadlineExceededError leaf, got {name}"
             );
         });
     }
