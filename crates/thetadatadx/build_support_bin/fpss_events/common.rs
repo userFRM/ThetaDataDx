@@ -143,7 +143,7 @@ pub(super) fn rust_ffi_scalar(
         "u64" => "u64",
         "u8" => "u8",
         "f64" => "f64",
-        "Contract" => "TdxContract",
+        "Contract" => "ThetaDataDxContract",
         // String → borrowed C string, backed by an Option<CString> on
         // `FfiBufferedEvent`. Null when the source variant has no
         // string payload (zero-fill case for inactive variants).
@@ -177,7 +177,7 @@ pub(super) fn c_ffi_scalar(column_type: &str, event_name: &str, column_name: &st
         "u64" => "uint64_t",
         "u8" => "uint8_t",
         "f64" => "double",
-        "Contract" => "TdxContract",
+        "Contract" => "ThetaDataDxContract",
         // Borrowed C string, NUL-terminated. May be null on inactive
         // variants. Never freed by the consumer.
         "String" => "const char *",

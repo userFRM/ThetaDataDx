@@ -1,9 +1,9 @@
 //! C-ABI FFI emitter.
 //!
 //! Two families of outputs:
-//! * `TdxEndpointRequestOptions` — the shared `#[repr(C)]` struct carrying
+//! * `ThetaDataDxEndpointRequestOptions` — the shared `#[repr(C)]` struct carrying
 //!   optional builder parameters over the ABI, plus its `apply_*` helper.
-//! * `tdx_<endpoint>_with_options` — one per endpoint that accepts builder
+//! * `thetadatadx_<endpoint>_with_options` — one per endpoint that accepts builder
 //!   params, bridging the C-call signature into the shared endpoint dispatch
 //!   runtime.
 
@@ -16,7 +16,7 @@ use super::super::sdk_helpers::{
     ffi_option_insert_expr, ffi_option_value_type, ffi_output_variant, method_params,
 };
 
-/// Renders the Rust `#[repr(C)]` `TdxEndpointRequestOptions` struct and
+/// Renders the Rust `#[repr(C)]` `ThetaDataDxEndpointRequestOptions` struct and
 /// its `apply_*` helper that folds the options into the endpoint args.
 pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();
@@ -56,12 +56,12 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out.push_str("}\n\n");
     out.push_str("fn apply_endpoint_request_options(\n");
     out.push_str("    args: &mut thetadatadx::EndpointArgs,\n");
-    out.push_str("    options: *const TdxEndpointRequestOptions,\n");
+    out.push_str("    options: *const ThetaDataDxEndpointRequestOptions,\n");
     out.push_str(") -> Result<(), String> {\n");
     out.push_str("    if options.is_null() {\n        return Ok(());\n    }\n\n");
     out.push_str("    // SAFETY: options is non-null (checked above) and the caller is required\n");
     out.push_str(
-        "    // to keep the TdxEndpointRequestOptions alive for the duration of this call.\n",
+        "    // to keep the ThetaDataDxEndpointRequestOptions alive for the duration of this call.\n",
     );
     out.push_str("    let options = unsafe { &*options };\n");
     for param in params {
@@ -83,7 +83,7 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out
 }
 
-/// Renders the C `typedef struct TdxEndpointRequestOptions` header with
+/// Renders the C `typedef struct ThetaDataDxEndpointRequestOptions` header with
 /// one field (plus presence flag, where needed) per optional parameter.
 pub(super) fn render_c_endpoint_request_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();
@@ -100,11 +100,11 @@ pub(super) fn render_c_endpoint_request_options(params: &[GeneratedParam]) -> St
     out.push_str("    /* Per-call deadline. Set has_timeout_ms = 1 to apply. */\n");
     out.push_str("    uint64_t timeout_ms;\n");
     out.push_str("    int32_t has_timeout_ms;\n");
-    out.push_str("} TdxEndpointRequestOptions;\n");
+    out.push_str("} ThetaDataDxEndpointRequestOptions;\n");
     out
 }
 
-/// Renders the `tdx_<endpoint>_with_options` C-ABI export for every
+/// Renders the `thetadatadx_<endpoint>_with_options` C-ABI export for every
 /// non-streaming endpoint.
 pub(super) fn render_ffi_with_options(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
@@ -113,7 +113,7 @@ pub(super) fn render_ffi_with_options(endpoints: &[GeneratedEndpoint]) -> String
     );
     // Every non-streaming endpoint gets a `_with_options` form so callers can
     // pass at least the cross-cutting `timeout_ms`. Endpoints without
-    // builder params take a `TdxEndpointRequestOptions` whose only meaningful
+    // builder params take a `ThetaDataDxEndpointRequestOptions` whose only meaningful
     // field is the deadline; the others stay at their unset sentinels.
     for endpoint in endpoints
         .iter()
@@ -140,7 +140,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn tdx_{}_with_options(\n    client: *const TdxHistoricalClient",
+        "pub unsafe extern \"C\" fn thetadatadx_{}_with_options(\n    client: *const ThetaDataDxHistoricalClient",
         endpoint.name
     )
     .unwrap();
@@ -151,7 +151,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
             writeln!(out, ",\n    {}: *const c_char", param.name).unwrap();
         }
     }
-    out.push_str(",\n    options: *const TdxEndpointRequestOptions,\n");
+    out.push_str(",\n    options: *const ThetaDataDxEndpointRequestOptions,\n");
     writeln!(out, ") -> {} {{", array_type).unwrap();
     // Wrap the entire body in `ffi_boundary!` so a panic inside
     // `runtime().block_on`, `apply_endpoint_request_options`, or any
@@ -161,7 +161,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     // from a library binding is unacceptable. Defaults to the empty
     // sentinel so callers see the same `data=null, len=0` they already
     // handle for real errors, and the panic payload is surfaced through
-    // `tdx_last_error()`.
+    // `thetadatadx_last_error()`.
     writeln!(
         out,
         "    ffi_boundary!({} {{ data: ptr::null(), len: 0 }}, {{",
@@ -243,7 +243,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-/// Emit `ffi/src/endpoint_stream.rs` — the `tdx_<endpoint>_stream` server-
+/// Emit `ffi/src/endpoint_stream.rs` — the `thetadatadx_<endpoint>_stream` server-
 /// stream entry points, one per streaming endpoint (see
 /// [`endpoint_streams_repr_c_ticks`]).
 ///
@@ -251,8 +251,8 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
 /// primitive: it builds the same `EndpointArgs` the buffered `_with_options`
 /// form builds (reusing the identical positional + options extraction), then
 /// drains the response chunk-by-chunk via `invoke_endpoint_stream`, handing
-/// each chunk to the registered `TdxTickChunkCallback`. The chunk pointer is
-/// the same `#[repr(C)]` tick the buffered `tdx_<endpoint>_with_options` array
+/// each chunk to the registered `ThetaDataDxTickChunkCallback`. The chunk pointer is
+/// the same `#[repr(C)]` tick the buffered `thetadatadx_<endpoint>_with_options` array
 /// exposes, so the callback sees zero re-marshaling — peak memory tracks a
 /// single chunk rather than the full result.
 pub(super) fn render_ffi_stream_endpoints(endpoints: &[GeneratedEndpoint]) -> String {
@@ -282,11 +282,11 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("/// `_with_options` array returns); the chunk is freed before the next\n");
     out.push_str("/// is fetched, so peak memory tracks a single chunk. Accepts the same\n");
     out.push_str("/// optional builder parameters as the buffered form. Returns 0 on a\n");
-    out.push_str("/// clean drain, -1 on error (inspect `tdx_last_error`).\n");
+    out.push_str("/// clean drain, -1 on error (inspect `thetadatadx_last_error`).\n");
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn tdx_{}_stream(\n    client: *const TdxHistoricalClient",
+        "pub unsafe extern \"C\" fn thetadatadx_{}_stream(\n    client: *const ThetaDataDxHistoricalClient",
         endpoint.name
     )
     .unwrap();
@@ -297,8 +297,8 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
             writeln!(out, ",\n    {}: *const c_char", param.name).unwrap();
         }
     }
-    out.push_str(",\n    callback: TdxTickChunkCallback,\n    ctx: *mut c_void,\n");
-    out.push_str("    options: *const TdxEndpointRequestOptions,\n");
+    out.push_str(",\n    callback: ThetaDataDxTickChunkCallback,\n    ctx: *mut c_void,\n");
+    out.push_str("    options: *const ThetaDataDxEndpointRequestOptions,\n");
     out.push_str(") -> i32 {\n");
     // Reuse the panic boundary with an `i32` sentinel: a clean drain returns
     // 0, every failure path (null handle / arg, options error, wire / decode
@@ -353,8 +353,8 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-/// Emit the C header declarations for every `tdx_<endpoint>_stream` symbol
-/// into `sdks/cpp/include/historical_stream.h.inc`. The `TdxTickChunkCallback`
+/// Emit the C header declarations for every `thetadatadx_<endpoint>_stream` symbol
+/// into `sdks/cpp/include/historical_stream.h.inc`. The `ThetaDataDxTickChunkCallback`
 /// typedef itself is hand-declared in `thetadx.h` (it is not endpoint-keyed);
 /// these are just the per-endpoint `extern` prototypes the C++ wrapper and the
 /// nm-based completeness gate consume.
@@ -370,7 +370,7 @@ pub(super) fn render_c_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
         let params = method_params(endpoint);
         write!(
             out,
-            "extern int32_t tdx_{}_stream(const TdxHistoricalClient* client",
+            "extern int32_t thetadatadx_{}_stream(const ThetaDataDxHistoricalClient* client",
             endpoint.name
         )
         .unwrap();
@@ -381,7 +381,7 @@ pub(super) fn render_c_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
                 write!(out, ", const char* {}", param.name).unwrap();
             }
         }
-        out.push_str(", TdxTickChunkCallback callback, void* ctx, const TdxEndpointRequestOptions* options);\n");
+        out.push_str(", ThetaDataDxTickChunkCallback callback, void* ctx, const ThetaDataDxEndpointRequestOptions* options);\n");
     }
     out
 }

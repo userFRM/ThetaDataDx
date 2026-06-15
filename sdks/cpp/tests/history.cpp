@@ -1,7 +1,7 @@
 // Historical endpoint round-trip smoke tests.
 //
 // EOD is the cheapest historical endpoint to exercise — one row per
-// trading day, decoded into a `TdxEodTick` array. The offline half
+// trading day, decoded into a `ThetaDataDxEodTick` array. The offline half
 // here is intentionally narrow: a real historical call needs a live
 // server. The live half guards the symbol decode, the typed array
 // wrapper, and the FFI-error -> exception path.

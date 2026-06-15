@@ -105,7 +105,7 @@ The TypeScript binding ships the class as `ContractRef` (the napi-rs
 emitter name) with a published `export const Contract: typeof
 ContractRef` alias so existing `Contract.stock(...)` user code
 continues to type-check. C++ exposes the event payload through the
-existing `TdxContract` C ABI struct; the surface stays unchanged.
+existing `ThetaDataDxContract` C ABI struct; the surface stays unchanged.
 
 ## Free-threaded wheels
 
@@ -162,7 +162,7 @@ parallel Java historical-channel process.
 ## Standalone `StreamingClient` / `HistoricalClient` Python pyclasses
 
 v10 ships standalone Python pyclasses for the streaming-only and
-historical-channel-only surfaces, mirroring the C ABI `tdx_streaming_*` / `tdx_client_*`
+historical-channel-only surfaces, mirroring the C ABI `thetadatadx_streaming_*` / `thetadatadx_client_*`
 split and the C++ `thetadatadx::StreamingClient` / `thetadatadx::Client` shape:
 
 ```python

@@ -1,16 +1,16 @@
     if raw == nil {
         return nil, nil
     }
-    defer C.tdx_streaming_event_free(raw)
+    defer C.thetadatadx_streaming_event_free(raw)
 
     event := &StreamEvent{
         Kind: StreamEventKind(raw.kind),
     }
 
-    // contractFromC converts a C TdxContract into the Go-idiomatic *Contract.
+    // contractFromC converts a C ThetaDataDxContract into the Go-idiomatic *Contract.
     // Returns nil only when symbol is NULL, which indicates the SDK has not
     // yet resolved the contract_id to a ContractAssigned frame.
-    contractFromC := func(c C.TdxContract) *Contract {
+    contractFromC := func(c C.ThetaDataDxContract) *Contract {
         if c.symbol == nil {
             return nil
         }

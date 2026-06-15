@@ -1,15 +1,15 @@
 """
 Ring-occupancy observability surface test.
 
-Pins the contract that ``tdx.stream.ring_occupancy()`` and
-``tdx.stream.ring_capacity()`` are callable across the streaming lifecycle
+Pins the contract that ``client.stream.ring_occupancy()`` and
+``client.stream.ring_capacity()`` are callable across the streaming lifecycle
 (pre-start / post-start / post-stop), return non-negative ints
 everywhere, and read 0 when streaming has not started.
 
 The pair is the leading back-pressure signal: occupancy is a
 point-in-time sample of events published into the streaming event
 ring but not yet drained into the callback, and capacity is the
-configured ``fpss_ring_size``. ``dropped_event_count()`` only moves
+configured ``streaming_ring_size``. ``dropped_event_count()`` only moves
 AFTER data has been lost; a rising occupancy approaching capacity
 predicts those drops. Both forward through
 ``thetadatadx::Client`` so the values match every other
@@ -54,7 +54,7 @@ def _import_module():
 
 
 @pytest.fixture
-def tdx():
+def client():
     """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
@@ -103,38 +103,38 @@ def test_ring_occupancy_surface_exists_offline() -> None:
 # ── Live: lifecycle accessibility (creds-gated) ───────────────────────
 
 
-def test_ring_occupancy_zero_before_streaming(tdx) -> None:
+def test_ring_occupancy_zero_before_streaming(client) -> None:
     """Both getters must be callable before `start_streaming(callback)`
     and return 0 -- the streaming slot is empty, so the wrappers
     forward 0 from the unified client."""
-    occupancy = tdx.stream.ring_occupancy()
-    capacity = tdx.stream.ring_capacity()
+    occupancy = client.stream.ring_occupancy()
+    capacity = client.stream.ring_capacity()
     assert isinstance(occupancy, int)
     assert isinstance(capacity, int)
     assert occupancy == 0, "pre-stream occupancy must be 0 -- no ring exists"
     assert capacity == 0, "pre-stream capacity must be 0 -- no ring exists"
 
 
-def test_ring_occupancy_lifecycle_callable(tdx) -> None:
+def test_ring_occupancy_lifecycle_callable(client) -> None:
     """The pair must remain callable across the full lifecycle:
     pre-start / post-start / post-stop. While streaming, capacity is
     the configured ring size (a positive power of two) and occupancy
     is bounded by it."""
-    tdx.stream.start_streaming(_noop_callback)
+    client.stream.start_streaming(_noop_callback)
 
-    capacity = tdx.stream.ring_capacity()
+    capacity = client.stream.ring_capacity()
     assert isinstance(capacity, int)
     assert capacity > 0, "a live ring must report its configured capacity"
     assert capacity & (capacity - 1) == 0, "ring capacity is a power of two"
 
-    occupancy = tdx.stream.ring_occupancy()
+    occupancy = client.stream.ring_occupancy()
     assert isinstance(occupancy, int)
     assert 0 <= occupancy <= capacity, (
         "occupancy is clamped non-negative and never exceeds capacity"
     )
 
-    tdx.stream.stop_streaming()
+    client.stream.stop_streaming()
     # After stop_streaming the streaming slot is empty; both getters
     # return 0 in that state.
-    assert tdx.stream.ring_occupancy() == 0
-    assert tdx.stream.ring_capacity() == 0
+    assert client.stream.ring_occupancy() == 0
+    assert client.stream.ring_capacity() == 0

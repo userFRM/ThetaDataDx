@@ -16,7 +16,7 @@ publish = false
 workspace = true
 
 [[bin]]
-name = "tdx"
+name = "thetadatadx"
 path = "src/main.rs"
 
 [dependencies]

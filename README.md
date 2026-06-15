@@ -254,7 +254,7 @@ common `ThetaDataError` base.
 | [`sdks/typescript`](sdks/typescript/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`ffi/`](ffi/) | release artifacts | C ABI for embedders |
-| [`tools/cli`](tools/cli/) | `tdx` | Command-line client |
+| [`tools/cli`](tools/cli/) | `thetadatadx` | Command-line client |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
 | [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |

@@ -9,19 +9,19 @@
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_eod_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -71,17 +71,17 @@ pub unsafe extern "C" fn tdx_stock_history_eod_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_ohlc_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -126,17 +126,17 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_trade_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -181,17 +181,17 @@ pub unsafe extern "C" fn tdx_stock_history_trade_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -236,17 +236,17 @@ pub unsafe extern "C" fn tdx_stock_history_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_trade_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -291,10 +291,10 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_at_time_trade_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -303,9 +303,9 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -360,10 +360,10 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_at_time_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -372,9 +372,9 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -429,10 +429,10 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_eod_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -441,9 +441,9 @@ pub unsafe extern "C" fn tdx_option_history_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -498,19 +498,19 @@ pub unsafe extern "C" fn tdx_option_history_eod_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_ohlc_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -560,19 +560,19 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -622,19 +622,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -684,19 +684,19 @@ pub unsafe extern "C" fn tdx_option_history_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -746,19 +746,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_open_interest_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -808,10 +808,10 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_eod_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -820,9 +820,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -877,19 +877,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_all_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -939,19 +939,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1001,19 +1001,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_first_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1063,19 +1063,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1125,19 +1125,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_second_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1187,19 +1187,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1249,19 +1249,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_third_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1311,19 +1311,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1373,19 +1373,19 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1435,19 +1435,19 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1497,10 +1497,10 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_stre
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_at_time_trade_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1511,9 +1511,9 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1573,10 +1573,10 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_at_time_quote_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1587,9 +1587,9 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1649,19 +1649,19 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_eod_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1711,19 +1711,19 @@ pub unsafe extern "C" fn tdx_index_history_eod_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_ohlc_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1773,17 +1773,17 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_price_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1828,10 +1828,10 @@ pub unsafe extern "C" fn tdx_index_history_price_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_at_time_price_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -1840,9 +1840,9 @@ pub unsafe extern "C" fn tdx_index_at_time_price_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1897,19 +1897,19 @@ pub unsafe extern "C" fn tdx_index_at_time_price_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_interest_rate_history_eod_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;
@@ -1959,19 +1959,19 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_stream(
 /// `_with_options` array returns); the chunk is freed before the next
 /// is fetched, so peak memory tracks a single chunk. Accepts the same
 /// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `tdx_last_error`).
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_ohlc_range_stream(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_stream(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    callback: TdxTickChunkCallback,
+    callback: ThetaDataDxTickChunkCallback,
     ctx: *mut c_void,
-    options: *const TdxEndpointRequestOptions,
+    options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
     ffi_boundary!(-1, {
         let empty = -1;

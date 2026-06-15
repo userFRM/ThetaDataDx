@@ -1,5 +1,5 @@
 # Captured from prod MDDS for AAPL 2024-01-02 via:
-#   tdx stock history_trade_quote AAPL 20240102
+#   thetadatadx stock history_trade_quote AAPL 20240102
 # First chunk only (full-day response is ~117 chunks, 12 MB, 955_237 rows).
 # This is the fixture that would have caught P11 at PR time — before the
 # fix the TradeQuoteTick parser returned 0 rows because the server sends

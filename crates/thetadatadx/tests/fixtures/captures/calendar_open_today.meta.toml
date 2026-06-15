@@ -1,5 +1,5 @@
 # Captured from prod MDDS on 2026-04-21 (open day) via:
-#   tdx calendar open_today
+#   thetadatadx calendar open_today
 # Single-row response. The v3 server omits the `date` column; the
 # hand-written `parse_calendar_days_v3` decoder fills it with 0.
 

@@ -16,13 +16,13 @@
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
-        let panic_recorder = Arc::clone(&self.tdx);
+        let panic_recorder = Arc::clone(&self.client);
 
         // GIL once per batch, not per event — see `start_streaming`. The
         // scope holds the GIL across each batch drain and releases it
         // across the idle wait; the per-event `Python::attach` is the
         // cheap reentrant fast path.
-        self.tdx
+        self.client
             .stream()
             .reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {

@@ -490,7 +490,7 @@ pub async fn generic(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let output = match invoke_endpoint(state.tdx().historical(), ep.name, &args).await {
+    let output = match invoke_endpoint(state.client().historical(), ep.name, &args).await {
         Ok(output) => output,
         Err(error) => return endpoint_error_response(ep, error),
     };

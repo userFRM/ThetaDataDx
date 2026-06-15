@@ -63,7 +63,7 @@ auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 curl 'http://127.0.0.1:25503/v3/flatfile/option/quote?date=2025-03-03&format=csv' -o quotes.csv
 ```
 
-The server streams the response body in chunks, so downloads of any size run in bounded memory. The same surface is available from the CLI: `tdx flatfile quotes 20250303 --format csv -o quotes.csv`.
+The server streams the response body in chunks, so downloads of any size run in bounded memory. The same surface is available from the CLI: `thetadatadx flatfile quotes 20250303 --format csv -o quotes.csv`.
 
 </template>
 

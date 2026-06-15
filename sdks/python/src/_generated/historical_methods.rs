@@ -5,7 +5,7 @@
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "StockListSymbolsBuilder")]
 pub struct StockListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -22,10 +22,10 @@ impl StockListSymbolsBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().stock_list_symbols();
+            let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -40,10 +40,10 @@ impl StockListSymbolsBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().stock_list_symbols();
+            let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -61,7 +61,7 @@ impl StockListSymbolsBuilder {
 /// Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "StockListDatesBuilder")]
 pub struct StockListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     timeout_ms: Option<u64>,
@@ -92,12 +92,12 @@ impl StockListDatesBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -112,12 +112,12 @@ impl StockListDatesBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -141,7 +141,7 @@ impl StockListDatesBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotOhlcBuilder")]
 pub struct StockSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -179,14 +179,14 @@ impl StockSnapshotOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -203,14 +203,14 @@ impl StockSnapshotOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -236,7 +236,7 @@ impl StockSnapshotOhlcBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotTradeBuilder")]
 pub struct StockSnapshotTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -274,14 +274,14 @@ impl StockSnapshotTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_trade(&refs);
+            let mut request = client.historical().stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -298,14 +298,14 @@ impl StockSnapshotTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_trade(&refs);
+            let mut request = client.historical().stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -331,7 +331,7 @@ impl StockSnapshotTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotQuoteBuilder")]
 pub struct StockSnapshotQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -369,14 +369,14 @@ impl StockSnapshotQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_quote(&refs);
+            let mut request = client.historical().stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -393,14 +393,14 @@ impl StockSnapshotQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_quote(&refs);
+            let mut request = client.historical().stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -426,7 +426,7 @@ impl StockSnapshotQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotMarketValueBuilder")]
 pub struct StockSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -464,14 +464,14 @@ impl StockSnapshotMarketValueBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -488,14 +488,14 @@ impl StockSnapshotMarketValueBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -516,7 +516,7 @@ impl StockSnapshotMarketValueBuilder {
 /// Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
 #[pyclass(module = "thetadatadx", name = "StockHistoryEodBuilder")]
 pub struct StockHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -554,13 +554,13 @@ impl StockHistoryEodBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -571,13 +571,13 @@ impl StockHistoryEodBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -587,7 +587,7 @@ impl StockHistoryEodBuilder {
 
     /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -602,7 +602,7 @@ impl StockHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -636,7 +636,7 @@ impl StockHistoryEodBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -648,7 +648,7 @@ impl StockHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -694,7 +694,7 @@ impl StockHistoryEodBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcBuilder")]
 pub struct StockHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -767,7 +767,7 @@ impl StockHistoryOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -778,7 +778,7 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -807,7 +807,7 @@ impl StockHistoryOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -818,7 +818,7 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -846,7 +846,7 @@ impl StockHistoryOhlcBuilder {
 
     /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -866,7 +866,7 @@ impl StockHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -918,7 +918,7 @@ impl StockHistoryOhlcBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -935,7 +935,7 @@ impl StockHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -997,7 +997,7 @@ impl StockHistoryOhlcBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeBuilder")]
 pub struct StockHistoryTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     start_time: Option<String>,
@@ -1063,7 +1063,7 @@ impl StockHistoryTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1073,7 +1073,7 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1099,7 +1099,7 @@ impl StockHistoryTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1109,7 +1109,7 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1134,7 +1134,7 @@ impl StockHistoryTradeBuilder {
 
     /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1153,7 +1153,7 @@ impl StockHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1202,7 +1202,7 @@ impl StockHistoryTradeBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1218,7 +1218,7 @@ impl StockHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1280,7 +1280,7 @@ impl StockHistoryTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryQuoteBuilder")]
 pub struct StockHistoryQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -1353,7 +1353,7 @@ impl StockHistoryQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -1364,7 +1364,7 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1393,7 +1393,7 @@ impl StockHistoryQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -1404,7 +1404,7 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1432,7 +1432,7 @@ impl StockHistoryQuoteBuilder {
 
     /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -1452,7 +1452,7 @@ impl StockHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1504,7 +1504,7 @@ impl StockHistoryQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -1521,7 +1521,7 @@ impl StockHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1584,7 +1584,7 @@ impl StockHistoryQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     start_time: Option<String>,
@@ -1657,7 +1657,7 @@ impl StockHistoryTradeQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1668,7 +1668,7 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1697,7 +1697,7 @@ impl StockHistoryTradeQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1708,7 +1708,7 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1736,7 +1736,7 @@ impl StockHistoryTradeQuoteBuilder {
 
     /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1756,7 +1756,7 @@ impl StockHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1808,7 +1808,7 @@ impl StockHistoryTradeQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let start_time = self.start_time.clone();
@@ -1825,7 +1825,7 @@ impl StockHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1890,7 +1890,7 @@ impl StockHistoryTradeQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeTradeBuilder")]
 pub struct StockAtTimeTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -1942,7 +1942,7 @@ impl StockAtTimeTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -1950,7 +1950,7 @@ impl StockAtTimeTradeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -1964,7 +1964,7 @@ impl StockAtTimeTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -1972,7 +1972,7 @@ impl StockAtTimeTradeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -1985,7 +1985,7 @@ impl StockAtTimeTradeBuilder {
 
     /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2002,7 +2002,7 @@ impl StockAtTimeTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2039,7 +2039,7 @@ impl StockAtTimeTradeBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2053,7 +2053,7 @@ impl StockAtTimeTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2103,7 +2103,7 @@ impl StockAtTimeTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeQuoteBuilder")]
 pub struct StockAtTimeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -2155,7 +2155,7 @@ impl StockAtTimeQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2163,7 +2163,7 @@ impl StockAtTimeQuoteBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2177,7 +2177,7 @@ impl StockAtTimeQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2185,7 +2185,7 @@ impl StockAtTimeQuoteBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2198,7 +2198,7 @@ impl StockAtTimeQuoteBuilder {
 
     /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2215,7 +2215,7 @@ impl StockAtTimeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2252,7 +2252,7 @@ impl StockAtTimeQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -2266,7 +2266,7 @@ impl StockAtTimeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2307,7 +2307,7 @@ impl StockAtTimeQuoteBuilder {
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListSymbolsBuilder")]
 pub struct OptionListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -2324,10 +2324,10 @@ impl OptionListSymbolsBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().option_list_symbols();
+            let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2342,10 +2342,10 @@ impl OptionListSymbolsBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_symbols();
+            let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2368,7 +2368,7 @@ impl OptionListSymbolsBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionListDatesBuilder")]
 pub struct OptionListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     expiration: String,
@@ -2406,13 +2406,13 @@ impl OptionListDatesBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().option_list_dates(&request_type, &symbol, &expiration);
+            let call = client.historical().option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2427,13 +2427,13 @@ impl OptionListDatesBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_dates(&request_type, &symbol, &expiration);
+            let call = client.historical().option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2452,7 +2452,7 @@ impl OptionListDatesBuilder {
 /// This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListExpirationsBuilder")]
 pub struct OptionListExpirationsBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     timeout_ms: Option<u64>,
 }
@@ -2476,11 +2476,11 @@ impl OptionListExpirationsBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().option_list_expirations(&symbol);
+            let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2495,11 +2495,11 @@ impl OptionListExpirationsBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_expirations(&symbol);
+            let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2518,7 +2518,7 @@ impl OptionListExpirationsBuilder {
 /// This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListStrikesBuilder")]
 pub struct OptionListStrikesBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     timeout_ms: Option<u64>,
@@ -2549,12 +2549,12 @@ impl OptionListStrikesBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().option_list_strikes(&symbol, &expiration);
+            let call = client.historical().option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2569,12 +2569,12 @@ impl OptionListStrikesBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_strikes(&symbol, &expiration);
+            let call = client.historical().option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2596,7 +2596,7 @@ impl OptionListStrikesBuilder {
 /// This endpoint is updated real-time.
 #[pyclass(module = "thetadatadx", name = "OptionListContractsBuilder")]
 pub struct OptionListContractsBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     date: String,
@@ -2641,14 +2641,14 @@ impl OptionListContractsBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OptionContractList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2662,14 +2662,14 @@ impl OptionListContractsBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2682,7 +2682,7 @@ impl OptionListContractsBuilder {
 
     /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -2698,7 +2698,7 @@ impl OptionListContractsBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2735,7 +2735,7 @@ impl OptionListContractsBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -2748,7 +2748,7 @@ impl OptionListContractsBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2794,7 +2794,7 @@ impl OptionListContractsBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOhlcBuilder")]
 pub struct OptionSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -2860,7 +2860,7 @@ impl OptionSnapshotOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -2870,7 +2870,7 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_ohlc(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -2896,7 +2896,7 @@ impl OptionSnapshotOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -2906,7 +2906,7 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_ohlc(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -2942,7 +2942,7 @@ impl OptionSnapshotOhlcBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotTradeBuilder")]
 pub struct OptionSnapshotTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3001,7 +3001,7 @@ impl OptionSnapshotTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3010,7 +3010,7 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_trade(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3033,7 +3033,7 @@ impl OptionSnapshotTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3042,7 +3042,7 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_trade(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3075,7 +3075,7 @@ impl OptionSnapshotTradeBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotQuoteBuilder")]
 pub struct OptionSnapshotQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3141,7 +3141,7 @@ impl OptionSnapshotQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3151,7 +3151,7 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_quote(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3177,7 +3177,7 @@ impl OptionSnapshotQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3187,7 +3187,7 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_quote(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3224,7 +3224,7 @@ impl OptionSnapshotQuoteBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOpenInterestBuilder")]
 pub struct OptionSnapshotOpenInterestBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3290,7 +3290,7 @@ impl OptionSnapshotOpenInterestBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OpenInterestTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3300,7 +3300,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_open_interest(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3326,7 +3326,7 @@ impl OptionSnapshotOpenInterestBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3336,7 +3336,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_open_interest(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3370,7 +3370,7 @@ impl OptionSnapshotOpenInterestBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotMarketValueBuilder")]
 pub struct OptionSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3436,7 +3436,7 @@ impl OptionSnapshotMarketValueBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3446,7 +3446,7 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_market_value(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_market_value(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3472,7 +3472,7 @@ impl OptionSnapshotMarketValueBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3482,7 +3482,7 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_market_value(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_market_value(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3522,7 +3522,7 @@ impl OptionSnapshotMarketValueBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksImpliedVolatilityBuilder")]
 pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3630,7 +3630,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3646,7 +3646,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3690,7 +3690,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3706,7 +3706,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3764,7 +3764,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksAllBuilder")]
 pub struct OptionSnapshotGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3872,7 +3872,7 @@ impl OptionSnapshotGreeksAllBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3888,7 +3888,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_all(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3932,7 +3932,7 @@ impl OptionSnapshotGreeksAllBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -3948,7 +3948,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_all(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4006,7 +4006,7 @@ impl OptionSnapshotGreeksAllBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksFirstOrderBuilder")]
 pub struct OptionSnapshotGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4114,7 +4114,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4130,7 +4130,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4174,7 +4174,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4190,7 +4190,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4248,7 +4248,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksSecondOrderBuilder")]
 pub struct OptionSnapshotGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4356,7 +4356,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4372,7 +4372,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4416,7 +4416,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4432,7 +4432,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4490,7 +4490,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksThirdOrderBuilder")]
 pub struct OptionSnapshotGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4598,7 +4598,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4614,7 +4614,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4658,7 +4658,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
@@ -4674,7 +4674,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4729,7 +4729,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryEodBuilder")]
 pub struct OptionHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -4802,7 +4802,7 @@ impl OptionHistoryEodBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -4813,7 +4813,7 @@ impl OptionHistoryEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4836,7 +4836,7 @@ impl OptionHistoryEodBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -4847,7 +4847,7 @@ impl OptionHistoryEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4869,7 +4869,7 @@ impl OptionHistoryEodBuilder {
 
     /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -4889,7 +4889,7 @@ impl OptionHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4935,7 +4935,7 @@ impl OptionHistoryEodBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -4952,7 +4952,7 @@ impl OptionHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5011,7 +5011,7 @@ impl OptionHistoryEodBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOhlcBuilder")]
 pub struct OptionHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -5105,7 +5105,7 @@ impl OptionHistoryOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5119,7 +5119,7 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5154,7 +5154,7 @@ impl OptionHistoryOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5168,7 +5168,7 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5202,7 +5202,7 @@ impl OptionHistoryOhlcBuilder {
 
     /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5225,7 +5225,7 @@ impl OptionHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5283,7 +5283,7 @@ impl OptionHistoryOhlcBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5303,7 +5303,7 @@ impl OptionHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5374,7 +5374,7 @@ impl OptionHistoryOhlcBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeBuilder")]
 pub struct OptionHistoryTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -5468,7 +5468,7 @@ impl OptionHistoryTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5482,7 +5482,7 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5517,7 +5517,7 @@ impl OptionHistoryTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5531,7 +5531,7 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5565,7 +5565,7 @@ impl OptionHistoryTradeBuilder {
 
     /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5588,7 +5588,7 @@ impl OptionHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5646,7 +5646,7 @@ impl OptionHistoryTradeBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5666,7 +5666,7 @@ impl OptionHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5737,7 +5737,7 @@ impl OptionHistoryTradeBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryQuoteBuilder")]
 pub struct OptionHistoryQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -5838,7 +5838,7 @@ impl OptionHistoryQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5853,7 +5853,7 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5891,7 +5891,7 @@ impl OptionHistoryQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5906,7 +5906,7 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5943,7 +5943,7 @@ impl OptionHistoryQuoteBuilder {
 
     /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -5967,7 +5967,7 @@ impl OptionHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6028,7 +6028,7 @@ impl OptionHistoryQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6049,7 +6049,7 @@ impl OptionHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6124,7 +6124,7 @@ impl OptionHistoryQuoteBuilder {
 /// - `exclusive`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -6225,7 +6225,7 @@ impl OptionHistoryTradeQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6240,7 +6240,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6278,7 +6278,7 @@ impl OptionHistoryTradeQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6293,7 +6293,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6330,7 +6330,7 @@ impl OptionHistoryTradeQuoteBuilder {
 
     /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6354,7 +6354,7 @@ impl OptionHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6415,7 +6415,7 @@ impl OptionHistoryTradeQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6436,7 +6436,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6507,7 +6507,7 @@ impl OptionHistoryTradeQuoteBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOpenInterestBuilder")]
 pub struct OptionHistoryOpenInterestBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -6587,7 +6587,7 @@ impl OptionHistoryOpenInterestBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OpenInterestTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6599,7 +6599,7 @@ impl OptionHistoryOpenInterestBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6628,7 +6628,7 @@ impl OptionHistoryOpenInterestBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6640,7 +6640,7 @@ impl OptionHistoryOpenInterestBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6668,7 +6668,7 @@ impl OptionHistoryOpenInterestBuilder {
 
     /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6689,7 +6689,7 @@ impl OptionHistoryOpenInterestBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6741,7 +6741,7 @@ impl OptionHistoryOpenInterestBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -6759,7 +6759,7 @@ impl OptionHistoryOpenInterestBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6824,7 +6824,7 @@ impl OptionHistoryOpenInterestBuilder {
 /// - `underlyer_use_nbbo`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksEodBuilder")]
 pub struct OptionHistoryGreeksEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -6932,7 +6932,7 @@ impl OptionHistoryGreeksEodBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksEodTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -6948,7 +6948,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6986,7 +6986,7 @@ impl OptionHistoryGreeksEodBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -7002,7 +7002,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7039,7 +7039,7 @@ impl OptionHistoryGreeksEodBuilder {
 
     /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -7064,7 +7064,7 @@ impl OptionHistoryGreeksEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7125,7 +7125,7 @@ impl OptionHistoryGreeksEodBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -7147,7 +7147,7 @@ impl OptionHistoryGreeksEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7224,7 +7224,7 @@ impl OptionHistoryGreeksEodBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksAllBuilder")]
 pub struct OptionHistoryGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -7346,7 +7346,7 @@ impl OptionHistoryGreeksAllBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7364,7 +7364,7 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7411,7 +7411,7 @@ impl OptionHistoryGreeksAllBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7429,7 +7429,7 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7475,7 +7475,7 @@ impl OptionHistoryGreeksAllBuilder {
 
     /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7502,7 +7502,7 @@ impl OptionHistoryGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7572,7 +7572,7 @@ impl OptionHistoryGreeksAllBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7596,7 +7596,7 @@ impl OptionHistoryGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7681,7 +7681,7 @@ impl OptionHistoryGreeksAllBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksAllBuilder")]
 pub struct OptionHistoryTradeGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -7803,7 +7803,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksAllTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7821,7 +7821,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7868,7 +7868,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7886,7 +7886,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7932,7 +7932,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
 
     /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -7959,7 +7959,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8029,7 +8029,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8053,7 +8053,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8139,7 +8139,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksFirstOrderBuilder")]
 pub struct OptionHistoryGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -8261,7 +8261,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8279,7 +8279,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8326,7 +8326,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8344,7 +8344,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8390,7 +8390,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 
     /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8417,7 +8417,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8487,7 +8487,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8511,7 +8511,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8596,7 +8596,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksFirstOrderBuilder")]
 pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -8718,7 +8718,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8736,7 +8736,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8783,7 +8783,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8801,7 +8801,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8847,7 +8847,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 
     /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8874,7 +8874,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8944,7 +8944,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -8968,7 +8968,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9054,7 +9054,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksSecondOrderBuilder")]
 pub struct OptionHistoryGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -9176,7 +9176,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9194,7 +9194,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9241,7 +9241,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9259,7 +9259,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9305,7 +9305,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 
     /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9332,7 +9332,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9402,7 +9402,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9426,7 +9426,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9511,7 +9511,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksSecondOrderBuilder")]
 pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -9633,7 +9633,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9651,7 +9651,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9698,7 +9698,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9716,7 +9716,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9762,7 +9762,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 
     /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9789,7 +9789,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9859,7 +9859,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -9883,7 +9883,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9969,7 +9969,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksThirdOrderBuilder")]
 pub struct OptionHistoryGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -10091,7 +10091,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10109,7 +10109,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10156,7 +10156,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10174,7 +10174,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10220,7 +10220,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 
     /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10247,7 +10247,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10317,7 +10317,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10341,7 +10341,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10426,7 +10426,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksThirdOrderBuilder")]
 pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -10548,7 +10548,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10566,7 +10566,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10613,7 +10613,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10631,7 +10631,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10677,7 +10677,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 
     /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10704,7 +10704,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10774,7 +10774,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -10798,7 +10798,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10883,7 +10883,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -11005,7 +11005,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11023,7 +11023,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11070,7 +11070,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11088,7 +11088,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11134,7 +11134,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 
     /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11161,7 +11161,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11231,7 +11231,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11255,7 +11255,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11339,7 +11339,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -11461,7 +11461,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11479,7 +11479,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11526,7 +11526,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11544,7 +11544,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11590,7 +11590,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 
     /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11617,7 +11617,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11687,7 +11687,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let date = self.date.clone();
@@ -11711,7 +11711,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11792,7 +11792,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeTradeBuilder")]
 pub struct OptionAtTimeTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -11872,7 +11872,7 @@ impl OptionAtTimeTradeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -11884,7 +11884,7 @@ impl OptionAtTimeTradeBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11907,7 +11907,7 @@ impl OptionAtTimeTradeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -11919,7 +11919,7 @@ impl OptionAtTimeTradeBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11941,7 +11941,7 @@ impl OptionAtTimeTradeBuilder {
 
     /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -11962,7 +11962,7 @@ impl OptionAtTimeTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12008,7 +12008,7 @@ impl OptionAtTimeTradeBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -12026,7 +12026,7 @@ impl OptionAtTimeTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12081,7 +12081,7 @@ impl OptionAtTimeTradeBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeQuoteBuilder")]
 pub struct OptionAtTimeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -12161,7 +12161,7 @@ impl OptionAtTimeQuoteBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -12173,7 +12173,7 @@ impl OptionAtTimeQuoteBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12196,7 +12196,7 @@ impl OptionAtTimeQuoteBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -12208,7 +12208,7 @@ impl OptionAtTimeQuoteBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12230,7 +12230,7 @@ impl OptionAtTimeQuoteBuilder {
 
     /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -12251,7 +12251,7 @@ impl OptionAtTimeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12297,7 +12297,7 @@ impl OptionAtTimeQuoteBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let start_date = self.start_date.clone();
@@ -12315,7 +12315,7 @@ impl OptionAtTimeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12365,7 +12365,7 @@ impl OptionAtTimeQuoteBuilder {
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "IndexListSymbolsBuilder")]
 pub struct IndexListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -12382,10 +12382,10 @@ impl IndexListSymbolsBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().index_list_symbols();
+            let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12400,10 +12400,10 @@ impl IndexListSymbolsBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().index_list_symbols();
+            let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12421,7 +12421,7 @@ impl IndexListSymbolsBuilder {
 /// Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "IndexListDatesBuilder")]
 pub struct IndexListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     timeout_ms: Option<u64>,
 }
@@ -12445,11 +12445,11 @@ impl IndexListDatesBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.historical().index_list_dates(&symbol);
+            let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12464,11 +12464,11 @@ impl IndexListDatesBuilder {
 
     /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.historical().index_list_dates(&symbol);
+            let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12487,7 +12487,7 @@ impl IndexListDatesBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotOhlcBuilder")]
 pub struct IndexSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12518,13 +12518,13 @@ impl IndexSnapshotOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12538,13 +12538,13 @@ impl IndexSnapshotOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12563,7 +12563,7 @@ impl IndexSnapshotOhlcBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotPriceBuilder")]
 pub struct IndexSnapshotPriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12594,13 +12594,13 @@ impl IndexSnapshotPriceBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_price(&refs);
+            let mut request = client.historical().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12614,13 +12614,13 @@ impl IndexSnapshotPriceBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_price(&refs);
+            let mut request = client.historical().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12639,7 +12639,7 @@ impl IndexSnapshotPriceBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotMarketValueBuilder")]
 pub struct IndexSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12670,13 +12670,13 @@ impl IndexSnapshotMarketValueBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_market_value(&refs);
+            let mut request = client.historical().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12690,13 +12690,13 @@ impl IndexSnapshotMarketValueBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_market_value(&refs);
+            let mut request = client.historical().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -12714,7 +12714,7 @@ impl IndexSnapshotMarketValueBuilder {
 /// - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
 #[pyclass(module = "thetadatadx", name = "IndexHistoryEodBuilder")]
 pub struct IndexHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -12752,13 +12752,13 @@ impl IndexHistoryEodBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12769,13 +12769,13 @@ impl IndexHistoryEodBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12785,7 +12785,7 @@ impl IndexHistoryEodBuilder {
 
     /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -12800,7 +12800,7 @@ impl IndexHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12834,7 +12834,7 @@ impl IndexHistoryEodBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -12846,7 +12846,7 @@ impl IndexHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12891,7 +12891,7 @@ impl IndexHistoryEodBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryOhlcBuilder")]
 pub struct IndexHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -12950,7 +12950,7 @@ impl IndexHistoryOhlcBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -12959,7 +12959,7 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -12979,7 +12979,7 @@ impl IndexHistoryOhlcBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -12988,7 +12988,7 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13007,7 +13007,7 @@ impl IndexHistoryOhlcBuilder {
 
     /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13025,7 +13025,7 @@ impl IndexHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13068,7 +13068,7 @@ impl IndexHistoryOhlcBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13083,7 +13083,7 @@ impl IndexHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13138,7 +13138,7 @@ impl IndexHistoryOhlcBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryPriceBuilder")]
 pub struct IndexHistoryPriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -13204,7 +13204,7 @@ impl IndexHistoryPriceBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -13214,7 +13214,7 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13240,7 +13240,7 @@ impl IndexHistoryPriceBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -13250,7 +13250,7 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13275,7 +13275,7 @@ impl IndexHistoryPriceBuilder {
 
     /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -13294,7 +13294,7 @@ impl IndexHistoryPriceBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13343,7 +13343,7 @@ impl IndexHistoryPriceBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_price` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
         let interval = self.interval.clone();
@@ -13359,7 +13359,7 @@ impl IndexHistoryPriceBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13413,7 +13413,7 @@ impl IndexHistoryPriceBuilder {
 /// - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
 #[pyclass(module = "thetadatadx", name = "IndexAtTimePriceBuilder")]
 pub struct IndexAtTimePriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -13458,14 +13458,14 @@ impl IndexAtTimePriceBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<IndexPriceAtTimeTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13476,14 +13476,14 @@ impl IndexAtTimePriceBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13493,7 +13493,7 @@ impl IndexAtTimePriceBuilder {
 
     /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13509,7 +13509,7 @@ impl IndexAtTimePriceBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13543,7 +13543,7 @@ impl IndexAtTimePriceBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13556,7 +13556,7 @@ impl IndexAtTimePriceBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13596,7 +13596,7 @@ impl IndexAtTimePriceBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarOpenTodayBuilder")]
 pub struct CalendarOpenTodayBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -13613,10 +13613,10 @@ impl CalendarOpenTodayBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().calendar_open_today();
+            let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13627,10 +13627,10 @@ impl CalendarOpenTodayBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_open_today();
+            let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13648,7 +13648,7 @@ impl CalendarOpenTodayBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarOnDateBuilder")]
 pub struct CalendarOnDateBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     date: String,
     timeout_ms: Option<u64>,
 }
@@ -13672,11 +13672,11 @@ impl CalendarOnDateBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().calendar_on_date(&date);
+            let mut request = client.historical().calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13687,11 +13687,11 @@ impl CalendarOnDateBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_on_date(&date);
+            let mut request = client.historical().calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13709,7 +13709,7 @@ impl CalendarOnDateBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarYearBuilder")]
 pub struct CalendarYearBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     year: String,
     timeout_ms: Option<u64>,
 }
@@ -13733,11 +13733,11 @@ impl CalendarYearBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().calendar_year(&year);
+            let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13748,11 +13748,11 @@ impl CalendarYearBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_year(&year);
+            let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13771,7 +13771,7 @@ impl CalendarYearBuilder {
 ///   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
 #[pyclass(module = "thetadatadx", name = "InterestRateHistoryEodBuilder")]
 pub struct InterestRateHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -13809,13 +13809,13 @@ impl InterestRateHistoryEodBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<InterestRateTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13826,13 +13826,13 @@ impl InterestRateHistoryEodBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13842,7 +13842,7 @@ impl InterestRateHistoryEodBuilder {
 
     /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13857,7 +13857,7 @@ impl InterestRateHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13891,7 +13891,7 @@ impl InterestRateHistoryEodBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -13903,7 +13903,7 @@ impl InterestRateHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13945,7 +13945,7 @@ impl InterestRateHistoryEodBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcRangeBuilder")]
 pub struct StockHistoryOhlcRangeBuilder {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -14011,7 +14011,7 @@ impl StockHistoryOhlcRangeBuilder {
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
     fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -14021,7 +14021,7 @@ impl StockHistoryOhlcRangeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14044,7 +14044,7 @@ impl StockHistoryOhlcRangeBuilder {
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -14054,7 +14054,7 @@ impl StockHistoryOhlcRangeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14076,7 +14076,7 @@ impl StockHistoryOhlcRangeBuilder {
 
     /// Stream chunks of `stock_history_ohlc_range` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -14095,7 +14095,7 @@ impl StockHistoryOhlcRangeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14141,7 +14141,7 @@ impl StockHistoryOhlcRangeBuilder {
 
     /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc_range` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
@@ -14157,7 +14157,7 @@ impl StockHistoryOhlcRangeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14279,7 +14279,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().stock_list_symbols();
+            let call = self.client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14306,9 +14306,9 @@ impl HistoricalView {
         py: Python<'py>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().stock_list_symbols();
+            let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14331,7 +14331,7 @@ impl HistoricalView {
         &self,
     ) -> StockListSymbolsBuilder {
         StockListSymbolsBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             timeout_ms: None,
         }
     }
@@ -14348,7 +14348,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
+            let call = self.client.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14377,9 +14377,9 @@ impl HistoricalView {
         symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
+            let call = client.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14404,7 +14404,7 @@ impl HistoricalView {
         symbol: PyStringArg,
     ) -> StockListDatesBuilder {
         StockListDatesBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             request_type: request_type.into_string(),
             symbol: symbol.into_string(),
             timeout_ms: None,
@@ -14430,7 +14430,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().stock_snapshot_ohlc(&refs);
+        let mut request = self.client.historical().stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -14467,10 +14467,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -14496,7 +14496,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> StockSnapshotOhlcBuilder {
         StockSnapshotOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
@@ -14522,7 +14522,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().stock_snapshot_trade(&refs);
+        let mut request = self.client.historical().stock_snapshot_trade(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -14558,10 +14558,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_trade(&refs);
+            let mut request = client.historical().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -14587,7 +14587,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> StockSnapshotTradeBuilder {
         StockSnapshotTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
@@ -14613,7 +14613,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().stock_snapshot_quote(&refs);
+        let mut request = self.client.historical().stock_snapshot_quote(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -14649,10 +14649,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_quote(&refs);
+            let mut request = client.historical().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -14678,7 +14678,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> StockSnapshotQuoteBuilder {
         StockSnapshotQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
@@ -14704,7 +14704,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().stock_snapshot_market_value(&refs);
+        let mut request = self.client.historical().stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -14740,10 +14740,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -14769,7 +14769,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> StockSnapshotMarketValueBuilder {
         StockSnapshotMarketValueBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
@@ -14789,7 +14789,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -14814,9 +14814,9 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14838,7 +14838,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> StockHistoryEodBuilder {
         StockHistoryEodBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -14871,7 +14871,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -14927,9 +14927,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -14968,7 +14968,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> StockHistoryOhlcBuilder {
         StockHistoryOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             date: date.into_string(),
             interval: None,
@@ -15003,7 +15003,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.historical().stock_history_trade(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_trade(symbol.as_str(), date.as_str());
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -15053,9 +15053,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_trade(symbol.as_str(), date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -15091,7 +15091,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> StockHistoryTradeBuilder {
         StockHistoryTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             date: date.into_string(),
             start_time: None,
@@ -15129,7 +15129,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.historical().stock_history_quote(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_quote(symbol.as_str(), date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -15186,9 +15186,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_quote(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_quote(symbol.as_str(), date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -15227,7 +15227,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> StockHistoryQuoteBuilder {
         StockHistoryQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             date: date.into_string(),
             interval: None,
@@ -15264,7 +15264,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.tdx.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -15319,9 +15319,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -15360,7 +15360,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> StockHistoryTradeQuoteBuilder {
         StockHistoryTradeQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             date: date.into_string(),
             start_time: None,
@@ -15396,7 +15396,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15435,9 +15435,9 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15463,7 +15463,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
     ) -> StockAtTimeTradeBuilder {
         StockAtTimeTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -15496,7 +15496,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15535,9 +15535,9 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15563,7 +15563,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
     ) -> StockAtTimeQuoteBuilder {
         StockAtTimeQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -15583,7 +15583,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().option_list_symbols();
+            let call = self.client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15610,9 +15610,9 @@ impl HistoricalView {
         py: Python<'py>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_symbols();
+            let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15635,7 +15635,7 @@ impl HistoricalView {
         &self,
     ) -> OptionListSymbolsBuilder {
         OptionListSymbolsBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             timeout_ms: None,
         }
     }
@@ -15658,7 +15658,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            let call = self.client.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15693,9 +15693,9 @@ impl HistoricalView {
         expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            let call = client.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15721,7 +15721,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionListDatesBuilder {
         OptionListDatesBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             request_type: request_type.into_string(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
@@ -15741,7 +15741,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().option_list_expirations(symbol.as_str());
+            let call = self.client.historical().option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15770,9 +15770,9 @@ impl HistoricalView {
         symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_expirations(symbol.as_str());
+            let call = client.historical().option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15796,7 +15796,7 @@ impl HistoricalView {
         symbol: PyStringArg,
     ) -> OptionListExpirationsBuilder {
         OptionListExpirationsBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             timeout_ms: None,
         }
@@ -15815,7 +15815,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
+            let call = self.client.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15845,9 +15845,9 @@ impl HistoricalView {
         expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
+            let call = client.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15872,7 +15872,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionListStrikesBuilder {
         OptionListStrikesBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             timeout_ms: None,
@@ -15896,7 +15896,7 @@ impl HistoricalView {
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OptionContractList>> {
-        let mut request = self.tdx.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -15929,9 +15929,9 @@ impl HistoricalView {
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
+            let mut request = client.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -15956,7 +15956,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionListContractsBuilder {
         OptionListContractsBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             request_type: request_type.into_string(),
             symbol: symbol.into_string(),
             date: date.into_string(),
@@ -15986,7 +15986,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16035,9 +16035,9 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16073,7 +16073,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotOhlcBuilder {
         OptionSnapshotOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16106,7 +16106,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16152,9 +16152,9 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16187,7 +16187,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotTradeBuilder {
         OptionSnapshotTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16220,7 +16220,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16270,9 +16270,9 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16308,7 +16308,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotQuoteBuilder {
         OptionSnapshotQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16343,7 +16343,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16394,9 +16394,9 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16432,7 +16432,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotOpenInterestBuilder {
         OptionSnapshotOpenInterestBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16464,7 +16464,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16512,9 +16512,9 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16550,7 +16550,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotMarketValueBuilder {
         OptionSnapshotMarketValueBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16594,7 +16594,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16672,9 +16672,9 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16728,7 +16728,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotGreeksImpliedVolatilityBuilder {
         OptionSnapshotGreeksImpliedVolatilityBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16778,7 +16778,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16856,9 +16856,9 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16912,7 +16912,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotGreeksAllBuilder {
         OptionSnapshotGreeksAllBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -16962,7 +16962,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17040,9 +17040,9 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17096,7 +17096,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotGreeksFirstOrderBuilder {
         OptionSnapshotGreeksFirstOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -17146,7 +17146,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17224,9 +17224,9 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17280,7 +17280,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotGreeksSecondOrderBuilder {
         OptionSnapshotGreeksSecondOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -17330,7 +17330,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17408,9 +17408,9 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17464,7 +17464,7 @@ impl HistoricalView {
         expiration: PyDateArg,
     ) -> OptionSnapshotGreeksThirdOrderBuilder {
         OptionSnapshotGreeksThirdOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             strike: None,
@@ -17506,7 +17506,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17555,9 +17555,9 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17592,7 +17592,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> OptionHistoryEodBuilder {
         OptionHistoryEodBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             start_date: start_date.into_string(),
@@ -17634,7 +17634,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17700,9 +17700,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17748,7 +17748,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryOhlcBuilder {
         OptionHistoryOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -17793,7 +17793,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17859,9 +17859,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17907,7 +17907,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeBuilder {
         OptionHistoryTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -17953,7 +17953,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18023,9 +18023,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18074,7 +18074,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryQuoteBuilder {
         OptionHistoryQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -18122,7 +18122,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18193,9 +18193,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18244,7 +18244,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeQuoteBuilder {
         OptionHistoryTradeQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -18285,7 +18285,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OpenInterestTickList>> {
-        let mut request = self.tdx.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18340,9 +18340,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18382,7 +18382,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryOpenInterestBuilder {
         OptionHistoryOpenInterestBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -18427,7 +18427,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksEodTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18498,9 +18498,9 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18550,7 +18550,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> OptionHistoryGreeksEodBuilder {
         OptionHistoryGreeksEodBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             start_date: start_date.into_string(),
@@ -18604,7 +18604,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksAllTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18689,9 +18689,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18749,7 +18749,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryGreeksAllBuilder {
         OptionHistoryGreeksAllBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -18804,7 +18804,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksAllTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18888,9 +18888,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18948,7 +18948,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeGreeksAllBuilder {
         OptionHistoryTradeGreeksAllBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -19004,7 +19004,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19089,9 +19089,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19149,7 +19149,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryGreeksFirstOrderBuilder {
         OptionHistoryGreeksFirstOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -19204,7 +19204,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19288,9 +19288,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19348,7 +19348,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeGreeksFirstOrderBuilder {
         OptionHistoryTradeGreeksFirstOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -19404,7 +19404,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksSecondOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19489,9 +19489,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19549,7 +19549,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryGreeksSecondOrderBuilder {
         OptionHistoryGreeksSecondOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -19604,7 +19604,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19688,9 +19688,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19748,7 +19748,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeGreeksSecondOrderBuilder {
         OptionHistoryTradeGreeksSecondOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -19804,7 +19804,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksThirdOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19889,9 +19889,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19949,7 +19949,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryGreeksThirdOrderBuilder {
         OptionHistoryGreeksThirdOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -20004,7 +20004,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20088,9 +20088,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20148,7 +20148,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeGreeksThirdOrderBuilder {
         OptionHistoryTradeGreeksThirdOrderBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -20203,7 +20203,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IvTickList>> {
-        let mut request = self.tdx.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20287,9 +20287,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20347,7 +20347,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryGreeksImpliedVolatilityBuilder {
         OptionHistoryGreeksImpliedVolatilityBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -20401,7 +20401,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
-        let mut request = self.tdx.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20484,9 +20484,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20544,7 +20544,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         OptionHistoryTradeGreeksImpliedVolatilityBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             date: date.into_string(),
@@ -20589,7 +20589,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20639,9 +20639,9 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20677,7 +20677,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
     ) -> OptionAtTimeTradeBuilder {
         OptionAtTimeTradeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             start_date: start_date.into_string(),
@@ -20714,7 +20714,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20762,9 +20762,9 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20800,7 +20800,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
     ) -> OptionAtTimeQuoteBuilder {
         OptionAtTimeQuoteBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
             start_date: start_date.into_string(),
@@ -20824,7 +20824,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().index_list_symbols();
+            let call = self.client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -20851,9 +20851,9 @@ impl HistoricalView {
         py: Python<'py>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().index_list_symbols();
+            let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -20876,7 +20876,7 @@ impl HistoricalView {
         &self,
     ) -> IndexListSymbolsBuilder {
         IndexListSymbolsBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             timeout_ms: None,
         }
     }
@@ -20892,7 +20892,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.historical().index_list_dates(symbol.as_str());
+            let call = self.client.historical().index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -20920,9 +20920,9 @@ impl HistoricalView {
         symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.historical().index_list_dates(symbol.as_str());
+            let call = client.historical().index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -20946,7 +20946,7 @@ impl HistoricalView {
         symbol: PyStringArg,
     ) -> IndexListDatesBuilder {
         IndexListDatesBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             timeout_ms: None,
         }
@@ -20965,7 +20965,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().index_snapshot_ohlc(&refs);
+        let mut request = self.client.historical().index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -20993,10 +20993,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -21019,7 +21019,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> IndexSnapshotOhlcBuilder {
         IndexSnapshotOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
@@ -21039,7 +21039,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().index_snapshot_price(&refs);
+        let mut request = self.client.historical().index_snapshot_price(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -21067,10 +21067,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_price(&refs);
+            let mut request = client.historical().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -21093,7 +21093,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> IndexSnapshotPriceBuilder {
         IndexSnapshotPriceBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
@@ -21113,7 +21113,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.tdx.historical().index_snapshot_market_value(&refs);
+        let mut request = self.client.historical().index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -21141,10 +21141,10 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.historical().index_snapshot_market_value(&refs);
+            let mut request = client.historical().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -21167,7 +21167,7 @@ impl HistoricalView {
         symbols: PySymbols,
     ) -> IndexSnapshotMarketValueBuilder {
         IndexSnapshotMarketValueBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
@@ -21186,7 +21186,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21211,9 +21211,9 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21235,7 +21235,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> IndexHistoryEodBuilder {
         IndexHistoryEodBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -21265,7 +21265,7 @@ impl HistoricalView {
         end_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -21309,9 +21309,9 @@ impl HistoricalView {
         end_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -21342,7 +21342,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> IndexHistoryOhlcBuilder {
         IndexHistoryOhlcBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -21377,7 +21377,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
-        let mut request = self.tdx.historical().index_history_price(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().index_history_price(symbol.as_str(), date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -21429,9 +21429,9 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_history_price(symbol.as_str(), date.as_str());
+            let mut request = client.historical().index_history_price(symbol.as_str(), date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -21467,7 +21467,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> IndexHistoryPriceBuilder {
         IndexHistoryPriceBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             date: date.into_string(),
             interval: None,
@@ -21493,7 +21493,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IndexPriceAtTimeTickList>> {
-        let mut request = self.tdx.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21520,9 +21520,9 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21545,7 +21545,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
     ) -> IndexAtTimePriceBuilder {
         IndexAtTimePriceBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -21565,7 +21565,7 @@ impl HistoricalView {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().calendar_open_today();
+        let mut request = self.client.historical().calendar_open_today();
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21589,9 +21589,9 @@ impl HistoricalView {
         py: Python<'py>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_open_today();
+            let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21610,7 +21610,7 @@ impl HistoricalView {
         &self,
     ) -> CalendarOpenTodayBuilder {
         CalendarOpenTodayBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             timeout_ms: None,
         }
     }
@@ -21628,7 +21628,7 @@ impl HistoricalView {
         date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().calendar_on_date(date.as_str());
+        let mut request = self.client.historical().calendar_on_date(date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21654,9 +21654,9 @@ impl HistoricalView {
         date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_on_date(date.as_str());
+            let mut request = client.historical().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21676,7 +21676,7 @@ impl HistoricalView {
         date: PyDateArg,
     ) -> CalendarOnDateBuilder {
         CalendarOnDateBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             date: date.into_string(),
             timeout_ms: None,
         }
@@ -21695,7 +21695,7 @@ impl HistoricalView {
         year: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.historical().calendar_year(year.as_str());
+        let mut request = self.client.historical().calendar_year(year.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21721,9 +21721,9 @@ impl HistoricalView {
         year: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().calendar_year(year.as_str());
+            let mut request = client.historical().calendar_year(year.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21743,7 +21743,7 @@ impl HistoricalView {
         year: PyStringArg,
     ) -> CalendarYearBuilder {
         CalendarYearBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             year: year.into_string(),
             timeout_ms: None,
         }
@@ -21765,7 +21765,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<InterestRateTickList>> {
-        let mut request = self.tdx.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21794,9 +21794,9 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21818,7 +21818,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> InterestRateHistoryEodBuilder {
         InterestRateHistoryEodBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
@@ -21846,7 +21846,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -21891,9 +21891,9 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
+        let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -21927,7 +21927,7 @@ impl HistoricalView {
         end_date: PyDateArg,
     ) -> StockHistoryOhlcRangeBuilder {
         StockHistoryOhlcRangeBuilder {
-            tdx: self.tdx.clone(),
+            client: self.client.clone(),
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),

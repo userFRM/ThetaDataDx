@@ -67,8 +67,8 @@ fn exchange_name(code: i32) -> &'static str {
 /// Vendor vocabulary text for a calendar-day `status` code (`0` ->
 /// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
 /// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside the
-/// table. Mirrors the C++ `tdx::calendar_status_name` and the C ABI
-/// `tdx_calendar_status_name`.
+/// table. Mirrors the C++ `thetadatadx::calendar_status_name` and the C ABI
+/// `thetadatadx_calendar_status_name`.
 #[pyfunction]
 fn calendar_status_name(code: i32) -> &'static str {
     thetadatadx::CalendarStatus::from_code(code)
@@ -79,8 +79,8 @@ fn calendar_status_name(code: i32) -> &'static str {
 /// Unix epoch milliseconds (UTC, DST-aware). Usable with any
 /// `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when
 /// `date` is absent (`0`) or either input is out of domain — the same
-/// `std::nullopt` contract the C++ `tdx::timestamp_ms` returns (the C
-/// ABI `tdx_timestamp_ms` encodes that absence as the `-1` sentinel).
+/// `std::nullopt` contract the C++ `thetadatadx::timestamp_ms` returns (the C
+/// ABI `thetadatadx_timestamp_ms` encodes that absence as the `-1` sentinel).
 #[pyfunction]
 fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<i64> {
     thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)

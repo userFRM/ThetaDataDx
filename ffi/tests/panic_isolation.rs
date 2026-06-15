@@ -12,24 +12,24 @@
 //! This file verifies the C ABI entry points exist and link correctly.
 //! A build failure here means a symbol was removed or renamed.
 
-use thetadatadx_ffi::{tdx_client_panic_count, tdx_streaming_panic_count};
+use thetadatadx_ffi::{thetadatadx_client_panic_count, thetadatadx_streaming_panic_count};
 
-/// Compile-time + link-time witness: `tdx_streaming_panic_count` exists and takes
-/// `*const TdxStreamHandle` with return type `u64`. Calling it with a null
+/// Compile-time + link-time witness: `thetadatadx_streaming_panic_count` exists and takes
+/// `*const ThetaDataDxStreamHandle` with return type `u64`. Calling it with a null
 /// pointer is defined (returns 0) per the documented null-safety contract.
 #[test]
-fn tdx_streaming_panic_count_links_and_returns_zero_on_null() {
+fn thetadatadx_streaming_panic_count_links_and_returns_zero_on_null() {
     // SAFETY: null is explicitly documented as a safe input that returns 0.
-    let count = unsafe { tdx_streaming_panic_count(std::ptr::null()) };
+    let count = unsafe { thetadatadx_streaming_panic_count(std::ptr::null()) };
     assert_eq!(count, 0, "null-handle panic_count must return 0");
 }
 
-/// Compile-time + link-time witness: `tdx_client_panic_count` exists and
-/// takes `*const TdxClient` with return type `u64`. Calling it with a null
+/// Compile-time + link-time witness: `thetadatadx_client_panic_count` exists and
+/// takes `*const ThetaDataDxClient` with return type `u64`. Calling it with a null
 /// pointer is defined (returns 0) per the documented null-safety contract.
 #[test]
-fn tdx_client_panic_count_links_and_returns_zero_on_null() {
+fn thetadatadx_client_panic_count_links_and_returns_zero_on_null() {
     // SAFETY: null is explicitly documented as a safe input that returns 0.
-    let count = unsafe { tdx_client_panic_count(std::ptr::null()) };
+    let count = unsafe { thetadatadx_client_panic_count(std::ptr::null()) };
     assert_eq!(count, 0, "null-handle panic_count must return 0");
 }

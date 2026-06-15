@@ -55,7 +55,7 @@ def test_exchange_out_of_range(util):
 
 def test_calendar_status_name(util):
     # Vocabulary from the core CalendarStatus enum / the C ABI
-    # tdx_calendar_status_name. Out-of-table codes return "UNKNOWN".
+    # thetadatadx_calendar_status_name. Out-of-table codes return "UNKNOWN".
     assert util.calendar_status_name(0) == "open"
     assert util.calendar_status_name(1) == "early_close"
     assert util.calendar_status_name(2) == "full_close"
@@ -67,13 +67,13 @@ def test_calendar_status_name(util):
 def test_timestamp_ms(util):
     # Combines an Eastern-Time YYYYMMDD date + ms-of-day into epoch ms.
     # 2024-01-02 09:30 ET = 14:30 UTC. Matches the TypeScript
-    # Util.timestampMs and the C++ tdx::timestamp_ms for the same input.
+    # Util.timestampMs and the C++ thetadatadx::timestamp_ms for the same input.
     assert util.timestamp_ms(20240102, 34_200_000) == 1_704_205_800_000
 
 
 def test_timestamp_ms_out_of_domain_returns_none(util):
     # Out-of-domain inputs return None (the std::nullopt contract the C++
-    # tdx::timestamp_ms shares), never a coerced sentinel.
+    # thetadatadx::timestamp_ms shares), never a coerced sentinel.
     assert util.timestamp_ms(0, 0) is None
     assert util.timestamp_ms(20240102, -1) is None
 

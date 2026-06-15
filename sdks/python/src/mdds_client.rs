@@ -3,7 +3,7 @@
 //! Opens ONLY the MDDS channel and the Nexus HTTP authentication
 //! flow — no FPSS TLS connection, no event ring, no streaming
 //! state machine. Mirrors the standalone C ABI entry points
-//! (`tdx_client_*` in `ffi/src/auth.rs`) and the C++ `tdx::Client`
+//! (`thetadatadx_client_*` in `ffi/src/auth.rs`) and the C++ `thetadatadx::Client`
 //! pattern, letting Python users run a historical-only session
 //! alongside a parallel FPSS process without the bundled
 //! [`crate::Client`] preempting the parallel work at the

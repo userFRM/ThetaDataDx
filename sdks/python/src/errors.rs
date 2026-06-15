@@ -469,13 +469,13 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let invalid_value = to_py_err(thetadatadx::Error::config_invalid(
-                "mdds.uri",
+                "historical.uri",
                 "invalid URI",
             ));
             assert_exception_class(py, &invalid_value, "InvalidParameterError");
 
             let out_of_range = to_py_err(thetadatadx::Error::config_out_of_range(
-                "fpss.timeout_ms",
+                "streaming.timeout_ms",
                 0,
                 100,
                 60_000,

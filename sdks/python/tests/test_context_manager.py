@@ -1,5 +1,5 @@
 """
-Streaming context manager (`with tdx.streaming(callback) as session:`)
+Streaming context manager (`with client.streaming(callback) as session:`)
 lifecycle tests.
 
 Pins the contract that the wrapper:
@@ -38,7 +38,7 @@ def _import_module():
 
 
 @pytest.fixture
-def tdx():
+def client():
     """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
@@ -67,30 +67,30 @@ def _noop_callback(_event: Any) -> None:
 
 def test_streaming_session_class_exported() -> None:
     """`StreamingSession` is exported alongside `Client` so users
-    can type-annotate the bound name from `with tdx.streaming(cb) as s`.
+    can type-annotate the bound name from `with client.streaming(cb) as s`.
     """
     mod = _import_module()
     assert hasattr(mod, "StreamingSession"), "StreamingSession should be a public symbol"
 
 
 def test_thetadatadx_has_streaming_factory() -> None:
-    """`tdx.streaming(callback)` is the user-facing entry point. Verify
+    """`client.streaming(callback)` is the user-facing entry point. Verify
     the method exists on the class without needing a live connection.
     """
     mod = _import_module()
     assert hasattr(mod.Client, "streaming")
 
 
-def test_context_manager_enter_exit_lifecycle(tdx) -> None:
-    """`with tdx.streaming(callback) as session:` enters by calling
+def test_context_manager_enter_exit_lifecycle(client) -> None:
+    """`with client.streaming(callback) as session:` enters by calling
     `start_streaming(callback)` and exits by calling
     `stop_streaming()` + `await_drain(5000)`.
     """
-    assert tdx.stream.is_streaming() is False
-    with tdx.streaming(_noop_callback) as session:
+    assert client.stream.is_streaming() is False
+    with client.streaming(_noop_callback) as session:
         # `session` is the StreamingSession; subscribe methods proxy
         # through __getattr__ to the underlying Client.
-        assert tdx.stream.is_streaming() is True
+        assert client.stream.is_streaming() is True
         # Exercise the proxy SSOT: a method that lives on
         # `Client` is reachable on `session` without a hand-listed
         # mirror.
@@ -98,23 +98,23 @@ def test_context_manager_enter_exit_lifecycle(tdx) -> None:
         assert isinstance(active, list)
     # __exit__ must have called stop_streaming() (not just dropped the
     # ref) so is_streaming() flips back to False.
-    assert tdx.stream.is_streaming() is False
+    assert client.stream.is_streaming() is False
 
 
-def test_context_manager_swallows_no_exceptions(tdx) -> None:
+def test_context_manager_swallows_no_exceptions(client) -> None:
     """`__exit__` returns False so exceptions raised inside the `with`
     body propagate. The wrapper must NOT mask body errors with its own
     drain-timeout warning logic.
     """
     sentinel = RuntimeError("body sentinel -- must propagate through __exit__")
     with pytest.raises(RuntimeError, match="body sentinel"):
-        with tdx.streaming(_noop_callback) as _session:
+        with client.streaming(_noop_callback) as _session:
             raise sentinel
     # is_streaming flipped to False -- stop_streaming ran in __exit__.
-    assert tdx.stream.is_streaming() is False
+    assert client.stream.is_streaming() is False
 
 
-def test_context_manager_proxies_subscribe_methods(tdx) -> None:
+def test_context_manager_proxies_subscribe_methods(client) -> None:
     """SSOT: every public method on `Client` is reachable on the
     bound session via `StreamingSession.__getattr__`. There is NO
     hand-listed mirror -- adding a new subscribe method to
@@ -122,7 +122,7 @@ def test_context_manager_proxies_subscribe_methods(tdx) -> None:
     """
     from thetadatadx import Contract
 
-    with tdx.streaming(_noop_callback) as session:
+    with client.streaming(_noop_callback) as session:
         # The polymorphic `subscribe(sub)` lives on `Client`, not
         # on `StreamingSession`. Proxy must forward.
         session.subscribe(Contract.stock("AAPL").quote())
@@ -135,12 +135,12 @@ def test_context_manager_proxies_subscribe_methods(tdx) -> None:
         session.unsubscribe(Contract.stock("AAPL").quote())
 
 
-def test_double_enter_raises(tdx) -> None:
+def test_double_enter_raises(client) -> None:
     """Re-entering the same session is a programming error: each
     `__enter__` consumes the stored callback. The second enter must
     raise rather than silently re-register.
     """
-    cm = tdx.streaming(_noop_callback)
+    cm = client.streaming(_noop_callback)
     with cm as _session:
         pass
     with pytest.raises(RuntimeError, match="callback already consumed"):

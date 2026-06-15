@@ -118,7 +118,7 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
             include_str!("templates/cpp/fpss_connect_from_file_def.cpp.tmpl").to_string()
         }
         MethodKind::StockContractCall | MethodKind::FullCall => format!(
-            "int StreamingClient::{}({} {}) {{ return tdx_streaming_{}(handle_.get(), {}.c_str()); }}\n",
+            "int StreamingClient::{}({} {}) {{ return thetadatadx_streaming_{}(handle_.get(), {}.c_str()); }}\n",
             method.name,
             cpp_type(method.params[0].param_type),
             method.params[0].name,
@@ -139,13 +139,13 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(
-                "int StreamingClient::{}({params}) {{ return tdx_streaming_{}(handle_.get(), {ffi_args}); }}\n",
+                "int StreamingClient::{}({params}) {{ return thetadatadx_streaming_{}(handle_.get(), {ffi_args}); }}\n",
                 method.name,
                 method.ffi_call.as_deref().unwrap()
             )
         }
         MethodKind::IsAuthenticated => {
-            "bool StreamingClient::is_authenticated() const { return tdx_streaming_is_authenticated(handle_.get()) != 0; }\n"
+            "bool StreamingClient::is_authenticated() const { return thetadatadx_streaming_is_authenticated(handle_.get()) != 0; }\n"
                 .to_string()
         }
         MethodKind::ActiveSubscriptions => {
@@ -154,7 +154,7 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
         MethodKind::NextEvent => include_str!("templates/cpp/next_event_def.cpp.tmpl").to_string(),
         MethodKind::Reconnect => include_str!("templates/cpp/reconnect_def.cpp.tmpl").to_string(),
         MethodKind::Shutdown => {
-            "void StreamingClient::shutdown() { tdx_streaming_shutdown(handle_.get()); }\n".to_string()
+            "void StreamingClient::shutdown() { thetadatadx_streaming_shutdown(handle_.get()); }\n".to_string()
         }
         other => panic!("unsupported C++ FPSS def kind: {other:?}"),
     }
@@ -211,7 +211,9 @@ fn cpp_lifecycle_def(method: &MethodSpec) -> String {
         }
         MethodKind::ConfigConstructor => {
             let variant = method.config_variant.as_deref().unwrap();
-            format!("Config Config::{variant}() {{ return Config(tdx_config_{variant}()); }}\n")
+            format!(
+                "Config Config::{variant}() {{ return Config(thetadatadx_config_{variant}()); }}\n"
+            )
         }
         MethodKind::ClientConnect => {
             include_str!("templates/cpp/client_connect_def.cpp.tmpl").to_string()

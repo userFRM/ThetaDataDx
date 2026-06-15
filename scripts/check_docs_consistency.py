@@ -57,7 +57,7 @@ BUILDER_PARAMS = {
 }
 
 # Global request-level options (not per-endpoint builder params, but still
-# required fields on `TdxEndpointRequestOptions` / `EndpointRequestOptions`
+# required fields on `ThetaDataDxEndpointRequestOptions` / `EndpointRequestOptions`
 # so the FFI struct layout must include them).
 GLOBAL_REQUEST_OPTIONS = {opt["name"] for opt in SURFACE.get("request_options_global", [])}
 
@@ -176,14 +176,14 @@ def check_static_docs() -> None:
         expect_not_contains(path, "&ivl=")
 
     sdk_overview = ROOT / "sdks/README.md"
-    expect_contains(sdk_overview, "`TdxClient` / `TdxStreamHandle`")
-    expect_contains(sdk_overview, "| **Unified** | `tdx_client_connect`, `tdx_client_historical`, `tdx_client_*`, `tdx_client_free` |")
+    expect_contains(sdk_overview, "`ThetaDataDxClient` / `ThetaDataDxStreamHandle`")
+    expect_contains(sdk_overview, "| **Unified** | `thetadatadx_client_connect`, `thetadatadx_client_historical`, `thetadatadx_client_*`, `thetadatadx_client_free` |")
     # The streaming surface exposes a polymorphic
-    # tdx_streaming_subscribe / _unsubscribe pair over
-    # TdxSubscriptionRequest. The contract here is "the standalone
-    # streaming row leads with tdx_streaming_connect" — exact wording
+    # thetadatadx_streaming_subscribe / _unsubscribe pair over
+    # ThetaDataDxSubscriptionRequest. The contract here is "the standalone
+    # streaming row leads with thetadatadx_streaming_connect" — exact wording
     # sufficient.
-    expect_contains(sdk_overview, "**Standalone FPSS** | `tdx_streaming_connect`")
+    expect_contains(sdk_overview, "**Standalone streaming** | `thetadatadx_streaming_connect`")
 
     # Strikes are dollars on every public surface; the scaled-integer
     # vocabulary must never reappear (the WebSocket envelope's
@@ -211,7 +211,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/cli/README.md",
-        "tdx stock at_time_trade AAPL 20240101 20240301 09:30:00.000",
+        "thetadatadx stock at_time_trade AAPL 20240101 20240301 09:30:00.000",
     )
     # The generated at-time pages inherit the same wording from the
     # registry; pin one so a registry rewrite that loses the format
@@ -254,7 +254,7 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "startStreamingIter")
         expect_not_contains(streaming_page, "StreamEventPoller")
         expect_not_contains(streaming_page, "EventIterator")
-        expect_not_contains(streaming_page, "tdx_streaming_event_iter")
+        expect_not_contains(streaming_page, "thetadatadx_streaming_event_iter")
         expect_not_contains(streaming_page, "```go [Go]")
         expect_not_contains(streaming_page, "contract_map")
         expect_not_contains(streaming_page, "contract_lookup")
@@ -284,7 +284,7 @@ def check_static_docs() -> None:
         expect_not_contains(vue_file, "startStreamingIter")
         expect_not_contains(vue_file, "EventIterator")
         expect_not_contains(vue_file, "StreamEventPoller")
-        expect_not_contains(vue_file, "tdx_streaming_event_iter")
+        expect_not_contains(vue_file, "thetadatadx_streaming_event_iter")
 
 
 def endpoint_page_path(endpoint: dict) -> Path:
@@ -396,7 +396,7 @@ def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -
 def check_endpoint_option_surface() -> None:
     rust_fields = extract_struct_fields(
         ROOT / "ffi/src/endpoint_request_options.rs",
-        r"pub struct TdxEndpointRequestOptions \{(.*?)\n\}",
+        r"pub struct ThetaDataDxEndpointRequestOptions \{(.*?)\n\}",
         r"^\s*pub\s+([a-z_]+)\s*:",
     )
     # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
@@ -412,7 +412,7 @@ def check_endpoint_option_surface() -> None:
     c_path = ROOT / "sdks/cpp/include/endpoint_request_options.h.inc"
     c_fields = extract_struct_fields(
         c_path,
-        r"typedef struct \{(.*?)\n\}\s*TdxEndpointRequestOptions;",
+        r"typedef struct \{(.*?)\n\}\s*ThetaDataDxEndpointRequestOptions;",
         r"^\s*(?:const char\*|int32_t|double|uint64_t)\s+([a-z_]+);",
     )
     # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
@@ -447,7 +447,7 @@ def check_endpoint_option_surface() -> None:
         DOCS_SITE / "reference/option/history/greeks/eod.md",
     ]:
         expect_not_contains(path, "OptionRequestOptions")
-        expect_not_contains(path, "TdxOptionRequestOptions")
+        expect_not_contains(path, "ThetaDataDxOptionRequestOptions")
 
 
 def check_tier_badges() -> None:

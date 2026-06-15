@@ -85,56 +85,59 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         }
     });
 
-    state.tdx().stream().start_streaming(move |event: &StreamEvent| {
-        // Update connection status.
-        match event {
-            StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {
-                state_for_cb.set_fpss_connected(true);
+    state
+        .client()
+        .stream()
+        .start_streaming(move |event: &StreamEvent| {
+            // Update connection status.
+            match event {
+                StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {
+                    state_for_cb.set_streaming_connected(true);
+                }
+                StreamEvent::Control(StreamControl::Disconnected { .. }) => {
+                    state_for_cb.set_streaming_connected(false);
+                }
+                _ => {}
             }
-            StreamEvent::Control(StreamControl::Disconnected { .. }) => {
-                state_for_cb.set_fpss_connected(false);
-            }
-            _ => {}
-        }
 
-        // Resolve the event's contract — for `StreamData::*` it rides on
-        // the event directly; for control variants there is none.
-        let peeked = lookup_event_contract(event);
+            // Resolve the event's contract — for `StreamData::*` it rides on
+            // the event directly; for control variants there is none.
+            let peeked = lookup_event_contract(event);
 
-        // Bounded handoff with explicit overrun handling. `Full` means the
-        // broadcast task is lagging — bump the drop counter and walk away,
-        // never blocking the event-dispatch consumer thread. `Closed` means the
-        // task has exited (shutdown / panic / receiver dropped) — log once
-        // at the warn level and stop accounting further events as drops to
-        // avoid log flood; subsequent events still fail-fast on `try_send`.
-        match tx.try_send((event.clone(), peeked)) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                let dropped = state_for_cb.record_fpss_broadcast_drop();
-                if dropped.is_multiple_of(WARN_EVERY_N) {
-                    tracing::warn!(
-                        target: "thetadatadx::server::ws",
-                        dropped_total = dropped,
-                        capacity = FPSS_BROADCAST_CAPACITY,
-                        warn_every_n = WARN_EVERY_N,
-                        "fpss broadcast channel is full; events being dropped"
-                    );
+            // Bounded handoff with explicit overrun handling. `Full` means the
+            // broadcast task is lagging — bump the drop counter and walk away,
+            // never blocking the event-dispatch consumer thread. `Closed` means the
+            // task has exited (shutdown / panic / receiver dropped) — log once
+            // at the warn level and stop accounting further events as drops to
+            // avoid log flood; subsequent events still fail-fast on `try_send`.
+            match tx.try_send((event.clone(), peeked)) {
+                Ok(()) => {}
+                Err(TrySendError::Full(_)) => {
+                    let dropped = state_for_cb.record_fpss_broadcast_drop();
+                    if dropped.is_multiple_of(WARN_EVERY_N) {
+                        tracing::warn!(
+                            target: "thetadatadx::server::ws",
+                            dropped_total = dropped,
+                            capacity = FPSS_BROADCAST_CAPACITY,
+                            warn_every_n = WARN_EVERY_N,
+                            "fpss broadcast channel is full; events being dropped"
+                        );
+                    }
+                }
+                Err(TrySendError::Closed(_)) => {
+                    let dropped = state_for_cb.record_fpss_broadcast_drop();
+                    if dropped.is_multiple_of(WARN_EVERY_N) {
+                        tracing::warn!(
+                            target: "thetadatadx::server::ws",
+                            dropped_total = dropped,
+                            "fpss broadcast task is gone; events being dropped"
+                        );
+                    }
                 }
             }
-            Err(TrySendError::Closed(_)) => {
-                let dropped = state_for_cb.record_fpss_broadcast_drop();
-                if dropped.is_multiple_of(WARN_EVERY_N) {
-                    tracing::warn!(
-                        target: "thetadatadx::server::ws",
-                        dropped_total = dropped,
-                        "fpss broadcast task is gone; events being dropped"
-                    );
-                }
-            }
-        }
-    })?;
+        })?;
 
-    state.set_fpss_connected(true);
+    state.set_streaming_connected(true);
     Ok(())
 }
 

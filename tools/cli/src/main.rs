@@ -1,8 +1,8 @@
-//! `tdx` -- native command-line client for ThetaData market data.
+//! `thetadatadx` -- native command-line client for ThetaData market data.
 //!
 //! Builds its command tree dynamically from the shared endpoint registry, so
 //! every category and endpoint the SDK exposes is reachable as
-//! `tdx <category> <endpoint> [args...]` with no per-command wiring. A
+//! `thetadatadx <category> <endpoint> [args...]` with no per-command wiring. A
 //! hand-written `flatfile` group covers the whole-universe flat-file surface.
 //!
 //! ## Invocation contract
@@ -26,13 +26,13 @@ use thetadatadx::{by_category, find, EndpointMeta, CATEGORIES};
 
 /// Build the full CLI tree dynamically from the endpoint registry.
 ///
-/// Structure: `tdx [global opts] <category> <endpoint-subcmd> [args...]`
+/// Structure: `thetadatadx [global opts] <category> <endpoint-subcmd> [args...]`
 ///
 /// Categories (stock, option, index, rate, calendar) are auto-populated.
 // Reason: CLI builder registers all subcommands in a single function; splitting would lose cohesion.
 #[allow(clippy::too_many_lines)]
 fn build_cli() -> Command {
-    let mut app = Command::new("tdx")
+    let mut app = Command::new("thetadatadx")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Client CLI — query ThetaData from your terminal")
         .long_about(

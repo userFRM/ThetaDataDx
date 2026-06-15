@@ -1,4 +1,4 @@
-// MDDS pool-sizing setter + getter on thetadatadx::Config.
+// Historical pool-sizing setter + getter on thetadatadx::Config.
 //
 // Offline test pinning the contract that `set_concurrent_requests` and
 // the `get_concurrent_requests()` readback getter on the `thetadatadx::Config`
@@ -26,19 +26,19 @@ TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][poo
     REQUIRE(cfg.get_concurrent_requests() == 32u);
 }
 
-TEST_CASE("Config mdds_host / mdds_port setters + getters round-trip",
-          "[config][mdds][offline]") {
-    // The MDDS endpoint overrides mirror the Python `Config.mdds_host` /
-    // `.mdds_port` advanced knobs, so a value set through the C++ wrapper
+TEST_CASE("Config historical_host / historical_port setters + getters round-trip",
+          "[config][historical][offline]") {
+    // The historical endpoint overrides mirror the Python `Config.historical_host` /
+    // `.historical_port` advanced knobs, so a value set through the C++ wrapper
     // reads back through the same wrapper.
     auto cfg = thetadatadx::Config::production();
 
     // A production config has a non-empty default host.
-    REQUIRE_FALSE(cfg.get_mdds_host().empty());
+    REQUIRE_FALSE(cfg.get_historical_host().empty());
 
-    cfg.set_mdds_host("127.0.0.1");
-    REQUIRE(cfg.get_mdds_host() == "127.0.0.1");
+    cfg.set_historical_host("127.0.0.1");
+    REQUIRE(cfg.get_historical_host() == "127.0.0.1");
 
-    cfg.set_mdds_port(50051);
-    REQUIRE(cfg.get_mdds_port() == 50051u);
+    cfg.set_historical_port(50051);
+    REQUIRE(cfg.get_historical_port() == 50051u);
 }

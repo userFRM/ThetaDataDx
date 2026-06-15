@@ -2,17 +2,17 @@
 //!
 //! Exposes:
 //!
-//! - `tdx_flatfile_request_decoded` — pull + decode + return an opaque
+//! - `thetadatadx_flatfile_request_decoded` — pull + decode + return an opaque
 //!   row-list handle.
-//! - `tdx_flatfile_rows_to_arrow_ipc` — serialise the row list as Arrow
+//! - `thetadatadx_flatfile_rows_to_arrow_ipc` — serialise the row list as Arrow
 //!   IPC bytes for any consumer with an Arrow IPC reader (apache-arrow,
 //!   pyarrow, arrow-cpp).
-//! - `tdx_flatfile_rows_count` — row count without materialising bytes.
-//! - `tdx_flatfile_rowlist_free` — release the row-list handle.
-//! - `tdx_flatfile_request_to_path` — pull + write raw vendor format
+//! - `thetadatadx_flatfile_rows_count` — row count without materialising bytes.
+//! - `thetadatadx_flatfile_rowlist_free` — release the row-list handle.
+//! - `thetadatadx_flatfile_request_to_path` — pull + write raw vendor format
 //!   directly to disk.
 //!
-//! The opaque `TdxFlatFileRowList` carries the typed `Vec<FlatFileRow>`
+//! The opaque `ThetaDataDxFlatFileRowList` carries the typed `Vec<FlatFileRow>`
 //! so language wrappers can defer the schema-inferring Arrow conversion
 //! until the user picks a representation.
 
@@ -25,28 +25,28 @@ use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
-use crate::streaming::TdxClient;
+use crate::streaming::ThetaDataDxClient;
 
 // ── Heap-owned row-list handle ─────────────────────────────────────────
 
 /// Opaque handle wrapping a decoded `Vec<FlatFileRow>`. Allocated by
-/// `tdx_flatfile_request_decoded`; freed by `tdx_flatfile_rowlist_free`.
-pub struct TdxFlatFileRowList {
+/// `thetadatadx_flatfile_request_decoded`; freed by `thetadatadx_flatfile_rowlist_free`.
+pub struct ThetaDataDxFlatFileRowList {
     pub(crate) rows: Vec<FlatFileRow>,
 }
 
 /// Heap-owned byte buffer (Arrow IPC stream) returned by
-/// `tdx_flatfile_rows_to_arrow_ipc`. Caller MUST free with
-/// `tdx_flatfile_bytes_free`.
+/// `thetadatadx_flatfile_rows_to_arrow_ipc`. Caller MUST free with
+/// `thetadatadx_flatfile_bytes_free`.
 #[repr(C)]
-pub struct TdxFlatFileBytes {
+pub struct ThetaDataDxFlatFileBytes {
     /// Pointer to the first byte of the buffer; null when empty.
     pub data: *const u8,
     /// Length of the buffer in bytes.
     pub len: usize,
 }
 
-impl TdxFlatFileBytes {
+impl ThetaDataDxFlatFileBytes {
     fn from_vec(buf: Vec<u8>) -> Self {
         if buf.is_empty() {
             return Self {
@@ -114,16 +114,16 @@ unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
 
 /// Pull a decoded flat-file blob for `(sec_type, req_type, date)` and
 /// return an opaque row-list handle. Returns null on error; check
-/// `tdx_last_error()` for details.
+/// `thetadatadx_last_error()` for details.
 ///
-/// The returned handle MUST be freed with `tdx_flatfile_rowlist_free`.
+/// The returned handle MUST be freed with `thetadatadx_flatfile_rowlist_free`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_request_decoded(
-    handle: *const TdxClient,
+pub unsafe extern "C" fn thetadatadx_flatfile_request_decoded(
+    handle: *const ThetaDataDxClient,
     sec_type: *const c_char,
     req_type: *const c_char,
     date: *const c_char,
-) -> *mut TdxFlatFileRowList {
+) -> *mut ThetaDataDxFlatFileRowList {
     ffi_boundary!(ptr::null_mut(), {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -157,11 +157,11 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
                 return ptr::null_mut();
             }
         };
-        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let unified = unsafe { &*handle };
         let res = runtime().block_on(unified.inner.flatfile_request_decoded(sec, req, date_str));
         match res {
-            Ok(rows) => Box::into_raw(Box::new(TdxFlatFileRowList { rows })),
+            Ok(rows) => Box::into_raw(Box::new(ThetaDataDxFlatFileRowList { rows })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -172,19 +172,21 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
 
 /// Number of rows in a row-list handle. Returns 0 if the handle is null.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_rows_count(rowlist: *const TdxFlatFileRowList) -> usize {
+pub unsafe extern "C" fn thetadatadx_flatfile_rows_count(
+    rowlist: *const ThetaDataDxFlatFileRowList,
+) -> usize {
     ffi_boundary!(0, {
         if rowlist.is_null() {
             return 0;
         }
         // SAFETY: caller's contract on this FFI function requires
         // `rowlist` to be either null (rejected above) or the value
-        // returned by `tdx_flatfile_request_decoded`, which built it
-        // via `Box::into_raw(Box::new(TdxFlatFileRowList { .. }))`.
-        // No mutating call (only `tdx_flatfile_rowlist_free`, which
+        // returned by `thetadatadx_flatfile_request_decoded`, which built it
+        // via `Box::into_raw(Box::new(ThetaDataDxFlatFileRowList { .. }))`.
+        // No mutating call (only `thetadatadx_flatfile_rowlist_free`, which
         // consumes the pointer) runs concurrently — single-threaded
         // FFI ownership — so the box is live, `#[repr(Rust)]`
-        // well-aligned, and a shared `&TdxFlatFileRowList` reborrow
+        // well-aligned, and a shared `&ThetaDataDxFlatFileRowList` reborrow
         // (`(*rowlist).rows.len()` reads only the `len` field of the
         // inner `Vec`, no field of `rowlist` is mutated) is sound.
         unsafe { (*rowlist).rows.len() }
@@ -194,34 +196,34 @@ pub unsafe extern "C" fn tdx_flatfile_rows_count(rowlist: *const TdxFlatFileRowL
 /// Serialise the row list as Arrow IPC stream bytes. The schema is
 /// inferred from the first row by `flatfiles::arrow::rows_to_arrow`.
 ///
-/// Returns `(data=null, len=0)` on error; check `tdx_last_error()`.
-/// Caller MUST free the returned bytes with `tdx_flatfile_bytes_free`.
+/// Returns `(data=null, len=0)` on error; check `thetadatadx_last_error()`.
+/// Caller MUST free the returned bytes with `thetadatadx_flatfile_bytes_free`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
-    rowlist: *const TdxFlatFileRowList,
-) -> TdxFlatFileBytes {
+pub unsafe extern "C" fn thetadatadx_flatfile_rows_to_arrow_ipc(
+    rowlist: *const ThetaDataDxFlatFileRowList,
+) -> ThetaDataDxFlatFileBytes {
     ffi_boundary!(
-        TdxFlatFileBytes {
+        ThetaDataDxFlatFileBytes {
             data: ptr::null(),
             len: 0
         },
         {
             if rowlist.is_null() {
                 set_error("row list handle is null");
-                return TdxFlatFileBytes {
+                return ThetaDataDxFlatFileBytes {
                     data: ptr::null(),
                     len: 0,
                 };
             }
             // SAFETY: caller's contract on this FFI function requires
             // `rowlist` to be either null (rejected above) or the value
-            // returned by `tdx_flatfile_request_decoded`, which built
-            // it via `Box::into_raw(Box::new(TdxFlatFileRowList { .. }))`.
+            // returned by `thetadatadx_flatfile_request_decoded`, which built
+            // it via `Box::into_raw(Box::new(ThetaDataDxFlatFileRowList { .. }))`.
             // The reborrowed `&Vec<FlatFileRow>` lives only for the
             // duration of this expression (it is consumed by
             // `rows_to_arrow` synchronously below); since the only
             // function that invalidates the box —
-            // `tdx_flatfile_rowlist_free` — takes `*mut` and cannot run
+            // `thetadatadx_flatfile_rowlist_free` — takes `*mut` and cannot run
             // concurrently across a single FFI call, the borrow is
             // valid for that span.
             let rows = unsafe { &(*rowlist).rows };
@@ -229,7 +231,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
                 Ok(b) => b,
                 Err(e) => {
                     set_error_from(&e);
-                    return TdxFlatFileBytes {
+                    return ThetaDataDxFlatFileBytes {
                         data: ptr::null(),
                         len: 0,
                     };
@@ -242,7 +244,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
                     Ok(w) => w,
                     Err(e) => {
                         set_error(&format!("arrow ipc writer init failed: {e}"));
-                        return TdxFlatFileBytes {
+                        return ThetaDataDxFlatFileBytes {
                             data: ptr::null(),
                             len: 0,
                         };
@@ -250,27 +252,27 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
                 };
                 if let Err(e) = writer.write(&batch) {
                     set_error(&format!("arrow ipc write failed: {e}"));
-                    return TdxFlatFileBytes {
+                    return ThetaDataDxFlatFileBytes {
                         data: ptr::null(),
                         len: 0,
                     };
                 }
                 if let Err(e) = writer.finish() {
                     set_error(&format!("arrow ipc finish failed: {e}"));
-                    return TdxFlatFileBytes {
+                    return ThetaDataDxFlatFileBytes {
                         data: ptr::null(),
                         len: 0,
                     };
                 }
             }
-            TdxFlatFileBytes::from_vec(buf)
+            ThetaDataDxFlatFileBytes::from_vec(buf)
         }
     )
 }
 
-/// Free a byte buffer returned by `tdx_flatfile_rows_to_arrow_ipc`.
+/// Free a byte buffer returned by `thetadatadx_flatfile_rows_to_arrow_ipc`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_bytes_free(bytes: TdxFlatFileBytes) {
+pub unsafe extern "C" fn thetadatadx_flatfile_bytes_free(bytes: ThetaDataDxFlatFileBytes) {
     ffi_boundary!((), {
         if !bytes.data.is_null() && bytes.len > 0 {
             // SAFETY: `bytes.data` was returned by `Box::into_raw` on a `Box<[u8]>` of length `bytes.len`; ownership returns to Rust here for drop. Null + zero-len gated by the surrounding `if`.
@@ -284,12 +286,14 @@ pub unsafe extern "C" fn tdx_flatfile_bytes_free(bytes: TdxFlatFileBytes) {
     })
 }
 
-/// Free a row-list handle returned by `tdx_flatfile_request_decoded`.
+/// Free a row-list handle returned by `thetadatadx_flatfile_request_decoded`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_rowlist_free(rowlist: *mut TdxFlatFileRowList) {
+pub unsafe extern "C" fn thetadatadx_flatfile_rowlist_free(
+    rowlist: *mut ThetaDataDxFlatFileRowList,
+) {
     ffi_boundary!((), {
         if !rowlist.is_null() {
-            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
+            // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(rowlist) });
         }
     })
@@ -297,10 +301,10 @@ pub unsafe extern "C" fn tdx_flatfile_rowlist_free(rowlist: *mut TdxFlatFileRowL
 
 /// Pull a flat-file blob and write the requested vendor format
 /// (`csv` / `jsonl`) directly to `path`. Skips the typed-row decode
-/// step. Returns 0 on success, -1 on error; check `tdx_last_error()`.
+/// step. Returns 0 on success, -1 on error; check `thetadatadx_last_error()`.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_flatfile_request_to_path(
-    handle: *const TdxClient,
+pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
+    handle: *const ThetaDataDxClient,
     sec_type: *const c_char,
     req_type: *const c_char,
     date: *const c_char,
@@ -360,7 +364,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
-        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let unified = unsafe { &*handle };
         match runtime().block_on(unified.inner.flatfile_request(
             sec,

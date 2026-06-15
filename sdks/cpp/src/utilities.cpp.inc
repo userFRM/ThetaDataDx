@@ -2,7 +2,7 @@
 
 GreeksResult all_greeks(double spot, double strike, double rate, double div_yield,
                         double tte, double option_price, const std::string& right) {
-    TdxGreeksResult* raw = tdx_all_greeks(
+    ThetaDataDxGreeksResult* raw = thetadatadx_all_greeks(
         spot,
         strike,
         rate,
@@ -40,7 +40,7 @@ GreeksResult all_greeks(double spot, double strike, double rate, double div_yiel
         raw->epsilon,
         raw->lambda,
     };
-    tdx_greeks_result_free(raw);
+    thetadatadx_greeks_result_free(raw);
     return result;
 }
 
@@ -49,7 +49,7 @@ std::pair<double, double> implied_volatility(double spot, double strike,
                                               double tte, double option_price,
                                               const std::string& right) {
     double iv = 0.0, err = 0.0;
-    int rc = tdx_implied_volatility(spot, strike, rate, div_yield, tte, option_price, right.c_str(), &iv, &err);
+    int rc = thetadatadx_implied_volatility(spot, strike, rate, div_yield, tte, option_price, right.c_str(), &iv, &err);
     if (rc != 0) detail::throw_last_ffi_error();
     return {iv, err};
 }

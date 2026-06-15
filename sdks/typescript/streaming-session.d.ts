@@ -1,7 +1,7 @@
 /**
  * TypeScript surface for the `await using` streaming wrapper.
  *
- * `await using session = await tdx.streaming(callback)` (TC39 explicit
+ * `await using session = await client.streaming(callback)` (TC39 explicit
  * resource management) registers the callback via `startStreaming`
  * and pairs `stopStreaming()` + `awaitDrain(5000)` on dispose, mirroring
  * the C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
@@ -35,7 +35,7 @@ export type Contract = ContractRef;
 // `InvalidParameterError`, ...) is identical to the Python, C++, and C
 // ABI leaf sets, so a `catch` clause ports across bindings by class name
 // — port a Python `except thetadatadx.SubscriptionError` clause to TS by
-// writing `catch (e) { if (e instanceof tdx.SubscriptionError) { ... } }`.
+// writing `catch (e) { if (e instanceof thetadatadx.SubscriptionError) { ... } }`.
 // Python additionally ships two back-compat aliases
 // (`NoDataFoundError` / `TimeoutError`) that have no equivalent here.
 
@@ -78,7 +78,7 @@ export class ConfigError extends ThetaDataError {}
 export type StreamEventCallback = (event: StreamEvent) => void;
 
 /**
- * Context object returned by `tdx.streaming(callback)`. Implements
+ * Context object returned by `client.streaming(callback)`. Implements
  * `Symbol.asyncDispose` so `await using session = ...` blocks pair
  * `startStreaming` (on the awaited factory call) with
  * `stopStreaming() + awaitDrain(5000)` on scope exit. The drain
@@ -101,7 +101,7 @@ export interface StreamingSession extends Client {
 }
 
 export declare const StreamingSession: {
-  new (tdx: Client): StreamingSession;
+  new (client: Client): StreamingSession;
   prototype: StreamingSession;
 };
 
@@ -110,7 +110,7 @@ declare module './index' {
     /**
      * Open a context-managed streaming session.
      *
-     * `await using session = await tdx.streaming(callback)` registers
+     * `await using session = await client.streaming(callback)` registers
      * `callback` via `startStreaming` and pairs `stopStreaming()` +
      * `awaitDrain(5000)` on scope exit, mirroring the C++ RAII
      * destructor in `sdks/cpp/src/thetadx.cpp`. If the drain barrier

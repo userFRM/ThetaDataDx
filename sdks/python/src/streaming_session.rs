@@ -38,7 +38,7 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// and the historical surface live on `Client` only, so the
 /// proxy carries that asymmetry rather than enumerating it here.
 pub(crate) enum StreamableHandle {
-    Tdx(Py<crate::Client>),
+    Unified(Py<crate::Client>),
     Fpss(Py<StreamingClient>),
 }
 
@@ -47,17 +47,17 @@ impl StreamableHandle {
     /// `__getattr__` forwarding of non-lifecycle attributes.
     pub(crate) fn bind_any<'py>(&'py self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
-            Self::Tdx(handle) => handle.bind(py).clone().into_any(),
+            Self::Unified(handle) => handle.bind(py).clone().into_any(),
             Self::Fpss(handle) => handle.bind(py).clone().into_any(),
         }
     }
 
     /// Invoke `start_streaming(callback)` through the typed enum. The
     /// unified-client streaming lifecycle lives on the `client.stream`
-    /// `StreamView` surface, so the `Tdx` arm dispatches through it.
+    /// `StreamView` surface, so the `Unified` arm dispatches through it.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stream().start_streaming(callback),
+            Self::Unified(handle) => handle.borrow(py).stream().start_streaming(callback),
             Self::Fpss(handle) => handle.borrow(py).start_streaming(callback),
         }
     }
@@ -65,7 +65,7 @@ impl StreamableHandle {
     /// Invoke `stop_streaming()` through the typed enum.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stream().stop_streaming(py),
+            Self::Unified(handle) => handle.borrow(py).stream().stop_streaming(py),
             Self::Fpss(handle) => handle.borrow(py).stop_streaming(py),
         }
     }
@@ -76,7 +76,7 @@ impl StreamableHandle {
     /// wait.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stream().await_drain(py, timeout_ms),
+            Self::Unified(handle) => handle.borrow(py).stream().await_drain(py, timeout_ms),
             Self::Fpss(handle) => handle.borrow(py).await_drain(py, timeout_ms),
         }
     }
@@ -98,7 +98,7 @@ pub(crate) struct StreamingSession {
     /// non-lifecycle `__getattr__` proxy still erases the type for
     /// downstream attribute lookup (e.g. `subscribe` / historical
     /// methods).
-    pub(crate) tdx: StreamableHandle,
+    pub(crate) client: StreamableHandle,
     pub(crate) callback: Option<Py<PyAny>>,
 }
 
@@ -114,7 +114,7 @@ impl StreamingSession {
             )
         })?;
         let cb = callback.clone_ref(py);
-        slf.tdx.start_streaming(py, cb)?;
+        slf.client.start_streaming(py, cb)?;
         Ok(slf)
     }
 
@@ -135,13 +135,13 @@ impl StreamingSession {
         // so Python's `with` machinery can pass `None` triplets.
         let _ = (exc_type, exc_value, traceback);
 
-        self.tdx.stop_streaming(py);
+        self.client.stop_streaming(py);
         // `await_drain` releases the GIL internally (see the
         // generated `streaming_methods.rs` and the StreamingClient
         // hand-written equivalent), so the Disruptor consumer can
         // acquire the GIL to finish firing any in-flight callback
         // before flipping the drain bit.
-        let drained = self.tdx.await_drain(py, EXIT_DRAIN_TIMEOUT_MS);
+        let drained = self.client.await_drain(py, EXIT_DRAIN_TIMEOUT_MS);
         // Drop the stored callback now that the consumer is quiesced.
         // Holding it longer would leak a Python reference until the
         // session itself is collected.
@@ -185,13 +185,13 @@ impl StreamingSession {
     /// the session automatically — zero drift surface.
     ///
     /// PyO3 calls `__getattr__` only after the C-level attribute
-    /// lookup fails, so `__enter__` / `__exit__` / `tdx` / `callback`
+    /// lookup fails, so `__enter__` / `__exit__` / `client` / `callback`
     /// defined on this class take precedence and never reach this
     /// proxy.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
-        let bound = self.tdx.bind_any(py);
+        let bound = self.client.bind_any(py);
         // The unified client's subscription / diagnostic surface moved onto
-        // the `client.stream` `StreamView`, so the `Tdx` session arm resolves
+        // the `client.stream` `StreamView`, so the `Unified` session arm resolves
         // a name there first (e.g. `session.subscribe(...)`,
         // `session.active_subscriptions`, `session.active_full_subscriptions`,
         // `session.panic_count`) before falling back to the methods that stay
@@ -238,7 +238,7 @@ impl crate::Client {
         Py::new(
             py,
             StreamingSession {
-                tdx: StreamableHandle::Tdx(slf),
+                client: StreamableHandle::Unified(slf),
                 callback: Some(callback),
             },
         )
@@ -250,7 +250,7 @@ impl crate::Client {
     /// Backs the `session_uuid` entry on `AsyncClient`'s
     /// `__getattr__` allowlist so that proxy resolves to a working call.
     fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
-        let inner = self.tdx.clone();
+        let inner = self.client.clone();
         crate::run_blocking(py, async move { Ok(inner.session_uuid().await) })
     }
 
@@ -268,7 +268,7 @@ impl crate::Client {
     /// Mirrors the upstream
     /// [`thetadatadx::Client::subscription_info`] shape.
     fn subscription_info(&self) -> Vec<(String, String)> {
-        let info = self.tdx.subscription_info();
+        let info = self.client.subscription_info();
         vec![
             ("stock".to_string(), info.stock),
             ("options".to_string(), info.options),

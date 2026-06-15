@@ -17,7 +17,7 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
     // intentionally skipped: its FFI mirror carries a `const char* root`
     // pointer, so the C++ wrapper exposes a `std::string`-backed
     // hand-written struct (see `sdks/cpp/include/thetadx.hpp::OptionContract`)
-    // rather than the FFI-layout `TdxOptionContract`. Adding any other
+    // rather than the FFI-layout `ThetaDataDxOptionContract`. Adding any other
     // tick type to `tick_schema.toml` flows through here automatically.
     for type_name in sorted_type_names(schema) {
         if type_name == "OptionContract" {
@@ -26,11 +26,11 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         let def = &schema.types[type_name];
         let (size, align) = tick_ffi_size_and_align(type_name, def);
         // C++ wrapper exposes the schema type name verbatim under
-        // `thetadatadx::cxx`; the C mirror is `Tdx<TypeName>`. The wrapper
-        // alias is `using <TypeName> = Tdx<TypeName>;` so `sizeof(alias)`
+        // `thetadatadx::cxx`; the C mirror is `ThetaDataDx<TypeName>`. The wrapper
+        // alias is `using <TypeName> = ThetaDataDx<TypeName>;` so `sizeof(alias)`
         // and `offsetof(alias, field)` resolve through the C struct.
         let alias = type_name;
-        let c_name = format!("Tdx{type_name}");
+        let c_name = format!("ThetaDataDx{type_name}");
         writeln!(
             out,
             "static_assert(sizeof({alias}) == {size} && alignof({alias}) == {align},"
@@ -76,7 +76,7 @@ fn pascal_to_snake(name: &str) -> String {
 /// Emit `sdks/cpp/include/tick_arrow_ipc.hpp.inc` — the C++ free functions
 /// that serialise a `std::vector<Tick>` history result to Arrow IPC bytes,
 /// mirroring the `FlatFileRowList::to_arrow_ipc()` terminal. Each wraps the
-/// matching `tdx_<collection>_to_arrow_ipc` C ABI function; the vector's
+/// matching `thetadatadx_<collection>_to_arrow_ipc` C ABI function; the vector's
 /// element type is the layout-pinned C tick struct, so `data()` / `size()`
 /// pass straight through with no copy. This gives the C++ history results
 /// the columnar exit Python already exposes via `<TickName>List.to_arrow()`.
@@ -94,7 +94,7 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         let def = &schema.types[type_name];
         let collection = &def.render.collection;
         let snake = pascal_to_snake(collection);
-        let c_fn = format!("tdx_{snake}_to_arrow_ipc");
+        let c_fn = format!("thetadatadx_{snake}_to_arrow_ipc");
         writeln!(
             out,
             "/// Serialise a `{type_name}` history result as Arrow IPC stream bytes,"
@@ -114,7 +114,7 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         .unwrap();
         writeln!(
             out,
-            "    TdxArrowBytes raw = {c_fn}(rows.data(), rows.size());"
+            "    ThetaDataDxArrowBytes raw = {c_fn}(rows.data(), rows.size());"
         )
         .unwrap();
         // `data == nullptr` is the FFI error sentinel; an empty input still
@@ -124,7 +124,7 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         out.push_str("        detail::throw_last_ffi_error();\n");
         out.push_str("    }\n");
         out.push_str("    std::vector<uint8_t> out(raw.data, raw.data + raw.len);\n");
-        out.push_str("    tdx_arrow_bytes_free(raw);\n");
+        out.push_str("    thetadatadx_arrow_bytes_free(raw);\n");
         out.push_str("    return out;\n");
         out.push_str("}\n\n");
     }
@@ -136,7 +136,7 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
 /// (e.g. `thetadatadx::is_cancelled(const TradeTick&)`). C++ tick rows are C
 /// `#[repr(C)]` struct aliases with no member methods, so the decoded
 /// booleans are free functions in the `thetadatadx::` namespace, mirroring the
-/// existing `thetadatadx::strike(const TdxContract&)` accessor. The predicate
+/// existing `thetadatadx::strike(const ThetaDataDxContract&)` accessor. The predicate
 /// matches the Rust core and the Python / TypeScript projections from
 /// the same schema rows.
 pub(super) fn render_cpp_tick_flag_accessors(schema: &Schema) -> String {

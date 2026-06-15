@@ -4,12 +4,12 @@
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
-    client: *const TdxHistoricalClient,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
+    client: *const ThetaDataDxHistoricalClient,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -22,7 +22,7 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -45,16 +45,16 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -100,14 +100,14 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -125,7 +125,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -148,14 +148,14 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -196,14 +196,14 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -244,14 +244,14 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxMarketValueTickArray {
-    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxMarketValueTickArray {
+    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -292,18 +292,18 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxEodTickArray {
-    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -354,16 +354,16 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -386,7 +386,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -409,16 +409,16 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -441,7 +441,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -464,16 +464,16 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -496,7 +496,7 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -519,16 +519,16 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeQuoteTickArray {
-    ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeQuoteTickArray {
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match ThetaDataDxTradeQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -574,8 +574,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -584,10 +584,10 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 ,
     time_of_day: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -643,8 +643,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -653,10 +653,10 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 ,
     time_of_day: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -689,7 +689,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -712,12 +712,12 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
-    client: *const TdxHistoricalClient,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
+    client: *const ThetaDataDxHistoricalClient,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -730,7 +730,7 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -753,18 +753,18 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_list_dates_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -815,14 +815,14 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -840,7 +840,7 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -863,16 +863,16 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -895,7 +895,7 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -918,18 +918,18 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOptionContractArray {
-    ffi_boundary!(TdxOptionContractArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOptionContractArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOptionContractArray {
+    ffi_boundary!(ThetaDataDxOptionContractArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOptionContractArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -957,7 +957,7 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match TdxOptionContractArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match ThetaDataDxOptionContractArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -980,16 +980,16 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1012,7 +1012,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1035,16 +1035,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1067,7 +1067,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1090,16 +1090,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1122,7 +1122,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1145,16 +1145,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOpenInterestTickArray {
-    ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOpenInterestTickArray {
+    ffi_boundary!(ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1177,7 +1177,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match ThetaDataDxOpenInterestTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1200,16 +1200,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxMarketValueTickArray {
-    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxMarketValueTickArray {
+    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1232,7 +1232,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1255,16 +1255,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxIvTickArray {
-    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxIvTickArray {
+    ffi_boundary!(ThetaDataDxIvTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxIvTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1287,7 +1287,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match ThetaDataDxIvTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1310,16 +1310,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksAllTickArray {
-    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1342,7 +1342,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match ThetaDataDxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1365,16 +1365,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksFirstOrderTickArray {
-    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1397,7 +1397,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1420,16 +1420,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksSecondOrderTickArray {
-    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1452,7 +1452,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1475,16 +1475,16 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksThirdOrderTickArray {
-    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1507,7 +1507,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1530,8 +1530,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_eod_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1540,10 +1540,10 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxEodTickArray {
-    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1576,7 +1576,7 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1599,18 +1599,18 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1638,7 +1638,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1661,18 +1661,18 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1700,7 +1700,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1723,18 +1723,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1762,7 +1762,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1785,18 +1785,18 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeQuoteTickArray {
-    ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeQuoteTickArray {
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1824,7 +1824,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match ThetaDataDxTradeQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1847,18 +1847,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOpenInterestTickArray {
-    ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOpenInterestTickArray {
+    ffi_boundary!(ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1886,7 +1886,7 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match ThetaDataDxOpenInterestTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1909,8 +1909,8 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1919,10 +1919,10 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksEodTickArray {
-    ffi_boundary!(TdxGreeksEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksEodTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksEodTickArray {
+    ffi_boundary!(ThetaDataDxGreeksEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksEodTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1955,7 +1955,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => match TdxGreeksEodTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => match ThetaDataDxGreeksEodTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1978,18 +1978,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksAllTickArray {
-    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2017,7 +2017,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match ThetaDataDxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2040,18 +2040,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeGreeksAllTickArray {
-    ffi_boundary!(TdxTradeGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeGreeksAllTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeGreeksAllTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2079,7 +2079,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => match TdxTradeGreeksAllTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => match ThetaDataDxTradeGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2102,18 +2102,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksFirstOrderTickArray {
-    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2141,7 +2141,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2164,18 +2164,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeGreeksFirstOrderTickArray {
-    ffi_boundary!(TdxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2203,7 +2203,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => match TdxTradeGreeksFirstOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2226,18 +2226,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksSecondOrderTickArray {
-    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2265,7 +2265,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2288,18 +2288,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeGreeksSecondOrderTickArray {
-    ffi_boundary!(TdxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2327,7 +2327,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => match TdxTradeGreeksSecondOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2350,18 +2350,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksThirdOrderTickArray {
-    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2389,7 +2389,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2412,18 +2412,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeGreeksThirdOrderTickArray {
-    ffi_boundary!(TdxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2451,7 +2451,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => match TdxTradeGreeksThirdOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2474,18 +2474,18 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxIvTickArray {
-    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxIvTickArray {
+    ffi_boundary!(ThetaDataDxIvTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxIvTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2513,7 +2513,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match ThetaDataDxIvTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2536,18 +2536,18 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeGreeksImpliedVolatilityTickArray {
-    ffi_boundary!(TdxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeGreeksImpliedVolatilityTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2575,7 +2575,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => match TdxTradeGreeksImpliedVolatilityTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => match ThetaDataDxTradeGreeksImpliedVolatilityTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2598,8 +2598,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2610,10 +2610,10 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 ,
     time_of_day: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxTradeTickArray {
-    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxTradeTickArray {
+    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2651,7 +2651,7 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2674,8 +2674,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2686,10 +2686,10 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 ,
     time_of_day: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxQuoteTickArray {
-    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxQuoteTickArray {
+    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2727,7 +2727,7 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2750,12 +2750,12 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
-    client: *const TdxHistoricalClient,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
+    client: *const ThetaDataDxHistoricalClient,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2768,7 +2768,7 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2791,14 +2791,14 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_list_dates_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxStringArray {
-    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxStringArray {
+    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2816,7 +2816,7 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2839,14 +2839,14 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2864,7 +2864,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2887,14 +2887,14 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxPriceTickArray {
-    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxPriceTickArray {
+    ffi_boundary!(ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2912,7 +2912,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match ThetaDataDxPriceTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2935,14 +2935,14 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbols: *const *const c_char,
     symbols_len: usize,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxMarketValueTickArray {
-    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxMarketValueTickArray {
+    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2960,7 +2960,7 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2983,18 +2983,18 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_eod_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxEodTickArray {
-    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3022,7 +3022,7 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3045,18 +3045,18 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3084,7 +3084,7 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3107,16 +3107,16 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_history_price_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxPriceTickArray {
-    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxPriceTickArray {
+    ffi_boundary!(ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3139,7 +3139,7 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match ThetaDataDxPriceTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3162,8 +3162,8 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3172,10 +3172,10 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 ,
     time_of_day: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxIndexPriceAtTimeTickArray {
-    ffi_boundary!(TdxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxIndexPriceAtTimeTickArray {
+    ffi_boundary!(ThetaDataDxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3208,7 +3208,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => match TdxIndexPriceAtTimeTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => match ThetaDataDxIndexPriceAtTimeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3231,12 +3231,12 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
-    client: *const TdxHistoricalClient,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxCalendarDayArray {
-    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
+    client: *const ThetaDataDxHistoricalClient,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxCalendarDayArray {
+    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3249,7 +3249,7 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3272,14 +3272,14 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxCalendarDayArray {
-    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxCalendarDayArray {
+    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3297,7 +3297,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3320,14 +3320,14 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_calendar_year_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     year: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxCalendarDayArray {
-    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxCalendarDayArray {
+    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3345,7 +3345,7 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3368,18 +3368,18 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxInterestRateTickArray {
-    ffi_boundary!(TdxInterestRateTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxInterestRateTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxInterestRateTickArray {
+    ffi_boundary!(ThetaDataDxInterestRateTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxInterestRateTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3407,7 +3407,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match TdxInterestRateTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match ThetaDataDxInterestRateTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3430,18 +3430,18 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
-pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
-    client: *const TdxHistoricalClient,
+pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_with_options(
+    client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
 ,
     end_date: *const c_char
 ,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxOhlcTickArray {
-    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> ThetaDataDxOhlcTickArray {
+    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3469,7 +3469,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));

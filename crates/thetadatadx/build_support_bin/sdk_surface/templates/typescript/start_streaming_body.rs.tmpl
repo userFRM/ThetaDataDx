@@ -22,7 +22,7 @@
         let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.tdx
+        self.client
             .stream()
             .start_streaming(move |event: &fpss::StreamEvent| {
                 // Convert to the typed `StreamEvent` napi object on the

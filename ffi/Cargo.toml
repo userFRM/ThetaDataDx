@@ -19,12 +19,12 @@ workspace = true
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [features]
-# Expose a pair of `extern "C"` symbols (`tdx_test_panic_str` and
-# `tdx_test_panic_string`) that deliberately panic inside the
+# Expose a pair of `extern "C"` symbols (`thetadatadx_test_panic_str` and
+# `thetadatadx_test_panic_string`) that deliberately panic inside the
 # `ffi_boundary!` wrapper. Used only by the integration test at
 # `tests/panic_boundary.rs` to verify that panics crossing the FFI
 # boundary are caught, that the default return value is emitted, and
-# that `tdx_last_error()` surfaces the panic payload. Off by default so
+# that `thetadatadx_last_error()` surfaces the panic payload. Off by default so
 # the shared library shipped to SDK consumers never carries a
 # "panic-on-demand" symbol.
 testing-panic-boundary = []
@@ -34,7 +34,7 @@ thetadatadx = { path = "../crates/thetadatadx", features = ["arrow", "__internal
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 arrow-ipc = "59.0.0"
 # Used by the FPSS streaming callback silent-drop observability path
-# (see `tdx_streaming_dropped_events` / `tdx_client_dropped_events`). Keep
+# (see `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events`). Keep
 # pinned to the same major/minor as the parent crate so the target that
 # `tracing::debug!` writes to is filterable with a single
 # `RUST_LOG=thetadatadx=debug` directive.

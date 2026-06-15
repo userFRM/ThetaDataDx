@@ -73,7 +73,7 @@ pub(super) fn sorted_data_event_names(schema: &Schema) -> Vec<&str> {
 
 /// Iterate schema variants in a stable order, yielding only `kind = "data"`
 /// entries. The Rust-FFI, C-header, and Go emitters all share this ordering
-/// so the tagged-struct `TdxStreamEvent` / `StreamEvent` layouts line up across
+/// so the tagged-struct `ThetaDataDxStreamEvent` / `StreamEvent` layouts line up across
 /// languages without manual coordination.
 pub(super) fn sorted_data_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
     let mut out: Vec<(&str, &EventDef)> = schema

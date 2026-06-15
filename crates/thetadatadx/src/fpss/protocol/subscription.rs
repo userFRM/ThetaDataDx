@@ -64,7 +64,7 @@ impl SubscriptionKind {
     /// identical across every binding.
     ///
     /// This is the single source of the per-contract subscription-kind
-    /// string the C ABI (`tdx_unified_active_subscriptions`), the C++
+    /// string the C ABI (`thetadatadx_unified_active_subscriptions`), the C++
     /// `FluentSubscription::kind_string`, and the Python / TypeScript
     /// `Subscription.kind` accessors all surface. Returning a fixed label
     /// here keeps the bindings from drifting onto the enum's `Debug`
@@ -131,7 +131,7 @@ impl FullSubscriptionKind {
     /// open-interest subscription never renders the same label as a
     /// per-contract one (both would be the bare enum `Debug` spelling
     /// `OpenInterest` otherwise). The C ABI
-    /// (`tdx_unified_active_full_subscriptions`), the C++
+    /// (`thetadatadx_unified_active_full_subscriptions`), the C++
     /// `FluentSubscription::kind_string`, and the Python / TypeScript
     /// `Subscription.kind` accessors all read this label.
     #[must_use]

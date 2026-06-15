@@ -1,8 +1,8 @@
-// MDDS pool-sizing setter on `Config`.
+// Historical pool-sizing setter on `Config`.
 //
 // Locks the contract that the `concurrentRequests` property exposed
 // by the `Config` napi class round-trips through napi-rs to the
-// underlying Rust `MddsConfig` correctly.
+// underlying Rust `HistoricalConfig` correctly.
 //
 // Live behaviour (the tier clamp at connect time) is covered by the
 // Rust unit tests under `mdds::client::pool_size_tests`; this file

@@ -1,7 +1,7 @@
 //! C mirror header emitter (`sdks/cpp/include/fpss_event_structs.h.inc`).
 //!
 //! Emits one C struct per `kind = "control"` schema entry, alongside the
-//! data-variant structs. The tagged `TdxStreamEvent` embeds all of them by
+//! data-variant structs. The tagged `ThetaDataDxStreamEvent` embeds all of them by
 //! value; consumers dispatch on `event.kind` and read the matching
 //! `event.<variant>` field.
 
@@ -12,14 +12,14 @@ use super::schema::{
     sorted_control_events, sorted_data_events, sorted_event_names, EventDef, Schema,
 };
 
-/// Emit the `TdxStreamEventKind` C enum. One discriminant per variant,
+/// Emit the `ThetaDataDxStreamEventKind` C enum. One discriminant per variant,
 /// schema-driven.
 fn render_kind_enum_c(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
         "/* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.\n\
  * Check `event.kind` then read the matching `event.<variant>` field on\n\
- * `TdxStreamEvent`. Values are stable across the v9.x C ABI but may\n\
+ * `ThetaDataDxStreamEvent`. Values are stable across the v9.x C ABI but may\n\
  * renumber on a future major bump. */\n",
     );
     out.push_str("typedef enum {\n");
@@ -28,12 +28,12 @@ fn render_kind_enum_c(schema: &Schema) -> String {
         let upper = snake_case(name).to_uppercase();
         writeln!(out, "    TDX_FPSS_{upper} = {idx},").unwrap();
     }
-    out.push_str("} TdxStreamEventKind;\n\n");
+    out.push_str("} ThetaDataDxStreamEventKind;\n\n");
     out
 }
 
-/// Emit the C `TdxContract` struct mirrored from the Rust
-/// `#[repr(C)] TdxContract`. Layout must match field-for-field with
+/// Emit the C `ThetaDataDxContract` struct mirrored from the Rust
+/// `#[repr(C)] ThetaDataDxContract`. Layout must match field-for-field with
 /// `render_contract_struct_rust` in `ffi_rust.rs`.
 fn render_contract_struct_c() -> &'static str {
     "/* FPSS Contract shared across every data event. `symbol` is a\n\
@@ -42,7 +42,7 @@ fn render_contract_struct_c() -> &'static str {
  * Option<T>. `right` is `'C'` / `'P'` (NUL when `has_right` is false)\n\
  * and `strike` is the option strike in dollars — the same notation\n\
  * the public option builder takes. Layout is byte-identical to Rust's\n\
- * #[repr(C)] TdxContract.\n\
+ * #[repr(C)] ThetaDataDxContract.\n\
  */\n\
 typedef struct {\n\
     const char *symbol;\n\
@@ -53,10 +53,10 @@ typedef struct {\n\
     char right;\n\
     bool has_strike;\n\
     double strike;\n\
-} TdxContract;\n\n"
+} ThetaDataDxContract;\n\n"
 }
 
-/// Emit one `typedef struct { ... } TdxStream<Variant>;` for a data or
+/// Emit one `typedef struct { ... } ThetaDataDxStream<Variant>;` for a data or
 /// control variant. Empty (unit) control variants get a single
 /// `uint8_t _padding;` so MSVC / Clang / GCC all agree on `sizeof == 1`.
 fn render_event_struct_c(out: &mut String, event_name: &str, def: &EventDef) {
@@ -80,7 +80,7 @@ fn render_event_struct_c(out: &mut String, event_name: &str, def: &EventDef) {
             }
         }
     }
-    writeln!(out, "}} TdxStream{event_name};\n").unwrap();
+    writeln!(out, "}} ThetaDataDxStream{event_name};\n").unwrap();
 }
 
 /// Emit the C mirror of the Rust FFI event structs. `#include`'d from
@@ -115,16 +115,16 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
     out.push_str(" * matching `event.<variant>` field. Per-variant control payloads\n");
     out.push_str(" * mirror the Rust `StreamControl::*` enum one-for-one. */\n");
     out.push_str("typedef struct {\n");
-    out.push_str("    TdxStreamEventKind kind;\n");
+    out.push_str("    ThetaDataDxStreamEventKind kind;\n");
     for (event_name, _) in sorted_data_events(schema) {
         let field = snake_case(event_name);
-        writeln!(out, "    TdxStream{event_name} {field};").unwrap();
+        writeln!(out, "    ThetaDataDxStream{event_name} {field};").unwrap();
     }
     for (event_name, _) in sorted_control_events(schema) {
         let field = snake_case(event_name);
-        writeln!(out, "    TdxStream{event_name} {field};").unwrap();
+        writeln!(out, "    ThetaDataDxStream{event_name} {field};").unwrap();
     }
-    out.push_str("} TdxStreamEvent;\n");
+    out.push_str("} ThetaDataDxStreamEvent;\n");
 
     out
 }

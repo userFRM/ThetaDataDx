@@ -36,7 +36,7 @@ if (examples.length === 0) {
   process.exit(0);
 }
 
-const scratch = mkdtempSync(join(tmpdir(), "tdx-doc-"));
+const scratch = mkdtempSync(join(tmpdir(), "thetadatadx-doc-"));
 try {
   let failed = 0;
   for (let i = 0; i < examples.length; i++) {

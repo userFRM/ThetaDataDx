@@ -1,7 +1,7 @@
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_option_contract_array_free(arr);
+            thetadatadx_option_contract_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
@@ -15,6 +15,6 @@
         c.right = static_cast<char>(arr.data[i].right);
         result.push_back(std::move(c));
     }
-    tdx_option_contract_array_free(arr);
+    thetadatadx_option_contract_array_free(arr);
     return result;
 }

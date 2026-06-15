@@ -31,8 +31,7 @@ use tokio::sync::OnceCell;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, Client,
-    ENDPOINTS,
+    param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, ENDPOINTS,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1054,7 +1053,7 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client, name, &converted_args).await {
+    let output = match endpoint::invoke_endpoint(client.historical(), name, &converted_args).await {
         Ok(output) => output,
         Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));

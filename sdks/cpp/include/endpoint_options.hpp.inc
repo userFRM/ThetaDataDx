@@ -150,7 +150,7 @@ struct EndpointRequestOptions {
 namespace detail {
 
 struct FfiEndpointRequestOptions {
-    TdxEndpointRequestOptions raw{};
+    ThetaDataDxEndpointRequestOptions raw{};
     std::string venue_storage;
     std::string min_time_storage;
     std::string interval_storage;

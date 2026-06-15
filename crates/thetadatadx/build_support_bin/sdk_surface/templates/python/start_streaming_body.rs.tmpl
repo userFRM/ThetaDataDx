@@ -23,7 +23,7 @@
         // call `record_panic()` when the Python callback raises an exception.
         // A `PyErr` is not a Rust panic; it does not unwind through
         // `catch_unwind`, so the core counter is only bumped here.
-        let panic_recorder = Arc::clone(&self.tdx);
+        let panic_recorder = Arc::clone(&self.client);
 
         // GIL once per batch, not per event. `start_streaming_scoped`
         // brackets each consumer batch drain in the `Python::attach`
@@ -45,7 +45,7 @@
         // Python exceptions raised by the callback are caught via `call1`
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
-        self.tdx
+        self.client
             .stream()
             .start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {

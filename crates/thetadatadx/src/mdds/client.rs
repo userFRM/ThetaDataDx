@@ -39,9 +39,9 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// # async fn run() -> Result<(), thetadatadx::Error> {
 /// let creds = Credentials::from_file("creds.txt")?;
-/// let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+/// let client = Client::connect(&creds, DirectConfig::production()).await?;
 ///
-/// let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+/// let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }
@@ -117,12 +117,13 @@ impl HistoricalClient {
         );
 
         // Step 2: Open the gRPC channel pool to MDDS.
-        let host = config.mdds.host.clone();
-        let port = config.mdds.port;
-        tracing::debug!(host = %host, port, tls = config.mdds.tls, "connecting to MDDS");
+        let host = config.historical.host.clone();
+        let port = config.historical.port;
+        tracing::debug!(host = %host, port, tls = config.historical.tls, "connecting to MDDS");
 
         let pool_size = effective_pool_size(&config, &auth_resp);
-        let channels = open_channel_pool(&host, port, config.mdds.tls, pool_size, &config).await?;
+        let channels =
+            open_channel_pool(&host, port, config.historical.tls, pool_size, &config).await?;
         tracing::info!(
             pool_size,
             "MDDS channel pool connected ({} h2 connections)",
@@ -143,7 +144,7 @@ impl HistoricalClient {
 
         tracing::debug!(
             mdds_concurrent_requests = pool_size,
-            auto_detected = config.mdds.concurrent_requests == 0,
+            auto_detected = config.historical.concurrent_requests == 0,
             "request semaphore initialized"
         );
 
@@ -330,7 +331,7 @@ impl HistoricalClient {
 /// surfaces the misconfiguration as a `tracing::warn!` on connect and
 /// keeps the live pool inside the tier's headroom.
 ///
-/// The `override_tier_clamp` escape hatch on `MddsConfig` bypasses
+/// The `override_tier_clamp` escape hatch on `HistoricalConfig` bypasses
 /// the clamp — test-only, used to reproduce the over-provisioning
 /// failure mode against a stubbed auth response.
 ///
@@ -347,7 +348,7 @@ fn effective_pool_size(
     auth_resp: &crate::auth::nexus::AuthResponse,
 ) -> usize {
     const DEFAULT_POOL_SIZE: usize = 4;
-    let from_config = config.mdds.concurrent_requests;
+    let from_config = config.historical.concurrent_requests;
     let from_tier = auth_resp
         .user
         .as_ref()
@@ -358,12 +359,12 @@ fn effective_pool_size(
         // confusing per-RPC `ResourceExhausted` rejections downstream.
         // The escape hatch (`override_tier_clamp`) bypasses the clamp
         // for tests that need to reproduce the misconfiguration.
-        if from_tier > 0 && !config.mdds.override_tier_clamp && from_config > from_tier {
+        if from_tier > 0 && !config.historical.override_tier_clamp && from_config > from_tier {
             tracing::warn!(
                 configured = from_config,
                 tier_cap = from_tier,
                 "mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap; \
-                 set MddsConfig.override_tier_clamp = true to bypass (tests only)"
+                 set HistoricalConfig.override_tier_clamp = true to bypass (tests only)"
             );
             return from_tier;
         }
@@ -381,7 +382,7 @@ fn effective_pool_size(
 /// failure on the first call fails the whole pool fast rather than
 /// leaving a half-built pool behind.
 ///
-/// Each channel is built with `config.mdds.max_message_size` so the
+/// Each channel is built with `config.historical.max_message_size` so the
 /// configured per-frame ceiling propagates to every RPC dispatched on
 /// the pool — oversized response frames are rejected by the decode
 /// layer rather than buffered past the configured bound.
@@ -398,21 +399,26 @@ async fn open_channel_pool(
     pool_size: usize,
     config: &DirectConfig,
 ) -> Result<ChannelPool, Error> {
-    let connect_timeout = Duration::from_secs(config.mdds.connect_timeout_secs);
-    let max_message_size = config.mdds.max_message_size;
+    let connect_timeout = Duration::from_secs(config.historical.connect_timeout_secs);
+    let max_message_size = config.historical.max_message_size;
     // HTTP/2 session tuning from the operator's config: flow-control
     // windows (`window_size_kb` / `connection_window_size_kb`, already
     // clamped to [64, 1024] KB by `DirectConfig::validate`) and the
     // keepalive cadence (`keepalive_secs` / `keepalive_timeout_secs`).
     let tuning = ChannelTuning {
-        initial_stream_window_size: u32::try_from(config.mdds.window_size_kb.saturating_mul(1024))
-            .unwrap_or(u32::MAX),
-        initial_connection_window_size: u32::try_from(
-            config.mdds.connection_window_size_kb.saturating_mul(1024),
+        initial_stream_window_size: u32::try_from(
+            config.historical.window_size_kb.saturating_mul(1024),
         )
         .unwrap_or(u32::MAX),
-        keepalive_interval: Duration::from_secs(config.mdds.keepalive_secs.max(1)),
-        keepalive_timeout: Duration::from_secs(config.mdds.keepalive_timeout_secs.max(1)),
+        initial_connection_window_size: u32::try_from(
+            config
+                .historical
+                .connection_window_size_kb
+                .saturating_mul(1024),
+        )
+        .unwrap_or(u32::MAX),
+        keepalive_interval: Duration::from_secs(config.historical.keepalive_secs.max(1)),
+        keepalive_timeout: Duration::from_secs(config.historical.keepalive_timeout_secs.max(1)),
     };
     // `rustls::ClientConfig` is designed for `Arc` sharing across
     // connections — the root store + ALPN list are immutable after
@@ -440,10 +446,10 @@ async fn open_channel_pool(
             .await
             .map_err(|_| {
                 Error::config_invalid(
-                    "mdds.connect_timeout_secs",
+                    "historical.connect_timeout_secs",
                     format!(
                         "tls connect to {host}:{port} timed out after {}s",
-                        config.mdds.connect_timeout_secs
+                        config.historical.connect_timeout_secs
                     ),
                 )
             })?
@@ -455,10 +461,10 @@ async fn open_channel_pool(
             .await
             .map_err(|_| {
                 Error::config_invalid(
-                    "mdds.connect_timeout_secs",
+                    "historical.connect_timeout_secs",
                     format!(
                         "h2c connect to {host}:{port} timed out after {}s",
-                        config.mdds.connect_timeout_secs
+                        config.historical.connect_timeout_secs
                     ),
                 )
             })?
@@ -541,7 +547,7 @@ mod pool_size_tests {
         // explicit caller intent is below the tier cap, so honour it
         // exactly without inflating.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 1;
+        config.historical.concurrent_requests = 1;
         let auth = auth_with_tier(Some(3));
         assert_eq!(effective_pool_size(&config, &auth), 1);
     }
@@ -553,7 +559,7 @@ mod pool_size_tests {
         // tier (subscription byte 2 -> 4 concurrent) supplies the
         // default.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 0;
+        config.historical.concurrent_requests = 0;
         let auth = auth_with_tier(Some(2));
         assert_eq!(effective_pool_size(&config, &auth), 4);
     }
@@ -563,7 +569,7 @@ mod pool_size_tests {
         // Auto-detect + no auth user — hardcoded `4` is the last
         // resort.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 0;
+        config.historical.concurrent_requests = 0;
         let auth = AuthResponse {
             session_id: "session".to_string(),
             user: None,
@@ -581,7 +587,7 @@ mod pool_size_tests {
         // never surface — the local warn is the SDK's friendly
         // boundary against the server-side cap.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 32;
+        config.historical.concurrent_requests = 32;
         let auth = auth_with_tier(Some(0));
         assert_eq!(effective_pool_size(&config, &auth), 1);
     }
@@ -591,7 +597,7 @@ mod pool_size_tests {
     fn explicit_above_pro_cap_clamped_to_pro() {
         // Pro tier permits 8. Caller asks for 16. Clamp to 8.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 16;
+        config.historical.concurrent_requests = 16;
         let auth = auth_with_tier(Some(3));
         assert_eq!(effective_pool_size(&config, &auth), 8);
     }
@@ -605,8 +611,8 @@ mod pool_size_tests {
         // passes through unmodified — useful for asserting downstream
         // behaviour against an explicitly mis-sized pool.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 16;
-        config.mdds.override_tier_clamp = true;
+        config.historical.concurrent_requests = 16;
+        config.historical.override_tier_clamp = true;
         let auth = auth_with_tier(Some(0));
         assert_eq!(effective_pool_size(&config, &auth), 16);
     }
@@ -618,7 +624,7 @@ mod pool_size_tests {
         // configured value passes through. The default-pool fallback
         // only triggers for `concurrent_requests = 0`.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 16;
+        config.historical.concurrent_requests = 16;
         let auth = AuthResponse {
             session_id: "session".to_string(),
             user: None,

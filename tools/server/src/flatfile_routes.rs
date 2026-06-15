@@ -192,7 +192,7 @@ async fn serve_flatfile(
     let (scratch_path, final_path) = flatfile_paths(sec_type, req_type, date, format);
 
     let written_scratch = match state
-        .tdx()
+        .client()
         .flatfile_request(sec_type, req_type, date, &scratch_path, format)
         .await
     {
@@ -278,12 +278,12 @@ pub(crate) fn flatfile_paths(
     format: FlatFileFormat,
 ) -> (PathBuf, PathBuf) {
     let final_path = std::env::temp_dir().join(format!(
-        "tdx_server_flatfile_{sec_type}_{}_{date}.{}",
+        "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}",
         req_type as u32,
         format.extension(),
     ));
     let scratch_path = std::env::temp_dir().join(format!(
-        "tdx_server_flatfile_{sec_type}_{}_{date}.{}.{}.partial",
+        "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}.{}.partial",
         req_type as u32,
         format.extension(),
         {
@@ -367,7 +367,7 @@ mod tests {
         const N: usize = 16;
         const PAYLOAD_LEN: usize = 1 << 16;
 
-        let dir = std::env::temp_dir().join(format!("tdx_server_flatfile_race_{}", {
+        let dir = std::env::temp_dir().join(format!("thetadatadx_server_flatfile_race_{}", {
             let bytes: [u8; 16] = rand::random();
             bytes.iter().fold(String::with_capacity(32), |mut s, b| {
                 use std::fmt::Write;

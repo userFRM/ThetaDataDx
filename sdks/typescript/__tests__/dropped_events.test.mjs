@@ -4,7 +4,7 @@
 // registration via `startStreaming(callback)`. The dropped-event
 // counter forwards to `thetadatadx::Client::dropped_event_count`
 // (which counts `Producer::try_publish` overflow on the LMAX Disruptor
-// ring) and is surfaced to JS as `tdx.stream.droppedEventCount(): bigint`.
+// ring) and is surfaced to JS as `client.stream.droppedEventCount(): bigint`.
 //
 // This test pins the contract: the getter is callable before
 // streaming, after `startStreaming(callback)`, after a subsequent
@@ -29,7 +29,7 @@ try {
   process.exit(1);
 }
 
-describe('tdx.stream.droppedEventCount()', () => {
+describe('client.stream.droppedEventCount()', () => {
   it('is callable before/after startStreaming and after reconnect', async () => {
     const credsPath = process.env.THETADX_TEST_CREDS;
     if (!credsPath) {
@@ -40,12 +40,12 @@ describe('tdx.stream.droppedEventCount()', () => {
       return;
     }
 
-    const tdx = mod.Client.connectFromFile(credsPath);
+    const client = mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so the count is
     // 0. Must already be readable (the getter forwards to the unified
     // client, which returns 0 when the streaming slot is empty).
-    const pre = tdx.stream.droppedEventCount();
+    const pre = client.stream.droppedEventCount();
     assert.equal(typeof pre, 'bigint', 'droppedEventCount() must return bigint');
     assert.ok(pre >= 0n, 'pre-stream count must be non-negative');
     assert.equal(pre, 0n, 'pre-stream count must be 0 -- nothing has dropped');
@@ -55,15 +55,15 @@ describe('tdx.stream.droppedEventCount()', () => {
     // `ThreadsafeFunction` queue; we don't assert anything about it
     // here because the live FPSS feed timing is non-deterministic.
     let received = 0n;
-    tdx.stream.startStreaming(() => {
+    client.stream.startStreaming(() => {
       received += 1n;
     });
-    const postStart = tdx.stream.droppedEventCount();
+    const postStart = client.stream.droppedEventCount();
     assert.equal(typeof postStart, 'bigint');
     assert.ok(postStart >= 0n);
 
-    tdx.stream.reconnect();
-    const postReconnect = tdx.stream.droppedEventCount();
+    client.stream.reconnect();
+    const postReconnect = client.stream.droppedEventCount();
     assert.equal(typeof postReconnect, 'bigint');
     // The counter lives on the live FPSS client; reconnect calls
     // stop_streaming + start_streaming, which recreates the FPSS
@@ -73,8 +73,8 @@ describe('tdx.stream.droppedEventCount()', () => {
     // detail we explicitly do NOT promise.
     assert.ok(postReconnect >= 0n);
 
-    tdx.stream.stopStreaming();
-    const postStop = tdx.stream.droppedEventCount();
+    client.stream.stopStreaming();
+    const postStop = client.stream.droppedEventCount();
     assert.equal(typeof postStop, 'bigint');
     // Still readable after stop_streaming clears the streaming slot;
     // forwarder returns 0 in that state.
@@ -91,14 +91,14 @@ describe('tdx.stream.droppedEventCount()', () => {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const tdx = mod.Client.connectFromFile(credsPath);
-    tdx.stream.startStreaming(() => {});
+    const client = mod.Client.connectFromFile(credsPath);
+    client.stream.startStreaming(() => {});
     assert.throws(
-      () => tdx.stream.startStreaming(() => {}),
+      () => client.stream.startStreaming(() => {}),
       /streaming already started/,
       'second startStreaming must reject with the napi error'
     );
-    tdx.stream.stopStreaming();
+    client.stream.stopStreaming();
   });
 
   it('reconnect without prior startStreaming throws', () => {
@@ -107,9 +107,9 @@ describe('tdx.stream.droppedEventCount()', () => {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const tdx = mod.Client.connectFromFile(credsPath);
+    const client = mod.Client.connectFromFile(credsPath);
     assert.throws(
-      () => tdx.stream.reconnect(),
+      () => client.stream.reconnect(),
       /no callback registered/,
       'reconnect without startStreaming must require a callback'
     );

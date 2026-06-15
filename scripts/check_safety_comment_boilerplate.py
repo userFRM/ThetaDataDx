@@ -247,8 +247,8 @@ def _selftest() -> int:
         "ownership / lifetime is managed entirely outside Rust"
     )
     genuine = (
-        "the pointer was returned by `tdx_session_new` and refers to a "
-        "`Box<Session>` whose lifetime is bounded by `tdx_session_free`; "
+        "the pointer was returned by `thetadatadx_session_new` and refers to a "
+        "`Box<Session>` whose lifetime is bounded by `thetadatadx_session_free`; "
         "no aliasing mutator runs concurrently"
     )
 
@@ -306,7 +306,7 @@ fn d() {{
         if "the caller upholds" not in body:
             print(f"selftest FAILED: flagged the wrong bucket ({body!r})")
             return 1
-        if any("tdx_session_new" in b for (b, _) in flagged):
+        if any("thetadatadx_session_new" in b for (b, _) in flagged):
             print("selftest FAILED: genuine annotation was flagged")
             return 1
 

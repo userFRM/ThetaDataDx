@@ -26,7 +26,7 @@
 //!    returning a typed list wrapper (`<TickName>List` / `StringList`).
 //!    DataFrame terminals (`to_polars`, `to_arrow`, `to_pandas`,
 //!    `to_list`) live on the wrapper, so builder users write
-//!    `tdx.stock_history_eod_builder(...).list().to_polars()` instead
+//!    `client.stock_history_eod_builder(...).list().to_polars()` instead
 //!    of four parallel terminal methods.
 //!
 //! Every docstring in the three variants is produced by `compose_endpoint_doc`
@@ -334,7 +334,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
         writeln!(
             out,
-            "            let call = self.tdx.historical().{}({});",
+            "            let call = self.client.historical().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -371,7 +371,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "        let mut request = self.tdx.historical().{}({});",
+        "        let mut request = self.client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -494,7 +494,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     // Clone the Arc<thetadatadx::Client> handle into the closure — the
     // inner client is not Clone but the Arc is, and the builder pyclass
     // pattern elsewhere in this file relies on the same contract.
-    out.push_str("        let tdx = self.tdx.clone();\n");
+    out.push_str("        let client = self.client.clone();\n");
 
     // `spawn_awaitable` is the hand-written async twin of `run_blocking` —
     // it wraps `pyo3_async_runtimes::tokio::future_into_py`, routes
@@ -540,7 +540,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         let _ = leading_comma_args;
         writeln!(
             out,
-            "            let call = tdx.historical().{}({});",
+            "            let call = client.historical().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -590,7 +590,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "            let mut request = tdx.historical().{}({});",
+        "            let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -774,7 +774,7 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     writeln!(out, "pub struct {struct_name} {{").unwrap();
     // Same Arc the parent `Client` pyclass stores — cheap to clone,
     // so the async terminal can move it into the future.
-    out.push_str("    tdx: std::sync::Arc<thetadatadx::Client>,\n");
+    out.push_str("    client: std::sync::Arc<thetadatadx::Client>,\n");
     for param in &method_params {
         if param.param_type == "Symbols" {
             out.push_str("    symbols: Vec<String>,\n");
@@ -1129,7 +1129,7 @@ fn write_stream_dispatch_setup(
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
-    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     if has_symbols {
         writeln!(out, "{indent}let symbols = self.symbols.clone();").unwrap();
     } else {
@@ -1156,7 +1156,7 @@ fn write_stream_dispatch_setup(
 }
 
 /// Shared request-builder emit: turns the cloned state into a
-/// `tdx.<endpoint>(...)` builder with every chained setter applied.
+/// `client.<endpoint>(...)` builder with every chained setter applied.
 /// Lives inside the spawned future / `run_blocking` body; consumed by
 /// the `.stream(handler)` call right after.
 fn write_stream_request_setup(
@@ -1189,7 +1189,7 @@ fn write_stream_request_setup(
         .join(", ");
     writeln!(
         out,
-        "{indent}let mut request = tdx.historical().{}({});",
+        "{indent}let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1213,7 +1213,7 @@ fn write_stream_request_setup(
     writeln!(out, "{indent}}}").unwrap();
 }
 
-/// Builder constructor emitted on `Client` — `tdx.name_builder(...)` is
+/// Builder constructor emitted on `Client` — `client.name_builder(...)` is
 /// the Python entry point that yields a `NameBuilder`. Required params are
 /// passed positionally (same order as the typed endpoint); optionals are
 /// chained after construction.
@@ -1259,7 +1259,7 @@ fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
     }
     writeln!(out, "    ) -> {} {{", struct_name).unwrap();
     writeln!(out, "        {} {{", struct_name).unwrap();
-    out.push_str("            tdx: self.tdx.clone(),\n");
+    out.push_str("            client: self.client.clone(),\n");
     for param in &method_params {
         if param.param_type == "Symbols" {
             out.push_str("            symbols: symbols.into_vec(),\n");
@@ -1321,7 +1321,7 @@ fn write_sync_list_dispatch(
     } else {
         format!(", {positional_args}")
     };
-    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
     // Rebuild the args vector inside the closure so the closure owns every
     // dependency at move time.
@@ -1374,7 +1374,7 @@ fn write_sync_list_dispatch(
     let _ = leading_comma_args_closure;
     writeln!(
         out,
-        "{indent}    let call = tdx.historical().{}({});",
+        "{indent}    let call = client.historical().{}({});",
         endpoint.name, positional_args_closure
     )
     .unwrap();
@@ -1407,7 +1407,7 @@ fn write_async_list_dispatch(
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
-    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     if has_symbols {
         writeln!(out, "{indent}let symbols = self.symbols.clone();").unwrap();
     } else {
@@ -1452,7 +1452,7 @@ fn write_async_list_dispatch(
     let _ = leading_comma_args;
     writeln!(
         out,
-        "{indent}    let call = tdx.historical().{}({});",
+        "{indent}    let call = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1492,7 +1492,7 @@ fn write_sync_parsed_dispatch(
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
-    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     if has_symbols {
         writeln!(out, "{indent}let symbols = self.symbols.clone();").unwrap();
     } else {
@@ -1541,7 +1541,7 @@ fn write_sync_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = tdx.historical().{}({});",
+        "{indent}    let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1610,7 +1610,7 @@ fn write_async_parsed_dispatch(
     is_streaming_kind: bool,
     indent: &str,
 ) {
-    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     for param in method_params {
         if param.param_type == "Symbols" {
             writeln!(out, "{indent}let symbols = self.symbols.clone();").unwrap();
@@ -1661,7 +1661,7 @@ fn write_async_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = tdx.historical().{}({});",
+        "{indent}    let mut request = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();

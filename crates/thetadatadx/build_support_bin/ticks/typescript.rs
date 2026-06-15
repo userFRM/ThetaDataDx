@@ -382,7 +382,7 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
     }
     // Resolve each `*_timestamp_ms` epoch value once at conversion time
     // through the shared DST-aware core (`thetadatadx::time::date_ms_to_epoch_ms`,
-    // the same function the Python accessor and the `tdx_timestamp_ms`
+    // the same function the Python accessor and the `thetadatadx_timestamp_ms`
     // FFI call) and ride it as a precomputed `Option<BigInt>` field — no
     // date math is reimplemented in the binding.
     for (accessor, field) in timestamp_accessor_fields(def) {

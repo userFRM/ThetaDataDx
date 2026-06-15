@@ -39,7 +39,7 @@ SLOW_MODE_TIMEOUT_MS = 180_000
 SUBPROCESS_KILL_SECS = (SLOW_MODE_TIMEOUT_MS * 3) // 2000
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
+TDX = REPO / "target" / "release" / ("thetadatadx.exe" if os.name == "nt" else "thetadatadx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
 # (endpoint, mode_name, declared_min_tier, rationale, [argv...], slow)

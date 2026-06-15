@@ -10,23 +10,23 @@
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     // One connect, one auth. FPSS is NOT connected yet.
 //!     // Or inline: Credentials::new("user@example.com", "your-password")
-//!     let tdx = Client::connect(
+//!     let client = Client::connect(
 //!         &Credentials::from_file("creds.txt")?,
 //!         DirectConfig::production(),
 //!     ).await?;
 //!
 //!     // Historical -- works immediately, via the `historical` surface
-//!     let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+//!     let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming -- FPSS connects lazily on first subscribe, via `stream`
 //!     use thetadatadx::fpss::{StreamData, StreamEvent};
 //!     use thetadatadx::fpss::protocol::Contract;
-//!     tdx.stream().start_streaming(|event| {
+//!     client.stream().start_streaming(|event| {
 //!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
 //!         }
 //!     })?;
-//!     tdx.stream().subscribe(Contract::stock("AAPL").quote())?;
+//!     client.stream().subscribe(Contract::stock("AAPL").quote())?;
 //!
 //!     Ok(())
 //! }
@@ -264,7 +264,7 @@ impl Client {
     ///    callback. The calls do not deadlock (cleanup detaches), but
     ///    they return BEFORE the old consumer has finished draining
     ///    the in-flight ring contents — FFI callers freeing `ctx`
-    ///    after `tdx_*_stop_streaming` returns will observe
+    ///    after `thetadatadx_*_stop_streaming` returns will observe
     ///    use-after-free. Instead, set a flag from the callback, call
     ///    [`Self::stop_streaming`] from another thread, then
     ///    [`Self::await_drain`] before reusing captured resources.
@@ -329,9 +329,9 @@ impl Client {
         let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
-        let client = StreamingClient::builder(&self.creds, &config.fpss.hosts)
-            .ring_size(config.fpss.ring_size)
-            .flush_mode(config.fpss.flush_mode)
+        let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
+            .ring_size(config.streaming.ring_size)
+            .flush_mode(config.streaming.flush_mode)
             .reconnect_policy(config.reconnect.policy.clone())
             .reconnect_wait_ms(config.reconnect.wait_ms)
             .reconnect_wait_max_ms(config.reconnect.wait_max_ms)
@@ -340,17 +340,17 @@ impl Client {
             .reconnect_jitter(config.reconnect.jitter)
             .reconnect_replay_burst_size(config.reconnect.replay_burst_size)
             .reconnect_replay_pace_ms(config.reconnect.replay_pace_ms)
-            .derive_ohlcvc(config.fpss.derive_ohlcvc)
-            .connect_timeout_ms(config.fpss.connect_timeout_ms)
-            .read_timeout_ms(config.fpss.timeout_ms)
-            .ping_interval_ms(config.fpss.ping_interval_ms)
-            .io_read_slice_ms(config.fpss.io_read_slice_ms)
-            .data_watchdog_ms(config.fpss.data_watchdog_ms)
-            .keepalive_idle_secs(config.fpss.keepalive_idle_secs)
-            .keepalive_interval_secs(config.fpss.keepalive_interval_secs)
-            .keepalive_retries(config.fpss.keepalive_retries)
-            .host_selection(config.fpss.host_selection)
-            .host_shuffle_seed(config.fpss.host_shuffle_seed)
+            .derive_ohlcvc(config.streaming.derive_ohlcvc)
+            .connect_timeout_ms(config.streaming.connect_timeout_ms)
+            .read_timeout_ms(config.streaming.timeout_ms)
+            .ping_interval_ms(config.streaming.ping_interval_ms)
+            .io_read_slice_ms(config.streaming.io_read_slice_ms)
+            .data_watchdog_ms(config.streaming.data_watchdog_ms)
+            .keepalive_idle_secs(config.streaming.keepalive_idle_secs)
+            .keepalive_interval_secs(config.streaming.keepalive_interval_secs)
+            .keepalive_retries(config.streaming.keepalive_retries)
+            .host_selection(config.streaming.host_selection)
+            .host_shuffle_seed(config.streaming.host_shuffle_seed)
             .build()
             .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);
@@ -380,7 +380,7 @@ impl Client {
         let dispatcher_client = Arc::clone(&client_arc);
         let mut scope = scope;
         let dispatcher_handle = std::thread::Builder::new()
-            .name("tdx-fpss-dispatcher".into())
+            .name("thetadatadx-fpss-dispatcher".into())
             .spawn(move || {
                 if !*gate_for_dispatcher.wait() {
                     return;
@@ -401,7 +401,7 @@ impl Client {
                 if outcome.is_err() {
                     tracing::error!(
                         target: "thetadatadx::client",
-                        "tdx-fpss-dispatcher panicked in event iteration machinery; client transitioning to failed state",
+                        "thetadatadx-fpss-dispatcher panicked in event iteration machinery; client transitioning to failed state",
                     );
                 }
             })
@@ -989,7 +989,7 @@ impl Client {
                     tracing::error!(
                         target: "thetadatadx::client",
                         reason = %reason,
-                        "tdx-fpss-dispatcher panicked; session marked as failed",
+                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
                     );
                     *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
                         DispatcherSession::Failed { reason };

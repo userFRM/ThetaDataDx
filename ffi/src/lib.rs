@@ -16,25 +16,25 @@
 //! All `unsafe extern "C"` functions in this crate follow the same safety contract:
 //!
 //! - Pointer arguments must be either null (handled gracefully) or valid pointers
-//!   obtained from a prior `tdx_*` call.
+//!   obtained from a prior `thetadatadx_*` call.
 //! - `*const c_char` arguments must point to valid, NUL-terminated C strings.
 //! - Returned typed arrays are heap-allocated and must be freed with the
-//!   corresponding `tdx_*_free` function.
+//!   corresponding `thetadatadx_*_free` function.
 //! - Functions are not thread-safe on the same handle; callers must synchronize.
 //!
 //! # Memory model
 //!
-//! - Opaque handles (`*mut TdxHistoricalClient`, `*mut TdxCredentials`, etc.) are heap-allocated
-//!   via `Box::into_raw` and freed via the corresponding `tdx_*_free` function.
+//! - Opaque handles (`*mut ThetaDataDxHistoricalClient`, `*mut ThetaDataDxCredentials`, etc.) are heap-allocated
+//!   via `Box::into_raw` and freed via the corresponding `thetadatadx_*_free` function.
 //! - Tick arrays are returned as `#[repr(C)]` structs with a `data` pointer and `len`.
-//!   They MUST be freed with the corresponding `tdx_*_array_free` function.
-//! - String arrays (`TdxStringArray`) must be freed with `tdx_string_array_free`.
+//!   They MUST be freed with the corresponding `thetadatadx_*_array_free` function.
+//! - String arrays (`ThetaDataDxStringArray`) must be freed with `thetadatadx_string_array_free`.
 //! - The caller MUST free every non-null pointer / non-empty array returned by this library.
 //!
 //! # Error handling
 //!
 //! Functions that can fail return an empty array (data=null, len=0) on error and set
-//! a thread-local error string retrievable via `tdx_last_error`.
+//! a thread-local error string retrievable via `thetadatadx_last_error`.
 
 // Reason: every `unsafe extern "C"` in this crate shares one safety
 // contract, documented in the crate-level docstring above (pointer
@@ -55,7 +55,7 @@ static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 ///
 /// The embedded runtime is process-global and built exactly once: the
 /// first connect in the process seeds it from that client's
-/// `config.runtime`, so `tdx_config_set_worker_threads` takes effect for
+/// `config.runtime`, so `thetadatadx_config_set_worker_threads` takes effect for
 /// the first client created in the process. Later connects share the
 /// already-built pool and their `runtime` config is a no-op by design.
 pub(crate) fn runtime_from_config(
@@ -68,7 +68,7 @@ pub(crate) fn runtime_from_config(
 }
 
 /// Build the process-global runtime from `cfg` and report its worker
-/// count. Test-only hook proving `tdx_config_set_worker_threads` reaches
+/// count. Test-only hook proving `thetadatadx_config_set_worker_threads` reaches
 /// the tokio builder; not part of the C ABI.
 #[doc(hidden)]
 pub fn __test_runtime_worker_count(cfg: &thetadatadx::RuntimeConfig) -> usize {
@@ -133,7 +133,7 @@ pub mod utility;
 //
 // Downstream Rust users (notably the feature-gated integration test at
 // `ffi/tests/panic_boundary.rs`) expect to resolve the FFI functions via the
-// crate root. Re-export everything so `use thetadatadx_ffi::tdx_last_error`
+// crate root. Re-export everything so `use thetadatadx_ffi::thetadatadx_last_error`
 // keeps working after the split.
 
 pub use crate::auth::*;

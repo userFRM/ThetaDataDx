@@ -257,10 +257,10 @@ pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
 }
 
 /// Returns the FFI `#[repr(C)]` array type name for a return type
-/// (e.g. `TdxStringArray`), looked up from the tick render map.
+/// (e.g. `ThetaDataDxStringArray`), looked up from the tick render map.
 pub(super) fn ffi_array_type(return_type: &str) -> String {
     if return_type == "StringList" {
-        return "TdxStringArray".into();
+        return "ThetaDataDxStringArray".into();
     }
     render_for(return_type).ffi_array.clone()
 }
@@ -275,12 +275,12 @@ pub(super) fn ffi_output_variant(return_type: &str) -> String {
 }
 
 /// Returns the `#[repr(C)]` array type name for the given `EndpointOutput`
-/// variant (e.g. `TdxEodTickArray`). The emitter wraps `<type>::from_vec(...)`
+/// variant (e.g. `ThetaDataDxEodTickArray`). The emitter wraps `<type>::from_vec(...)`
 /// — which returns `Result<Self, NulError>` — in an inline match that routes
 /// interior-NUL failures through the FFI error slot.
 pub(super) fn ffi_from_vec_array_type(return_type: &str) -> String {
     if return_type == "StringList" {
-        return "TdxStringArray".into();
+        return "ThetaDataDxStringArray".into();
     }
     render_for(return_type).ffi_from_vec_array.clone()
 }
@@ -301,10 +301,10 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
         "StringList" => "return detail::check_string_array(arr);".into(),
         "OptionContracts" => "return detail::option_contract_array_to_vector(arr);".into(),
         other => {
-            // Check `tdx_last_error_raw` before converting: success-empty
+            // Check `thetadatadx_last_error_raw` before converting: success-empty
             // and failure (e.g. timeout) both return `{nullptr, 0}` arrays,
             // so we have to consult the error slot directly. The generated
-            // Client method `tdx_clear_error()`s before the FFI call so a
+            // Client method `thetadatadx_clear_error()`s before the FFI call so a
             // stale error from a prior call isn't misattributed.
             let free_fn = render_for(other).ffi_free_fn.clone();
             format!(
@@ -394,7 +394,7 @@ pub(super) fn ffi_option_value_type(param: &GeneratedParam) -> &'static str {
 }
 
 /// Returns the C field type for an optional builder parameter in the
-/// generated `TdxEndpointRequestOptions` struct.
+/// generated `ThetaDataDxEndpointRequestOptions` struct.
 pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "int32_t",

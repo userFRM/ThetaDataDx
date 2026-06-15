@@ -447,7 +447,7 @@ pub(crate) fn should_warn_buffered_size(
 /// to the caller, so a long-running operator workload sees exactly
 /// one log line per offending request rather than a per-chunk
 /// torrent. Threshold of `0` disables the warn entirely (see
-/// [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]).
+/// [`crate::config::HistoricalConfig::warn_on_buffered_threshold_bytes`]).
 pub(crate) fn warn_buffered_response_size(
     endpoint: &'static str,
     row_count: usize,
@@ -849,11 +849,11 @@ macro_rules! parsed_endpoint {
                         // length the caller is about to receive; `row_size`
                         // is the wire-shape lower bound (`size_of::<Item>`).
                         // Configurable via
-                        // `DirectConfig::mdds.warn_on_buffered_threshold_bytes`;
+                        // `DirectConfig::historical.warn_on_buffered_threshold_bytes`;
                         // set to 0 to disable.
                         let threshold = client
                             .config()
-                            .mdds
+                            .historical
                             .warn_on_buffered_threshold_bytes;
                         $crate::mdds::macros::warn_buffered_response_size(
                             stringify!($name),
@@ -1015,7 +1015,7 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::config_invalid("mdds.endpoint", "bad config")),
+            classify_error(&Error::config_invalid("historical.endpoint", "bad config")),
             StatusClass::Terminal
         );
         assert_eq!(
@@ -1756,7 +1756,7 @@ mod warn_buffered_tests {
     #[test]
     fn warn_helper_stays_silent_when_threshold_is_zero() {
         // Threshold = 0 is the documented "warn disabled" sentinel
-        // (see `MddsConfig::warn_on_buffered_threshold_bytes`). Even
+        // (see `HistoricalConfig::warn_on_buffered_threshold_bytes`). Even
         // a deliberately huge response must NOT emit a warn — the
         // operator explicitly opted out.
         let events = capture_warns(|| {

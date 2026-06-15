@@ -1,5 +1,5 @@
 # Captured from prod MDDS for AAPL EOD range 2024-01-02 to 2024-01-05 via:
-#   tdx stock history_eod AAPL 20240102 20240105
+#   thetadatadx stock history_eod AAPL 20240102 20240105
 # One chunk, 4 trading days.
 
 endpoint = "stock_history_eod"

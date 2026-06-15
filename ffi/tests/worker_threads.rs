@@ -1,4 +1,4 @@
-//! Proves `tdx_config_set_worker_threads` is wired through to the embedded
+//! Proves `thetadatadx_config_set_worker_threads` is wired through to the embedded
 //! async runtime rather than being a no-op.
 //!
 //! The embedded runtime is a process-global `OnceLock`, so this test runs

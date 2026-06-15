@@ -31,7 +31,7 @@ pub(super) struct SurfaceSpec {
     #[serde(rename = "test_fixtures")]
     _test_fixtures: SurfaceTestFixtures,
     /// Global request-level options that appear on every endpoint via
-    /// `TdxEndpointRequestOptions`. Declared here so the FFI struct layout
+    /// `ThetaDataDxEndpointRequestOptions`. Declared here so the FFI struct layout
     /// stays in lock-step with the TOML (see scripts/check_docs_consistency.py).
     /// Schema-validation-only: not consumed by the Rust generator today —
     /// only by the docs-consistency drift check — but codified in the

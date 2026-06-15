@@ -18,18 +18,18 @@
 //!
 //! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
-//! let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+//! let client = Client::connect(&creds, DirectConfig::production()).await?;
 //!
 //! // Historical — every query endpoint on the `historical` surface
-//! let ticks = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! let ticks = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //! // Real-time streaming — on the `stream` surface
-//! tdx.stream().start_streaming(|event: &StreamEvent| {
+//! client.stream().start_streaming(|event: &StreamEvent| {
 //!     if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
 //!         println!("Trade: {} @ {price} x {size}", contract.symbol);
 //!     }
 //! })?;
-//! tdx.stream().subscribe(Contract::stock("AAPL").quote())?;
+//! client.stream().subscribe(Contract::stock("AAPL").quote())?;
 //! # Ok(()) }
 //! ```
 //!
@@ -43,7 +43,7 @@
 //!
 //! # fn doc() -> Result<(), thetadatadx::fpss::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = DirectConfig::production().fpss.hosts;
+//! let hosts = DirectConfig::production().streaming.hosts;
 //!
 //! let client = StreamingClient::builder(&creds, &hosts)
 //!     .ring_size(8192)
@@ -250,8 +250,8 @@ pub use auth::Credentials;
 pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
 pub use config::{
-    DirectConfig, FlatFilesConfig, FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass,
-    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
+    DirectConfig, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,

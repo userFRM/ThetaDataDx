@@ -30,7 +30,7 @@ pub(super) fn render_python_tick_classes(
     out.push_str("// Every historical endpoint returns `Py<<TickName>List>`; terminal\n");
     out.push_str("// methods (`to_list`, `to_arrow`, `to_pandas`, `to_polars`) live on\n");
     out.push_str("// the wrapper so chained calls like\n");
-    out.push_str("//     tdx.stock_history_eod(...).to_polars()\n");
+    out.push_str("//     client.stock_history_eod(...).to_polars()\n");
     out.push_str("// avoid a free-function round-trip.\n\n");
 
     // Imports kept here because `tick_classes.rs` is `include!`-ed into

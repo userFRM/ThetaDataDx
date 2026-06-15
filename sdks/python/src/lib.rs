@@ -578,193 +578,193 @@ impl Config {
         Ok(())
     }
 
-    // ── FPSS transport knobs ──────────────────────────────────────────
+    // ── Streaming transport knobs ─────────────────────────────────────
     //
-    // Scalar tuning on ``DirectConfig.fpss`` mirroring the FFI / C++ /
-    // TypeScript surface. Out-of-range values are rejected by the core
-    // validator at connect time.
+    // Scalar tuning on ``DirectConfig.streaming`` mirroring the FFI /
+    // C++ / TypeScript surface. Out-of-range values are rejected by the
+    // core validator at connect time.
 
-    /// Set the FPSS read timeout (ms): the no-frames deadline after
+    /// Set the streaming read timeout (ms): the no-frames deadline after
     /// which the streaming I/O loop declares the session dead and
     /// reconnects. Default ``3_000``; validated to ``[100, 60_000]``.
     #[setter]
-    fn set_fpss_timeout_ms(&self, ms: u64) {
+    fn set_streaming_timeout_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.timeout_ms = ms;
+        guard.streaming.timeout_ms = ms;
     }
 
-    /// Current ``fpss.timeout_ms`` value (default ``3_000``).
+    /// Current ``streaming.timeout_ms`` value (default ``3_000``).
     #[getter]
-    fn get_fpss_timeout_ms(&self) -> u64 {
+    fn get_streaming_timeout_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.timeout_ms
+        guard.streaming.timeout_ms
     }
 
     /// Set the per-server connect timeout (ms) for the streaming
     /// connection. Default
     /// ``2_000``; validated to ``[1_000, 60_000]``.
     #[setter]
-    fn set_fpss_connect_timeout_ms(&self, ms: u64) {
+    fn set_streaming_connect_timeout_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.connect_timeout_ms = ms;
+        guard.streaming.connect_timeout_ms = ms;
     }
 
-    /// Current ``fpss.connect_timeout_ms`` value (default ``2_000``).
+    /// Current ``streaming.connect_timeout_ms`` value (default ``2_000``).
     #[getter]
-    fn get_fpss_connect_timeout_ms(&self) -> u64 {
+    fn get_streaming_connect_timeout_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.connect_timeout_ms
+        guard.streaming.connect_timeout_ms
     }
 
-    /// Set the FPSS heartbeat ping interval (ms). Default ``250``;
+    /// Set the streaming heartbeat ping interval (ms). Default ``250``;
     /// validated to ``[100, 300_000]``.
     #[setter]
-    fn set_fpss_ping_interval_ms(&self, ms: u64) {
+    fn set_streaming_ping_interval_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ping_interval_ms = ms;
+        guard.streaming.ping_interval_ms = ms;
     }
 
-    /// Current ``fpss.ping_interval_ms`` value (default ``250``).
+    /// Current ``streaming.ping_interval_ms`` value (default ``250``).
     #[getter]
-    fn get_fpss_ping_interval_ms(&self) -> u64 {
+    fn get_streaming_ping_interval_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ping_interval_ms
+        guard.streaming.ping_interval_ms
     }
 
-    /// Set the FPSS event ring buffer size (slots). Must be a power of
-    /// two ``>= 64`` (rejected at connect otherwise). Default
+    /// Set the streaming event ring buffer size (slots). Must be a power
+    /// of two ``>= 64`` (rejected at connect otherwise). Default
     /// ``131_072``.
     #[setter]
-    fn set_fpss_ring_size(&self, n: usize) {
+    fn set_streaming_ring_size(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ring_size = n;
+        guard.streaming.ring_size = n;
     }
 
-    /// Current ``fpss.ring_size`` value (default ``131_072``).
+    /// Current ``streaming.ring_size`` value (default ``131_072``).
     #[getter]
-    fn get_fpss_ring_size(&self) -> usize {
+    fn get_streaming_ring_size(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.ring_size
+        guard.streaming.ring_size
     }
 
     /// Set the per-iteration blocking-read slice (ms) for the
     /// streaming I/O loop. Default ``25``; validated to ``[10, 500]``.
     #[setter]
-    fn set_fpss_io_read_slice_ms(&self, ms: u64) {
+    fn set_streaming_io_read_slice_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.io_read_slice_ms = ms;
+        guard.streaming.io_read_slice_ms = ms;
     }
 
-    /// Current ``fpss.io_read_slice_ms`` value (default ``25``).
+    /// Current ``streaming.io_read_slice_ms`` value (default ``25``).
     #[getter]
-    fn get_fpss_io_read_slice_ms(&self) -> u64 {
+    fn get_streaming_io_read_slice_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.io_read_slice_ms
+        guard.streaming.io_read_slice_ms
     }
 
     /// Set the last-frame watchdog (ms): when no frame of any kind has
     /// arrived for this long the I/O loop force-reconnects. ``0``
     /// disables. Default ``30_000``.
     #[setter]
-    fn set_fpss_data_watchdog_ms(&self, ms: u64) {
+    fn set_streaming_data_watchdog_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.data_watchdog_ms = ms;
+        guard.streaming.data_watchdog_ms = ms;
     }
 
-    /// Current ``fpss.data_watchdog_ms`` value (default ``30_000``;
+    /// Current ``streaming.data_watchdog_ms`` value (default ``30_000``;
     /// ``0`` = disabled).
     #[getter]
-    fn get_fpss_data_watchdog_ms(&self) -> u64 {
+    fn get_streaming_data_watchdog_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.data_watchdog_ms
+        guard.streaming.data_watchdog_ms
     }
 
     /// Set the TCP keepalive idle time (seconds) before the first
-    /// kernel probe on a silent FPSS socket. Default ``5``; validated
-    /// to ``[1, 7_200]``.
+    /// kernel probe on a silent streaming socket. Default ``5``;
+    /// validated to ``[1, 7_200]``.
     #[setter]
-    fn set_fpss_keepalive_idle_secs(&self, secs: u64) {
+    fn set_streaming_keepalive_idle_secs(&self, secs: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_idle_secs = secs;
+        guard.streaming.keepalive_idle_secs = secs;
     }
 
-    /// Current ``fpss.keepalive_idle_secs`` value (default ``5``).
+    /// Current ``streaming.keepalive_idle_secs`` value (default ``5``).
     #[getter]
-    fn get_fpss_keepalive_idle_secs(&self) -> u64 {
+    fn get_streaming_keepalive_idle_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_idle_secs
+        guard.streaming.keepalive_idle_secs
     }
 
     /// Set the interval (seconds) between TCP keepalive probes.
     /// Default ``2``; validated to ``[1, 75]``.
     #[setter]
-    fn set_fpss_keepalive_interval_secs(&self, secs: u64) {
+    fn set_streaming_keepalive_interval_secs(&self, secs: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_interval_secs = secs;
+        guard.streaming.keepalive_interval_secs = secs;
     }
 
-    /// Current ``fpss.keepalive_interval_secs`` value (default ``2``).
+    /// Current ``streaming.keepalive_interval_secs`` value (default ``2``).
     #[getter]
-    fn get_fpss_keepalive_interval_secs(&self) -> u64 {
+    fn get_streaming_keepalive_interval_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_interval_secs
+        guard.streaming.keepalive_interval_secs
     }
 
     /// Set the number of unanswered TCP keepalive probes after which
-    /// the kernel declares the FPSS connection dead (where the
+    /// the kernel declares the streaming connection dead (where the
     /// platform exposes the knob). Default ``2``; validated to
     /// ``[1, 10]``.
     #[setter]
-    fn set_fpss_keepalive_retries(&self, n: u32) {
+    fn set_streaming_keepalive_retries(&self, n: u32) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_retries = n;
+        guard.streaming.keepalive_retries = n;
     }
 
-    /// Current ``fpss.keepalive_retries`` value (default ``2``).
+    /// Current ``streaming.keepalive_retries`` value (default ``2``).
     #[getter]
-    fn get_fpss_keepalive_retries(&self) -> u32 {
+    fn get_streaming_keepalive_retries(&self) -> u32 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.keepalive_retries
+        guard.streaming.keepalive_retries
     }
 
-    /// Set the FPSS host-selection policy. Accepts ``"shuffled"``
+    /// Set the streaming host-selection policy. Accepts ``"shuffled"``
     /// (default — fault-domain-aware per-client shuffle) or
     /// ``"fixed_order"`` (declared order verbatim), case-insensitive.
     #[setter]
-    fn set_fpss_host_selection(&self, policy: &str) -> PyResult<()> {
+    fn set_streaming_host_selection(&self, policy: &str) -> PyResult<()> {
         let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
             PyValueError::new_err(format!(
-                "unknown fpss_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
+                "unknown streaming_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
             ))
         })?;
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_selection = parsed;
+        guard.streaming.host_selection = parsed;
         Ok(())
     }
 
-    /// Current FPSS host-selection policy as a lowercase string.
+    /// Current streaming host-selection policy as a lowercase string.
     #[getter]
-    fn get_fpss_host_selection(&self) -> &'static str {
+    fn get_streaming_host_selection(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_selection.as_str()
+        guard.streaming.host_selection.as_str()
     }
 
-    /// Set the FPSS host-shuffle seed. ``None`` (default) derives a
+    /// Set the streaming host-shuffle seed. ``None`` (default) derives a
     /// fresh per-client seed so a fleet shuffles independently; an
     /// explicit value makes the shuffled order deterministic — useful
     /// for fleet sharding and tests. Ignored under ``"fixed_order"``.
     #[setter]
-    fn set_fpss_host_shuffle_seed(&self, seed: Option<u64>) {
+    fn set_streaming_host_shuffle_seed(&self, seed: Option<u64>) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_shuffle_seed = seed;
+        guard.streaming.host_shuffle_seed = seed;
     }
 
-    /// Current ``fpss.host_shuffle_seed`` value (``None`` = per-client
+    /// Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
     /// entropy).
     #[getter]
-    fn get_fpss_host_shuffle_seed(&self) -> Option<u64> {
+    fn get_streaming_host_shuffle_seed(&self) -> Option<u64> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.host_shuffle_seed
+        guard.streaming.host_shuffle_seed
     }
 
     /// Set the wall-clock envelope (seconds) for one
@@ -1036,14 +1036,14 @@ impl Config {
     #[setter]
     fn set_derive_ohlcvc(&self, enabled: bool) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.derive_ohlcvc = enabled;
+        guard.streaming.derive_ohlcvc = enabled;
     }
 
     /// Get the current OHLCVC derivation setting.
     #[getter]
     fn get_derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.derive_ohlcvc
+        guard.streaming.derive_ohlcvc
     }
 
     /// Set the streaming write-flush policy.
@@ -1055,8 +1055,8 @@ impl Config {
     #[setter]
     fn set_flush_mode(&self, mode: &str) -> pyo3::PyResult<()> {
         let parsed = match mode.to_ascii_lowercase().as_str() {
-            "batched" => config::FpssFlushMode::Batched,
-            "immediate" => config::FpssFlushMode::Immediate,
+            "batched" => config::StreamingFlushMode::Batched,
+            "immediate" => config::StreamingFlushMode::Immediate,
             other => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "flush_mode must be \"batched\" or \"immediate\"; got {other:?}"
@@ -1064,7 +1064,7 @@ impl Config {
             }
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fpss.flush_mode = parsed;
+        guard.streaming.flush_mode = parsed;
         Ok(())
     }
 
@@ -1073,9 +1073,9 @@ impl Config {
     #[getter]
     fn get_flush_mode(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.fpss.flush_mode {
-            config::FpssFlushMode::Batched => "batched",
-            config::FpssFlushMode::Immediate => "immediate",
+        match guard.streaming.flush_mode {
+            config::StreamingFlushMode::Batched => "batched",
+            config::StreamingFlushMode::Immediate => "immediate",
             _ => "unknown",
         }
     }
@@ -1085,31 +1085,31 @@ impl Config {
     /// to prove the streaming-only surface never opens it; production
     /// code paths should keep the `Config::production()` default.
     #[setter]
-    fn set_mdds_host(&self, host: String) {
+    fn set_historical_host(&self, host: String) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.host = host;
+        guard.historical.host = host;
     }
 
     /// Current historical gRPC host.
     #[getter]
-    fn get_mdds_host(&self) -> String {
+    fn get_historical_host(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.host.clone()
+        guard.historical.host.clone()
     }
 
-    /// Override the historical gRPC port. Companion to `mdds_host` —
+    /// Override the historical gRPC port. Companion to `historical_host` —
     /// same rationale and same test-only usage.
     #[setter]
-    fn set_mdds_port(&self, port: u16) {
+    fn set_historical_port(&self, port: u16) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.port = port;
+        guard.historical.port = port;
     }
 
     /// Current historical gRPC port.
     #[getter]
-    fn get_mdds_port(&self) -> u16 {
+    fn get_historical_port(&self) -> u16 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.port
+        guard.historical.port
     }
 
     // ── Historical pool sizing ─────────────────────────────────────
@@ -1132,14 +1132,14 @@ impl Config {
     #[setter]
     fn set_concurrent_requests(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.concurrent_requests = n;
+        guard.historical.concurrent_requests = n;
     }
 
     /// Current `concurrent_requests` setting (``0`` = auto-detect).
     #[getter]
     fn get_concurrent_requests(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.concurrent_requests
+        guard.historical.concurrent_requests
     }
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -1156,23 +1156,23 @@ impl Config {
     #[setter]
     fn set_warn_on_buffered_threshold_bytes(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.warn_on_buffered_threshold_bytes = n;
+        guard.historical.warn_on_buffered_threshold_bytes = n;
     }
 
     /// Current ``warn_on_buffered_threshold_bytes`` setting (bytes).
     #[getter]
     fn get_warn_on_buffered_threshold_bytes(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.warn_on_buffered_threshold_bytes
+        guard.historical.warn_on_buffered_threshold_bytes
     }
 
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
-            "Config(mdds={}:{}, fpss_hosts={})",
-            guard.mdds.host,
-            guard.mdds.port,
-            guard.fpss.hosts.len()
+            "Config(historical={}:{}, streaming_hosts={})",
+            guard.historical.host,
+            guard.historical.port,
+            guard.streaming.hosts.len()
         )
     }
 }
@@ -1214,7 +1214,7 @@ include!("_generated/utility_functions.rs");
 ///     # ... events arrive on the dispatcher's drain thread ...
 ///     client.stream.stop_streaming()
 // `frozen` — every `#[pymethods]` entry on this pyclass takes
-// `&self` (never `&mut self`). The inner `tdx: Arc<...>` carries its
+// `&self` (never `&mut self`). The inner `client: Arc<...>` carries its
 // own mutex / atomic state for transient surfaces; the pyclass shell
 // is immutable from Rust's perspective, which lets PyO3 elide the
 // `RefCell` borrow-check overhead on every attribute / method
@@ -1247,7 +1247,7 @@ struct Client {
     /// `Drop` site without restructuring every accessor, so the
     /// invariant is enforced by documentation plus the explicit
     /// `stop_streaming(py)` path.
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
@@ -1274,7 +1274,7 @@ struct Client {
 /// stays a single generated source of truth.
 #[pyclass(frozen)]
 struct HistoricalView {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
 }
 
 /// User-facing real-time-streaming sub-namespace returned by
@@ -1287,7 +1287,7 @@ struct HistoricalView {
 /// `Arc::clone`s — no auth round-trip, no FPSS state mutation.
 #[pyclass(frozen)]
 struct StreamView {
-    tdx: std::sync::Arc<thetadatadx::Client>,
+    client: std::sync::Arc<thetadatadx::Client>,
     callback: Arc<Mutex<Option<Py<PyAny>>>>,
 }
 
@@ -1321,12 +1321,12 @@ impl Client {
         // takes effect when the first client in the process connects.
         runtime_from_config(&direct_config.runtime);
         let inner_creds = creds.inner.clone();
-        let tdx = run_blocking(py, async move {
+        let client = run_blocking(py, async move {
             thetadatadx::Client::connect(&inner_creds, direct_config).await
         })?;
 
         Ok(Self {
-            tdx: std::sync::Arc::new(tdx),
+            client: std::sync::Arc::new(client),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -1365,7 +1365,7 @@ impl Client {
     // one place to audit.
 
     fn __repr__(&self) -> String {
-        let streaming = if self.tdx.stream().is_streaming() {
+        let streaming = if self.client.stream().is_streaming() {
             "streaming=connected"
         } else {
             "streaming=none"
@@ -1382,7 +1382,7 @@ impl Client {
     #[getter]
     fn historical(&self) -> HistoricalView {
         HistoricalView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
         }
     }
 
@@ -1395,7 +1395,7 @@ impl Client {
     #[getter]
     fn stream(&self) -> StreamView {
         StreamView {
-            tdx: Arc::clone(&self.tdx),
+            client: Arc::clone(&self.client),
             callback: Arc::clone(&self.callback),
         }
     }
@@ -1426,7 +1426,7 @@ impl StreamView {
     /// should poll this on a periodic timer and emit a log on any
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
-        self.tdx.stream().dropped_event_count()
+        self.client.stream().dropped_event_count()
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1444,7 +1444,7 @@ impl StreamView {
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
-        self.tdx.stream().ring_occupancy()
+        self.client.stream().ring_occupancy()
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1456,7 +1456,7 @@ impl StreamView {
     /// :meth:`dropped_event_count`). Returns 0 before
     /// `start_streaming` and after `stop_streaming`.
     fn ring_capacity(&self) -> usize {
-        self.tdx.stream().ring_capacity()
+        self.client.stream().ring_capacity()
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1468,7 +1468,7 @@ impl StreamView {
     /// when no market data flows), so a steadily growing value is the
     /// earliest external signal of a dead or wedged connection.
     fn millis_since_last_event(&self) -> Option<u64> {
-        self.tdx.stream().millis_since_last_event()
+        self.client.stream().millis_since_last_event()
     }
 
     /// UNIX-nanosecond receive timestamp of the most recent inbound
@@ -1477,14 +1477,14 @@ impl StreamView {
     /// :meth:`millis_since_last_event`, exposed for callers
     /// correlating against their own pipeline timestamps.
     fn last_event_received_at_unix_nanos(&self) -> i64 {
-        self.tdx.stream().last_event_received_at_unix_nanos()
+        self.client.stream().last_event_received_at_unix_nanos()
     }
 
     /// Address (``host:port``) of the streaming server the current
     /// session is connected to, following the session across
     /// auto-reconnects. ``None`` when streaming has not started.
     fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.stream().last_connected_addr()
+        self.client.stream().last_connected_addr()
     }
 
     /// Snapshot of full-stream subscriptions (e.g.
@@ -1502,7 +1502,7 @@ impl StreamView {
     fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;
         use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-        self.tdx
+        self.client
             .stream()
             .active_full_subscriptions()
             .map(|subs| {
@@ -1532,7 +1532,7 @@ impl StreamView {
     /// [`crate::fpss_client::StreamingClient`] and the upstream
     /// [`thetadatadx::Client::panic_count`].
     fn panic_count(&self) -> u64 {
-        self.tdx.stream().panic_count()
+        self.client.stream().panic_count()
     }
 }
 
@@ -1565,7 +1565,7 @@ impl StreamView {
     /// ```
     fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.stream().subscribe(inner).map_err(to_py_err)
+        self.client.stream().subscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-subscribe a list / iterable of `Subscription` values.
@@ -1575,19 +1575,22 @@ impl StreamView {
     /// protocol does not support batched transactions).
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.stream().subscribe_many(list).map_err(to_py_err)
+        self.client.stream().subscribe_many(list).map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.stream().unsubscribe(inner).map_err(to_py_err)
+        self.client.stream().unsubscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
     fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.stream().unsubscribe_many(list).map_err(to_py_err)
+        self.client
+            .stream()
+            .unsubscribe_many(list)
+            .map_err(to_py_err)
     }
 }
 
@@ -1791,8 +1794,8 @@ struct AsyncClient {
 impl AsyncClient {
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let tdx = Py::new(py, Client::new(py, creds, config)?)?;
-        Ok(Self { inner: tdx })
+        let client = Py::new(py, Client::new(py, creds, config)?)?;
+        Ok(Self { inner: client })
     }
 
     /// Convenience constructor: `AsyncClient.from_file("creds.txt")`.
@@ -1810,8 +1813,8 @@ impl AsyncClient {
                 &owned_default
             }
         };
-        let tdx = Py::new(py, Client::new(py, &creds, cfg)?)?;
-        Ok(Self { inner: tdx })
+        let client = Py::new(py, Client::new(py, &creds, cfg)?)?;
+        Ok(Self { inner: client })
     }
 
     /// Forward attribute access to the wrapped `Client`.

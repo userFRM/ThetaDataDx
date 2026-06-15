@@ -1,5 +1,5 @@
 # Captured from prod MDDS for SPY 2026-05-15 500 CALL live snapshot via:
-#   tdx option snapshot_ohlc SPY 20260515 500 C
+#   thetadatadx option snapshot_ohlc SPY 20260515 500 C
 # 1-row snapshot. Timestamp reflects capture time on 2026-04-21.
 
 endpoint = "option_snapshot_ohlc"

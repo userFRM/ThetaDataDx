@@ -73,4 +73,4 @@ Incoming events are buffered between the connection and your callback. If your c
 | `last_connected_addr()` | The live server `host:port`, following the session across reconnects. |
 | `panic_count()` | Callback exceptions caught and isolated (your callback errors never kill the session — fix them, they cost events). |
 
-Every accessor exists on all four bindings under the language's naming convention (`ringOccupancy()` in TypeScript, `ring_occupancy()` elsewhere). The buffer capacity is configurable via `fpss_ring_size`; keep the callback fast and capacity rarely matters.
+Every accessor exists on all four bindings under the language's naming convention (`ringOccupancy()` in TypeScript, `ring_occupancy()` elsewhere). The buffer capacity is configurable via `streaming_ring_size`; keep the callback fast and capacity rarely matters.

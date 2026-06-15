@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 try:
-    import thetadatadx as tdx
+    import thetadatadx as client
 except ImportError:
     pytest.skip(
         "thetadatadx native extension not built — run `maturin develop` from sdks/python/",
@@ -13,30 +13,30 @@ except ImportError:
 
 
 def test_default_flush_mode_is_batched():
-    cfg = tdx.Config.production()
+    cfg = client.Config.production()
     assert cfg.flush_mode == "batched"
 
 
 def test_set_flush_mode_immediate_round_trips():
-    cfg = tdx.Config.production()
+    cfg = client.Config.production()
     cfg.flush_mode = "immediate"
     assert cfg.flush_mode == "immediate"
 
 
 def test_set_flush_mode_batched_round_trips():
-    cfg = tdx.Config.production()
+    cfg = client.Config.production()
     cfg.flush_mode = "immediate"
     cfg.flush_mode = "batched"
     assert cfg.flush_mode == "batched"
 
 
 def test_set_flush_mode_case_insensitive():
-    cfg = tdx.Config.production()
+    cfg = client.Config.production()
     cfg.flush_mode = "IMMEDIATE"
     assert cfg.flush_mode == "immediate"
 
 
 def test_set_flush_mode_invalid_raises_value_error():
-    cfg = tdx.Config.production()
+    cfg = client.Config.production()
     with pytest.raises(ValueError, match="batched.*immediate"):
         cfg.flush_mode = "instant"

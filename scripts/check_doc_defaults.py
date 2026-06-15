@@ -152,22 +152,22 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
 
     # FpssConfig::production_defaults — millisecond / second / count
     # knobs documented verbatim by the bindings.
-    fpss = _struct_literal_fields(
+    streaming = _struct_literal_fields(
         _block_after(_read(CONFIG_DIR / "fpss.rs", root), "fn production_defaults()")
     )
-    canon["fpss.timeout_ms"] = _norm_int(fpss["timeout_ms"])
-    canon["fpss.ring_size"] = _norm_int(fpss["ring_size"])
-    canon["fpss.ping_interval_ms"] = _norm_int(fpss["ping_interval_ms"])
-    canon["fpss.connect_timeout_ms"] = _norm_int(fpss["connect_timeout_ms"])
-    canon["fpss.io_read_slice_ms"] = _norm_int(fpss["io_read_slice_ms"])
-    canon["fpss.data_watchdog_ms"] = _norm_int(fpss["data_watchdog_ms"])
-    canon["fpss.keepalive_idle_secs"] = _norm_int(fpss["keepalive_idle_secs"])
-    canon["fpss.keepalive_interval_secs"] = _norm_int(fpss["keepalive_interval_secs"])
-    canon["fpss.keepalive_retries"] = _norm_int(fpss["keepalive_retries"])
+    canon["streaming.timeout_ms"] = _norm_int(streaming["timeout_ms"])
+    canon["streaming.ring_size"] = _norm_int(streaming["ring_size"])
+    canon["streaming.ping_interval_ms"] = _norm_int(streaming["ping_interval_ms"])
+    canon["streaming.connect_timeout_ms"] = _norm_int(streaming["connect_timeout_ms"])
+    canon["streaming.io_read_slice_ms"] = _norm_int(streaming["io_read_slice_ms"])
+    canon["streaming.data_watchdog_ms"] = _norm_int(streaming["data_watchdog_ms"])
+    canon["streaming.keepalive_idle_secs"] = _norm_int(streaming["keepalive_idle_secs"])
+    canon["streaming.keepalive_interval_secs"] = _norm_int(streaming["keepalive_interval_secs"])
+    canon["streaming.keepalive_retries"] = _norm_int(streaming["keepalive_retries"])
 
     # FpssConfig bounds — the documented FLATFILES / FPSS validation
     # range that a doc comment also asserts.
-    fpss_src = _read(CONFIG_DIR / "fpss.rs", root)
+    streaming_src = _read(CONFIG_DIR / "fpss.rs", root)
 
     # FlatFilesConfig::production_defaults — second-unit Durations + count.
     ff = _struct_literal_fields(
@@ -229,26 +229,26 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["retry.max_elapsed_secs"] = _duration_secs(rp["max_elapsed"])
 
     # MddsConfig::production_defaults — byte / second knobs.
-    mdds = _struct_literal_fields(
+    historical = _struct_literal_fields(
         _block_after(
             _read(CONFIG_DIR / "mdds.rs", root), "fn production_defaults()"
         )
     )
-    canon["mdds.connect_timeout_secs"] = _norm_int(mdds["connect_timeout_secs"])
-    canon["mdds.keepalive_secs"] = _norm_int(mdds["keepalive_secs"])
-    canon["mdds.keepalive_timeout_secs"] = _norm_int(mdds["keepalive_timeout_secs"])
-    canon["mdds.window_size_kb"] = _norm_int(mdds["window_size_kb"])
-    canon["mdds.connection_window_size_kb"] = _norm_int(
-        mdds["connection_window_size_kb"]
+    canon["historical.connect_timeout_secs"] = _norm_int(historical["connect_timeout_secs"])
+    canon["historical.keepalive_secs"] = _norm_int(historical["keepalive_secs"])
+    canon["historical.keepalive_timeout_secs"] = _norm_int(historical["keepalive_timeout_secs"])
+    canon["historical.window_size_kb"] = _norm_int(historical["window_size_kb"])
+    canon["historical.connection_window_size_kb"] = _norm_int(
+        historical["connection_window_size_kb"]
     )
     # warn_on_buffered_threshold_bytes = 100 * 1024 * 1024 (100 MiB).
-    wob = mdds["warn_on_buffered_threshold_bytes"]
+    wob = historical["warn_on_buffered_threshold_bytes"]
     m = re.match(r"^([0-9_]+)\s*\*\s*1024\s*\*\s*1024$", wob)
     if not m:
         raise ValueError(f"unexpected warn-threshold literal: {wob!r}")
-    canon["mdds.warn_on_buffered_threshold_mib"] = _norm_int(m.group(1))
+    canon["historical.warn_on_buffered_threshold_mib"] = _norm_int(m.group(1))
 
-    del fpss_src  # parsed lazily above; kept for future bound checks.
+    del streaming_src  # parsed lazily above; kept for future bound checks.
     return canon
 
 
@@ -318,7 +318,7 @@ def _find_defaults_for_anchor(
     The anchor must land on a declaration line — a Rust ``fn`` /
     extern signature, a C declaration, or a typed ``.pyi`` attribute —
     not on an incidental mention inside another item's doc comment
-    (``capped at tdx_config_set_retry_max_delay_ms``). Once anchored, the
+    (``capped at thetadatadx_config_set_retry_max_delay_ms``). Once anchored, the
     gate reads the ``Default`` token from the documentation attached to
     that declaration, on the side named by ``direction``:
 
@@ -480,7 +480,7 @@ def build_surfaces() -> list[Surface]:
     """
     surfaces: list[Surface] = []
 
-    # FFI doc comments (`tdx_config_set_*`). The setters carry the
+    # FFI doc comments (`thetadatadx_config_set_*`). The setters carry the
     # canonical doc; many getters echo `(default N)` inline and are
     # caught by the same anchor's window.
     ffi = Surface("ffi", pathlib.Path("ffi/src/auth.rs"))
@@ -517,18 +517,18 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "reconnect.replay_pace_ms", _re(r"set_reconnect_replay_pace_ms\b")
         ),
-        SurfaceField("fpss.timeout_ms", _re(r"set_fpss_timeout_ms\b")),
-        SurfaceField("fpss.connect_timeout_ms", _re(r"set_fpss_connect_timeout_ms\b")),
-        SurfaceField("fpss.ping_interval_ms", _re(r"set_fpss_ping_interval_ms\b")),
-        SurfaceField("fpss.io_read_slice_ms", _re(r"set_fpss_io_read_slice_ms\b")),
-        SurfaceField("fpss.data_watchdog_ms", _re(r"set_fpss_data_watchdog_ms\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
+        SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
+        SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
+        SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
+        SurfaceField("streaming.data_watchdog_ms", _re(r"set_streaming_data_watchdog_ms\b")),
         SurfaceField(
-            "fpss.keepalive_idle_secs", _re(r"set_fpss_keepalive_idle_secs\b")
+            "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
         SurfaceField(
-            "fpss.keepalive_interval_secs", _re(r"set_fpss_keepalive_interval_secs\b")
+            "streaming.keepalive_interval_secs", _re(r"set_streaming_keepalive_interval_secs\b")
         ),
-        SurfaceField("fpss.keepalive_retries", _re(r"set_fpss_keepalive_retries\b")),
+        SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
         SurfaceField("retry.initial_delay_ms", _re(r"set_retry_initial_delay_ms\b")),
         SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
         SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
@@ -581,18 +581,18 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "reconnect.replay_pace_ms", _re(r"set_reconnect_replay_pace_ms\b")
         ),
-        SurfaceField("fpss.timeout_ms", _re(r"set_fpss_timeout_ms\b")),
-        SurfaceField("fpss.connect_timeout_ms", _re(r"set_fpss_connect_timeout_ms\b")),
-        SurfaceField("fpss.ping_interval_ms", _re(r"set_fpss_ping_interval_ms\b")),
-        SurfaceField("fpss.io_read_slice_ms", _re(r"set_fpss_io_read_slice_ms\b")),
-        SurfaceField("fpss.data_watchdog_ms", _re(r"set_fpss_data_watchdog_ms\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
+        SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
+        SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
+        SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
+        SurfaceField("streaming.data_watchdog_ms", _re(r"set_streaming_data_watchdog_ms\b")),
         SurfaceField(
-            "fpss.keepalive_idle_secs", _re(r"set_fpss_keepalive_idle_secs\b")
+            "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
         SurfaceField(
-            "fpss.keepalive_interval_secs", _re(r"set_fpss_keepalive_interval_secs\b")
+            "streaming.keepalive_interval_secs", _re(r"set_streaming_keepalive_interval_secs\b")
         ),
-        SurfaceField("fpss.keepalive_retries", _re(r"set_fpss_keepalive_retries\b")),
+        SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
         SurfaceField("retry.initial_delay_ms", _re(r"set_retry_initial_delay_ms\b")),
         SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
         SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
@@ -633,18 +633,18 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "reconnect.replay_pace_ms", _re(r"setReconnectReplayPaceMs\b")
         ),
-        SurfaceField("fpss.timeout_ms", _re(r"setFpssTimeoutMs\b")),
-        SurfaceField("fpss.connect_timeout_ms", _re(r"setFpssConnectTimeoutMs\b")),
-        SurfaceField("fpss.ping_interval_ms", _re(r"setFpssPingIntervalMs\b")),
-        SurfaceField("fpss.io_read_slice_ms", _re(r"setFpssIoReadSliceMs\b")),
-        SurfaceField("fpss.data_watchdog_ms", _re(r"setFpssDataWatchdogMs\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"setStreamingTimeoutMs\b")),
+        SurfaceField("streaming.connect_timeout_ms", _re(r"setStreamingConnectTimeoutMs\b")),
+        SurfaceField("streaming.ping_interval_ms", _re(r"setStreamingPingIntervalMs\b")),
+        SurfaceField("streaming.io_read_slice_ms", _re(r"setStreamingIoReadSliceMs\b")),
+        SurfaceField("streaming.data_watchdog_ms", _re(r"setStreamingDataWatchdogMs\b")),
         SurfaceField(
-            "fpss.keepalive_idle_secs", _re(r"setFpssKeepaliveIdleSecs\b")
+            "streaming.keepalive_idle_secs", _re(r"setStreamingKeepaliveIdleSecs\b")
         ),
         SurfaceField(
-            "fpss.keepalive_interval_secs", _re(r"setFpssKeepaliveIntervalSecs\b")
+            "streaming.keepalive_interval_secs", _re(r"setStreamingKeepaliveIntervalSecs\b")
         ),
-        SurfaceField("fpss.keepalive_retries", _re(r"setFpssKeepaliveRetries\b")),
+        SurfaceField("streaming.keepalive_retries", _re(r"setStreamingKeepaliveRetries\b")),
         SurfaceField("retry.max_attempts", _re(r"setRetryMaxAttempts\b")),
         SurfaceField("flatfiles.max_attempts", _re(r"setFlatfilesMaxAttempts\b")),
         SurfaceField(
@@ -701,16 +701,16 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "flatfiles.max_backoff_secs", _re(r"^\s*flatfiles_max_backoff_secs:")
         ),
-        SurfaceField("fpss.timeout_ms", _re(r"^\s*fpss_timeout_ms:")),
-        SurfaceField("fpss.data_watchdog_ms", _re(r"^\s*fpss_data_watchdog_ms:")),
+        SurfaceField("streaming.timeout_ms", _re(r"^\s*streaming_timeout_ms:")),
+        SurfaceField("streaming.data_watchdog_ms", _re(r"^\s*streaming_data_watchdog_ms:")),
         SurfaceField(
-            "fpss.keepalive_idle_secs", _re(r"^\s*fpss_keepalive_idle_secs:")
+            "streaming.keepalive_idle_secs", _re(r"^\s*streaming_keepalive_idle_secs:")
         ),
         SurfaceField(
-            "fpss.keepalive_interval_secs", _re(r"^\s*fpss_keepalive_interval_secs:")
+            "streaming.keepalive_interval_secs", _re(r"^\s*streaming_keepalive_interval_secs:")
         ),
-        SurfaceField("fpss.keepalive_retries", _re(r"^\s*fpss_keepalive_retries:")),
-        SurfaceField("mdds.concurrent_requests", _re(r"^\s*concurrent_requests:")),
+        SurfaceField("streaming.keepalive_retries", _re(r"^\s*streaming_keepalive_retries:")),
+        SurfaceField("historical.concurrent_requests", _re(r"^\s*concurrent_requests:")),
     ]
     # `concurrent_requests` has no single-literal default: the
     # constructor seeds `0`, which is the "auto-detect from the
@@ -719,7 +719,7 @@ def build_surfaces() -> list[Surface]:
     # "0 = auto-detect", not "Default 0"; the gate registers the field
     # so the skip is explicit rather than silently absent, but does not
     # demand a literal match against the sentinel.
-    pyi.skips["mdds.concurrent_requests"] = (
+    pyi.skips["historical.concurrent_requests"] = (
         "default 0 is the auto-detect-from-tier sentinel, not a fixed literal"
     )
     surfaces.append(pyi)
@@ -874,13 +874,13 @@ impl MddsConfig {
     # wrong (2_000 vs canonical 250); the rest are correct.
     ffi_bad = """
 /// Set the reconnect delay (ms). Default `2_000`.
-pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms() {}
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms() {}
 
 /// Set the read timeout (ms). Default `3_000`.
-pub unsafe extern "C" fn tdx_config_set_fpss_timeout_ms() {}
+pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms() {}
 
 /// Set the flatfile attempt budget. Default `10`. Validated to `[1, 100]`.
-pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts() {}
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
 """
     ffi_good = ffi_bad.replace("Default `2_000`", "Default `250`")
 
@@ -900,7 +900,7 @@ pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts() {}
     synthetic = Surface("ffi", pathlib.Path("ffi/src/auth.rs"))
     synthetic.fields = [
         SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
-        SurfaceField("fpss.timeout_ms", _re(r"set_fpss_timeout_ms\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
         SurfaceField("flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")),
     ]
 

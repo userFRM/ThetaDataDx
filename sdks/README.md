@@ -9,7 +9,7 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
 | **Python** | `pip install thetadatadx` | Full generated historical surface | `Client` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
 | **TypeScript/Node.js** | `npm install thetadatadx` | Full generated historical surface | `Client` | `allGreeks()` | [sdks/typescript/](typescript/) |
 | **C++** | CMake `find_library` | Full generated historical surface | `StreamingClient` | via FFI | [sdks/cpp/](cpp/) |
-| **C FFI** | `cargo build --release -p thetadatadx-ffi` | Full generated historical surface | `TdxClient` / `TdxStreamHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
+| **C FFI** | `cargo build --release -p thetadatadx-ffi` | Full generated historical surface | `ThetaDataDxClient` / `ThetaDataDxStreamHandle` | `thetadatadx_all_greeks` | [ffi/](../ffi/) |
 
 ## Architecture
 
@@ -85,10 +85,10 @@ maturin develop --release
 from thetadatadx import Credentials, Config, Client, all_greeks
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
 # Historical data
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240315")
+eod = client.stock_history_eod("AAPL", "20240101", "20240315")
 
 # Greeks
 g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
@@ -114,9 +114,9 @@ npm run build
 ```typescript
 import { Client } from 'thetadatadx';
 
-const tdx = await Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 
-const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240315');
+const eod = client.stockHistoryEOD('AAPL', '20240101', '20240315');
 ```
 
 Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.
@@ -160,15 +160,15 @@ The library exposes opaque handle types and `extern "C"` functions:
 
 | Category | Functions |
 |---|---|
-| **Lifecycle** | `tdx_credentials_from_email`, `tdx_credentials_from_file`, `tdx_credentials_free` |
-| **Config** | `tdx_config_production`, `tdx_config_dev`, `tdx_config_free` |
-| **HistoricalClient** | `tdx_historical_connect`, `tdx_historical_free` |
-| **Unified** | `tdx_client_connect`, `tdx_client_historical`, `tdx_client_*`, `tdx_client_free` |
-| **Greeks** | `tdx_all_greeks`, `tdx_implied_volatility` |
-| **Standalone FPSS** | `tdx_streaming_connect`, `tdx_streaming_set_callback`, `tdx_streaming_subscribe`, `tdx_streaming_unsubscribe` (both polymorphic, take `TdxSubscriptionRequest`), `tdx_streaming_is_authenticated`, `tdx_streaming_active_subscriptions`, `tdx_streaming_reconnect`, `tdx_streaming_dropped_events`, `tdx_streaming_shutdown`, `tdx_streaming_await_drain`, `tdx_streaming_free` |
-| **Memory** | `tdx_*_array_free` (per tick type), `tdx_string_array_free`, `tdx_string_free`, `tdx_last_error` |
+| **Lifecycle** | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_free` |
+| **Config** | `thetadatadx_config_production`, `thetadatadx_config_dev`, `thetadatadx_config_free` |
+| **HistoricalClient** | `thetadatadx_historical_connect`, `thetadatadx_historical_free` |
+| **Unified** | `thetadatadx_client_connect`, `thetadatadx_client_historical`, `thetadatadx_client_*`, `thetadatadx_client_free` |
+| **Greeks** | `thetadatadx_all_greeks`, `thetadatadx_implied_volatility` |
+| **Standalone streaming** | `thetadatadx_streaming_connect`, `thetadatadx_streaming_set_callback`, `thetadatadx_streaming_subscribe`, `thetadatadx_streaming_unsubscribe` (both polymorphic, take `ThetaDataDxSubscriptionRequest`), `thetadatadx_streaming_is_authenticated`, `thetadatadx_streaming_active_subscriptions`, `thetadatadx_streaming_reconnect`, `thetadatadx_streaming_dropped_events`, `thetadatadx_streaming_shutdown`, `thetadatadx_streaming_await_drain`, `thetadatadx_streaming_free` |
+| **Memory** | `thetadatadx_*_array_free` (per tick type), `thetadatadx_string_array_free`, `thetadatadx_string_free`, `thetadatadx_last_error` |
 
-All historical data endpoints (61 total) are accessed through `tdx_historical_connect`. Streaming can be reached either through the unified handle (`TdxClient`, one auth/session for historical + streaming) or the standalone FPSS handle (`TdxStreamHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`) that must be freed with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
+All historical data endpoints (61 total) are accessed through `thetadatadx_historical_connect`. Streaming can be reached either through the unified handle (`ThetaDataDxClient`, one auth/session for historical + streaming) or the standalone FPSS handle (`ThetaDataDxStreamHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `ThetaDataDxEodTickArray`, `ThetaDataDxOhlcTickArray`) that must be freed with the corresponding `thetadatadx_*_array_free` function. List endpoints return `ThetaDataDxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
 
 ## Building All SDKs
 

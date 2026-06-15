@@ -15,7 +15,7 @@
 //! # use thetadatadx::fpss::protocol::Contract;
 //! # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
+//! let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
 //!
 //! let client = StreamingClient::builder(&creds, &hosts).build()?;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
@@ -102,7 +102,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{FpssFlushMode, HostSelectionPolicy, ReconnectPolicy};
+use crate::config::{HostSelectionPolicy, ReconnectPolicy, StreamingFlushMode};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -352,7 +352,7 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// # use thetadatadx::auth::Credentials;
 /// # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 /// let creds = Credentials::new("user@example.com", "pw");
-/// let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
+/// let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
 ///
 /// let client = StreamingClient::builder(&creds, &hosts)
 ///     .ring_size(8192)
@@ -367,7 +367,7 @@ pub struct StreamingClientBuilder<'a> {
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
     ring_size: usize,
-    flush_mode: FpssFlushMode,
+    flush_mode: StreamingFlushMode,
     policy: ReconnectPolicy,
     wait_ms: u64,
     wait_max_ms: u64,
@@ -395,12 +395,12 @@ impl<'a> StreamingClientBuilder<'a> {
     #[must_use]
     pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
         let reconnect = crate::config::ReconnectConfig::production_defaults();
-        let fpss = crate::config::FpssConfig::production_defaults();
+        let fpss = crate::config::StreamingConfig::production_defaults();
         Self {
             creds,
             hosts,
             ring_size: 4096,
-            flush_mode: FpssFlushMode::default(),
+            flush_mode: StreamingFlushMode::default(),
             policy: ReconnectPolicy::default(),
             wait_ms: reconnect.wait_ms,
             wait_max_ms: reconnect.wait_max_ms,
@@ -436,9 +436,9 @@ impl<'a> StreamingClientBuilder<'a> {
         self
     }
 
-    /// I/O thread flush behaviour. See [`FpssFlushMode`].
+    /// I/O thread flush behaviour. See [`StreamingFlushMode`].
     #[must_use]
-    pub fn flush_mode(mut self, m: FpssFlushMode) -> Self {
+    pub fn flush_mode(mut self, m: StreamingFlushMode) -> Self {
         self.flush_mode = m;
         self
     }
@@ -544,7 +544,7 @@ impl<'a> StreamingClientBuilder<'a> {
     }
 
     /// Last-frame watchdog (ms); `0` disables. See
-    /// [`crate::config::FpssConfig::data_watchdog_ms`].
+    /// [`crate::config::StreamingConfig::data_watchdog_ms`].
     #[must_use]
     pub fn data_watchdog_ms(mut self, ms: u64) -> Self {
         self.data_watchdog_ms = ms;
@@ -583,7 +583,7 @@ impl<'a> StreamingClientBuilder<'a> {
 
     /// Seed for the shuffled host order; `None` derives a fresh
     /// per-client seed. See
-    /// [`crate::config::FpssConfig::host_shuffle_seed`].
+    /// [`crate::config::StreamingConfig::host_shuffle_seed`].
     #[must_use]
     pub fn host_shuffle_seed(mut self, seed: Option<u64>) -> Self {
         self.host_shuffle_seed = seed;
@@ -645,7 +645,7 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) creds: &'a Credentials,
     pub(crate) hosts: &'a [(String, u16)],
     pub(crate) ring_size: usize,
-    pub(crate) flush_mode: FpssFlushMode,
+    pub(crate) flush_mode: StreamingFlushMode,
     pub(crate) policy: ReconnectPolicy,
     pub(crate) wait_ms: u64,
     pub(crate) wait_max_ms: u64,
@@ -742,7 +742,7 @@ struct SpawnArgs<'a, P> {
     host_selection: HostSelectionPolicy,
     host_shuffle_seed: u64,
     derive_ohlcvc: bool,
-    flush_mode: FpssFlushMode,
+    flush_mode: StreamingFlushMode,
     policy: ReconnectPolicy,
     wait_ms: u64,
     wait_max_ms: u64,
@@ -958,60 +958,62 @@ impl StreamingClient {
         let ring_size = ring::check_ring_size(ring_size)
             .map_err(|e| Error::config_invalid("fpss.ring_size", e.to_string()))?;
         let to_i64 = |v: u64| i64::try_from(v).unwrap_or(i64::MAX);
-        if !crate::config::fpss_bounds::TIMEOUT_MS.contains(&read_timeout_ms) {
+        if !crate::config::streaming_bounds::TIMEOUT_MS.contains(&read_timeout_ms) {
             return Err(Error::config_out_of_range(
                 "fpss.read_timeout_ms",
                 to_i64(read_timeout_ms),
-                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.start()),
-                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.end()),
+                to_i64(*crate::config::streaming_bounds::TIMEOUT_MS.start()),
+                to_i64(*crate::config::streaming_bounds::TIMEOUT_MS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.contains(&connect_timeout_ms) {
+        if !crate::config::streaming_bounds::CONNECT_TIMEOUT_MS.contains(&connect_timeout_ms) {
             return Err(Error::config_out_of_range(
                 "fpss.connect_timeout_ms",
                 to_i64(connect_timeout_ms),
-                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.start()),
-                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.end()),
+                to_i64(*crate::config::streaming_bounds::CONNECT_TIMEOUT_MS.start()),
+                to_i64(*crate::config::streaming_bounds::CONNECT_TIMEOUT_MS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::PING_INTERVAL_MS.contains(&ping_interval_ms) {
+        if !crate::config::streaming_bounds::PING_INTERVAL_MS.contains(&ping_interval_ms) {
             return Err(Error::config_out_of_range(
                 "fpss.ping_interval_ms",
                 to_i64(ping_interval_ms),
-                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.start()),
-                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.end()),
+                to_i64(*crate::config::streaming_bounds::PING_INTERVAL_MS.start()),
+                to_i64(*crate::config::streaming_bounds::PING_INTERVAL_MS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::IO_READ_SLICE_MS.contains(&io_read_slice_ms) {
+        if !crate::config::streaming_bounds::IO_READ_SLICE_MS.contains(&io_read_slice_ms) {
             return Err(Error::config_out_of_range(
                 "fpss.io_read_slice_ms",
                 to_i64(io_read_slice_ms),
-                to_i64(*crate::config::fpss_bounds::IO_READ_SLICE_MS.start()),
-                to_i64(*crate::config::fpss_bounds::IO_READ_SLICE_MS.end()),
+                to_i64(*crate::config::streaming_bounds::IO_READ_SLICE_MS.start()),
+                to_i64(*crate::config::streaming_bounds::IO_READ_SLICE_MS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.contains(&keepalive_idle_secs) {
+        if !crate::config::streaming_bounds::KEEPALIVE_IDLE_SECS.contains(&keepalive_idle_secs) {
             return Err(Error::config_out_of_range(
                 "fpss.keepalive_idle_secs",
                 to_i64(keepalive_idle_secs),
-                to_i64(*crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.start()),
-                to_i64(*crate::config::fpss_bounds::KEEPALIVE_IDLE_SECS.end()),
+                to_i64(*crate::config::streaming_bounds::KEEPALIVE_IDLE_SECS.start()),
+                to_i64(*crate::config::streaming_bounds::KEEPALIVE_IDLE_SECS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.contains(&keepalive_interval_secs) {
+        if !crate::config::streaming_bounds::KEEPALIVE_INTERVAL_SECS
+            .contains(&keepalive_interval_secs)
+        {
             return Err(Error::config_out_of_range(
                 "fpss.keepalive_interval_secs",
                 to_i64(keepalive_interval_secs),
-                to_i64(*crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.start()),
-                to_i64(*crate::config::fpss_bounds::KEEPALIVE_INTERVAL_SECS.end()),
+                to_i64(*crate::config::streaming_bounds::KEEPALIVE_INTERVAL_SECS.start()),
+                to_i64(*crate::config::streaming_bounds::KEEPALIVE_INTERVAL_SECS.end()),
             ));
         }
-        if !crate::config::fpss_bounds::KEEPALIVE_RETRIES.contains(&keepalive_retries) {
+        if !crate::config::streaming_bounds::KEEPALIVE_RETRIES.contains(&keepalive_retries) {
             return Err(Error::config_out_of_range(
                 "fpss.keepalive_retries",
                 i64::from(keepalive_retries),
-                i64::from(*crate::config::fpss_bounds::KEEPALIVE_RETRIES.start()),
-                i64::from(*crate::config::fpss_bounds::KEEPALIVE_RETRIES.end()),
+                i64::from(*crate::config::streaming_bounds::KEEPALIVE_RETRIES.start()),
+                i64::from(*crate::config::streaming_bounds::KEEPALIVE_RETRIES.end()),
             ));
         }
         // Apply the host-selection policy once for the cold connect.
@@ -2585,7 +2587,7 @@ mod builder_tests {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
         let args = StreamingClientBuilder::new(&creds, &hosts).into_args();
-        let fpss = crate::config::FpssConfig::production_defaults();
+        let fpss = crate::config::StreamingConfig::production_defaults();
         let reconnect = crate::config::ReconnectConfig::production_defaults();
         assert_eq!(args.connect_timeout_ms, fpss.connect_timeout_ms);
         assert_eq!(args.read_timeout_ms, fpss.timeout_ms);
@@ -2664,21 +2666,21 @@ mod builder_tests {
     fn production_config_threads_timing_knobs_through_builder() {
         let cfg = DirectConfig::production();
         let creds = Credentials::new("user", "pw");
-        let args = StreamingClientBuilder::new(&creds, &cfg.fpss.hosts)
-            .ring_size(cfg.fpss.ring_size)
-            .flush_mode(cfg.fpss.flush_mode)
+        let args = StreamingClientBuilder::new(&creds, &cfg.streaming.hosts)
+            .ring_size(cfg.streaming.ring_size)
+            .flush_mode(cfg.streaming.flush_mode)
             .reconnect_policy(cfg.reconnect.policy.clone())
             .reconnect_wait_ms(cfg.reconnect.wait_ms)
             .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
-            .derive_ohlcvc(cfg.fpss.derive_ohlcvc)
-            .connect_timeout_ms(cfg.fpss.connect_timeout_ms)
-            .read_timeout_ms(cfg.fpss.timeout_ms)
-            .ping_interval_ms(cfg.fpss.ping_interval_ms)
+            .derive_ohlcvc(cfg.streaming.derive_ohlcvc)
+            .connect_timeout_ms(cfg.streaming.connect_timeout_ms)
+            .read_timeout_ms(cfg.streaming.timeout_ms)
+            .ping_interval_ms(cfg.streaming.ping_interval_ms)
             .into_args();
-        assert_eq!(args.connect_timeout_ms, cfg.fpss.connect_timeout_ms);
-        assert_eq!(args.read_timeout_ms, cfg.fpss.timeout_ms);
-        assert_eq!(args.ping_interval_ms, cfg.fpss.ping_interval_ms);
-        assert_eq!(args.ring_size, cfg.fpss.ring_size);
+        assert_eq!(args.connect_timeout_ms, cfg.streaming.connect_timeout_ms);
+        assert_eq!(args.read_timeout_ms, cfg.streaming.timeout_ms);
+        assert_eq!(args.ping_interval_ms, cfg.streaming.ping_interval_ms);
+        assert_eq!(args.ring_size, cfg.streaming.ring_size);
         assert_eq!(args.wait_ms, cfg.reconnect.wait_ms);
         assert_eq!(
             args.wait_rate_limited_ms,

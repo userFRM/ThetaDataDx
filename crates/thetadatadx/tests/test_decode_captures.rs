@@ -1,7 +1,7 @@
 //! Captured-response regression tests.
 //!
 //! Each fixture is a real `ResponseData` protobuf captured from the production
-//! MDDS server via the `tdx` CLI, zstd-compressed, checked in under
+//! MDDS server via the `thetadatadx` CLI, zstd-compressed, checked in under
 //! `tests/fixtures/captures/<endpoint>.pb.zst`, and paired with a sibling
 //! `<endpoint>.meta.toml` that anchors the row count, the exact server-sent
 //! header list, and the first-row field values.
@@ -14,7 +14,7 @@
 //!
 //! When the upstream server changes its header surface, add the new column
 //! to `HEADER_ALIASES` (in `decode.rs`) and regenerate the affected fixture
-//! with `TDX_CAPTURE_RAW=… tdx …` + `zstd -19 *.pb > *.pb.zst`.
+//! with `TDX_CAPTURE_RAW=… thetadatadx …` + `zstd -19 *.pb > *.pb.zst`.
 
 use std::fs;
 

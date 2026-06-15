@@ -252,72 +252,72 @@ export declare class Config {
    * the stream stops reconnecting and emits the terminal event.
    */
   setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
-  /** Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
-  setFpssTimeoutMs(ms: bigint): void
-  /** Current `fpss.timeout_ms` value (default `3_000n`). */
-  get fpssTimeoutMs(): bigint
+  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
+  setStreamingTimeoutMs(ms: bigint): void
+  /** Current `streaming.timeout_ms` value (default `3_000n`). */
+  get streamingTimeoutMs(): bigint
   /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
-  setFpssConnectTimeoutMs(ms: bigint): void
-  /** Current `fpss.connect_timeout_ms` value (default `2_000n`). */
-  get fpssConnectTimeoutMs(): bigint
-  /** Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
-  setFpssPingIntervalMs(ms: bigint): void
-  /** Current `fpss.ping_interval_ms` value (default `250n`). */
-  get fpssPingIntervalMs(): bigint
+  setStreamingConnectTimeoutMs(ms: bigint): void
+  /** Current `streaming.connect_timeout_ms` value (default `2_000n`). */
+  get streamingConnectTimeoutMs(): bigint
+  /** Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
+  setStreamingPingIntervalMs(ms: bigint): void
+  /** Current `streaming.ping_interval_ms` value (default `250n`). */
+  get streamingPingIntervalMs(): bigint
   /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
-  setFpssIoReadSliceMs(ms: bigint): void
-  /** Current `fpss.io_read_slice_ms` value (default `25n`). */
-  get fpssIoReadSliceMs(): bigint
+  setStreamingIoReadSliceMs(ms: bigint): void
+  /** Current `streaming.io_read_slice_ms` value (default `25n`). */
+  get streamingIoReadSliceMs(): bigint
   /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
-  setFpssDataWatchdogMs(ms: bigint): void
-  /** Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
-  get fpssDataWatchdogMs(): bigint
-  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect. */
-  setFpssKeepaliveIdleSecs(ms: bigint): void
-  /** Current `fpss.keepalive_idle_secs` value (default `5n`). */
-  get fpssKeepaliveIdleSecs(): bigint
+  setStreamingDataWatchdogMs(ms: bigint): void
+  /** Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
+  get streamingDataWatchdogMs(): bigint
+  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
+  setStreamingKeepaliveIdleSecs(ms: bigint): void
+  /** Current `streaming.keepalive_idle_secs` value (default `5n`). */
+  get streamingKeepaliveIdleSecs(): bigint
   /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
-  setFpssKeepaliveIntervalSecs(ms: bigint): void
-  /** Current `fpss.keepalive_interval_secs` value (default `2n`). */
-  get fpssKeepaliveIntervalSecs(): bigint
+  setStreamingKeepaliveIntervalSecs(ms: bigint): void
+  /** Current `streaming.keepalive_interval_secs` value (default `2n`). */
+  get streamingKeepaliveIntervalSecs(): bigint
   /**
    * Set the number of unanswered TCP keepalive probes after which
-   * the kernel declares the FPSS connection dead (where the
+   * the kernel declares the streaming connection dead (where the
    * platform exposes the knob). Default `2`; validated to `[1, 10]`
    * at connect.
    */
-  setFpssKeepaliveRetries(n: number): void
-  /** Current `fpss.keepalive_retries` value (default `2`). */
-  get fpssKeepaliveRetries(): number
+  setStreamingKeepaliveRetries(n: number): void
+  /** Current `streaming.keepalive_retries` value (default `2`). */
+  get streamingKeepaliveRetries(): number
   /**
-   * Set the FPSS event ring buffer size (slots). Must be a power of
+   * Set the streaming event ring buffer size (slots). Must be a power of
    * two `>= 64`; invalid values are rejected immediately. Default
    * `131_072`.
    */
-  setFpssRingSize(n: number): void
-  /** Current `fpss.ring_size` value (default `131_072`). */
-  get fpssRingSize(): number
+  setStreamingRingSize(n: number): void
+  /** Current `streaming.ring_size` value (default `131_072`). */
+  get streamingRingSize(): number
   /**
-   * Set the FPSS host-selection policy. Accepts `"shuffled"`
+   * Set the streaming host-selection policy. Accepts `"shuffled"`
    * (default — fault-domain-aware per-client shuffle) or
    * `"fixed_order"` (declared order verbatim), case-insensitive.
    */
-  setFpssHostSelection(policy: string): void
-  /** Current FPSS host-selection policy as a lowercase string. */
-  get fpssHostSelection(): string
+  setStreamingHostSelection(policy: string): void
+  /** Current streaming host-selection policy as a lowercase string. */
+  get streamingHostSelection(): string
   /**
-   * Set the FPSS host-shuffle seed. `null` (default) derives a
+   * Set the streaming host-shuffle seed. `null` (default) derives a
    * fresh per-client seed so a fleet shuffles independently; an
    * explicit `bigint` makes the shuffled order deterministic —
    * useful for fleet sharding and tests. Ignored under
    * `"fixed_order"`.
    */
-  setFpssHostShuffleSeed(seed?: bigint | undefined | null): void
+  setStreamingHostShuffleSeed(seed?: bigint | undefined | null): void
   /**
-   * Current `fpss.host_shuffle_seed` value (`null` = per-client
+   * Current `streaming.host_shuffle_seed` value (`null` = per-client
    * entropy).
    */
-  get fpssHostShuffleSeed(): bigint | null
+  get streamingHostShuffleSeed(): bigint | null
   /**
    * Set the wall-clock envelope (seconds) for one
    * historical-channel retry sequence, measured from the first
@@ -365,7 +365,7 @@ export declare class Config {
   /** Current `retry.initial_delay` value (ms, returned as BigInt). */
   get retryInitialDelayMs(): bigint
   /**
-   * Set the upper-bound backoff delay (ms) for the MDDS retry
+   * Set the upper-bound backoff delay (ms) for the historical retry
    * policy. Default `30_000n` (30 s).
    */
   setRetryMaxDelayMs(ms: bigint): void
@@ -437,18 +437,18 @@ export declare class Config {
   setClientType(clientType: string): void
   /** Current `auth.client_type` value. */
   get clientType(): string
-  /** Override the historical gRPC host. Companion to `setMddsPort`. */
-  setMddsHost(host: string): void
+  /** Override the historical gRPC host. Companion to `setHistoricalPort`. */
+  setHistoricalHost(host: string): void
   /** Current historical gRPC host. */
-  get mddsHost(): string
+  get historicalHost(): string
   /**
-   * Override the historical data port. Companion to `setMddsHost` —
+   * Override the historical data port. Companion to `setHistoricalHost` —
    * same test-only rationale. Rejects values outside the `0..=65535`
    * port range.
    */
-  setMddsPort(port: number): void
+  setHistoricalPort(port: number): void
   /** Current historical gRPC port. */
-  get mddsPort(): number
+  get historicalPort(): number
   /**
    * Set the Prometheus exporter port. Pass `null` or `undefined`
    * to leave the exporter disabled (the default); pass a
@@ -599,7 +599,7 @@ export declare class FlatFileRowList {
 }
 
 /**
- * JS class returned from `tdx.flatFiles`. Each method maps to one
+ * JS class returned from `client.flatFiles`. Each method maps to one
  * (security type, request type) pair and returns a `FlatFileRowList`.
  */
 export declare class FlatFilesNamespace {
@@ -631,7 +631,7 @@ export declare class FlatFilesNamespace {
 }
 
 /**
- * Standalone MDDS-only historical client.
+ * Standalone historical-only client.
  *
  * Opens ONLY the historical data channel and the Nexus authentication
  * flow — no real-time streaming connection or streaming state machine.
@@ -640,17 +640,17 @@ export declare class FlatFilesNamespace {
  * the Nexus session at connect time.
  *
  * The full historical / list / snapshot / at-time / flat-files surface
- * is identical to the unified client, so `mddsClient.stockHistoryEod(...)`
+ * is identical to the unified client, so `historicalClient.stockHistoryEod(...)`
  * behaves exactly like `client.stockHistoryEod(...)`. The streaming and
  * subscription methods are simply not present: there is no
- * `startStreaming` / `subscribe` on this class, so an MDDS-only handle
+ * `startStreaming` / `subscribe` on this class, so a historical-only handle
  * cannot open a streaming slot. Use `StreamingClient` for streaming, or the
  * unified `Client` when you need both surfaces.
  *
  * ```js
  * const { HistoricalClient, Config } = require("@thetadatadx/sdk");
- * const mdds = HistoricalClient.connectFromFile("creds.txt");
- * const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
+ * const historical = HistoricalClient.connectFromFile("creds.txt");
+ * const eod = await historical.stockHistoryEod("AAPL", "20240101", "20240301");
  * ```
  */
 export declare class HistoricalClient {
@@ -2566,7 +2566,7 @@ export declare class StreamView {
   ringOccupancy(): bigint
   /**
    * Configured capacity of the streaming event ring in slots (the
-   * `fpssRingSize` setting, a power of two).
+   * `streamingRingSize` setting, a power of two).
    *
    * The fixed denominator for `ringOccupancy()`: when the
    * occupancy sample approaches this value the ring is saturating

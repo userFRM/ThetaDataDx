@@ -24,9 +24,9 @@ Field-level rows (dotted `name`, e.g. `ReconnectConfig.wait_ms`):
   CamelCase form lifts the snake_case canonical name.
 - C++: `set_<canonical>` / `get_<canonical>` member functions on the
   `class Config { ... }` body in `thetadx.hpp` PLUS the matching
-  `tdx_config_set_<canonical>` C-ABI declaration in `thetadx.h`.
-- FFI: `tdx_config_set_<canonical>` AND
-  `tdx_config_get_<canonical>` (or the `_explicit` widened-ABI shape)
+  `thetadatadx_config_set_<canonical>` C-ABI declaration in `thetadx.h`.
+- FFI: `thetadatadx_config_set_<canonical>` AND
+  `thetadatadx_config_get_<canonical>` (or the `_explicit` widened-ABI shape)
   parsed from `ffi/src/*.rs`. Any binding flagged `true` on a field
   row implies the FFI symbol exists, because every higher-level
   binding forwards into the same C ABI.
@@ -112,7 +112,7 @@ def _surface_token_hit(identifier: str) -> str | None:
     `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in a
     word-boundary text rule. Vendor protocol names
     (`mdds`, `fpss`) are intentionally absent from the token list, so a
-    `MddsConfig` / `setFpssRingSize` identifier is never flagged.
+    `mdds_client` / `fpss` engine stem is never flagged.
     """
     lowered = identifier.lower()
     for token in BANNED_SURFACE_TOKENS:
@@ -269,10 +269,10 @@ def _is_implicitly_tracked(name: str) -> bool:
 # `DirectConfig.<accessor>`, but the binding-side setter name combines
 # the prefix with the row's field suffix. E.g. `ReconnectConfig.wait_ms`
 # resolves to Python `set_reconnect_wait_ms`, TS `setReconnectWaitMs`,
-# C++ `set_reconnect_wait_ms`, FFI `tdx_config_set_reconnect_wait_ms`.
+# C++ `set_reconnect_wait_ms`, FFI `thetadatadx_config_set_reconnect_wait_ms`.
 STRUCT_TO_PREFIX: dict[str, str] = {
-    "MddsConfig": "",
-    "FpssConfig": "",
+    "HistoricalConfig": "",
+    "StreamingConfig": "",
     "FlatFilesConfig": "flatfiles_",
     "ReconnectConfig": "reconnect_",
     "RuntimeConfig": "",
@@ -303,7 +303,7 @@ def _canonical_setter(struct_name: str, suffix: str) -> str | None:
 # shape for `Option<usize>` fields (`RuntimeConfig.tokio_worker_threads`,
 # `MetricsConfig.port`). The
 # parity row uses the bare field name, but the binding exposes
-# `tdx_config_set_<field>_explicit` as the canonical setter. Accept
+# `thetadatadx_config_set_<field>_explicit` as the canonical setter. Accept
 # either shape when matching.
 FFI_EXPLICIT_SUFFIXES = ("_explicit",)
 
@@ -384,7 +384,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
 def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]:
     """C++ wrapper exposes setters as inline `set_<name>(<type>)` on
     the `class Config { ... }` body. The matching
-    `tdx_config_set_<name>` declaration in `thetadx.h` is the C ABI
+    `thetadatadx_config_set_<name>` declaration in `thetadx.h` is the C ABI
     surface the wrapper forwards to; the parity gate requires both
     halves so a forgotten C header declaration trips at link time.
     Getter presence is not gated — several write-only knobs have no
@@ -402,14 +402,14 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
     h_setters: set[str] = set()
     if cpp_h.is_file():
         text = cpp_h.read_text(encoding="utf-8")
-        for m in re.finditer(r"\btdx_config_set_(\w+)\s*\(", text):
+        for m in re.finditer(r"\bthetadatadx_config_set_(\w+)\s*\(", text):
             h_setters.add(m.group(1))
     return cpp_setters & h_setters
 
 
 def _collect_ffi_setters(ffi_src: pathlib.Path) -> set[str]:
     """FFI extern C setter declarations in `ffi/src/*.rs`. The
-    convention is ``tdx_config_set_<name>``. Getter presence is not
+    convention is ``thetadatadx_config_set_<name>``. Getter presence is not
     gated — several write-only knobs (e.g. the per-class reconnect
     budgets) have no FFI getter by design.
     """
@@ -418,7 +418,7 @@ def _collect_ffi_setters(ffi_src: pathlib.Path) -> set[str]:
         return setters
     for rs in ffi_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
-        for m in re.finditer(r"\bfn\s+tdx_config_set_(\w+)\s*\(", text):
+        for m in re.finditer(r"\bfn\s+thetadatadx_config_set_(\w+)\s*\(", text):
             setters.add(m.group(1))
     return setters
 
@@ -445,7 +445,7 @@ def _setter_present(canonical: str, setters: set[str]) -> bool:
 #     property is the bare `<name>`).
 #   * TypeScript: `#[napi(getter, js_name = "<camelCase>")]`.
 #   * C++: a `get_<name>(...)` member on `class Config`.
-#   * C ABI: `tdx_config_get_<name>`.
+#   * C ABI: `thetadatadx_config_get_<name>`.
 
 
 def _iter_impl_config_bodies(text: str) -> list[str]:
@@ -533,17 +533,17 @@ def _collect_cpp_getters(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_getters(ffi_src: pathlib.Path) -> set[str]:
-    """FFI `tdx_config_get_<name>` extern C read-back declarations.
+    """FFI `thetadatadx_config_get_<name>` extern C read-back declarations.
 
     Mirrors `_collect_ffi_setters` on the read side. Returns the bare
-    canonical names with the `tdx_config_get_` prefix stripped.
+    canonical names with the `thetadatadx_config_get_` prefix stripped.
     """
     getters: set[str] = set()
     if not ffi_src.is_dir():
         return getters
     for rs in ffi_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
-        for m in re.finditer(r"\bfn\s+tdx_config_get_(\w+)\s*\(", text):
+        for m in re.finditer(r"\bfn\s+thetadatadx_config_get_(\w+)\s*\(", text):
             getters.add(m.group(1))
     return getters
 
@@ -580,9 +580,9 @@ def _normalize_setter(name: str) -> str:
 # reason. This is the documented per-language-idiom carve-out the gate
 # tolerates — every entry is a reviewed decision, not a silencer.
 #
-# Empty today: the `mdds_host` / `mdds_port` advanced endpoint overrides
-# are now bound on every binding (Python / TypeScript / C++ / the C
-# ABI), so no carve-out is required. Add an entry here only when a
+# Empty today: the `historical_host` / `historical_port` advanced endpoint
+# overrides are now bound on every binding (Python / TypeScript / C++ /
+# the C ABI), so no carve-out is required. Add an entry here only when a
 # setter is intentionally exposed on a strict subset of bindings.
 SETTER_PARITY_EXEMPT: dict[str, str] = {}
 
@@ -791,8 +791,8 @@ def _check_public_surface_vocab(
 # write through to it). The parity-toml rows under `ReconnectConfig.*`
 # already cover the cross-binding contract for those fields.
 SCOPED_STRUCTS: tuple[str, ...] = (
-    "MddsConfig",
-    "FpssConfig",
+    "HistoricalConfig",
+    "StreamingConfig",
     "FlatFilesConfig",
     "ReconnectConfig",
     "RuntimeConfig",
@@ -877,20 +877,20 @@ RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     ("RetryPolicy", "initial_delay"): "initial_delay_ms",
     ("RetryPolicy", "max_delay"): "max_delay_ms",
     ("RetryPolicy", "max_elapsed"): "max_elapsed_secs",
-    # FpssConfig scalar knobs carry an `fpss_` prefix at the binding
-    # surface so the generic field names (`timeout_ms`, `ring_size`)
+    # StreamingConfig scalar knobs carry a `streaming_` prefix at the
+    # binding surface so the generic field names (`timeout_ms`, `ring_size`)
     # stay unambiguous against sibling sub-configs.
-    ("FpssConfig", "timeout_ms"): "fpss_timeout_ms",
-    ("FpssConfig", "ring_size"): "fpss_ring_size",
-    ("FpssConfig", "ping_interval_ms"): "fpss_ping_interval_ms",
-    ("FpssConfig", "connect_timeout_ms"): "fpss_connect_timeout_ms",
-    ("FpssConfig", "io_read_slice_ms"): "fpss_io_read_slice_ms",
-    ("FpssConfig", "data_watchdog_ms"): "fpss_data_watchdog_ms",
-    ("FpssConfig", "keepalive_idle_secs"): "fpss_keepalive_idle_secs",
-    ("FpssConfig", "keepalive_interval_secs"): "fpss_keepalive_interval_secs",
-    ("FpssConfig", "keepalive_retries"): "fpss_keepalive_retries",
-    ("FpssConfig", "host_selection"): "fpss_host_selection",
-    ("FpssConfig", "host_shuffle_seed"): "fpss_host_shuffle_seed",
+    ("StreamingConfig", "timeout_ms"): "streaming_timeout_ms",
+    ("StreamingConfig", "ring_size"): "streaming_ring_size",
+    ("StreamingConfig", "ping_interval_ms"): "streaming_ping_interval_ms",
+    ("StreamingConfig", "connect_timeout_ms"): "streaming_connect_timeout_ms",
+    ("StreamingConfig", "io_read_slice_ms"): "streaming_io_read_slice_ms",
+    ("StreamingConfig", "data_watchdog_ms"): "streaming_data_watchdog_ms",
+    ("StreamingConfig", "keepalive_idle_secs"): "streaming_keepalive_idle_secs",
+    ("StreamingConfig", "keepalive_interval_secs"): "streaming_keepalive_interval_secs",
+    ("StreamingConfig", "keepalive_retries"): "streaming_keepalive_retries",
+    ("StreamingConfig", "host_selection"): "streaming_host_selection",
+    ("StreamingConfig", "host_shuffle_seed"): "streaming_host_shuffle_seed",
 }
 
 
@@ -1220,7 +1220,7 @@ def _check_method_rows(
 # The TypeScript binding groups its lookup utilities as static methods on
 # a `Util` namespace class (`Util.conditionName(...)`), while Python uses
 # a `thetadatadx.util` submodule, C++ a `thetadatadx::util` namespace, and the C
-# ABI bare `tdx_*` symbols. The collectors normalise each surface to the
+# ABI bare `thetadatadx_*` symbols. The collectors normalise each surface to the
 # bare snake_case function name so a single `[[utility]]` row matches
 # every binding's idiom.
 
@@ -1323,7 +1323,7 @@ def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
-    """Snake_case names of free functions declared in the `tdx`
+    """Snake_case names of free functions declared in the `thetadatadx`
     namespace of the C++ wrapper.
 
     The calculator declarations live in
@@ -1374,10 +1374,10 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_utility_functions(ffi_src: pathlib.Path) -> set[str]:
-    """Bare calculator names whose `tdx_<name>` C ABI symbol exists.
+    """Bare calculator names whose `thetadatadx_<name>` C ABI symbol exists.
 
-    The FFI exposes the calculators as `extern "C" fn tdx_all_greeks` /
-    `fn tdx_implied_volatility`. The collector strips the `tdx_` prefix so
+    The FFI exposes the calculators as `extern "C" fn thetadatadx_all_greeks` /
+    `fn thetadatadx_implied_volatility`. The collector strips the `thetadatadx_` prefix so
     the result matches the canonical `[[utility]]` row name directly.
     """
     out: set[str] = set()
@@ -1385,7 +1385,7 @@ def _collect_ffi_utility_functions(ffi_src: pathlib.Path) -> set[str]:
         return out
     for rs in ffi_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
-        for m in re.finditer(r"\bfn\s+tdx_(\w+)\s*\(", text):
+        for m in re.finditer(r"\bfn\s+thetadatadx_(\w+)\s*\(", text):
             out.add(m.group(1))
     return out
 
@@ -1409,12 +1409,12 @@ def _check_utility_rows(
 
     A row whose C ABI symbol carries a disambiguating prefix the
     higher-level bindings drop (the conditions table exposes the bare
-    `is_cancel` on Python / TypeScript / C++ but `tdx_condition_is_cancel`
+    `is_cancel` on Python / TypeScript / C++ but `thetadatadx_condition_is_cancel`
     on the C ABI, where the bare `is_cancel` would be ambiguous against
     the quote-condition predicate) records the bare C-symbol name under an
-    `ffi_name` key. The gate strips the `tdx_` prefix off the FFI symbol
+    `ffi_name` key. The gate strips the `thetadatadx_` prefix off the FFI symbol
     when collecting, so `ffi_name = "condition_is_cancel"` matches
-    `tdx_condition_is_cancel`. Absent the override the canonical `name` is
+    `thetadatadx_condition_is_cancel`. Absent the override the canonical `name` is
     used for every binding.
 
     A row may also carry a `binding_specific` reason string. Such a row is
@@ -1448,7 +1448,7 @@ def _check_utility_rows(
                 cpp_utils,
                 f"`{name}(` in the `thetadatadx::util` namespace",
             ),
-            ("ffi", ffi_name, ffi_utils, f"`tdx_{ffi_name}`"),
+            ("ffi", ffi_name, ffi_utils, f"`thetadatadx_{ffi_name}`"),
         ):
             declared = row.get(lang, False)
             actual = lookup_name in actual_set
@@ -1511,7 +1511,7 @@ def _check_utility_roster_complete(
     decode-bench / introspection hooks already filtered) and the
     TypeScript utility surface (napi free functions + `Util` namespace
     methods). Every name in those surfaces must be a declared row's
-    canonical `name`. The C++ `thetadatadx::util` / C ABI `tdx_*` surfaces are
+    canonical `name`. The C++ `thetadatadx::util` / C ABI `thetadatadx_*` surfaces are
     pinned forward per row (and the C ABI additionally by
     `check_c_abi_completeness`); they are not enumerable cleanly here
     because the namespace mingles the lookups with dozens of unrelated
@@ -1537,7 +1537,7 @@ def _check_utility_roster_complete(
 # ─── Subscription-kind label discovery ──────────────────────────────
 #
 # The FPSS subscription-kind enum stringifies to a fixed snake_case label
-# set that every binding surfaces (the C ABI `tdx_*_active_subscriptions`
+# set that every binding surfaces (the C ABI `thetadatadx_*_active_subscriptions`
 # `kind` field, the C++ `FluentSubscription::kind_string`, the Python /
 # TypeScript `Subscription.kind` accessors). The label is the stable
 # cross-binding contract — a quant filtering `sub.kind == "open_interest"`
@@ -1671,10 +1671,10 @@ def _collect_cpp_subscription_kinds(cpp_hpp: pathlib.Path) -> set[str]:
 def _collect_ffi_subscription_kinds(cpp_h: pathlib.Path) -> set[str]:
     """Kind labels documented as the C ABI contract in `thetadx.h`.
 
-    The C ABI surfaces the kind as the `TdxSubscription.kind` string field,
+    The C ABI surfaces the kind as the `ThetaDataDxSubscription.kind` string field,
     populated by the Rust core's `kind_str` / `full_kind_str` (so the C ABI
     emits exactly the Rust set at runtime). The header documents the
-    canonical label set in the `TdxSubscription` doc comment; harvesting
+    canonical label set in the `ThetaDataDxSubscription` doc comment; harvesting
     those literals pins the documented C contract against the same roster
     the runtime emits, so a header that drops a label (or documents a
     fictitious one) is caught.
@@ -1682,7 +1682,7 @@ def _collect_ffi_subscription_kinds(cpp_h: pathlib.Path) -> set[str]:
     if not cpp_h.is_file():
         return set()
     text = cpp_h.read_text(encoding="utf-8")
-    # The kind label vocabulary appears in the `TdxSubscription` struct
+    # The kind label vocabulary appears in the `ThetaDataDxSubscription` struct
     # doc comment. Restrict the harvest to the lines mentioning the field
     # so unrelated snake_case literals in the header are not swept in.
     out: set[str] = set()
@@ -1773,7 +1773,7 @@ CANONICAL_ERROR_LEAVES: frozenset[str] = frozenset(
 )
 
 # The canonical `TDX_ERR_*` code roster mapped to its integer value. The C
-# ABI surfaces these via `tdx_last_error_code`; the higher bindings
+# ABI surfaces these via `thetadatadx_last_error_code`; the higher bindings
 # dispatch on them. `TDX_ERR_NONE` (0) is the no-error sentinel, present in
 # the header but not a leaf class, so the leaf-to-code correspondence skips
 # it.
@@ -2079,7 +2079,7 @@ def _endpoint_method_to_snake(name: str) -> str:
 #   * TypeScript: a `<endpoint>Stream` method on the `Client`
 #     napi class (generated into
 #     `sdks/typescript/src/_generated/historical_methods.rs`).
-#   * C ABI: a `tdx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
+#   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
 #   * C++: an `<endpoint>_stream` member on the `Client` wrapper
 #     (`thetadx.hpp` + its `.inc` fragments).
 #
@@ -2157,18 +2157,18 @@ def _collect_typescript_streaming_endpoints(
 
 
 def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose `tdx_<endpoint>_stream` extern "C"
+    """Snake_case endpoint names whose `thetadatadx_<endpoint>_stream` extern "C"
     symbol exists in `ffi/src/`.
 
-    The `tdx_client_*` / `tdx_streaming_*` callback symbols never match
-    the `tdx_<name>_stream` shape (their stems are `client` / `streaming`
+    The `thetadatadx_client_*` / `thetadatadx_streaming_*` callback symbols never match
+    the `thetadatadx_<name>_stream` shape (their stems are `client` / `streaming`
     and they end in `set_callback` / `reconnect` / `shutdown`, not
     `_stream`), so they are not mistaken for a historical endpoint.
     """
     out: set[str] = set()
     if not ffi_src.is_dir():
         return out
-    fn_re = re.compile(r"\bfn\s+tdx_(\w+)_stream\s*\(")
+    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_stream\s*\(")
     for rs in ffi_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
         for m in fn_re.finditer(text):
@@ -2227,7 +2227,7 @@ def _check_historical_streaming_rows(
             ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
             ("typescript", ts_stream, f"`{camel}Stream` on the `Client` napi class"),
             ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `Client` body"),
-            ("ffi", ffi_stream, f"`tdx_{name}_stream` extern \"C\" symbol"),
+            ("ffi", ffi_stream, f"`thetadatadx_{name}_stream` extern \"C\" symbol"),
         ):
             declared = row.get(lang, False)
             actual = name in actual_set
@@ -2265,22 +2265,22 @@ def _check_historical_streaming_rows(
 # convenience that loads credentials from a two-line file and connects.
 # The entry point is not a data method the `[[method]]` rows cover, and
 # its spelling differs per binding (`from_file` on Python / C++,
-# `connectFromFile` on TypeScript, `tdx_<stem>_connect_from_file` on the
+# `connectFromFile` on TypeScript, `thetadatadx_<stem>_connect_from_file` on the
 # C ABI), so a single `[[method]]` row cannot express it. These
 # collectors harvest each binding's file-construction surface so the
 # `[[from_file]]` rows can pin the cross-binding roster.
 #
 # `name` is the cross-binding client class identifier. The C ABI symbol
-# stem differs from the class name (`tdx_client_connect_from_file` for
-# `Client`, `tdx_historical_connect_from_file` for
-# `HistoricalClient`, `tdx_streaming_connect_from_file` for `StreamingClient`); the stem
+# stem differs from the class name (`thetadatadx_client_connect_from_file` for
+# `Client`, `thetadatadx_historical_connect_from_file` for
+# `HistoricalClient`, `thetadatadx_streaming_connect_from_file` for `StreamingClient`); the stem
 # table below bridges the two.
 #
 # The family governs exactly the standalone clients that connect to the
-# servers via a `tdx_<stem>_connect_from_file` C ABI symbol. It does NOT
+# servers via a `thetadatadx_<stem>_connect_from_file` C ABI symbol. It does NOT
 # govern `Credentials.from_file` (a credentials factory that returns a
 # `Credentials`, not a connected client, surfaced over the distinct
-# `tdx_credentials_from_file` symbol) nor the Python-only
+# `thetadatadx_credentials_from_file` symbol) nor the Python-only
 # `AsyncClient.from_file` (no C ABI / managed-binding twin —
 # its presence is tracked by the `AsyncClient` `[[class]]`
 # row). Scoping the collectors to the governed roster keeps those
@@ -2289,7 +2289,7 @@ def _check_historical_streaming_rows(
 
 
 # Parity class name → C ABI symbol stem for the
-# `tdx_<stem>_connect_from_file` extern "C" symbol. The keys are the
+# `thetadatadx_<stem>_connect_from_file` extern "C" symbol. The keys are the
 # governed client roster: every class this family tracks, and the only
 # classes the collectors below consider.
 FROM_FILE_FFI_STEMS: dict[str, str] = {
@@ -2356,7 +2356,7 @@ def _collect_cpp_from_file_classes(cpp_methods: dict[str, set[str]]) -> set[str]
 
 
 def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
-    """C ABI symbol stems whose `tdx_<stem>_connect_from_file` extern "C"
+    """C ABI symbol stems whose `thetadatadx_<stem>_connect_from_file` extern "C"
     symbol exists in `ffi/src/`.
 
     Returns the bare stems (`unified` / `mdds_client` / `fpss`); the
@@ -2366,7 +2366,7 @@ def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
     out: set[str] = set()
     if not ffi_src.is_dir():
         return out
-    fn_re = re.compile(r"\bfn\s+tdx_(\w+)_connect_from_file\s*\(")
+    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_connect_from_file\s*\(")
     for rs in ffi_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
         for m in fn_re.finditer(text):
@@ -2417,7 +2417,7 @@ def _check_from_file_rows(
                 f"`connectFromFile` napi factory on the `{name}` class",
             ),
             ("cpp", name in cpp_from_file, f"`from_file(` static member on the `{name}` C++ class"),
-            ("ffi", ffi_present, f"`tdx_{stem}_connect_from_file` extern \"C\" symbol"),
+            ("ffi", ffi_present, f"`thetadatadx_{stem}_connect_from_file` extern \"C\" symbol"),
         ):
             declared = row.get(lang, False)
             if declared != actual:
@@ -2482,9 +2482,9 @@ def _check_dotted_rows(
             continue
         # Allow rows to override the auto-derived setter name. Used
         # when a single struct has a mix of prefixed / unprefixed
-        # binding-side names (e.g. `MddsConfig.host` binds as
-        # `mdds_host` because the bare `host` name would collide with
-        # nothing meaningful and the `mdds_` prefix clarifies intent).
+        # binding-side names (e.g. `HistoricalConfig.host` binds as
+        # `historical_host` because the bare `host` name would collide with
+        # nothing meaningful and the `historical_` prefix clarifies intent).
         canonical = row.get("setter") or f"{prefix}{suffix}"
 
         rust_only = bool(row.get("rust_only", False))
@@ -2541,7 +2541,7 @@ def _check_dotted_rows(
             if not ffi_present:
                 errors.append(
                     f"  {name}.ffi: row declares `cpp = true` but the "
-                    f"FFI symbol `tdx_config_set_{canonical}` is "
+                    f"FFI symbol `thetadatadx_config_set_{canonical}` is "
                     f"absent. The C++ wrapper forwards through the C "
                     f"ABI; add the FFI pair before flipping the C++ "
                     f"column to `true`."
@@ -2782,7 +2782,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Historical server-stream surface ([[historical_streaming]] rows) —
-    # the `.stream(handler)` / `<endpoint>Stream` / `tdx_<endpoint>_stream`
+    # the `.stream(handler)` / `<endpoint>Stream` / `thetadatadx_<endpoint>_stream`
     # terminal per endpoint. These live on per-endpoint builders or as
     # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
     # so they would otherwise drift silently across bindings.
@@ -2795,7 +2795,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Client construction-from-file surface ([[from_file]] rows) — the
-    # one-call `from_file` / `connectFromFile` / `tdx_*_connect_from_file`
+    # one-call `from_file` / `connectFromFile` / `thetadatadx_*_connect_from_file`
     # convenience per standalone client class. Its spelling differs per
     # binding, so it cannot ride a `[[method]]` row; this family pins it
     # across Python / TypeScript / C++ / the C ABI.
@@ -3190,7 +3190,7 @@ def _run_selftest() -> int:
         """
         rows = [
             {
-                "name": "MddsConfig.host",
+                "name": "HistoricalConfig.host",
                 "python": True,
                 "typescript": False,
                 "cpp": False,
@@ -3229,7 +3229,7 @@ def _run_selftest() -> int:
     def _case_negative_rust_only_without_issue() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -3244,7 +3244,7 @@ def _run_selftest() -> int:
     def _case_negative_issue_without_rust_only() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -3259,7 +3259,7 @@ def _run_selftest() -> int:
     def _case_negative_rust_only_with_binding_true() -> None:
         rows = [
             {
-                "name": "FpssConfig.timeout_ms",
+                "name": "StreamingConfig.timeout_ms",
                 "python": True,  # contradicts rust_only
                 "typescript": False,
                 "cpp": False,
@@ -3314,7 +3314,7 @@ def _run_selftest() -> int:
                 "cpp": True,
             }
         ]
-        # FFI emits `tdx_config_set_tokio_worker_threads_explicit`;
+        # FFI emits `thetadatadx_config_set_tokio_worker_threads_explicit`;
         # that must satisfy the `tokio_worker_threads` row.
         ffi_setters = {"tokio_worker_threads_explicit", "tokio_worker_threads"}
         py_setters = {"tokio_worker_threads"}
@@ -3716,25 +3716,25 @@ def _run_selftest() -> int:
             )
 
     def _case_utility_ffi_collector_strips_prefix() -> None:
-        """The FFI collector strips the `tdx_` prefix to the bare name."""
+        """The FFI collector strips the `thetadatadx_` prefix to the bare name."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi_dir = pathlib.Path(tmp) / "ffi"
             ffi_dir.mkdir()
             (ffi_dir / "utility.rs").write_text(
-                'pub unsafe extern "C" fn tdx_all_greeks() {}\n'
-                'pub unsafe extern "C" fn tdx_implied_volatility() {}\n',
+                'pub unsafe extern "C" fn thetadatadx_all_greeks() {}\n'
+                'pub unsafe extern "C" fn thetadatadx_implied_volatility() {}\n',
                 encoding="utf-8",
             )
             found = _collect_ffi_utility_functions(ffi_dir)
             assert {"all_greeks", "implied_volatility"} <= found, (
-                f"tdx_-prefixed symbols must map to bare names; got {found!r}"
+                f"thetadatadx_-prefixed symbols must map to bare names; got {found!r}"
             )
 
     _case("utility positive — all four bindings expose the calculator", _case_utility_positive_all_four_bound)
     _case("utility negative — calculator missing on TS trips", _case_utility_negative_missing_on_ts)
     _case("utility negative — unexpected C++ decl trips", _case_utility_negative_unexpected)
     _case("utility — TS collector skips impl methods", _case_utility_ts_free_fn_collector_skips_methods)
-    _case("utility — FFI collector strips tdx_ prefix", _case_utility_ffi_collector_strips_prefix)
+    _case("utility — FFI collector strips thetadatadx_ prefix", _case_utility_ffi_collector_strips_prefix)
 
     # ── Historical server-stream surface selftests ────────────────
 
@@ -3848,7 +3848,7 @@ def _run_selftest() -> int:
 
     def _case_from_file_missing_on_ffi_trips() -> None:
         """Row claims the C ABI exposes file construction but the
-        `tdx_<stem>_connect_from_file` symbol is absent — trips."""
+        `thetadatadx_<stem>_connect_from_file` symbol is absent — trips."""
         rows = [
             {
                 "name": "StreamingClient",
@@ -3998,15 +3998,15 @@ def _run_selftest() -> int:
 
     def _case_surface_vocab_allows_vendor_protocol_names() -> None:
         """Vendor protocol names (mdds / fpss) are allow-listed and must
-        NEVER trip — `HistoricalClient`, `mdds_host`, `setFpssRingSize`,
-        `fpss_ring_size` are all clean.
+        NEVER trip — `HistoricalClient`, `historical_host`,
+        `setStreamingRingSize`, `streaming_ring_size` are all clean.
         """
         errors = _check_public_surface_vocab(
             {"HistoricalClient", "StreamingClient", "StreamEvent"},
             set(),
             set(),
-            {"mdds_host", "mdds_port", "fpss_ring_size", "fpss_host_selection"},
-            {"fpss_ring_size"},
+            {"historical_host", "historical_port", "streaming_ring_size", "streaming_host_selection"},
+            {"streaming_ring_size"},
             set(),
             set(),
             {"StreamingClient": {"subscribe"}},
@@ -4051,7 +4051,7 @@ def _run_selftest() -> int:
         assert _normalize_setter("worker_threads") == "worker_threads"
         assert _normalize_setter("flat_files_max_attempts") == "flatfiles_max_attempts"
         assert _normalize_setter("flatfiles_max_attempts") == "flatfiles_max_attempts"
-        assert _normalize_setter("fpss_host_shuffle_seed_explicit") == "fpss_host_shuffle_seed"
+        assert _normalize_setter("streaming_host_shuffle_seed_explicit") == "streaming_host_shuffle_seed"
 
     def _case_setter_set_parity_positive_after_normalize() -> None:
         """The four sets, spelled in their per-binding idioms, compare
@@ -4083,12 +4083,12 @@ def _run_selftest() -> int:
         """A Python-only knob listed in the exemption map does NOT trip
         — the documented per-language-idiom carve-out.
         """
-        py = {"mdds_host", "shared"}
+        py = {"historical_host", "shared"}
         ts = {"shared"}
         cpp = {"shared"}
         ffi = {"shared"}
         errors = _check_setter_set_parity(
-            py, ts, cpp, ffi, exempt={"mdds_host": "Python-only advanced override"}
+            py, ts, cpp, ffi, exempt={"historical_host": "Python-only advanced override"}
         )
         assert errors == [], (
             f"exempted Python-only knob must not trip; got {errors!r}"
@@ -4098,23 +4098,23 @@ def _run_selftest() -> int:
         """An exempted knob that is now uniformly bound on every binding
         is a stale carve-out and trips so the list never rots.
         """
-        allfour = {"mdds_host"}
+        allfour = {"historical_host"}
         errors = _check_setter_set_parity(
             allfour,
             allfour,
             allfour,
             allfour,
-            exempt={"mdds_host": "Python-only advanced override"},
+            exempt={"historical_host": "Python-only advanced override"},
         )
-        assert any("mdds_host" in e and "stale" in e for e in errors), (
+        assert any("historical_host" in e and "stale" in e for e in errors), (
             f"uniformly-bound exemption must surface as stale; got {errors!r}"
         )
 
     def _case_setter_set_parity_shipped_exemption_is_live() -> None:
         """The shipped `SETTER_PARITY_EXEMPT` carve-outs must be live
-        against the real binding sources — `mdds_host` / `mdds_port`
-        present on Python alone, so neither flags as stale and the live
-        gate stays silent on them.
+        against the real binding sources — `historical_host` /
+        `historical_port` present on every binding, so the carve-out map
+        stays empty and the live gate stays silent on them.
         """
         py = _collect_python_setters(PY_SRC)
         ts = _collect_typescript_setters(TS_SRC)
@@ -4152,13 +4152,13 @@ def _run_selftest() -> int:
         ABI trips — the read-side of the missing-binding defect class.
         """
         errors = _check_getter_set_parity(
-            {"fpss_ring_size"},
-            {"fpss_ring_size"},
-            {"fpss_ring_size"},
+            {"streaming_ring_size"},
+            {"streaming_ring_size"},
+            {"streaming_ring_size"},
             set(),
             exempt={},
         )
-        assert any("fpss_ring_size" in e and "ffi" in e for e in errors), (
+        assert any("streaming_ring_size" in e and "ffi" in e for e in errors), (
             f"getter missing on FFI must trip; got {errors!r}"
         )
 
@@ -4180,12 +4180,12 @@ def _run_selftest() -> int:
         Config knob roster.
         """
         py_text = (
-            "#[pymethods]\nimpl Config {\n    #[getter] fn get_fpss_ring_size(&self) -> usize { 0 }\n}\n"
+            "#[pymethods]\nimpl Config {\n    #[getter] fn get_streaming_ring_size(&self) -> usize { 0 }\n}\n"
             "#[pymethods]\nimpl QuoteTick {\n    #[getter] fn bid_price(&self) -> f64 { 0.0 }\n}\n"
         )
         bodies = _iter_impl_config_bodies(py_text)
         assert len(bodies) == 1, f"only the Config impl body must be picked; got {bodies!r}"
-        assert "get_fpss_ring_size" in bodies[0]
+        assert "get_streaming_ring_size" in bodies[0]
         assert "bid_price" not in bodies[0]
 
     _case("getter-set — normalized-equal sets are silent", _case_getter_set_parity_positive)
@@ -4362,7 +4362,7 @@ def _run_selftest() -> int:
     def _case_utility_ffi_name_override_resolves() -> None:
         """A row whose C ABI symbol carries a disambiguating prefix
         resolves through `ffi_name` — `is_cancel` on Python/TS/C++ but
-        `tdx_condition_is_cancel` on the C ABI.
+        `thetadatadx_condition_is_cancel` on the C ABI.
         """
         rows = [
             {

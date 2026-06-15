@@ -43,7 +43,7 @@ The server starts:
 | `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`; `info,tower_http=off` silences the access log) |
 | `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
 | `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
-| `--no-fpss` | | Skip FPSS streaming connection at startup |
+| `--no-streaming` | | Skip the streaming connection at startup |
 | `--no-ohlcvc` | | Disable OHLCVC bar derivation from trades on the FPSS stream |
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
@@ -140,7 +140,7 @@ Send JSON commands to manage subscriptions:
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
 - **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
-- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`tdx.dropped_events()` Python, `droppedEvents(): bigint` TS, `tdx_streaming_dropped_events` / `tdx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
+- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
 
 Example — initiating a graceful shutdown from the same machine:
 

@@ -1,5 +1,5 @@
 # Captured from prod MDDS for SPY 2024-06-21 500 CALL 2024-06-14 via:
-#   tdx option history_greeks_all SPY 20240621 500 C 20240614 5m
+#   thetadatadx option history_greeks_all SPY 20240621 500 C 20240614 5m
 # Single chunk, 79 rows (market hours / 5 min).
 
 endpoint = "option_history_greeks_all"
