@@ -57,6 +57,7 @@ BLOCKED_FPSS_METHODS = (
     "shutdown",
     "reconnect",
     "streaming",
+    "stream",
     "is_streaming",
     "await_drain",
     "subscribe",
@@ -310,6 +311,7 @@ def test_mdds_client_no_fpss_connection() -> None:
         "unsubscribe",
         "reconnect",
         "streaming",
+        "stream",
     }
     public_attrs = {name for name in dir(mod.HistoricalClient) if not name.startswith("_")}
     leaked = blocked & public_attrs

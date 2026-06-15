@@ -29,8 +29,14 @@ try {
 
 // The `HistoricalClient` class body as declared in `index.d.ts`.
 const mddsBlock = dts.match(/export declare class HistoricalClient \{[\s\S]*?\n\}/);
-const unifiedBlock = dts.match(
-  /export declare class Client \{[\s\S]*?\n\}/
+// The unified client's historical surface lives on the `client.historical`
+// `HistoricalView` view, and its streaming surface on the `client.stream`
+// `StreamView` view.
+const historicalViewBlock = dts.match(
+  /export declare class HistoricalView \{[\s\S]*?\n\}/
+);
+const streamViewBlock = dts.match(
+  /export declare class StreamView \{[\s\S]*?\n\}/
 );
 
 function methodNames(block) {
@@ -58,7 +64,8 @@ describe('HistoricalClient native addon surface', () => {
 
   it('declares the HistoricalClient class in index.d.ts', () => {
     assert.ok(mddsBlock, 'HistoricalClient class missing from index.d.ts');
-    assert.ok(unifiedBlock, 'Client class missing from index.d.ts');
+    assert.ok(historicalViewBlock, 'HistoricalView class missing from index.d.ts');
+    assert.ok(streamViewBlock, 'StreamView class missing from index.d.ts');
   });
 });
 
@@ -90,14 +97,22 @@ describe('HistoricalClient carries the historical surface', () => {
 
   it('matches the unified client on the historical surface (lockstep)', () => {
     const mdds = methodNames(mddsBlock[0]);
-    const unified = methodNames(unifiedBlock[0]);
-    // Every method the MDDS-only client exposes must also exist on the
-    // unified client — the historical surface is generated identically
-    // onto both, so the MDDS set is a strict subset of the unified set.
+    const historical = methodNames(historicalViewBlock[0]);
+    // The `connect` / `connectFromFile` static factories are lifecycle
+    // constructors that live only on the standalone client; the
+    // `HistoricalView` is reached through `client.historical` and has no
+    // constructor of its own. Exclude them so the comparison pins the
+    // generated data-fetch surface.
+    const LIFECYCLE = new Set(['connect', 'connectFromFile']);
+    // Every data-fetch method the MDDS-only client exposes must also exist
+    // on the unified client's `client.historical` view — the historical
+    // surface is generated identically onto both, so the MDDS set is a
+    // strict subset of the `HistoricalView` set.
     for (const name of mdds) {
+      if (LIFECYCLE.has(name)) continue;
       assert.ok(
-        unified.has(name),
-        `HistoricalClient method ${name} is missing from Client — the two historical surfaces have drifted`
+        historical.has(name),
+        `HistoricalClient method ${name} is missing from HistoricalView — the two historical surfaces have drifted`
       );
     }
   });
@@ -143,13 +158,13 @@ describe('HistoricalClient never exposes the FPSS / streaming surface', () => {
 
   it('the unified client retains those methods (control)', () => {
     // Guard the guard: confirm the banned names are real methods on the
-    // unified client, so the absence check above is meaningful and not
-    // passing on a renamed/removed method.
-    const unified = methodNames(unifiedBlock[0]);
+    // unified client's `client.stream` view, so the absence check above is
+    // meaningful and not passing on a renamed/removed method.
+    const stream = methodNames(streamViewBlock[0]);
     for (const present of ['startStreaming', 'subscribe', 'ringOccupancy']) {
       assert.ok(
-        unified.has(present),
-        `Client should still expose ${present}`
+        stream.has(present),
+        `StreamView should still expose ${present}`
       );
     }
   });

@@ -38,7 +38,7 @@ Optional parameters chain on the builder: `.venue(&str)`. Execute with `.await` 
 **Example**
 
 ```rust
-let rows = tdx.stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000").await?;
+let rows = tdx.historical().stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000").await?;
 for t in &rows {
     println!("date={} ms_of_day={} bid={} ask={}", t.date, t.ms_of_day, t.bid, t.ask);
 }
@@ -49,7 +49,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.stock_at_time_quote(
+Client.historical.stock_at_time_quote(
     symbol, start_date, end_date, time_of_day,
     *,
     venue=None, timeout_ms=None,
@@ -61,7 +61,7 @@ Client.stock_at_time_quote(
 **Example**
 
 ```python
-rows = tdx.stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000")
+rows = tdx.historical.stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000")
 for t in rows:
     print(t.date, t.ms_of_day, t.bid, t.ask)
 ```
@@ -82,7 +82,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = await tdx.stockAtTimeQuote('AAPL', '20250303', '20250306', '10:30:00.000');
+const rows = await tdx.historical.stockAtTimeQuote('AAPL', '20250303', '20250306', '10:30:00.000');
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.bid, t.ask);
 }
@@ -106,7 +106,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`. Throw
 **Example**
 
 ```cpp
-auto rows = client.stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000");
+auto rows = client.historical().stock_at_time_quote("AAPL", "20250303", "20250306", "10:30:00.000");
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.bid << ' ' << t.ask << "\n";
 }

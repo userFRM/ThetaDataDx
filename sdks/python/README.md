@@ -46,7 +46,7 @@ from thetadatadx import Client, Credentials, Config
 tdx = Client(Credentials.from_file("creds.txt"), Config.production())
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
+greeks = tdx.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -55,14 +55,14 @@ print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
 Every historical method returns a typed list — iterate it, index it, or convert it to a dataframe:
 
 ```python
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+eod = tdx.historical.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = tdx.stock_history_ohlc("AAPL", "20240315", "1m")   # 1-minute bars
-exps = tdx.option_list_expirations("SPY")
-strikes = tdx.option_list_strikes("SPY", exps[0])
+bars = tdx.historical.stock_history_ohlc("AAPL", "20240315", "1m")   # 1-minute bars
+exps = tdx.historical.option_list_expirations("SPY")
+strikes = tdx.historical.option_list_strikes("SPY", exps[0])
 ```
 
 ## DataFrames
@@ -81,7 +81,7 @@ The `.to_arrow()` terminal hands the underlying Arrow buffers to pyarrow over th
 ```python
 import duckdb
 
-table = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+table = tdx.historical.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 con = duckdb.connect()
 con.register("eod", table)                 # zero-copy into DuckDB
 con.sql("SELECT AVG(close) FROM eod").show()
@@ -96,7 +96,7 @@ def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(tdx.option_history_quote_builder("QQQ", "20260516", "20260516")
+(tdx.historical.option_history_quote_builder("QQQ", "20260516", "20260516")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))

@@ -116,7 +116,7 @@ const formatContract = (contract: {
   .filter((value) => value != null)
   .join(' ');
 
-client.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'trade' && event.trade) {
     const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
     console.log(
@@ -134,7 +134,7 @@ client.startStreaming((event) => {
 });
 
 const leg = { expiration: '20260619', strike: '550', right: 'C' };
-client.subscribeMany([
+client.stream.subscribeMany([
   Contract.option('SPY', leg).quote(),
   Contract.option('SPY', leg).trade(),
 ]);
@@ -151,7 +151,7 @@ int main() {
         thetadatadx::Credentials::from_file("creds.txt"),
         thetadatadx::Config::production());
 
-    auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
+    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", "20240315");
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
                     t.strike, t.right, t.delta, t.gamma);

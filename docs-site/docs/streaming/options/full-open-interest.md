@@ -20,17 +20,17 @@ use thetadatadx::fpss::protocol::SecTypeExt;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
-tdx.start_streaming(|event: &StreamEvent| {
+tdx.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. }) = event {
         println!("{} oi={open_interest}", contract.symbol);
     }
 })?;
 
 let sub = SecType::Option.full_open_interest();
-tdx.subscribe(sub.clone())?;
+tdx.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)?;
+tdx.stream().unsubscribe(sub)?;
 ```
 
 </template>
@@ -44,13 +44,13 @@ def on_event(event):
     if event.kind == "open_interest":
         print(event.contract.symbol, event.open_interest)
 
-tdx.start_streaming(on_event)
+tdx.stream.start_streaming(on_event)
 
 sub = SecType.OPTION.full_open_interest()
-tdx.subscribe(sub)
+tdx.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)
+tdx.stream.unsubscribe(sub)
 ```
 
 </template>
@@ -60,7 +60,7 @@ tdx.unsubscribe(sub)
 ```typescript
 import { SecType } from 'thetadatadx';
 
-tdx.startStreaming((event) => {
+tdx.stream.startStreaming((event) => {
   if (event.kind === 'open_interest') {
     const e = event.openInterest!;
     console.log(e.contract.symbol, e.openInterest);
@@ -68,10 +68,10 @@ tdx.startStreaming((event) => {
 });
 
 const sub = SecType.option().fullOpenInterest();
-tdx.subscribe(sub);
+tdx.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub);
+tdx.stream.unsubscribe(sub);
 ```
 
 </template>
@@ -79,7 +79,7 @@ tdx.unsubscribe(sub);
 <template #cpp>
 
 ```cpp
-client.set_callback([](const thetadatadx::StreamEvent& event) {
+client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
     if (event.kind == TDX_FPSS_OPEN_INTEREST) {
         auto& e = event.open_interest;
         std::cout << e.contract.symbol << " oi=" << e.open_interest << "\n";
@@ -87,10 +87,10 @@ client.set_callback([](const thetadatadx::StreamEvent& event) {
 });
 
 auto sub = thetadatadx::SecType::option().full_open_interest();
-client.subscribe(sub);
+client.stream().subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-client.unsubscribe(sub);
+client.stream().unsubscribe(sub);
 ```
 
 </template>

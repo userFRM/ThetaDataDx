@@ -4,7 +4,7 @@
 // registration via `startStreaming(callback)`. The dropped-event
 // counter forwards to `thetadatadx::Client::dropped_event_count`
 // (which counts `Producer::try_publish` overflow on the LMAX Disruptor
-// ring) and is surfaced to JS as `tdx.droppedEventCount(): bigint`.
+// ring) and is surfaced to JS as `tdx.stream.droppedEventCount(): bigint`.
 //
 // This test pins the contract: the getter is callable before
 // streaming, after `startStreaming(callback)`, after a subsequent
@@ -29,7 +29,7 @@ try {
   process.exit(1);
 }
 
-describe('tdx.droppedEventCount()', () => {
+describe('tdx.stream.droppedEventCount()', () => {
   it('is callable before/after startStreaming and after reconnect', async () => {
     const credsPath = process.env.THETADX_TEST_CREDS;
     if (!credsPath) {
@@ -45,7 +45,7 @@ describe('tdx.droppedEventCount()', () => {
     // Pre-stream: the FPSS client does not exist yet, so the count is
     // 0. Must already be readable (the getter forwards to the unified
     // client, which returns 0 when the streaming slot is empty).
-    const pre = tdx.droppedEventCount();
+    const pre = tdx.stream.droppedEventCount();
     assert.equal(typeof pre, 'bigint', 'droppedEventCount() must return bigint');
     assert.ok(pre >= 0n, 'pre-stream count must be non-negative');
     assert.equal(pre, 0n, 'pre-stream count must be 0 -- nothing has dropped');
@@ -55,15 +55,15 @@ describe('tdx.droppedEventCount()', () => {
     // `ThreadsafeFunction` queue; we don't assert anything about it
     // here because the live FPSS feed timing is non-deterministic.
     let received = 0n;
-    tdx.startStreaming(() => {
+    tdx.stream.startStreaming(() => {
       received += 1n;
     });
-    const postStart = tdx.droppedEventCount();
+    const postStart = tdx.stream.droppedEventCount();
     assert.equal(typeof postStart, 'bigint');
     assert.ok(postStart >= 0n);
 
-    tdx.reconnect();
-    const postReconnect = tdx.droppedEventCount();
+    tdx.stream.reconnect();
+    const postReconnect = tdx.stream.droppedEventCount();
     assert.equal(typeof postReconnect, 'bigint');
     // The counter lives on the live FPSS client; reconnect calls
     // stop_streaming + start_streaming, which recreates the FPSS
@@ -73,8 +73,8 @@ describe('tdx.droppedEventCount()', () => {
     // detail we explicitly do NOT promise.
     assert.ok(postReconnect >= 0n);
 
-    tdx.stopStreaming();
-    const postStop = tdx.droppedEventCount();
+    tdx.stream.stopStreaming();
+    const postStop = tdx.stream.droppedEventCount();
     assert.equal(typeof postStop, 'bigint');
     // Still readable after stop_streaming clears the streaming slot;
     // forwarder returns 0 in that state.
@@ -92,13 +92,13 @@ describe('tdx.droppedEventCount()', () => {
       return;
     }
     const tdx = mod.Client.connectFromFile(credsPath);
-    tdx.startStreaming(() => {});
+    tdx.stream.startStreaming(() => {});
     assert.throws(
-      () => tdx.startStreaming(() => {}),
+      () => tdx.stream.startStreaming(() => {}),
       /streaming already started/,
       'second startStreaming must reject with the napi error'
     );
-    tdx.stopStreaming();
+    tdx.stream.stopStreaming();
   });
 
   it('reconnect without prior startStreaming throws', () => {
@@ -109,7 +109,7 @@ describe('tdx.droppedEventCount()', () => {
     }
     const tdx = mod.Client.connectFromFile(credsPath);
     assert.throws(
-      () => tdx.reconnect(),
+      () => tdx.stream.reconnect(),
       /no callback registered/,
       'reconnect without startStreaming must require a callback'
     );

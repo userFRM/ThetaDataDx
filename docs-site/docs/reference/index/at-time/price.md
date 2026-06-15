@@ -33,7 +33,7 @@ Execute with `.await` → `Result<Vec<IndexPriceAtTimeTick>, Error>`, or decode 
 **Example**
 
 ```rust
-let rows = tdx.index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000").await?;
+let rows = tdx.historical().index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000").await?;
 for t in &rows {
     println!("date={} ms_of_day={} price={}", t.date, t.ms_of_day, t.price);
 }
@@ -44,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.index_at_time_price(
+Client.historical.index_at_time_price(
     symbol, start_date, end_date, time_of_day,
     *,
     timeout_ms=None,
@@ -56,7 +56,7 @@ Client.index_at_time_price(
 **Example**
 
 ```python
-rows = tdx.index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000")
+rows = tdx.historical.index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000")
 for t in rows:
     print(t.date, t.ms_of_day, t.price)
 ```
@@ -77,7 +77,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
+const rows = await tdx.historical.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }
@@ -101,7 +101,7 @@ Throws `thetadatadx::Error` on failure.
 **Example**
 
 ```cpp
-auto rows = client.index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000");
+auto rows = client.historical().index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000");
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.price << "\n";
 }

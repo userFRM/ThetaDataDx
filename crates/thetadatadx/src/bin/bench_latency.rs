@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ls2 = Arc::clone(&lat_samples);
 
     let tdx = Client::connect(&creds, cfg).await?;
-    tdx.start_streaming(move |ev: &StreamEvent| {
+    tdx.stream().start_streaming(move |ev: &StreamEvent| {
         let observed_ns = now_ns();
         t2.fetch_add(1, Ordering::Relaxed);
         match ev {
@@ -94,7 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    tdx.subscribe(thetadatadx::fpss::protocol::SecTypeExt::full_trades(sec))?;
+    tdx.stream()
+        .subscribe(thetadatadx::fpss::protocol::SecTypeExt::full_trades(sec))?;
 
     let start = Instant::now();
     let mut last_print = start;
@@ -160,6 +161,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         n as f64 / el
     );
 
-    tdx.stop_streaming();
+    tdx.stream().stop_streaming();
     Ok(())
 }

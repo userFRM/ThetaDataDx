@@ -2,7 +2,8 @@
 
 Demonstrates the primary documented surface for ThetaData Python:
 typed `Contract` / `Subscription` values feeding the polymorphic
-`client.subscribe(...)` and `client.subscribe_many(...)` paths.
+`client.stream.subscribe(...)` and `client.stream.subscribe_many(...)`
+paths (reached here through the `client.streaming(...)` session).
 
 Run with valid `creds.txt` (line 1 = email, line 2 = password) in the
 working directory:

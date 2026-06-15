@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
         std::size_t peak_chunk_rows = 0;
         const auto t0 = std::chrono::steady_clock::now();
 
-        client.option_history_trade_stream(
+        client.historical().option_history_trade_stream(
             symbol, expiration, date,
             [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
                 ++chunk_count;

@@ -29,6 +29,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.max
 
 ```rust
 let rows = tdx
+    .historical()
     .option_snapshot_quote("SPY", "20250321")
     .strike("570")
     .right("C")
@@ -43,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.option_snapshot_quote(
+Client.historical.option_snapshot_quote(
     symbol, expiration,
     *,
     strike=None, right=None, max_dte=None, strike_range=None, min_time=None,
@@ -56,7 +57,7 @@ Client.option_snapshot_quote(
 **Example**
 
 ```python
-rows = tdx.option_snapshot_quote("SPY", "20250321", strike="570", right="C")
+rows = tdx.historical.option_snapshot_quote("SPY", "20250321", strike="570", right="C")
 for t in rows:
     print(t.date, t.ms_of_day, t.bid, t.ask)
 ```
@@ -76,7 +77,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.optionSnapshotQuote('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await tdx.historical.optionSnapshotQuote('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.bid, t.ask);
 }
@@ -98,7 +99,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.wi
 **Example**
 
 ```cpp
-auto rows = client.option_snapshot_quote("SPY", "20250321",
+auto rows = client.historical().option_snapshot_quote("SPY", "20250321",
     thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.bid << ' ' << t.ask << "\n";

@@ -13,7 +13,7 @@ from thetadatadx import Config, Credentials, Client
 creds = Credentials.from_file("creds.txt")
 tdx = Client(creds, Config.production())
 
-quotes = tdx.option_history_quote("SPY", "20250321", "20250303",
+quotes = tdx.historical.option_history_quote("SPY", "20250321", "20250303",
                                   strike="570", right="C", interval="1m")
 
 df = quotes.to_pandas()      # pip install thetadatadx[pandas]
@@ -43,7 +43,7 @@ thetadatadx = { version = "12", features = ["frames"] }
 ```rust
 use thetadatadx::frames::TicksPolarsExt;
 
-let ticks = tdx.stock_history_eod("AAPL", "20250303", "20250306").await?;
+let ticks = tdx.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
 let df = ticks.to_polars()?;
 ```
 

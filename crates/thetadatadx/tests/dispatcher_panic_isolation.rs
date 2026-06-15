@@ -18,7 +18,7 @@ use thetadatadx::Client;
 #[test]
 fn panic_count_accessor_present_on_unified_client() {
     let _witness = |tdx: &Client| {
-        let _: u64 = tdx.panic_count();
+        let _: u64 = tdx.stream().panic_count();
     };
 }
 

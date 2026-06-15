@@ -23,6 +23,7 @@
         // across the idle wait; the per-event `Python::attach` is the
         // cheap reentrant fast path.
         self.tdx
+            .stream()
             .reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
@@ -39,7 +40,7 @@
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.record_panic();
+                            panic_recorder.stream().record_panic();
                         }
                     });
                 },

@@ -229,6 +229,17 @@ class StreamingSession {
           return own;
         }
         const tdx = target._tdx;
+        // The unified client's streaming surface (subscribe, diagnostics,
+        // lifecycle) moved onto the `client.stream` sub-namespace view.
+        // Resolve a name there first so `session.subscribe(...)` and
+        // `session.activeSubscriptions()` keep working, then fall back to
+        // the methods that stay on `Client` (e.g. `sessionUuid`,
+        // `subscriptionInfo`, `activeFullSubscriptions`).
+        const stream = tdx.stream;
+        if (stream && prop in stream) {
+          const value = stream[prop];
+          return typeof value === 'function' ? value.bind(stream) : value;
+        }
         const value = tdx[prop];
         // Bind methods to the underlying instance so `this` resolves
         // correctly when the caller invokes them.
@@ -236,7 +247,9 @@ class StreamingSession {
       },
       has(target, prop) {
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) return true;
-        return prop in target._tdx;
+        const tdx = target._tdx;
+        const stream = tdx.stream;
+        return (stream && prop in stream) || prop in tdx;
       },
     });
   }
@@ -256,8 +269,8 @@ class StreamingSession {
    * @returns {Promise<void>}
    */
   async [Symbol.asyncDispose]() {
-    this._tdx.stopStreaming();
-    const drained = await this._tdx.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+    this._tdx.stream.stopStreaming();
+    const drained = await this._tdx.stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
     if (!drained) {
       console.warn(
         `Client streaming drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
@@ -278,7 +291,7 @@ if (
   typeof native.Client.prototype.streaming !== 'function'
 ) {
   native.Client.prototype.streaming = async function streaming(callback) {
-    this.startStreaming(callback);
+    this.stream.startStreaming(callback);
     return new StreamingSession(this);
   };
 }

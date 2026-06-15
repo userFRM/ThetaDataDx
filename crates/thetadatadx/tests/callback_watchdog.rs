@@ -33,9 +33,11 @@ use thetadatadx::Client;
 #[test]
 fn slow_callback_api_signature_compiles() {
     let _witness = |tdx: &Client| {
-        tdx.set_slow_callback_threshold(Duration::ZERO);
-        tdx.set_slow_callback_threshold(Duration::from_millis(50));
-        tdx.set_slow_callback_threshold(Duration::from_secs(u64::MAX / 2));
-        let _: u64 = tdx.slow_callback_count();
+        tdx.stream().set_slow_callback_threshold(Duration::ZERO);
+        tdx.stream()
+            .set_slow_callback_threshold(Duration::from_millis(50));
+        tdx.stream()
+            .set_slow_callback_threshold(Duration::from_secs(u64::MAX / 2));
+        let _: u64 = tdx.stream().slow_callback_count();
     };
 }

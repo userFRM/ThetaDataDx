@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.min_time(&str)`. Execute with `.awai
 **Example**
 
 ```rust
-let rows = tdx.index_snapshot_ohlc(&["SPX"]).await?;
+let rows = tdx.historical().index_snapshot_ohlc(&["SPX"]).await?;
 for t in &rows {
     println!("date={} open={} high={} low={} close={}", t.date, t.open, t.high, t.low, t.close);
 }
@@ -38,7 +38,11 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.index_snapshot_ohlc(symbols, *, min_time=None, timeout_ms=None) -> list[OhlcTick]
+Client.historical.index_snapshot_ohlc(
+    symbols,
+    *,
+    min_time=None, timeout_ms=None,
+) -> list[OhlcTick]
 ```
 
 `index_snapshot_ohlc_async(...)` awaits the same call shape.
@@ -46,7 +50,7 @@ Client.index_snapshot_ohlc(symbols, *, min_time=None, timeout_ms=None) -> list[O
 **Example**
 
 ```python
-rows = tdx.index_snapshot_ohlc(["SPX"])
+rows = tdx.historical.index_snapshot_ohlc(["SPX"])
 for t in rows:
     print(t.date, t.open, t.high, t.low, t.close)
 ```
@@ -64,7 +68,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = await tdx.indexSnapshotOHLC(['SPX']);
+const rows = await tdx.historical.indexSnapshotOHLC(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }
@@ -85,7 +89,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Th
 **Example**
 
 ```cpp
-auto rows = client.index_snapshot_ohlc({"SPX"});
+auto rows = client.historical().index_snapshot_ohlc({"SPX"});
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.high << ' ' << t.low << ' ' << t.close << "\n";
 }

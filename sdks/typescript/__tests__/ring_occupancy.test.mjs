@@ -1,8 +1,8 @@
 // Ring-occupancy observability surface test.
 //
-// `tdx.ringOccupancy()` is a point-in-time sample of events published
+// `tdx.stream.ringOccupancy()` is a point-in-time sample of events published
 // into the streaming event ring but not yet drained into the callback;
-// `tdx.ringCapacity()` is the configured ring size. The pair is the
+// `tdx.stream.ringCapacity()` is the configured ring size. The pair is the
 // leading back-pressure signal: `droppedEventCount()` only moves AFTER
 // data has been lost, while a rising occupancy approaching capacity
 // predicts those drops. Both forward to the same Rust core accessors
@@ -33,17 +33,17 @@ try {
   process.exit(1);
 }
 
-describe('tdx.ringOccupancy() / tdx.ringCapacity()', () => {
-  it('exists on the class surface alongside droppedEventCount', () => {
+describe('tdx.stream.ringOccupancy() / tdx.stream.ringCapacity()', () => {
+  it('exists on the stream-view surface alongside droppedEventCount', () => {
     assert.equal(
-      typeof mod.Client.prototype.ringOccupancy,
+      typeof mod.StreamView.prototype.ringOccupancy,
       'function',
-      'ringOccupancy() must be a method on Client'
+      'ringOccupancy() must be a method on StreamView'
     );
     assert.equal(
-      typeof mod.Client.prototype.ringCapacity,
+      typeof mod.StreamView.prototype.ringCapacity,
       'function',
-      'ringCapacity() must be a method on Client'
+      'ringCapacity() must be a method on StreamView'
     );
   });
 
@@ -60,8 +60,8 @@ describe('tdx.ringOccupancy() / tdx.ringCapacity()', () => {
     const tdx = mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so both read 0n.
-    const preOccupancy = tdx.ringOccupancy();
-    const preCapacity = tdx.ringCapacity();
+    const preOccupancy = tdx.stream.ringOccupancy();
+    const preCapacity = tdx.stream.ringCapacity();
     assert.equal(typeof preOccupancy, 'bigint', 'ringOccupancy() must return bigint');
     assert.equal(typeof preCapacity, 'bigint', 'ringCapacity() must return bigint');
     assert.equal(preOccupancy, 0n, 'pre-stream occupancy must be 0n -- no ring exists');
@@ -71,17 +71,17 @@ describe('tdx.ringOccupancy() / tdx.ringCapacity()', () => {
     // power of two) and occupancy is bounded by it. No exact
     // occupancy value is asserted — it is a racy point-in-time
     // sample of a fast consumer.
-    tdx.startStreaming(() => {});
-    const capacity = tdx.ringCapacity();
+    tdx.stream.startStreaming(() => {});
+    const capacity = tdx.stream.ringCapacity();
     assert.ok(capacity > 0n, 'a live ring must report its configured capacity');
     assert.equal(capacity & (capacity - 1n), 0n, 'ring capacity is a power of two');
-    const occupancy = tdx.ringOccupancy();
+    const occupancy = tdx.stream.ringOccupancy();
     assert.ok(occupancy >= 0n, 'occupancy is clamped non-negative');
     assert.ok(occupancy <= capacity, 'occupancy never exceeds capacity');
 
     // Stopped: the streaming slot is empty; both forwarders return 0n.
-    tdx.stopStreaming();
-    assert.equal(tdx.ringOccupancy(), 0n);
-    assert.equal(tdx.ringCapacity(), 0n);
+    tdx.stream.stopStreaming();
+    assert.equal(tdx.stream.ringOccupancy(), 0n);
+    assert.equal(tdx.stream.ringCapacity(), 0n);
   });
 });

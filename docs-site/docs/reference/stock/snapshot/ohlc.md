@@ -29,7 +29,7 @@ Optional parameters chain on the builder: `.venue(&str)`, `.min_time(&str)`. Exe
 **Example**
 
 ```rust
-let rows = tdx.stock_snapshot_ohlc(&["AAPL"]).await?;
+let rows = tdx.historical().stock_snapshot_ohlc(&["AAPL"]).await?;
 for t in &rows {
     println!("date={} open={} high={} low={} close={}", t.date, t.open, t.high, t.low, t.close);
 }
@@ -40,7 +40,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.stock_snapshot_ohlc(
+Client.historical.stock_snapshot_ohlc(
     symbols,
     *,
     venue=None, min_time=None, timeout_ms=None,
@@ -52,7 +52,7 @@ Client.stock_snapshot_ohlc(
 **Example**
 
 ```python
-rows = tdx.stock_snapshot_ohlc(["AAPL"])
+rows = tdx.historical.stock_snapshot_ohlc(["AAPL"])
 for t in rows:
     print(t.date, t.open, t.high, t.low, t.close)
 ```
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = await tdx.stockSnapshotOHLC(['AAPL']);
+const rows = await tdx.historical.stockSnapshotOHLC(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }
@@ -91,7 +91,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.wit
 **Example**
 
 ```cpp
-auto rows = client.stock_snapshot_ohlc({"AAPL"});
+auto rows = client.historical().stock_snapshot_ohlc({"AAPL"});
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.high << ' ' << t.low << ' ' << t.close << "\n";
 }

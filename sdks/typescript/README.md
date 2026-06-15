@@ -40,7 +40,7 @@ import { Client } from 'thetadatadx';
 const tdx = Client.connectFromFile('creds.txt');
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-const greeks = await tdx.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
+const greeks = await tdx.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
@@ -49,14 +49,14 @@ for (const t of greeks.slice(0, 5)) {
 Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
 
 ```typescript
-const eod = await tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
+const eod = await tdx.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
 console.log(eod.length, eod[0].close);
 
-const bars = await tdx.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
-const exps = await tdx.optionListExpirations('SPY');
+const bars = await tdx.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
+const exps = await tdx.historical.optionListExpirations('SPY');
 
 // Optional parameters — including a per-call timeout — ride in the trailing options object
-const snap = await tdx.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
+const snap = await tdx.historical.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
 ```
 
 ## Streaming
@@ -76,7 +76,7 @@ const formatContract = (contract: {
   .filter((value) => value != null)
   .join(' ');
 
-tdx.startStreaming((event) => {
+tdx.stream.startStreaming((event) => {
   if (event.kind === 'trade' && event.trade) {
     const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
     console.log(
@@ -94,7 +94,7 @@ tdx.startStreaming((event) => {
 });
 
 const leg = { expiration: '20260620', strike: '550', right: 'C' };
-tdx.subscribeMany([
+tdx.stream.subscribeMany([
   Contract.option('SPY', leg).quote(),
   Contract.option('SPY', leg).trade(),
 ]);
@@ -108,8 +108,8 @@ import { Contract, SecType } from 'thetadatadx';
 const stock = Contract.stock('AAPL');
 const option = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
 
-tdx.subscribe(stock.quote());
-tdx.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
+tdx.stream.subscribe(stock.quote());
+tdx.stream.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
 ```
 
 Or take a whole-market feed — every option trade across the universe, no per-contract setup:
@@ -117,14 +117,14 @@ Or take a whole-market feed — every option trade across the universe, no per-c
 ```typescript
 import { SecType } from 'thetadatadx';
 
-tdx.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
+tdx.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
 ```
 
 When you are done, stop the stream and drain it. By the time `awaitDrain` resolves, the callback has stopped firing, so any state it closed over can be released safely:
 
 ```typescript
-tdx.stopStreaming();
-const drained = await tdx.awaitDrain(5000);
+tdx.stream.stopStreaming();
+const drained = await tdx.stream.awaitDrain(5000);
 ```
 
 > [!TIP]
@@ -143,7 +143,7 @@ import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetada
 The streaming callback receives a discriminated `StreamEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
 
 ```typescript
-tdx.startStreaming((event: StreamEvent) => {
+tdx.stream.startStreaming((event: StreamEvent) => {
   switch (event.kind) {
     case 'trade':         /* event.trade is Trade */                break;
     case 'quote':         /* event.quote is Quote */                break;

@@ -23,6 +23,7 @@
         let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
+            .stream()
             .start_streaming(move |event: &fpss::StreamEvent| {
                 // Convert to the typed `StreamEvent` napi object on the
                 // dispatcher thread, then hand the value

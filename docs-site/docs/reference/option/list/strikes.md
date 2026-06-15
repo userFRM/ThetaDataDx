@@ -27,7 +27,7 @@ Execute with `.await` → `Result<Vec<String>, Error>`.
 **Example**
 
 ```rust
-let rows = tdx.option_list_strikes("SPY", "20250321").await?;
+let rows = tdx.historical().option_list_strikes("SPY", "20250321").await?;
 for value in &rows {
     println!("{value}");
 }
@@ -38,7 +38,11 @@ for value in &rows {
 <template #python>
 
 ```python
-Client.option_list_strikes(symbol, expiration, *, timeout_ms=None) -> StringList
+Client.historical.option_list_strikes(
+    symbol, expiration,
+    *,
+    timeout_ms=None,
+) -> StringList
 ```
 
 `option_list_strikes_async(...)` awaits the same call shape.
@@ -46,7 +50,7 @@ Client.option_list_strikes(symbol, expiration, *, timeout_ms=None) -> StringList
 **Example**
 
 ```python
-rows = tdx.option_list_strikes("SPY", "20250321")
+rows = tdx.historical.option_list_strikes("SPY", "20250321")
 for value in rows:
     print(value)
 ```
@@ -66,7 +70,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.optionListStrikes('SPY', '20250321');
+const rows = await tdx.historical.optionListStrikes('SPY', '20250321');
 for (const value of rows) {
   console.log(value);
 }
@@ -88,7 +92,7 @@ Throws `thetadatadx::Error` on failure.
 **Example**
 
 ```cpp
-auto rows = client.option_list_strikes("SPY", "20250321");
+auto rows = client.historical().option_list_strikes("SPY", "20250321");
 for (const auto& value : rows) {
     std::cout << value << "\n";
 }

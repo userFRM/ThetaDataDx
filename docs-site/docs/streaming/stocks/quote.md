@@ -19,17 +19,17 @@ The snippets below assume a connected client with streaming started — see [Get
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 
-tdx.start_streaming(|event: &StreamEvent| {
+tdx.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) = event {
         println!("{} bid={bid} ask={ask}", contract.symbol);
     }
 })?;
 
 let sub = Contract::stock("AAPL").quote();
-tdx.subscribe(sub.clone())?;
+tdx.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)?;
+tdx.stream().unsubscribe(sub)?;
 ```
 
 </template>
@@ -43,13 +43,13 @@ def on_event(event):
     if event.kind == "quote":
         print(event.contract.symbol, event.bid, event.ask)
 
-tdx.start_streaming(on_event)
+tdx.stream.start_streaming(on_event)
 
 sub = Contract.stock("AAPL").quote()
-tdx.subscribe(sub)
+tdx.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)
+tdx.stream.unsubscribe(sub)
 ```
 
 </template>
@@ -59,7 +59,7 @@ tdx.unsubscribe(sub)
 ```typescript
 import { Contract } from 'thetadatadx';
 
-tdx.startStreaming((event) => {
+tdx.stream.startStreaming((event) => {
   if (event.kind === 'quote') {
     const e = event.quote!;
     console.log(e.contract.symbol, e.bid, e.ask);
@@ -67,10 +67,10 @@ tdx.startStreaming((event) => {
 });
 
 const sub = Contract.stock('AAPL').quote();
-tdx.subscribe(sub);
+tdx.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub);
+tdx.stream.unsubscribe(sub);
 ```
 
 </template>
@@ -78,7 +78,7 @@ tdx.unsubscribe(sub);
 <template #cpp>
 
 ```cpp
-client.set_callback([](const thetadatadx::StreamEvent& event) {
+client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
     if (event.kind == TDX_FPSS_QUOTE) {
         auto& e = event.quote;
         std::cout << e.contract.symbol << " bid=" << e.bid << " ask=" << e.ask << "\n";
@@ -86,10 +86,10 @@ client.set_callback([](const thetadatadx::StreamEvent& event) {
 });
 
 auto sub = thetadatadx::Contract::stock("AAPL").quote();
-client.subscribe(sub);
+client.stream().subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-client.unsubscribe(sub);
+client.stream().unsubscribe(sub);
 ```
 
 </template>

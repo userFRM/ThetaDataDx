@@ -36,6 +36,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.max
 
 ```rust
 let rows = tdx
+    .historical()
     .option_history_eod("SPY", "20250321", "20250303", "20250306")
     .strike("570")
     .right("C")
@@ -50,7 +51,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.option_history_eod(
+Client.historical.option_history_eod(
     symbol, expiration, start_date, end_date,
     *,
     strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None,
@@ -62,7 +63,7 @@ Client.option_history_eod(
 **Example**
 
 ```python
-rows = tdx.option_history_eod(
+rows = tdx.historical.option_history_eod(
     "SPY",
     "20250321",
     "20250303",
@@ -90,7 +91,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
+const rows = await tdx.historical.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }
@@ -114,7 +115,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.wi
 **Example**
 
 ```cpp
-auto rows = client.option_history_eod("SPY", "20250321", "20250303", "20250306",
+auto rows = client.historical().option_history_eod("SPY", "20250321", "20250303", "20250306",
     thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.close << ' ' << t.volume << "\n";

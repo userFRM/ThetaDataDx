@@ -46,6 +46,7 @@
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
         self.tdx
+            .stream()
             .start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
@@ -70,7 +71,7 @@
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.record_panic();
+                            panic_recorder.stream().record_panic();
                         }
                     });
                 },

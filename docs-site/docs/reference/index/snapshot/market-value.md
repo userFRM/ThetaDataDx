@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.min_time(&str)`. Execute with `.awai
 **Example**
 
 ```rust
-let rows = tdx.index_snapshot_market_value(&["SPX"]).await?;
+let rows = tdx.historical().index_snapshot_market_value(&["SPX"]).await?;
 for t in &rows {
     println!("date={} market_price={}", t.date, t.market_price);
 }
@@ -38,7 +38,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.index_snapshot_market_value(
+Client.historical.index_snapshot_market_value(
     symbols,
     *,
     min_time=None, timeout_ms=None,
@@ -50,7 +50,7 @@ Client.index_snapshot_market_value(
 **Example**
 
 ```python
-rows = tdx.index_snapshot_market_value(["SPX"])
+rows = tdx.historical.index_snapshot_market_value(["SPX"])
 for t in rows:
     print(t.date, t.market_price)
 ```
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = await tdx.indexSnapshotMarketValue(['SPX']);
+const rows = await tdx.historical.indexSnapshotMarketValue(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.marketPrice);
 }
@@ -91,7 +91,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Th
 **Example**
 
 ```cpp
-auto rows = client.index_snapshot_market_value({"SPX"});
+auto rows = client.historical().index_snapshot_market_value({"SPX"});
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.market_price << "\n";
 }

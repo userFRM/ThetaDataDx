@@ -873,51 +873,26 @@ EventCallback = Callable[[Any], None]
 
 
 @final
-class Client:
-    """Unified client for historical data and real-time streaming.
+class HistoricalView:
+    """Historical-data sub-namespace returned by :attr:`Client.historical`.
 
-    Connects to ThetaData at construction (a single authentication
-    covers both historical access and streaming). Historical endpoints
-    are available immediately; real-time streaming starts on demand via
-    :meth:`start_streaming`. This is the recommended entry point.
+    Exposes every historical / list / snapshot / at-time endpoint as a
+    method (sync, ``*_async`` coroutine, and ``*_builder`` fluent
+    constructor). The endpoint surface is generated, so individual
+    method signatures are resolved at runtime rather than enumerated
+    here.
     """
 
-    def __init__(self, creds: Credentials, config: Config) -> None:
-        """Connect to ThetaData with ``creds`` and ``config``.
 
-        Authenticates and opens the historical channel; streaming is not
-        started. The call is interruptible with ``Ctrl+C`` if the
-        handshake stalls.
+@final
+class StreamView:
+    """Real-time-streaming sub-namespace returned by :attr:`Client.stream`.
 
-        Args:
-            creds: Account credentials.
-            config: Connection configuration (e.g. ``Config.production()``).
-
-        Raises:
-            ThetaDataError: If authentication or the connection fails.
-        """
-        ...
-
-    @staticmethod
-    def from_file(
-        path: str,
-        config: Optional[Config] = None,
-    ) -> Client:
-        """Construct a client from a credentials file and connect.
-
-        Args:
-            path: Path to a two-line credentials file.
-            config: Connection configuration; defaults to
-                ``Config.production()`` when omitted.
-
-        Returns:
-            A connected :class:`Client`.
-
-        Raises:
-            ThetaDataError: If the file cannot be read or the connection
-                fails.
-        """
-        ...
+    Owns the streaming lifecycle, subscription management, and feed
+    diagnostics for the unified client. Shares the parent client's
+    callback registration, so starting / stopping / reconnecting through
+    this view drives the same session the client manages.
+    """
 
     # Streaming lifecycle.
     def start_streaming(self, callback: EventCallback) -> None:
@@ -1034,13 +1009,6 @@ class Client:
         """
         ...
 
-    def active_full_subscriptions(self) -> List[Subscription]:
-        """Return a snapshot of the active full-stream subscriptions.
-
-        Empty when streaming has not started.
-        """
-        ...
-
     # Metrics + connection observability.
     def dropped_event_count(self) -> int:
         """Cumulative count of streaming events dropped because the
@@ -1081,6 +1049,86 @@ class Client:
     def last_connected_addr(self) -> Optional[str]:
         """``host:port`` of the live streaming server, following the
         session across auto-reconnects."""
+        ...
+
+
+@final
+class Client:
+    """Unified client for historical data and real-time streaming.
+
+    Connects to ThetaData at construction (a single authentication
+    covers both historical access and streaming). Historical endpoints
+    are available immediately; real-time streaming starts on demand via
+    :meth:`start_streaming`. This is the recommended entry point.
+    """
+
+    def __init__(self, creds: Credentials, config: Config) -> None:
+        """Connect to ThetaData with ``creds`` and ``config``.
+
+        Authenticates and opens the historical channel; streaming is not
+        started. The call is interruptible with ``Ctrl+C`` if the
+        handshake stalls.
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration (e.g. ``Config.production()``).
+
+        Raises:
+            ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
+    @staticmethod
+    def from_file(
+        path: str,
+        config: Optional[Config] = None,
+    ) -> Client:
+        """Construct a client from a credentials file and connect.
+
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+
+        Returns:
+            A connected :class:`Client`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or the connection
+                fails.
+        """
+        ...
+
+    # Data sub-namespaces.
+    @property
+    def historical(self) -> HistoricalView:
+        """Historical-data sub-namespace.
+
+        Every historical / list / snapshot / at-time endpoint is reached
+        through this view, e.g. ``client.historical.stock_eod(...)`` and
+        the ``*_async`` / ``*_builder`` companions. Returns a fresh view
+        over a cheap handle clone on each access.
+        """
+        ...
+
+    @property
+    def stream(self) -> StreamView:
+        """Real-time-streaming sub-namespace.
+
+        The streaming lifecycle, subscription management, and feed
+        diagnostics are reached through this view, e.g.
+        ``client.stream.start_streaming(cb)`` and
+        ``client.stream.subscribe(...)``. Shares the unified client's
+        callback registration so the lifecycle observed through the view
+        is the one the client manages.
+        """
+        ...
+
+    def active_full_subscriptions(self) -> List[Subscription]:
+        """Return a snapshot of the active full-stream subscriptions.
+
+        Empty when streaming has not started.
+        """
         ...
 
     # Session identity + subscription tier.

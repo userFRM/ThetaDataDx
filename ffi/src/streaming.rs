@@ -555,11 +555,11 @@ pub unsafe extern "C" fn tdx_client_set_callback(
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             *guard = Some(cb);
         }
-        match handle
-            .inner
-            .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
+        match handle.inner.stream().start_streaming(
+            move |event: &thetadatadx::fpss::StreamEvent| {
                 cb.invoke(event);
-            }) {
+            },
+        ) {
             Ok(()) => 0,
             Err(e) => {
                 let mut guard = handle
@@ -752,7 +752,7 @@ pub unsafe extern "C" fn tdx_client_subscribe(
         };
         // SAFETY: `handle` is a non-null `*const TdxClient` returned by `tdx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
-        match handle.inner.subscribe(sub) {
+        match handle.inner.stream().subscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
                 set_error_from(&e);
@@ -782,7 +782,7 @@ pub unsafe extern "C" fn tdx_client_unsubscribe(
         };
         // SAFETY: `handle` is a non-null `*const TdxClient` returned by `tdx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
-        match handle.inner.unsubscribe(sub) {
+        match handle.inner.stream().unsubscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
                 set_error_from(&e);
@@ -841,14 +841,14 @@ pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
         // subscription locks are poisoned upstream) we must abort the
         // reconnect -- silently falling back to an empty list drops every
         // subscription on the floor.
-        let saved_subs = match handle.inner.active_subscriptions() {
+        let saved_subs = match handle.inner.stream().active_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
                 set_error_from(&e);
                 return -1;
             }
         };
-        let saved_full_subs = match handle.inner.active_full_subscriptions() {
+        let saved_full_subs = match handle.inner.stream().active_full_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
                 set_error_from(&e);
@@ -881,7 +881,7 @@ pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
         // for the current session. This swaps the streaming slot to
         // `Stopped` and signals the I/O thread; the consumer keeps
         // firing the old C callback until its exit path joins.
-        handle.inner.stop_streaming();
+        handle.inner.stream().stop_streaming();
 
         // Wait for the previous consumer thread to finish firing the
         // old callback BEFORE we open a fresh session bound to the
@@ -894,6 +894,7 @@ pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
         // timeout we surface the error rather than racing.
         if !handle
             .inner
+            .stream()
             .await_drain(std::time::Duration::from_millis(5_000))
         {
             set_error(
@@ -904,11 +905,13 @@ pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
             return -1;
         }
 
-        let result = handle
-            .inner
-            .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
-                cb.invoke(event);
-            });
+        let result =
+            handle
+                .inner
+                .stream()
+                .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
+                    cb.invoke(event);
+                });
         if let Err(e) = result {
             set_error_from(&e);
             return -1;
@@ -924,6 +927,7 @@ pub unsafe extern "C" fn tdx_client_reconnect(handle: *const TdxClient) -> i32 {
         // instead of firing it at a recovering upstream back-to-back.
         if let Err(e) = handle
             .inner
+            .stream()
             .restore_subscriptions(&saved_subs, &saved_full_subs)
         {
             tracing::warn!(
@@ -946,7 +950,7 @@ pub unsafe extern "C" fn tdx_client_is_streaming(handle: *const TdxClient) -> i3
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        i32::from(handle.inner.is_streaming())
+        i32::from(handle.inner.stream().is_streaming())
     })
 }
 
@@ -964,7 +968,7 @@ pub unsafe extern "C" fn tdx_client_active_subscriptions(
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        match handle.inner.active_subscriptions() {
+        match handle.inner.stream().active_subscriptions() {
             Ok(subs) => build_subscription_array(
                 subs.iter()
                     .map(|(k, c)| (k.kind_str().to_string(), format!("{c}"))),
@@ -999,7 +1003,7 @@ pub unsafe extern "C" fn tdx_client_active_full_subscriptions(
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        match handle.inner.active_full_subscriptions() {
+        match handle.inner.stream().active_full_subscriptions() {
             Ok(subs) => build_subscription_array(subs.iter().filter_map(|(k, st)| {
                 k.full_kind_str()
                     .map(|kind| (kind.to_string(), format!("{st:?}")))
@@ -1038,7 +1042,7 @@ pub unsafe extern "C" fn tdx_client_historical(
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         // TdxHistoricalClient is #[repr(transparent)] over HistoricalClient, so this cast is safe.
-        let mdds_ref: &thetadatadx::mdds::HistoricalClient = &handle.inner;
+        let mdds_ref: &thetadatadx::mdds::HistoricalClient = handle.inner.historical();
         std::ptr::from_ref::<thetadatadx::mdds::HistoricalClient>(mdds_ref)
             .cast::<TdxHistoricalClient>()
     })
@@ -1073,7 +1077,7 @@ pub unsafe extern "C" fn tdx_client_stop_streaming(handle: *const TdxClient) {
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        handle.inner.stop_streaming();
+        handle.inner.stream().stop_streaming();
     })
 }
 
@@ -1100,7 +1104,7 @@ pub unsafe extern "C" fn tdx_client_millis_since_last_event(
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        match handle.inner.millis_since_last_event() {
+        match handle.inner.stream().millis_since_last_event() {
             Some(ms) => {
                 // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
                 unsafe {
@@ -1134,7 +1138,7 @@ pub unsafe extern "C" fn tdx_client_last_event_received_at_unix_nanos(
             return 0;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
-        unsafe { (*handle).inner.last_event_received_at_unix_nanos() }
+        unsafe { (*handle).inner.stream().last_event_received_at_unix_nanos() }
     })
 }
 
@@ -1155,7 +1159,7 @@ pub unsafe extern "C" fn tdx_client_last_connected_addr(
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
-        match handle.inner.last_connected_addr() {
+        match handle.inner.stream().last_connected_addr() {
             Some(addr) => match std::ffi::CString::new(addr) {
                 Ok(c) => c.into_raw(),
                 Err(e) => {
@@ -1186,7 +1190,7 @@ pub unsafe extern "C" fn tdx_client_dropped_events(handle: *const TdxClient) -> 
             return 0;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
-        unsafe { (*handle).inner.dropped_event_count() }
+        unsafe { (*handle).inner.stream().dropped_event_count() }
     })
 }
 
@@ -1210,7 +1214,7 @@ pub unsafe extern "C" fn tdx_client_ring_occupancy(handle: *const TdxClient) -> 
             return 0;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
-        unsafe { (*handle).inner.ring_occupancy() as u64 }
+        unsafe { (*handle).inner.stream().ring_occupancy() as u64 }
     })
 }
 
@@ -1229,7 +1233,7 @@ pub unsafe extern "C" fn tdx_client_ring_capacity(handle: *const TdxClient) -> u
             return 0;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
-        unsafe { (*handle).inner.ring_capacity() as u64 }
+        unsafe { (*handle).inner.stream().ring_capacity() as u64 }
     })
 }
 
@@ -1250,7 +1254,7 @@ pub unsafe extern "C" fn tdx_client_panic_count(handle: *const TdxClient) -> u64
             return 0;
         }
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
-        unsafe { (*handle).inner.panic_count() }
+        unsafe { (*handle).inner.stream().panic_count() }
     })
 }
 
@@ -1288,7 +1292,7 @@ pub unsafe extern "C" fn tdx_client_await_drain(handle: *const TdxClient, timeou
         // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let timeout = std::time::Duration::from_millis(timeout_ms);
-        i32::from(handle.inner.await_drain(timeout))
+        i32::from(handle.inner.stream().await_drain(timeout))
     })
 }
 
@@ -1341,7 +1345,7 @@ pub unsafe extern "C" fn tdx_client_free(handle: *mut TdxClient) {
         // `prev_drained` regardless of the current slot state — the
         // earlier-stop path is the one most likely to hit a callback
         // still firing on the event-dispatch consumer thread.
-        handle.inner.stop_streaming();
+        handle.inner.stream().stop_streaming();
 
         // Wait for the consumer thread to finish firing the registered
         // callback before we destroy the handle. This is the strict
@@ -1365,8 +1369,8 @@ pub unsafe extern "C" fn tdx_client_free(handle: *mut TdxClient) {
         // BEFORE the wait: `true` means a session existed, so a
         // `false` return is an honest timeout worth logging.
         const FREE_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        let had_prior_session = handle.inner.prev_drained_is_set();
-        if had_prior_session && !handle.inner.await_drain(FREE_DRAIN_TIMEOUT) {
+        let had_prior_session = handle.inner.stream().prev_drained_is_set();
+        if had_prior_session && !handle.inner.stream().await_drain(FREE_DRAIN_TIMEOUT) {
             tracing::error!(
                 target: "thetadatadx::ffi",
                 timeout_ms = FREE_DRAIN_TIMEOUT.as_millis() as u64,

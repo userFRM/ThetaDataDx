@@ -197,6 +197,12 @@ CPP_ALIASES: dict[str, str] = {
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
     "ParseError": "StreamParseError",
+    # The unified client's sub-namespace views carry the Python / TypeScript
+    # canonical names in `parity.toml`; the C++ header names them without the
+    # `View` suffix (`client.historical()` -> `Historical`, `client.stream()`
+    # -> `Stream`).
+    "HistoricalView": "Historical",
+    "StreamView": "Stream",
 }
 
 
@@ -2123,9 +2129,11 @@ def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
 def _collect_typescript_streaming_endpoints(
     ts_methods: dict[str, set[str]],
 ) -> set[str]:
-    """Snake_case endpoint names whose `Client` napi class
+    """Snake_case endpoint names whose `HistoricalView` napi class
     exposes a `<endpoint>Stream` method.
 
+    The server-stream companions live on the `client.historical`
+    `HistoricalView` view alongside the buffered historical queries.
     Reuses the already-collected `{class: {method, ...}}` map. A method
     whose camelCase name ends in `Stream` is a historical server-stream
     terminal; strip the suffix and lower to snake_case to recover the
@@ -2137,7 +2145,7 @@ def _collect_typescript_streaming_endpoints(
     `[[method]]` rows regardless).
     """
     out: set[str] = set()
-    methods = ts_methods.get("Client", set())
+    methods = ts_methods.get("HistoricalView", set())
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
     for method in methods:
         if method in lifecycle:
@@ -2169,17 +2177,17 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `Client` wrapper
-    exposes an `<endpoint>_stream` member.
+    """Snake_case endpoint names whose C++ `Historical` view exposes an
+    `<endpoint>_stream` member.
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. The
-    historical endpoints live on the `Client` class body in
-    `thetadx.hpp`. A member whose snake_case name ends in `_stream` is a
-    server-stream terminal; strip the suffix to recover the endpoint
-    name.
+    server-stream companions live on the `client.historical()`
+    `Historical` view body in `thetadx.hpp`. A member whose snake_case
+    name ends in `_stream` is a server-stream terminal; strip the suffix
+    to recover the endpoint name.
     """
     out: set[str] = set()
-    methods = cpp_methods.get(_cpp_class_for("Client"), set())
+    methods = cpp_methods.get(_cpp_class_for("HistoricalView"), set())
     for method in methods:
         if method.endswith("_stream") and len(method) > len("_stream"):
             out.add(method[: -len("_stream")])

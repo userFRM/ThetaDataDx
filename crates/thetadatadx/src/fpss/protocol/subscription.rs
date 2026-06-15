@@ -84,7 +84,7 @@ impl SubscriptionKind {
     /// full-stream form on the FPSS wire.
     ///
     /// Full-stream snapshots
-    /// ([`crate::Client::active_full_subscriptions`]) store the
+    /// ([`crate::StreamSurface::active_full_subscriptions`]) store the
     /// kind as a [`SubscriptionKind`], but the cross-binding label carries
     /// the `full_` prefix so a full-stream open-interest row never reads
     /// the same as a per-contract one. Only `Trade` and `OpenInterest`
@@ -149,8 +149,8 @@ impl FullSubscriptionKind {
 /// [`Contract::open_interest`] (per-contract scope) and by
 /// [`SecTypeExt::full_trades`] / [`SecTypeExt::full_open_interest`]
 /// (full-stream scope). Pass to
-/// [`crate::Client::subscribe`] /
-/// [`crate::Client::subscribe_many`] to install on the live
+/// [`crate::StreamSurface::subscribe`] /
+/// [`crate::StreamSurface::subscribe_many`] to install on the live
 /// streaming session.
 ///
 /// ```rust,no_run
@@ -195,7 +195,7 @@ impl Subscription {
     /// are the only security types delivered as a full-stream broadcast
     /// upstream. Constructing the value is infallible, but passing a
     /// subscription with any other `sec_type` to
-    /// [`crate::Client::subscribe`] returns an [`Error::Config`]
+    /// [`crate::StreamSurface::subscribe`] returns an [`Error::Config`]
     /// at subscribe time, because the server has no full broadcast for it —
     /// it would answer `Subscribed` and then never stream a tick. Subscribe
     /// to indices and rates per-contract instead (for example
@@ -209,13 +209,13 @@ impl Subscription {
 }
 
 /// Fluent constructors on [`Contract`] for the per-contract subscription
-/// shapes accepted by [`crate::Client::subscribe`].
+/// shapes accepted by [`crate::StreamSurface::subscribe`].
 ///
 /// Singular by design — each method returns exactly one
 /// [`Subscription`] value. Plural aliases (`quotes()`, `trades()`,
 /// `open_interests()`) are intentionally omitted; bulk helpers live on
 /// `Watchlist` / `OptionSeries` and route through
-/// [`crate::Client::subscribe_many`].
+/// [`crate::StreamSurface::subscribe_many`].
 impl Contract {
     /// Per-contract Quote subscription.
     ///
@@ -285,7 +285,7 @@ pub trait SecTypeExt: Copy {
     /// Constructing the value is infallible, but only [`SecType::Stock`] and
     /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
     /// subscription for any other security type to
-    /// [`crate::Client::subscribe`] returns an [`Error::Config`]
+    /// [`crate::StreamSurface::subscribe`] returns an [`Error::Config`]
     /// at subscribe time. Subscribe to indices and rates per-contract
     /// instead (for example `Contract::index("VIX").trade()`).
     ///
@@ -296,7 +296,7 @@ pub trait SecTypeExt: Copy {
     /// Constructing the value is infallible, but only [`SecType::Stock`] and
     /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
     /// subscription for any other security type to
-    /// [`crate::Client::subscribe`] returns an [`Error::Config`]
+    /// [`crate::StreamSurface::subscribe`] returns an [`Error::Config`]
     /// at subscribe time. Subscribe to indices and rates per-contract
     /// instead (for example `Contract::index("VIX").open_interest()`).
     ///

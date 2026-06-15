@@ -204,7 +204,7 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
     out.push_str("}\n\n");
 
     out.push_str("#[pymethods]\n");
-    out.push_str("impl Client {\n");
+    out.push_str("impl HistoricalView {\n");
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
@@ -334,7 +334,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
         writeln!(
             out,
-            "            let call = self.tdx.{}({});",
+            "            let call = self.tdx.historical().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -371,7 +371,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "        let mut request = self.tdx.{}({});",
+        "        let mut request = self.tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -540,7 +540,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         let _ = leading_comma_args;
         writeln!(
             out,
-            "            let call = tdx.{}({});",
+            "            let call = tdx.historical().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -590,7 +590,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "            let mut request = tdx.{}({});",
+        "            let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1189,7 +1189,7 @@ fn write_stream_request_setup(
         .join(", ");
     writeln!(
         out,
-        "{indent}let mut request = tdx.{}({});",
+        "{indent}let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1374,7 +1374,7 @@ fn write_sync_list_dispatch(
     let _ = leading_comma_args_closure;
     writeln!(
         out,
-        "{indent}    let call = tdx.{}({});",
+        "{indent}    let call = tdx.historical().{}({});",
         endpoint.name, positional_args_closure
     )
     .unwrap();
@@ -1452,7 +1452,7 @@ fn write_async_list_dispatch(
     let _ = leading_comma_args;
     writeln!(
         out,
-        "{indent}    let call = tdx.{}({});",
+        "{indent}    let call = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1541,7 +1541,7 @@ fn write_sync_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = tdx.{}({});",
+        "{indent}    let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1661,7 +1661,7 @@ fn write_async_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = tdx.{}({});",
+        "{indent}    let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();

@@ -14,10 +14,10 @@ creds = Credentials.from_file("creds.txt")
 tdx = Client(creds, Config.production())
 
 # 1. Nearest expiration for the underlying.
-expiration = tdx.option_list_expirations("SPY")[0]
+expiration = tdx.historical.option_list_expirations("SPY")[0]
 
 # 2. All-Greeks snapshot for every contract on it (strike/right default to wildcard).
-chain = tdx.option_snapshot_greeks_all("SPY", expiration)
+chain = tdx.historical.option_snapshot_greeks_all("SPY", expiration)
 
 # 3. Closest-to-the-money calls by absolute delta.
 calls = [t for t in chain if t.right == "C"]

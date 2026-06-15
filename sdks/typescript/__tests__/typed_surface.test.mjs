@@ -51,20 +51,28 @@ describe('endpoint options objects', () => {
 });
 
 describe('historical methods resolve off the execution thread', () => {
-  // The 61 buffered data-fetch methods declared on Client.
-  // Each runs the network round-trip on a worker and resolves a Promise
-  // with the full typed row array, so a fetch never holds the Node event
-  // loop. Element types are unchanged — only the surrounding shape
-  // becomes a Promise.
+  // The 61 buffered data-fetch methods declared on the `client.historical`
+  // `HistoricalView` sub-namespace. Each runs the network round-trip on a
+  // worker and resolves a Promise with the full typed row array, so a
+  // fetch never holds the Node event loop. Element types are unchanged —
+  // only the surrounding shape becomes a Promise.
   //
-  // Pulled from the single client interface block so streaming lifecycle
-  // declarations elsewhere in the file (awaitDrain etc.) cannot dilute
+  // Pulled from the `HistoricalView` interface block so streaming
+  // lifecycle declarations on `StreamView` (awaitDrain etc.) cannot dilute
   // the assertion.
-  const clientBlock = dts.match(
-    /export declare class Client \{[\s\S]*?\n\}/
+  const historicalBlock = dts.match(
+    /export declare class HistoricalView \{[\s\S]*?\n\}/
   );
-  assert.ok(clientBlock, 'Client class missing from index.d.ts');
-  const body = clientBlock[0];
+  assert.ok(historicalBlock, 'HistoricalView class missing from index.d.ts');
+  const body = historicalBlock[0];
+
+  // The streaming lifecycle lives on the `client.stream` `StreamView`
+  // sub-namespace.
+  const streamBlock = dts.match(
+    /export declare class StreamView \{[\s\S]*?\n\}/
+  );
+  assert.ok(streamBlock, 'StreamView class missing from index.d.ts');
+  const streamBody = streamBlock[0];
 
   // Every endpoint method names a return type; collect each declared
   // `methodName(...): <ret>` whose name matches the data-fetch families.
@@ -113,7 +121,7 @@ describe('historical methods resolve off the execution thread', () => {
 
   it('the streaming awaitDrain lifecycle method is left async and untouched', () => {
     assert.match(
-      body,
+      streamBody,
       /awaitDrain\(timeoutMs: number\): Promise<boolean>/,
       'awaitDrain must stay Promise<boolean> (streaming lifecycle, not a data fetch)'
     );

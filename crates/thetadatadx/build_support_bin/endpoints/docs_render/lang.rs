@@ -174,12 +174,13 @@ pub(super) fn rust_example(endpoint: &GeneratedEndpoint) -> String {
     if showcased.is_empty() {
         let _ = writeln!(
             code,
-            "let rows = tdx.{}({}).await?;",
+            "let rows = tdx.historical().{}({}).await?;",
             endpoint.name,
             args.join(", ")
         );
     } else {
         let _ = writeln!(code, "let rows = tdx");
+        let _ = writeln!(code, "    .historical()");
         let _ = writeln!(code, "    .{}({})", endpoint.name, args.join(", "));
         for p in &showcased {
             let _ = writeln!(
@@ -229,14 +230,14 @@ pub(super) fn python_signature(endpoint: &GeneratedEndpoint) -> String {
         format!("{}, ", req.join(", "))
     };
     let one_line = format!(
-        "Client.{}({req_prefix}*, {}) -> {ret}",
+        "Client.historical.{}({req_prefix}*, {}) -> {ret}",
         endpoint.name,
         kw.join(", ")
     );
     if one_line.len() <= 88 {
         sig.push_str(&one_line);
     } else {
-        let _ = writeln!(sig, "Client.{}(", endpoint.name);
+        let _ = writeln!(sig, "Client.historical.{}(", endpoint.name);
         if !req.is_empty() {
             let _ = writeln!(sig, "    {},", req.join(", "));
         }
@@ -292,10 +293,14 @@ pub(super) fn python_example(endpoint: &GeneratedEndpoint) -> String {
         ));
     }
 
-    let mut code = format!("rows = tdx.{}({})\n", endpoint.name, args.join(", "));
+    let mut code = format!(
+        "rows = tdx.historical.{}({})\n",
+        endpoint.name,
+        args.join(", ")
+    );
     if code.len() > 90 {
         code = format!(
-            "rows = tdx.{}(\n    {},\n)\n",
+            "rows = tdx.historical.{}(\n    {},\n)\n",
             endpoint.name,
             args.join(",\n    ")
         );
@@ -435,7 +440,10 @@ pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
 
     // The method returns a Promise resolved off the execution thread, so
     // the sample awaits it — the idiomatic JavaScript shape for a fetch.
-    let mut code = format!("const rows = await tdx.{method}({});\n", args.join(", "));
+    let mut code = format!(
+        "const rows = await tdx.historical.{method}({});\n",
+        args.join(", ")
+    );
     if endpoint.return_type == "StringList" {
         code.push_str("for (const value of rows) {\n  console.log(value);\n}");
     } else {
@@ -547,7 +555,7 @@ pub(super) fn cpp_example(endpoint: &GeneratedEndpoint) -> String {
     }
 
     let mut code = format!(
-        "auto rows = client.{}({});\n",
+        "auto rows = client.historical().{}({});\n",
         endpoint.name,
         args.join(", ")
     );

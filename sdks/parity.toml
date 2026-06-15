@@ -50,6 +50,18 @@ typescript = true   # standalone historical-only napi class; generated historica
 cpp = true          # standalone historical-only client: `thetadatadx::HistoricalClient`
 
 [[class]]
+name = "HistoricalView"
+python = true       # returned by the `client.historical` getter
+typescript = true   # returned by the `client.historical` getter
+cpp = true          # returned by `client.historical()`; exposed as `thetadatadx::Historical`
+
+[[class]]
+name = "StreamView"
+python = true       # returned by the `client.stream` getter
+typescript = true   # returned by the `client.stream` getter
+cpp = true          # returned by `client.stream()`; exposed as `thetadatadx::Stream`
+
+[[class]]
 name = "StreamingSession"
 python = true
 typescript = false  # JS uses a Promise-based async iterator instead — equivalent ergonomics
@@ -929,77 +941,77 @@ ffi = true
 # ── Client (the unified entry-point client) ──
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "startStreaming"
 python = true
 typescript = true
 cpp = false  # C++ uses `setCallback` for the same role; tracked below
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "stopStreaming"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "shutdown"
 python = true
 typescript = true
 cpp = false  # C++ frees through the RAII destructor on `Client`
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "reconnect"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "isStreaming"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "awaitDrain"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "subscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "subscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "unsubscribe"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "unsubscribeMany"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "activeSubscriptions"
 python = true
 typescript = true
@@ -1013,21 +1025,21 @@ typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "droppedEventCount"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "ringCapacity"
 python = true
 typescript = true
@@ -1041,28 +1053,28 @@ typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "millisSinceLastEvent"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "lastEventReceivedAtUnixNanos"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "lastConnectedAddr"
 python = true
 typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "setCallback"
 python = false  # Python uses `startStreaming(callback)` for the same role
 typescript = false  # TypeScript uses `startStreaming(callback)` likewise

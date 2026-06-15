@@ -26,7 +26,7 @@ Execute with `.await` → `Result<Vec<String>, Error>`.
 **Example**
 
 ```rust
-let rows = tdx.option_list_symbols().await?;
+let rows = tdx.historical().option_list_symbols().await?;
 for value in &rows {
     println!("{value}");
 }
@@ -37,7 +37,7 @@ for value in &rows {
 <template #python>
 
 ```python
-Client.option_list_symbols(*, timeout_ms=None) -> StringList
+Client.historical.option_list_symbols(*, timeout_ms=None) -> StringList
 ```
 
 `option_list_symbols_async(...)` awaits the same call shape.
@@ -45,7 +45,7 @@ Client.option_list_symbols(*, timeout_ms=None) -> StringList
 **Example**
 
 ```python
-rows = tdx.option_list_symbols()
+rows = tdx.historical.option_list_symbols()
 for value in rows:
     print(value)
 ```
@@ -63,7 +63,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.optionListSymbols();
+const rows = await tdx.historical.optionListSymbols();
 for (const value of rows) {
   console.log(value);
 }
@@ -83,7 +83,7 @@ Throws `thetadatadx::Error` on failure.
 **Example**
 
 ```cpp
-auto rows = client.option_list_symbols();
+auto rows = client.historical().option_list_symbols();
 for (const auto& value : rows) {
     std::cout << value << "\n";
 }

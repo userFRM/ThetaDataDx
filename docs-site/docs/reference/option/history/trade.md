@@ -35,6 +35,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.sta
 
 ```rust
 let rows = tdx
+    .historical()
     .option_history_trade("SPY", "20250321", "20250303")
     .strike("570")
     .right("C")
@@ -49,7 +50,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.option_history_trade(
+Client.historical.option_history_trade(
     symbol, expiration, date,
     *,
     strike=None, right=None, start_time=None, end_time=None, max_dte=None,
@@ -62,7 +63,13 @@ Client.option_history_trade(
 **Example**
 
 ```python
-rows = tdx.option_history_trade("SPY", "20250321", "20250303", strike="570", right="C")
+rows = tdx.historical.option_history_trade(
+    "SPY",
+    "20250321",
+    "20250303",
+    strike="570",
+    right="C",
+)
 for t in rows:
     print(t.date, t.ms_of_day, t.price, t.size)
 ```
@@ -83,7 +90,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.optionHistoryTrade('SPY', '20250321', '20250303', { strike: '570', right: 'C' });
+const rows = await tdx.historical.optionHistoryTrade('SPY', '20250321', '20250303', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price, t.size);
 }
@@ -106,7 +113,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.wi
 **Example**
 
 ```cpp
-auto rows = client.option_history_trade("SPY", "20250321", "20250303",
+auto rows = client.historical().option_history_trade("SPY", "20250321", "20250303",
     thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.price << ' ' << t.size << "\n";

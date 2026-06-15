@@ -1,7 +1,7 @@
 """
 Dropped-events counter accessibility test.
 
-Pins the contract that ``tdx.dropped_event_count()`` is callable
+Pins the contract that ``tdx.stream.dropped_event_count()`` is callable
 across the streaming lifecycle (pre-start / post-start /
 post-reconnect / post-stop) and is non-negative everywhere.
 
@@ -65,7 +65,7 @@ def tdx():
     # Best-effort teardown; stop_streaming on a client that never
     # started is a noop per the Rust side contract.
     try:
-        client.stop_streaming()
+        client.stream.stop_streaming()
     except Exception:
         pass
 
@@ -85,7 +85,7 @@ def test_dropped_event_count_callable_before_streaming(tdx):
     and return 0 -- the streaming slot is empty, so the wrapper
     forwards 0 from the unified client.
     """
-    count = tdx.dropped_event_count()
+    count = tdx.stream.dropped_event_count()
     assert isinstance(count, int)
     assert count >= 0
     # Pre-stream, the FPSS client hasn't been spawned -- count is 0.
@@ -99,13 +99,13 @@ def test_dropped_event_count_lifecycle_callable(tdx):
     because reconnect rebuilds the FPSS client and zeros the counter.
     Snapshot before reconnect if you need cross-session accumulation.
     """
-    tdx.start_streaming(_noop_callback)
-    post_start = tdx.dropped_event_count()
+    tdx.stream.start_streaming(_noop_callback)
+    post_start = tdx.stream.dropped_event_count()
     assert isinstance(post_start, int)
     assert post_start >= 0
 
-    tdx.reconnect()
-    post_reconnect = tdx.dropped_event_count()
+    tdx.stream.reconnect()
+    post_reconnect = tdx.stream.dropped_event_count()
     assert isinstance(post_reconnect, int)
     # Counter lives on the live FPSS client; reconnect calls
     # stop_streaming + start_streaming, which recreates the client
@@ -115,8 +115,8 @@ def test_dropped_event_count_lifecycle_callable(tdx):
     # explicitly do NOT promise.
     assert post_reconnect >= 0
 
-    tdx.stop_streaming()
-    post_stop = tdx.dropped_event_count()
+    tdx.stream.stop_streaming()
+    post_stop = tdx.stream.dropped_event_count()
     assert isinstance(post_stop, int)
     # After stop_streaming the streaming slot is empty; the getter
     # returns 0.
@@ -138,8 +138,8 @@ def test_start_streaming_accepts_any_pyobject_at_registration_time(tdx):
     `test_non_callable_callback_panic_is_counted` below, which DOES
     use `pytest.raises`.)
     """
-    tdx.start_streaming(42)
-    tdx.stop_streaming()
+    tdx.stream.start_streaming(42)
+    tdx.stream.stop_streaming()
 
 
 def test_reconnect_without_callback_raises(tdx):
@@ -148,4 +148,4 @@ def test_reconnect_without_callback_raises(tdx):
     starting a callback-less stream.
     """
     with pytest.raises(RuntimeError, match="no callback registered"):
-        tdx.reconnect()
+        tdx.stream.reconnect()

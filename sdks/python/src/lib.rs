@@ -1255,7 +1255,40 @@ struct Client {
     /// touches Python. `None` before any `start_streaming` and after
     /// every `stop_streaming` / `shutdown`. `reconnect()` re-uses the
     /// stored handle so callers do not have to re-pass the callable.
-    callback: Mutex<Option<Py<PyAny>>>,
+    ///
+    /// `Arc<Mutex<...>>` so the same callback slot can be shared with the
+    /// [`StreamView`] returned by `client.stream`: both the `Client` shell
+    /// and every `StreamView` handle observe and mutate one registration,
+    /// keeping `start_streaming` / `stop_streaming` / `reconnect`
+    /// idempotent regardless of which surface the caller reaches through.
+    callback: Arc<Mutex<Option<Py<PyAny>>>>,
+}
+
+/// User-facing historical-data sub-namespace returned by
+/// `client.historical`.
+///
+/// Holds a cheap `Arc` clone of the inner unified client; constructing it
+/// performs no auth round-trip and mutates no streaming state. Every
+/// historical endpoint method (sync, `*_async`, and `*_builder`) is
+/// generated onto this view from `endpoint_surface.toml`, so the surface
+/// stays a single generated source of truth.
+#[pyclass(frozen)]
+struct HistoricalView {
+    tdx: std::sync::Arc<thetadatadx::Client>,
+}
+
+/// User-facing real-time-streaming sub-namespace returned by
+/// `client.stream`.
+///
+/// Shares the parent client's `Arc<thetadatadx::Client>` and the parent's
+/// `Arc<Mutex<Option<Py<PyAny>>>>` callback slot, so `start_streaming`,
+/// `stop_streaming`, `reconnect`, and the subscription methods observe the
+/// same registration the unified client does. Constructing it is a pair of
+/// `Arc::clone`s — no auth round-trip, no FPSS state mutation.
+#[pyclass(frozen)]
+struct StreamView {
+    tdx: std::sync::Arc<thetadatadx::Client>,
+    callback: Arc<Mutex<Option<Py<PyAny>>>>,
 }
 
 #[pymethods]
@@ -1294,7 +1327,7 @@ impl Client {
 
         Ok(Self {
             tdx: std::sync::Arc::new(tdx),
-            callback: Mutex::new(None),
+            callback: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -1332,7 +1365,7 @@ impl Client {
     // one place to audit.
 
     fn __repr__(&self) -> String {
-        let streaming = if self.tdx.is_streaming() {
+        let streaming = if self.tdx.stream().is_streaming() {
             "streaming=connected"
         } else {
             "streaming=none"
@@ -1340,6 +1373,36 @@ impl Client {
         format!("Client(historical=connected, {streaming})")
     }
 
+    /// Historical-data sub-namespace: `client.historical.stock_eod(...)`.
+    ///
+    /// Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
+    /// inner client. No auth round-trip, no streaming-state mutation;
+    /// storing `hist = client.historical` is identical to calling
+    /// `client.historical.<endpoint>(...)` inline.
+    #[getter]
+    fn historical(&self) -> HistoricalView {
+        HistoricalView {
+            tdx: Arc::clone(&self.tdx),
+        }
+    }
+
+    /// Real-time-streaming sub-namespace: `client.stream.subscribe(...)`,
+    /// `client.stream.start_streaming(cb)`, …
+    ///
+    /// Returns a fresh [`StreamView`] sharing the inner client and the
+    /// parent's callback slot, so the streaming lifecycle observed through
+    /// the view is the same one the unified client manages.
+    #[getter]
+    fn stream(&self) -> StreamView {
+        StreamView {
+            tdx: Arc::clone(&self.tdx),
+            callback: Arc::clone(&self.callback),
+        }
+    }
+}
+
+#[pymethods]
+impl StreamView {
     /// Cumulative count of streaming events the TLS reader could not
     /// publish into the bounded ring because the consumer fell behind
     /// and the ring was full.
@@ -1363,7 +1426,7 @@ impl Client {
     /// should poll this on a periodic timer and emit a log on any
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
-        self.tdx.dropped_event_count()
+        self.tdx.stream().dropped_event_count()
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1381,7 +1444,7 @@ impl Client {
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
-        self.tdx.ring_occupancy()
+        self.tdx.stream().ring_occupancy()
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1393,7 +1456,7 @@ impl Client {
     /// :meth:`dropped_event_count`). Returns 0 before
     /// `start_streaming` and after `stop_streaming`.
     fn ring_capacity(&self) -> usize {
-        self.tdx.ring_capacity()
+        self.tdx.stream().ring_capacity()
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1405,7 +1468,7 @@ impl Client {
     /// when no market data flows), so a steadily growing value is the
     /// earliest external signal of a dead or wedged connection.
     fn millis_since_last_event(&self) -> Option<u64> {
-        self.tdx.millis_since_last_event()
+        self.tdx.stream().millis_since_last_event()
     }
 
     /// UNIX-nanosecond receive timestamp of the most recent inbound
@@ -1414,14 +1477,14 @@ impl Client {
     /// :meth:`millis_since_last_event`, exposed for callers
     /// correlating against their own pipeline timestamps.
     fn last_event_received_at_unix_nanos(&self) -> i64 {
-        self.tdx.last_event_received_at_unix_nanos()
+        self.tdx.stream().last_event_received_at_unix_nanos()
     }
 
     /// Address (``host:port``) of the streaming server the current
     /// session is connected to, following the session across
     /// auto-reconnects. ``None`` when streaming has not started.
     fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.last_connected_addr()
+        self.tdx.stream().last_connected_addr()
     }
 }
 
@@ -1437,7 +1500,7 @@ impl Client {
 // Second `#[pymethods]` impl block enabled by the `multiple-pymethods`
 // PyO3 feature flag (also used by `streaming_session.rs`).
 #[pymethods]
-impl Client {
+impl StreamView {
     /// Polymorphic subscribe — primary fluent entry point.
     ///
     /// Accepts the `Subscription` value returned by `Contract.quote()`
@@ -1448,13 +1511,13 @@ impl Client {
     /// ```python
     /// stock  = Contract.stock("AAPL")
     /// option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
-    /// client.subscribe(stock.quote())
-    /// client.subscribe(option.trade())
-    /// client.subscribe(SecType.OPTION.full_trades())
+    /// client.stream.subscribe(stock.quote())
+    /// client.stream.subscribe(option.trade())
+    /// client.stream.subscribe(SecType.OPTION.full_trades())
     /// ```
     fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.subscribe(inner).map_err(to_py_err)
+        self.tdx.stream().subscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-subscribe a list / iterable of `Subscription` values.
@@ -1464,19 +1527,19 @@ impl Client {
     /// protocol does not support batched transactions).
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.subscribe_many(list).map_err(to_py_err)
+        self.tdx.stream().subscribe_many(list).map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.unsubscribe(inner).map_err(to_py_err)
+        self.tdx.stream().unsubscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
     fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.unsubscribe_many(list).map_err(to_py_err)
+        self.tdx.stream().unsubscribe_many(list).map_err(to_py_err)
     }
 }
 
@@ -1553,6 +1616,31 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // the allowlist check, identical to the sync client.
 ];
 
+/// Allowlisted proxy names that now resolve on the `client.stream`
+/// [`StreamView`] surface rather than on `Client` directly. The
+/// `AsyncClient.__getattr__` proxy reaches these through
+/// `client.stream.<name>`. Every entry must appear in either
+/// `PYTHON_UNIFIED_FPSS_METHODS` (generated streaming block) or the
+/// hand-written `StreamView` methods in `lib.rs`; the remaining
+/// allowlisted names (`active_full_subscriptions`, `panic_count`,
+/// `streaming`, `flat_files`) stay on `Client` and resolve directly.
+const STREAM_VIEW_PROXY_METHODS: &[&str] = &[
+    "subscribe",
+    "subscribe_many",
+    "unsubscribe",
+    "unsubscribe_many",
+    "active_subscriptions",
+    "start_streaming",
+    "stop_streaming",
+    "shutdown",
+    "reconnect",
+    "is_streaming",
+    "await_drain",
+    "dropped_event_count",
+    "ring_occupancy",
+    "ring_capacity",
+];
+
 /// Hand-written `#[pymethods]` entries on `Client` outside
 /// the generator-emitted streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`).
 /// Pairs with the generator-emitted set in the
@@ -1560,22 +1648,26 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// name in `ALLOWED_UNIFIED_PROXY_METHODS` must appear in either this
 /// list or `PYTHON_UNIFIED_FPSS_METHODS`, otherwise the build fails.
 const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
-    // Hand-written streaming-session factory.
+    // Hand-written streaming-session factory (stays on `Client`).
     "streaming",
-    // FLATFILES namespace getter (lives in `flatfile_methods.rs`).
+    // FLATFILES namespace getter (lives in `flatfile_methods.rs`,
+    // stays on `Client`).
     "flat_files",
-    // Subscription management (hand-written on the unified client to
-    // accept polymorphic `Subscription` PyAny inputs).
+    // Subscription management — hand-written to accept polymorphic
+    // `Subscription` PyAny inputs; lives on the `client.stream`
+    // `StreamView` surface (lib.rs).
     "subscribe",
     "subscribe_many",
     "unsubscribe",
     "unsubscribe_many",
+    // Full-stream subscription snapshot stays on `Client`
+    // (streaming_session.rs).
     "active_full_subscriptions",
-    // Diagnostic getters — `dropped_event_count`, `panic_count`,
-    // `ring_occupancy`, and `ring_capacity` live directly on
-    // `Client` (lib.rs) and forward to the core
-    // `thetadatadx::Client` accessors so the count matches
-    // every other binding.
+    // Diagnostic getters — `dropped_event_count`, `ring_occupancy`, and
+    // `ring_capacity` live on the `client.stream` `StreamView` surface
+    // (lib.rs); `panic_count` stays on `Client` (streaming_session.rs).
+    // All forward to the core `thetadatadx::Client` accessors so the
+    // counts match every other binding.
     "dropped_event_count",
     "panic_count",
     "ring_occupancy",
@@ -1692,6 +1784,20 @@ impl AsyncClient {
             )));
         }
         let bound = self.inner.bind(py);
+        // The historical and streaming surfaces moved off `Client` onto the
+        // `client.historical` / `client.stream` sub-namespace views. Resolve
+        // each proxied name against the surface that actually owns it so the
+        // async façade keeps a flat call shape
+        // (`await async_client.stock_history_eod_async(...)`,
+        // `async_client.subscribe(...)`) over the restructured client.
+        if name.ends_with("_async") {
+            let historical = bound.getattr("historical")?;
+            return Ok(historical.getattr(name)?.unbind());
+        }
+        if STREAM_VIEW_PROXY_METHODS.contains(&name) {
+            let stream = bound.getattr("stream")?;
+            return Ok(stream.getattr(name)?.unbind());
+        }
         Ok(bound.getattr(name)?.unbind())
     }
 
@@ -1850,6 +1956,8 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
     m.add_class::<Client>()?;
+    m.add_class::<HistoricalView>()?;
+    m.add_class::<StreamView>()?;
     m.add_class::<AsyncClient>()?;
     m.add_class::<fpss_client::StreamingClient>()?;
     m.add_class::<mdds_client::HistoricalClient>()?;
