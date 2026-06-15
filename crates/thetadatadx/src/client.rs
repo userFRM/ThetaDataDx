@@ -198,8 +198,9 @@ pub struct Client {
 impl Client {
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
-    /// FPSS streaming is NOT connected yet -- call [`Client::start_streaming`]
-    /// when you need real-time data.
+    /// FPSS streaming is NOT connected yet -- call
+    /// [`start_streaming`](StreamSurface::start_streaming) on the
+    /// [`stream`](Client::stream) surface when you need real-time data.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.

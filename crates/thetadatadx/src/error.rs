@@ -1,6 +1,6 @@
-//! The crate's public [`Error`] type and its category enums.
+//! The crate's public [`enum@Error`] type and its category enums.
 //!
-//! [`Error`] is the single error surface returned across the SDK. Every
+//! [`enum@Error`] is the single error surface returned across the SDK. Every
 //! variant carries a typed category (`kind`) alongside a human-readable
 //! message so callers can pattern-match on the failure class without
 //! parsing `Display` strings, and the `Display` shapes stay stable for

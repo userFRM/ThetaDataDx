@@ -886,7 +886,7 @@ pub struct StreamingClient {
     /// the event-dispatch consumer have both joined and the user callback
     /// is guaranteed to have stopped firing. Set inside [`Drop`] for both
     /// the inline-join path and the detached-helper path. Outer holders
-    /// (e.g. [`crate::Client::stop_streaming`]) may capture an
+    /// (e.g. [`crate::StreamSurface::stop_streaming`]) may capture an
     /// [`Arc::clone`] of this flag before releasing their last
     /// `Arc<StreamingClient>` so that
     /// [`crate::Client::await_drain`] can poll for full
@@ -1550,7 +1550,7 @@ impl StreamingClient {
     /// the user callback is guaranteed to have stopped firing.
     ///
     /// Returned as an `Arc<AtomicBool>` so a higher-level holder
-    /// (e.g. [`crate::Client::stop_streaming`]) can capture a
+    /// (e.g. [`crate::StreamSurface::stop_streaming`]) can capture a
     /// clone before releasing its last `Arc<StreamingClient>` and use it to
     /// implement an asynchronous drain barrier.
     ///

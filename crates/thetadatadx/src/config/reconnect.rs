@@ -238,8 +238,8 @@ pub struct ReconnectConfig {
     ///
     /// Plumbed into the FPSS I/O loop through
     /// [`crate::fpss::StreamingClientBuilder::reconnect_wait_ms`] at
-    /// [`crate::Client::start_streaming`] /
-    /// [`crate::Client::reconnect_streaming`] connect time.
+    /// [`crate::StreamSurface::start_streaming`] /
+    /// [`crate::StreamSurface::reconnect_streaming`] connect time.
     pub wait_ms: u64,
 
     /// Upper bound (ms) on the exponential generic-transient reconnect

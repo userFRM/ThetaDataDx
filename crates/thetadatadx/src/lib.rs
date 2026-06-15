@@ -248,7 +248,7 @@ pub use mdds::{HistoricalClient, SubscriptionTier};
 
 pub use auth::Credentials;
 pub use backoff::JitterMode;
-pub use client::{Client, ConnectionStatus, SubscriptionInfo};
+pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
 pub use config::{
     DirectConfig, FlatFilesConfig, FpssFlushMode, HostSelectionPolicy, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
