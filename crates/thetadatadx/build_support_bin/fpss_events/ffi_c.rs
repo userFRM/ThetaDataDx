@@ -24,9 +24,9 @@ fn render_kind_enum_c(schema: &Schema) -> String {
     );
     out.push_str("typedef enum {\n");
     for (idx, name) in sorted_event_names(schema).iter().enumerate() {
-        // C-side identifier: `TDX_FPSS_<SCREAMING_SNAKE>`.
+        // C-side identifier: `THETADATADX_FPSS_<SCREAMING_SNAKE>`.
         let upper = snake_case(name).to_uppercase();
-        writeln!(out, "    TDX_FPSS_{upper} = {idx},").unwrap();
+        writeln!(out, "    THETADATADX_FPSS_{upper} = {idx},").unwrap();
     }
     out.push_str("} ThetaDataDxStreamEventKind;\n\n");
     out

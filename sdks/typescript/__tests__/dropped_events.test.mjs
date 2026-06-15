@@ -11,7 +11,7 @@
 // `reconnect()`, and after `stopStreaming()`; the value is
 // non-negative across the cycle.
 //
-// Gated on THETADX_TEST_CREDS=/path/to/creds.txt — the underlying
+// Gated on THETADATADX_TEST_CREDS=/path/to/creds.txt — the underlying
 // `Client.connectFromFile(...)` needs a live FPSS handshake.
 // Skips silently on dev machines without creds; CI runs this in the
 // surfaces job.
@@ -31,11 +31,11 @@ try {
 
 describe('client.stream.droppedEventCount()', () => {
   it('is callable before/after startStreaming and after reconnect', async () => {
-    const credsPath = process.env.THETADX_TEST_CREDS;
+    const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
       // Live test — credentials are a legitimate runtime opt-in, not a build artefact.
       console.log(
-        'SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt to enable this live test'
+        'SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt to enable this live test'
       );
       return;
     }
@@ -86,9 +86,9 @@ describe('client.stream.droppedEventCount()', () => {
   });
 
   it('rejects double startStreaming with a clear error', () => {
-    const credsPath = process.env.THETADX_TEST_CREDS;
+    const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
-      console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
+      console.log('SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
     const client = mod.Client.connectFromFile(credsPath);
@@ -102,9 +102,9 @@ describe('client.stream.droppedEventCount()', () => {
   });
 
   it('reconnect without prior startStreaming throws', () => {
-    const credsPath = process.env.THETADX_TEST_CREDS;
+    const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
-      console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
+      console.log('SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
     const client = mod.Client.connectFromFile(credsPath);

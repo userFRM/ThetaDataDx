@@ -104,7 +104,7 @@ int main() {
 
     fpss.set_callback([format_contract](const thetadatadx::StreamEvent& event) {
         switch (event.kind) {
-            case TDX_FPSS_TRADE:
+            case THETADATADX_FPSS_TRADE:
                 std::cout << format_contract(event.trade.contract)
                           << " trade price=" << event.trade.price
                           << " size=" << event.trade.size
@@ -114,7 +114,7 @@ int main() {
                           << " condition=" << event.trade.condition
                           << '\n';
                 break;
-            case TDX_FPSS_QUOTE:
+            case THETADATADX_FPSS_QUOTE:
                 std::cout << format_contract(event.quote.contract)
                           << " quote bid=" << event.quote.bid
                           << " ask=" << event.quote.ask
@@ -209,7 +209,7 @@ Every method throws `std::runtime_error` on failure, carrying the same typed cas
 
 ## Tests
 
-A Catch2 test suite lives under `sdks/cpp/tests/`. Offline tests (type, null-safety, and move-semantics checks) always run; live tests round-trip against the production server and are skipped unless `THETADX_LIVE_CREDS` points at a `creds.txt`:
+A Catch2 test suite lives under `sdks/cpp/tests/`. Offline tests (type, null-safety, and move-semantics checks) always run; live tests round-trip against the production server and are skipped unless `THETADATADX_LIVE_CREDS` points at a `creds.txt`:
 
 ```bash
 cmake -S sdks/cpp -B build/cpp-tests -DTHETADATADX_CPP_BUILD_TESTS=ON

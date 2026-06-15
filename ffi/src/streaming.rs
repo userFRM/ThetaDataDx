@@ -584,26 +584,26 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Per-contract subscription scope: one named contract.
-pub const TDX_SUB_SCOPE_CONTRACT: i32 = 0;
+pub const THETADATADX_SUB_SCOPE_CONTRACT: i32 = 0;
 /// Full-stream subscription scope: every contract of a security type.
-pub const TDX_SUB_SCOPE_FULL: i32 = 1;
+pub const THETADATADX_SUB_SCOPE_FULL: i32 = 1;
 
 // Per-contract / full-stream tick kind discriminators. The set
 // reachable from each scope is constrained:
 //
-// - `TDX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`,
+// - `THETADATADX_SUB_SCOPE_CONTRACT` accepts `QUOTE`, `TRADE`, `OPEN_INTEREST`,
 //   `MARKET_VALUE`.
-// - `TDX_SUB_SCOPE_FULL` accepts `TRADE`, `OPEN_INTEREST` (full-stream
+// - `THETADATADX_SUB_SCOPE_FULL` accepts `TRADE`, `OPEN_INTEREST` (full-stream
 //   quote and market value are rejected — both are addressed
 //   per-contract only).
 /// Quote tick stream (per-contract scope only).
-pub const TDX_SUB_KIND_QUOTE: i32 = 0;
+pub const THETADATADX_SUB_KIND_QUOTE: i32 = 0;
 /// Trade tick stream.
-pub const TDX_SUB_KIND_TRADE: i32 = 1;
+pub const THETADATADX_SUB_KIND_TRADE: i32 = 1;
 /// Open-interest stream.
-pub const TDX_SUB_KIND_OPEN_INTEREST: i32 = 2;
+pub const THETADATADX_SUB_KIND_OPEN_INTEREST: i32 = 2;
 /// Market-value stream (per-contract scope only).
-pub const TDX_SUB_KIND_MARKET_VALUE: i32 = 3;
+pub const THETADATADX_SUB_KIND_MARKET_VALUE: i32 = 3;
 
 /// Polymorphic subscribe / unsubscribe request payload.
 ///
@@ -618,9 +618,9 @@ pub const TDX_SUB_KIND_MARKET_VALUE: i32 = 3;
 ///   per-contract fields NULL.
 #[repr(C)]
 pub struct ThetaDataDxSubscriptionRequest {
-    /// `TDX_SUB_SCOPE_CONTRACT` or `TDX_SUB_SCOPE_FULL`.
+    /// `THETADATADX_SUB_SCOPE_CONTRACT` or `THETADATADX_SUB_SCOPE_FULL`.
     pub scope: i32,
-    /// `TDX_SUB_KIND_QUOTE` / `_TRADE` / `_OPEN_INTEREST`.
+    /// `THETADATADX_SUB_KIND_QUOTE` / `_TRADE` / `_OPEN_INTEREST`.
     pub kind: i32,
     /// Stock or underlying symbol for per-contract subscriptions.
     /// NULL for full-stream.
@@ -661,12 +661,12 @@ unsafe fn coerce_subscription(
     let right_ptr = req.right;
     let sec_type_ptr = req.sec_type;
     match req.scope {
-        TDX_SUB_SCOPE_CONTRACT => {
+        THETADATADX_SUB_SCOPE_CONTRACT => {
             let kind = match req.kind {
-                TDX_SUB_KIND_QUOTE => SubscriptionKind::Quote,
-                TDX_SUB_KIND_TRADE => SubscriptionKind::Trade,
-                TDX_SUB_KIND_OPEN_INTEREST => SubscriptionKind::OpenInterest,
-                TDX_SUB_KIND_MARKET_VALUE => SubscriptionKind::MarketValue,
+                THETADATADX_SUB_KIND_QUOTE => SubscriptionKind::Quote,
+                THETADATADX_SUB_KIND_TRADE => SubscriptionKind::Trade,
+                THETADATADX_SUB_KIND_OPEN_INTEREST => SubscriptionKind::OpenInterest,
+                THETADATADX_SUB_KIND_MARKET_VALUE => SubscriptionKind::MarketValue,
                 other => {
                     set_error(&format!("invalid kind {other}"));
                     return None;
@@ -697,15 +697,15 @@ unsafe fn coerce_subscription(
                 };
             Some(Subscription::Contract { contract, kind })
         }
-        TDX_SUB_SCOPE_FULL => {
+        THETADATADX_SUB_SCOPE_FULL => {
             let kind = match req.kind {
-                TDX_SUB_KIND_TRADE => FullSubscriptionKind::Trades,
-                TDX_SUB_KIND_OPEN_INTEREST => FullSubscriptionKind::OpenInterest,
-                TDX_SUB_KIND_QUOTE => {
+                THETADATADX_SUB_KIND_TRADE => FullSubscriptionKind::Trades,
+                THETADATADX_SUB_KIND_OPEN_INTEREST => FullSubscriptionKind::OpenInterest,
+                THETADATADX_SUB_KIND_QUOTE => {
                     set_error("full-stream Quote is not a valid subscription");
                     return None;
                 }
-                TDX_SUB_KIND_MARKET_VALUE => {
+                THETADATADX_SUB_KIND_MARKET_VALUE => {
                     set_error("full-stream MarketValue is not a valid subscription");
                     return None;
                 }

@@ -15,7 +15,7 @@ use std::ptr;
 
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
-    static LAST_ERROR_CODE: std::cell::Cell<i32> = const { std::cell::Cell::new(TDX_ERR_NONE) };
+    static LAST_ERROR_CODE: std::cell::Cell<i32> = const { std::cell::Cell::new(THETADATADX_ERR_NONE) };
     /// Server-supplied rate-limit back-off in milliseconds, or `-1` when
     /// the last error carries no `RetryInfo` hint. Read via
     /// [`thetadatadx_last_error_retry_after_ms`] so the C++ `RateLimitError`
@@ -25,7 +25,7 @@ thread_local! {
 
 /// Sentinel returned by [`thetadatadx_last_error_retry_after_ms`] when the last
 /// error carries no rate-limit back-off hint.
-pub const TDX_RETRY_AFTER_NONE: i64 = -1;
+pub const THETADATADX_RETRY_AFTER_NONE: i64 = -1;
 
 /// Typed error-code discriminants surfaced via [`thetadatadx_last_error_code`].
 ///
@@ -37,53 +37,53 @@ pub const TDX_RETRY_AFTER_NONE: i64 = -1;
 /// the Python `to_py_err` hierarchy one-for-one so the leaf set stays
 /// uniform across bindings.
 /// No error: the last call succeeded.
-pub const TDX_ERR_NONE: i32 = 0;
+pub const THETADATADX_ERR_NONE: i32 = 0;
 /// Uncategorized failure that maps to no more specific discriminant.
-pub const TDX_ERR_OTHER: i32 = 1;
+pub const THETADATADX_ERR_OTHER: i32 = 1;
 /// Authentication failed (credentials rejected during the auth handshake).
-pub const TDX_ERR_AUTHENTICATION: i32 = 2;
+pub const THETADATADX_ERR_AUTHENTICATION: i32 = 2;
 /// Credentials are malformed or incomplete before any handshake is attempted.
-pub const TDX_ERR_INVALID_CREDENTIALS: i32 = 3;
+pub const THETADATADX_ERR_INVALID_CREDENTIALS: i32 = 3;
 /// The account's subscription does not grant access to the requested data.
-pub const TDX_ERR_SUBSCRIPTION: i32 = 4;
+pub const THETADATADX_ERR_SUBSCRIPTION: i32 = 4;
 /// The server rate-limited the request; see [`thetadatadx_last_error_retry_after_ms`].
-pub const TDX_ERR_RATE_LIMIT: i32 = 5;
+pub const THETADATADX_ERR_RATE_LIMIT: i32 = 5;
 /// The requested resource (symbol, contract, or endpoint) does not exist.
-pub const TDX_ERR_NOT_FOUND: i32 = 6;
+pub const THETADATADX_ERR_NOT_FOUND: i32 = 6;
 /// The call exceeded its deadline before the server responded.
-pub const TDX_ERR_DEADLINE_EXCEEDED: i32 = 7;
+pub const THETADATADX_ERR_DEADLINE_EXCEEDED: i32 = 7;
 /// The service is temporarily unavailable (transient server-side fault).
-pub const TDX_ERR_UNAVAILABLE: i32 = 8;
+pub const THETADATADX_ERR_UNAVAILABLE: i32 = 8;
 /// A transport-layer failure prevented the request from completing.
-pub const TDX_ERR_NETWORK: i32 = 9;
+pub const THETADATADX_ERR_NETWORK: i32 = 9;
 /// A decoded payload did not match the expected wire schema.
-pub const TDX_ERR_SCHEMA_MISMATCH: i32 = 10;
+pub const THETADATADX_ERR_SCHEMA_MISMATCH: i32 = 10;
 /// A streaming session failed mid-flight (drop, partial reconnect, or
 /// stream-level protocol fault).
-pub const TDX_ERR_STREAM: i32 = 11;
+pub const THETADATADX_ERR_STREAM: i32 = 11;
 /// An environmental configuration fault (config-file I/O, TOML parse, or an
-/// internal invariant); distinct from [`TDX_ERR_INVALID_PARAMETER`].
-pub const TDX_ERR_CONFIG: i32 = 12;
+/// internal invariant); distinct from [`THETADATADX_ERR_INVALID_PARAMETER`].
+pub const THETADATADX_ERR_CONFIG: i32 = 12;
 /// A client-side parameter was rejected by input validation (a bad
 /// value, an out-of-range number, a missing required field). Distinct
-/// from [`TDX_ERR_CONFIG`], which stays reserved for environmental
+/// from [`THETADATADX_ERR_CONFIG`], which stays reserved for environmental
 /// configuration faults (config-file I/O, TOML parse, internal
 /// invariant) so a rejected argument is distinguishable by code from an
 /// unrelated configuration failure.
-pub const TDX_ERR_INVALID_PARAMETER: i32 = 13;
+pub const THETADATADX_ERR_INVALID_PARAMETER: i32 = 13;
 
 pub(crate) fn set_error(msg: &str) {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = CString::new(msg).ok();
     });
-    LAST_ERROR_CODE.with(|c| c.set(TDX_ERR_OTHER));
+    LAST_ERROR_CODE.with(|c| c.set(THETADATADX_ERR_OTHER));
     clear_retry_after();
 }
 
 /// Set the error string and pin the typed discriminant explicitly. Used by
 /// FFI entry points that surface validation failures whose category is known
-/// at the call site (e.g. an out-of-range enum int maps to [`TDX_ERR_CONFIG`]
-/// rather than the default [`TDX_ERR_OTHER`]).
+/// at the call site (e.g. an out-of-range enum int maps to [`THETADATADX_ERR_CONFIG`]
+/// rather than the default [`THETADATADX_ERR_OTHER`]).
 pub(crate) fn set_error_with_code(msg: &str, code: i32) {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = CString::new(msg).ok();
@@ -103,7 +103,7 @@ pub(crate) fn set_error_from(err: &thetadatadx::Error) {
     let retry_after_ms = err
         .retry_after()
         .and_then(|d| i64::try_from(d.as_millis()).ok())
-        .unwrap_or(TDX_RETRY_AFTER_NONE);
+        .unwrap_or(THETADATADX_RETRY_AFTER_NONE);
     LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(retry_after_ms));
 }
 
@@ -112,7 +112,7 @@ pub(crate) fn set_error_from(err: &thetadatadx::Error) {
 /// from a prior rate-limit error is never misattributed to an unrelated
 /// failure.
 fn clear_retry_after() {
-    LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(TDX_RETRY_AFTER_NONE));
+    LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(THETADATADX_RETRY_AFTER_NONE));
 }
 
 /// Set the error string without touching the typed code. Used by the
@@ -133,48 +133,52 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
     use thetadatadx::Error;
     match err {
         Error::Auth { kind, .. } => match kind {
-            AuthErrorKind::InvalidCredentials => TDX_ERR_INVALID_CREDENTIALS,
-            AuthErrorKind::NetworkError => TDX_ERR_NETWORK,
-            AuthErrorKind::Timeout => TDX_ERR_DEADLINE_EXCEEDED,
-            _ => TDX_ERR_AUTHENTICATION,
+            AuthErrorKind::InvalidCredentials => THETADATADX_ERR_INVALID_CREDENTIALS,
+            AuthErrorKind::NetworkError => THETADATADX_ERR_NETWORK,
+            AuthErrorKind::Timeout => THETADATADX_ERR_DEADLINE_EXCEEDED,
+            _ => THETADATADX_ERR_AUTHENTICATION,
         },
         Error::Grpc { kind, .. } => match kind {
-            GrpcStatusKind::PermissionDenied => TDX_ERR_SUBSCRIPTION,
-            GrpcStatusKind::ResourceExhausted => TDX_ERR_RATE_LIMIT,
-            GrpcStatusKind::NotFound => TDX_ERR_NOT_FOUND,
-            GrpcStatusKind::DeadlineExceeded => TDX_ERR_DEADLINE_EXCEEDED,
-            GrpcStatusKind::Unauthenticated => TDX_ERR_AUTHENTICATION,
-            GrpcStatusKind::Unavailable => TDX_ERR_UNAVAILABLE,
-            _ => TDX_ERR_OTHER,
+            GrpcStatusKind::PermissionDenied => THETADATADX_ERR_SUBSCRIPTION,
+            GrpcStatusKind::ResourceExhausted => THETADATADX_ERR_RATE_LIMIT,
+            GrpcStatusKind::NotFound => THETADATADX_ERR_NOT_FOUND,
+            GrpcStatusKind::DeadlineExceeded => THETADATADX_ERR_DEADLINE_EXCEEDED,
+            GrpcStatusKind::Unauthenticated => THETADATADX_ERR_AUTHENTICATION,
+            GrpcStatusKind::Unavailable => THETADATADX_ERR_UNAVAILABLE,
+            _ => THETADATADX_ERR_OTHER,
         },
-        Error::NoData => TDX_ERR_NOT_FOUND,
-        Error::Timeout { .. } => TDX_ERR_DEADLINE_EXCEEDED,
-        Error::Transport { .. } | Error::Tls(_) | Error::Io(_) | Error::Http(_) => TDX_ERR_NETWORK,
-        Error::Decode { .. } | Error::Decompress { .. } => TDX_ERR_SCHEMA_MISMATCH,
+        Error::NoData => THETADATADX_ERR_NOT_FOUND,
+        Error::Timeout { .. } => THETADATADX_ERR_DEADLINE_EXCEEDED,
+        Error::Transport { .. } | Error::Tls(_) | Error::Io(_) | Error::Http(_) => {
+            THETADATADX_ERR_NETWORK
+        }
+        Error::Decode { .. } | Error::Decompress { .. } => THETADATADX_ERR_SCHEMA_MISMATCH,
         // Split user-input validation failures out from environmental
         // config faults so the C++ / C ABI surface a dedicated
         // invalid-parameter class while file-I/O / TOML / internal
         // faults stay on the generic config code.
         Error::Config { kind, .. } => {
             if kind.is_invalid_parameter() {
-                TDX_ERR_INVALID_PARAMETER
+                THETADATADX_ERR_INVALID_PARAMETER
             } else {
-                TDX_ERR_CONFIG
+                THETADATADX_ERR_CONFIG
             }
         }
         Error::Fpss { kind, .. } => match kind {
-            FpssErrorKind::TooManyRequests => TDX_ERR_RATE_LIMIT,
-            FpssErrorKind::Timeout => TDX_ERR_DEADLINE_EXCEEDED,
-            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => TDX_ERR_NETWORK,
-            _ => TDX_ERR_STREAM,
+            FpssErrorKind::TooManyRequests => THETADATADX_ERR_RATE_LIMIT,
+            FpssErrorKind::Timeout => THETADATADX_ERR_DEADLINE_EXCEEDED,
+            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => {
+                THETADATADX_ERR_NETWORK
+            }
+            _ => THETADATADX_ERR_STREAM,
         },
-        Error::FlatFilesUnavailable(_) | Error::PartialReconnect { .. } => TDX_ERR_STREAM,
-        _ => TDX_ERR_OTHER,
+        Error::FlatFilesUnavailable(_) | Error::PartialReconnect { .. } => THETADATADX_ERR_STREAM,
+        _ => THETADATADX_ERR_OTHER,
     }
 }
 
 /// Retrieve the typed discriminant of the last FFI error on this
-/// thread. Returns [`TDX_ERR_NONE`] when no error is set or after
+/// thread. Returns [`THETADATADX_ERR_NONE`] when no error is set or after
 /// [`thetadatadx_clear_error`].
 ///
 /// Callers should pair this with [`thetadatadx_last_error`] for the
@@ -182,13 +186,13 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
 /// class, the string carries the diagnostic.
 #[no_mangle]
 pub extern "C" fn thetadatadx_last_error_code() -> i32 {
-    ffi_boundary!(TDX_ERR_OTHER, {
+    ffi_boundary!(THETADATADX_ERR_OTHER, {
         LAST_ERROR_CODE.with(std::cell::Cell::get)
     })
 }
 
 /// Retrieve the server-supplied rate-limit back-off of the last FFI
-/// error on this thread, in milliseconds, or [`TDX_RETRY_AFTER_NONE`]
+/// error on this thread, in milliseconds, or [`THETADATADX_RETRY_AFTER_NONE`]
 /// (`-1`) when the error carries no `RetryInfo` hint.
 ///
 /// Set only for a rate-limit error whose upstream status attached a
@@ -198,7 +202,7 @@ pub extern "C" fn thetadatadx_last_error_code() -> i32 {
 /// the back-off without parsing the message text.
 #[no_mangle]
 pub extern "C" fn thetadatadx_last_error_retry_after_ms() -> i64 {
-    ffi_boundary!(TDX_RETRY_AFTER_NONE, {
+    ffi_boundary!(THETADATADX_RETRY_AFTER_NONE, {
         LAST_ERROR_RETRY_AFTER_MS.with(std::cell::Cell::get)
     })
 }
@@ -234,8 +238,8 @@ pub extern "C" fn thetadatadx_clear_error() {
         LAST_ERROR.with(|e| {
             *e.borrow_mut() = None;
         });
-        LAST_ERROR_CODE.with(|c| c.set(TDX_ERR_NONE));
-        LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(TDX_RETRY_AFTER_NONE));
+        LAST_ERROR_CODE.with(|c| c.set(THETADATADX_ERR_NONE));
+        LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(THETADATADX_RETRY_AFTER_NONE));
     })
 }
 
@@ -337,7 +341,7 @@ mod tests {
     //! Unit tests for the typed error-code surface introduced by the
     //! C++ / TS exception-class refactor. Pins the mapping so a future
     //! Rust-side `Error` variant addition fails the test rather than
-    //! silently routing to `TDX_ERR_OTHER`.
+    //! silently routing to `THETADATADX_ERR_OTHER`.
 
     use super::*;
     use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
@@ -368,27 +372,27 @@ mod tests {
     fn grpc_kinds_route_to_expected_codes() {
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::PermissionDenied)),
-            TDX_ERR_SUBSCRIPTION
+            THETADATADX_ERR_SUBSCRIPTION
         );
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::ResourceExhausted)),
-            TDX_ERR_RATE_LIMIT
+            THETADATADX_ERR_RATE_LIMIT
         );
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::NotFound)),
-            TDX_ERR_NOT_FOUND
+            THETADATADX_ERR_NOT_FOUND
         );
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::DeadlineExceeded)),
-            TDX_ERR_DEADLINE_EXCEEDED
+            THETADATADX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::Unauthenticated)),
-            TDX_ERR_AUTHENTICATION
+            THETADATADX_ERR_AUTHENTICATION
         );
         assert_eq!(
             error_code_for(&grpc(GrpcStatusKind::Unavailable)),
-            TDX_ERR_UNAVAILABLE
+            THETADATADX_ERR_UNAVAILABLE
         );
     }
 
@@ -396,19 +400,19 @@ mod tests {
     fn auth_kinds_route_to_expected_codes() {
         assert_eq!(
             error_code_for(&auth(AuthErrorKind::InvalidCredentials)),
-            TDX_ERR_INVALID_CREDENTIALS
+            THETADATADX_ERR_INVALID_CREDENTIALS
         );
         assert_eq!(
             error_code_for(&auth(AuthErrorKind::NetworkError)),
-            TDX_ERR_NETWORK
+            THETADATADX_ERR_NETWORK
         );
         assert_eq!(
             error_code_for(&auth(AuthErrorKind::Timeout)),
-            TDX_ERR_DEADLINE_EXCEEDED
+            THETADATADX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
             error_code_for(&auth(AuthErrorKind::ServerError)),
-            TDX_ERR_AUTHENTICATION
+            THETADATADX_ERR_AUTHENTICATION
         );
     }
 
@@ -416,22 +420,22 @@ mod tests {
     fn umbrella_variants_route_to_expected_codes() {
         assert_eq!(
             error_code_for(&thetadatadx::Error::NoData),
-            TDX_ERR_NOT_FOUND
+            THETADATADX_ERR_NOT_FOUND
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::Timeout { duration_ms: 500 }),
-            TDX_ERR_DEADLINE_EXCEEDED
+            THETADATADX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::Transport {
                 kind: thetadatadx::error::TransportErrorKind::ConnectionClosed,
                 message: "dead".into(),
             }),
-            TDX_ERR_NETWORK
+            THETADATADX_ERR_NETWORK
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::decode_codec("cell type mismatch")),
-            TDX_ERR_SCHEMA_MISMATCH
+            THETADATADX_ERR_SCHEMA_MISMATCH
         );
     }
 
@@ -440,15 +444,15 @@ mod tests {
         // User-input validation failures get the dedicated discriminant.
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_invalid("ffi", "bad")),
-            TDX_ERR_INVALID_PARAMETER
+            THETADATADX_ERR_INVALID_PARAMETER
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_out_of_range("ffi", 0, 1, 9)),
-            TDX_ERR_INVALID_PARAMETER
+            THETADATADX_ERR_INVALID_PARAMETER
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_missing("ffi")),
-            TDX_ERR_INVALID_PARAMETER
+            THETADATADX_ERR_INVALID_PARAMETER
         );
         // The flat-file dataset gate rejects an unserved (security,
         // request) pair with a `config_invalid` error, so the C-ABI
@@ -459,16 +463,16 @@ mod tests {
                 "flatfiles.dataset",
                 "flat-file service does not serve stock open_interest"
             )),
-            TDX_ERR_INVALID_PARAMETER
+            THETADATADX_ERR_INVALID_PARAMETER
         );
         // Environmental config faults stay on the generic config code.
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_io("file not found")),
-            TDX_ERR_CONFIG
+            THETADATADX_ERR_CONFIG
         );
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_toml("expected `]`")),
-            TDX_ERR_CONFIG
+            THETADATADX_ERR_CONFIG
         );
     }
 
@@ -483,14 +487,14 @@ mod tests {
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(1500)),
         });
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_RATE_LIMIT);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_RATE_LIMIT);
         assert_eq!(thetadatadx_last_error_retry_after_ms(), 1500);
 
         // A rate-limit error without a hint reads the sentinel.
         set_error_from(&grpc(GrpcStatusKind::ResourceExhausted));
         assert_eq!(
             thetadatadx_last_error_retry_after_ms(),
-            TDX_RETRY_AFTER_NONE
+            THETADATADX_RETRY_AFTER_NONE
         );
 
         // A plain `set_error` clears any prior hint so it is never
@@ -504,13 +508,13 @@ mod tests {
         set_error("unrelated failure");
         assert_eq!(
             thetadatadx_last_error_retry_after_ms(),
-            TDX_RETRY_AFTER_NONE
+            THETADATADX_RETRY_AFTER_NONE
         );
 
         thetadatadx_clear_error();
         assert_eq!(
             thetadatadx_last_error_retry_after_ms(),
-            TDX_RETRY_AFTER_NONE
+            THETADATADX_RETRY_AFTER_NONE
         );
     }
 
@@ -522,7 +526,7 @@ mod tests {
                     server_message: "no subscription".into(),
                 },
             )),
-            TDX_ERR_STREAM
+            THETADATADX_ERR_STREAM
         );
     }
 
@@ -530,7 +534,7 @@ mod tests {
     fn partial_reconnect_routes_to_stream() {
         assert_eq!(
             error_code_for(&thetadatadx::Error::PartialReconnect { failed: Vec::new() }),
-            TDX_ERR_STREAM
+            THETADATADX_ERR_STREAM
         );
     }
 
@@ -538,19 +542,19 @@ mod tests {
     fn fpss_kinds_route_to_expected_codes() {
         assert_eq!(
             error_code_for(&fpss(FpssErrorKind::TooManyRequests)),
-            TDX_ERR_RATE_LIMIT
+            THETADATADX_ERR_RATE_LIMIT
         );
         assert_eq!(
             error_code_for(&fpss(FpssErrorKind::Timeout)),
-            TDX_ERR_DEADLINE_EXCEEDED
+            THETADATADX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
             error_code_for(&fpss(FpssErrorKind::Disconnected)),
-            TDX_ERR_NETWORK
+            THETADATADX_ERR_NETWORK
         );
         assert_eq!(
             error_code_for(&fpss(FpssErrorKind::ProtocolError)),
-            TDX_ERR_STREAM
+            THETADATADX_ERR_STREAM
         );
     }
 
@@ -559,10 +563,10 @@ mod tests {
         // Pin the contract: callers that observe a non-zero
         // `thetadatadx_last_error_code` must also see the matching string.
         set_error_from(&grpc(GrpcStatusKind::PermissionDenied));
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_SUBSCRIPTION);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_SUBSCRIPTION);
         assert!(!thetadatadx_last_error().is_null());
         thetadatadx_clear_error();
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
         assert!(thetadatadx_last_error().is_null());
     }
 
@@ -570,11 +574,11 @@ mod tests {
     fn set_error_string_only_defaults_to_other_code() {
         // Plain `set_error` is used by sites that surface a
         // non-thetadatadx error (e.g. UTF-8 parse failures) — the
-        // discriminator must default to `TDX_ERR_OTHER` so the C++
+        // discriminator must default to `THETADATADX_ERR_OTHER` so the C++
         // dispatcher routes to the umbrella `ThetaDataError` class.
         thetadatadx_clear_error();
         set_error("plain error");
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_OTHER);
         thetadatadx_clear_error();
     }
 
@@ -632,7 +636,7 @@ mod tests {
         thetadatadx_clear_error();
         let result = run_require_cstr(ptr::null(), "fallback");
         assert_eq!(result, "fallback");
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("is null"), "expected null mention, got {msg}");
         thetadatadx_clear_error();
@@ -644,7 +648,7 @@ mod tests {
         let cstr = CString::new("payload").unwrap();
         let result = run_require_cstr(cstr.as_ptr(), "fallback");
         assert_eq!(result, "payload");
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
         assert!(thetadatadx_last_error().is_null());
     }
 
@@ -658,7 +662,7 @@ mod tests {
         let p = bytes.as_ptr().cast::<c_char>();
         let result = run_require_cstr(p, "fallback");
         assert_eq!(result, "fallback");
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("UTF-8"), "expected UTF-8 mention, got {msg}");
         thetadatadx_clear_error();
@@ -671,7 +675,7 @@ mod tests {
         let p = bytes.as_ptr().cast::<c_char>();
         let result = run_require_cstr(p, "fallback");
         assert_eq!(result, "");
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
         assert!(thetadatadx_last_error().is_null());
     }
 
@@ -693,7 +697,7 @@ mod tests {
         thetadatadx_clear_error();
         let result = run_require_client::<u32>(ptr::null(), -1);
         assert_eq!(result, -1);
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_OTHER);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_OTHER);
         let msg = last_error_message().expect("error slot populated");
         assert!(
             msg.contains("handle is null"),
@@ -708,7 +712,7 @@ mod tests {
         let storage: u32 = 0x00C0_FFEE_u32;
         let result = run_require_client(&storage as *const u32, -1);
         assert_eq!(result, 0);
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
         assert!(thetadatadx_last_error().is_null());
     }
 
@@ -729,7 +733,7 @@ mod tests {
         thetadatadx_clear_error();
         let out = run_require_symbol_array(ptr::null(), 0).expect("(null, 0) is the Go-empty case");
         assert!(out.is_empty());
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
     }
 
     #[test]
@@ -753,6 +757,6 @@ mod tests {
         let arr: [*const c_char; 2] = [a.as_ptr(), b.as_ptr()];
         let out = run_require_symbol_array(arr.as_ptr(), arr.len()).expect("valid input");
         assert_eq!(out, vec!["AAPL".to_owned(), "MSFT".to_owned()]);
-        assert_eq!(thetadatadx_last_error_code(), TDX_ERR_NONE);
+        assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
     }
 }

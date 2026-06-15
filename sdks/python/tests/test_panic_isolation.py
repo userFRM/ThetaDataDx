@@ -11,7 +11,7 @@ end-to-end contract: the PyO3 dispatcher catches PyErr-raised exceptions,
 routes them through Python's unraisable hook, and increments the same
 panic_count() counter visible via the public API.
 
-Live-credential tests are gated on THETADX_TEST_CREDS=path/to/creds.txt and
+Live-credential tests are gated on THETADATADX_TEST_CREDS=path/to/creds.txt and
 skip silently on machines without credentials.  The API-surface tests (class
 presence + return type) run without any network connection.
 """
@@ -110,10 +110,10 @@ class TestPanicCountApiSurface:
 @pytest.fixture
 def fpss_client():
     """Build a standalone StreamingClient or skip if credentials are absent."""
-    creds_path = os.environ.get("THETADX_TEST_CREDS")
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
-            "set THETADX_TEST_CREDS=path/to/creds.txt to enable live behavioral tests"
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable live behavioral tests"
         )
     creds = client.Credentials.from_file(creds_path)
     config = client.Config.production()

@@ -43,7 +43,7 @@
 #   parser                -- generated parser fn name (matches `parser` above)
 #   ffi_array             -- FFI array struct (e.g. "ThetaDataDxGreeksAllTickArray")
 #   ffi_output_variant    -- thetadatadx::EndpointOutput variant name
-#   ffi_from_vec_array    -- FFI array struct used in Tdx*::from_vec calls
+#   ffi_from_vec_array    -- FFI array struct used in ThetaDataDx*::from_vec calls
 #   ffi_header_return     -- return type in generated C header
 #   ffi_free_fn           -- C-side free fn name (without C. prefix)
 #   cpp_value             -- C++ value type name

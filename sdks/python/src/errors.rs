@@ -107,7 +107,7 @@ create_exception!(thetadatadx, StreamError, ThetaDataError);
 // TOML parse error, or an internal config invariant. Distinct from
 // `InvalidParameterError` (a rejected user-supplied argument): a
 // `ConfigError` is the environment, not the call site. Pinned to the
-// reserved `TDX_ERR_CONFIG` discriminant so a `except
+// reserved `THETADATADX_ERR_CONFIG` discriminant so a `except
 // thetadatadx.ConfigError` clause catches the same conditions the C++
 // `ConfigError` and the C ABI config code surface.
 create_exception!(thetadatadx, ConfigError, ThetaDataError);
@@ -492,7 +492,7 @@ mod tests {
         // A non-input config fault (file I/O, TOML parse, internal
         // invariant) is not a user-parameter error; it routes to the
         // dedicated `ConfigError` leaf, matching the C++ `ConfigError`
-        // and the C ABI `TDX_ERR_CONFIG` discriminant.
+        // and the C ABI `THETADATADX_ERR_CONFIG` discriminant.
         Python::initialize();
         Python::attach(|py| {
             let io = to_py_err(thetadatadx::Error::config_io("file not found"));

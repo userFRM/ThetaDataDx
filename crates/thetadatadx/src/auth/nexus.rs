@@ -279,7 +279,7 @@ fn auth_tls_config() -> Result<rustls::ClientConfig, Error> {
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
 /// Used by auto-refresh and by deployments that redirect auth to a
-/// staging cluster via the `THETADX_NEXUS_URL` env variable.
+/// staging cluster via the `THETADATA_NEXUS_URL` env variable.
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
 /// embedded in every historical request as `QueryInfo.auth_token.session_uuid`.

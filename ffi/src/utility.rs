@@ -312,7 +312,7 @@ pub extern "C" fn thetadatadx_exchange_symbol(code: i32) -> *const c_char {
 /// sequence and would otherwise be silently reinterpreted into a
 /// look-correct-but-wrong id. Writes the converted value to `out` and
 /// returns `0` on success; returns `-1` and sets `thetadatadx_last_error` /
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `signed` is
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` when `signed` is
 /// outside the wire range or `out` is null, matching the typed class the
 /// Python / TypeScript bindings raise for the same input.
 ///
@@ -328,7 +328,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
         if out.is_null() {
             crate::error::set_error_with_code(
                 "thetadatadx_sequence_signed_to_unsigned: out pointer is null",
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return -1;
         }
@@ -340,7 +340,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
                 &format!(
                     "thetadatadx_sequence_signed_to_unsigned: {signed} is outside the i32 wire range (-2_147_483_648 ..= 2_147_483_647)"
                 ),
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return -1;
         }
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
 /// value above that domain is not a wire sequence and would otherwise be
 /// silently reinterpreted. Writes the converted value to `out` and
 /// returns `0` on success; returns `-1` and sets `thetadatadx_last_error` /
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `unsigned` is
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` when `unsigned` is
 /// above the wire range or `out` is null, matching the typed class the
 /// Python / TypeScript bindings raise for the same input.
 ///
@@ -377,7 +377,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_unsigned_to_signed(
         if out.is_null() {
             crate::error::set_error_with_code(
                 "thetadatadx_sequence_unsigned_to_signed: out pointer is null",
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return -1;
         }
@@ -386,7 +386,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_unsigned_to_signed(
                 &format!(
                     "thetadatadx_sequence_unsigned_to_signed: {unsigned} is above the unsigned wire range (0 ..= 2^32 - 1)"
                 ),
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return -1;
         }
@@ -586,7 +586,7 @@ mod sequence_tests {
             assert_eq!(rc, -1, "out-of-range input {signed} rejected");
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
             );
         }
     }
@@ -617,7 +617,7 @@ mod sequence_tests {
         assert_eq!(rc, -1, "2^32 rejected as above the wire range");
         assert_eq!(
             crate::error::thetadatadx_last_error_code(),
-            crate::error::TDX_ERR_INVALID_PARAMETER
+            crate::error::THETADATADX_ERR_INVALID_PARAMETER
         );
     }
 
@@ -629,7 +629,7 @@ mod sequence_tests {
         assert_eq!(rc, -1);
         assert_eq!(
             crate::error::thetadatadx_last_error_code(),
-            crate::error::TDX_ERR_INVALID_PARAMETER
+            crate::error::THETADATADX_ERR_INVALID_PARAMETER
         );
     }
 }

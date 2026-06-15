@@ -24,11 +24,11 @@
 #endif
 
 #if defined(_MSC_VER)
-#define TDX_ALIGN64_BEGIN __declspec(align(64))
-#define TDX_ALIGN64_END
+#define THETADATADX_ALIGN64_BEGIN __declspec(align(64))
+#define THETADATADX_ALIGN64_END
 #else
-#define TDX_ALIGN64_BEGIN
-#define TDX_ALIGN64_END __attribute__((aligned(64)))
+#define THETADATADX_ALIGN64_BEGIN
+#define THETADATADX_ALIGN64_END __attribute__((aligned(64)))
 #endif
 
 #ifdef __cplusplus
@@ -56,30 +56,30 @@ typedef struct ThetaDataDxClient ThetaDataDxClient;
 /* Calendar day-type codes carried by ThetaDataDxCalendarDay.status — the
  * vendor's own vocabulary. Resolve the text form with
  * thetadatadx_calendar_status_name(). */
-#define TDX_CALENDAR_STATUS_OPEN 0
-#define TDX_CALENDAR_STATUS_EARLY_CLOSE 1
-#define TDX_CALENDAR_STATUS_FULL_CLOSE 2
-#define TDX_CALENDAR_STATUS_WEEKEND 3
+#define THETADATADX_CALENDAR_STATUS_OPEN 0
+#define THETADATADX_CALENDAR_STATUS_EARLY_CLOSE 1
+#define THETADATADX_CALENDAR_STATUS_FULL_CLOSE 2
+#define THETADATADX_CALENDAR_STATUS_WEEKEND 3
 
 /* Per-date trading-calendar entry (list_dates / calendar endpoints):
- * session open/close times and a TDX_CALENDAR_STATUS_* day-type code. */
-TDX_ALIGN64_BEGIN typedef struct {
+ * session open/close times and a THETADATADX_CALENDAR_STATUS_* day-type code. */
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     /* C99 bool (1 byte): whether the market trades at all on this date
      * (true for open and early-close days). 3 bytes padding follow. */
     bool is_open;
     int32_t open_time;
     int32_t close_time;
-    /* One of the TDX_CALENDAR_STATUS_* codes; string form via
+    /* One of the THETADATADX_CALENDAR_STATUS_* codes; string form via
      * thetadatadx_calendar_status_name(). */
     int32_t status;
     uint8_t _tail_padding[44];
-} ThetaDataDxCalendarDay TDX_ALIGN64_END;
+} ThetaDataDxCalendarDay THETADATADX_ALIGN64_END;
 
 /* End-of-day OHLC + closing-quote tick (*_history_eod) -- one row per
  * trading day fusing the day's open/high/low/close, volume/count, and
  * the closing bid/ask quote. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     /* EOD report creation time (NOT a trade time), ms since midnight ET. */
     int32_t created_ms_of_day;
     /* Time of the day's last trade, ms since midnight ET. 0 when no
@@ -111,10 +111,10 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} ThetaDataDxEodTick TDX_ALIGN64_END;
+} ThetaDataDxEodTick THETADATADX_ALIGN64_END;
 
 /* Full-union Greeks tick (option_*_greeks_all, interval-sampled). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double bid;
@@ -152,14 +152,14 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[20];
-} ThetaDataDxGreeksAllTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksAllTick THETADATADX_ALIGN64_END;
 
 /* End-of-day Greeks tick (option_history_greeks_eod) -- fuses every
  * Greek with the twelve EOD trade/quote columns (open/high/low/close,
  * volume, count, bid_size, bid_exchange, bid_condition, ask_size,
  * ask_exchange, ask_condition) absent from the interval-sampled
  * GreeksAllTick. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double open;
@@ -210,10 +210,10 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} ThetaDataDxGreeksEodTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksEodTick THETADATADX_ALIGN64_END;
 
 /* First-order Greeks subset tick (option_*_greeks_first_order). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double bid;
@@ -237,10 +237,10 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} ThetaDataDxGreeksFirstOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksFirstOrderTick THETADATADX_ALIGN64_END;
 
 /* Second-order Greeks subset tick (option_*_greeks_second_order). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double bid;
@@ -263,11 +263,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[12];
-} ThetaDataDxGreeksSecondOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksSecondOrderTick THETADATADX_ALIGN64_END;
 
 /* Third-order Greeks subset tick (option_*_greeks_third_order). The
  * vendor's third-order schema does not publish `vera`. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double bid;
@@ -289,13 +289,13 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[20];
-} ThetaDataDxGreeksThirdOrderTick TDX_ALIGN64_END;
+} ThetaDataDxGreeksThirdOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade union Greeks tick (option_history_trade_greeks_all).
  * Carries the nine trade-side execution columns alongside every Greek
  * the server publishes -- distinct from the interval-sampled
  * ThetaDataDxGreeksAllTick whose rows carry the bid/ask quote pair instead. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -340,11 +340,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[60];
-} ThetaDataDxTradeGreeksAllTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksAllTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade first-order Greeks tick
  * (option_history_trade_greeks_first_order). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -375,11 +375,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[44];
-} ThetaDataDxTradeGreeksFirstOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksFirstOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade second-order Greeks tick
  * (option_history_trade_greeks_second_order). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -409,12 +409,12 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[52];
-} ThetaDataDxTradeGreeksSecondOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksSecondOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade third-order Greeks tick
  * (option_history_trade_greeks_third_order). The vendor's third-order
  * schema does not publish `vera`. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -443,13 +443,13 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[60];
-} ThetaDataDxTradeGreeksThirdOrderTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksThirdOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade implied-volatility tick
  * (option_history_trade_greeks_implied_volatility). Carries only the
  * single `implied_volatility` + `iv_error` pair (NOT the bid/mid/ask IV
  * triple of the interval-sampled ThetaDataDxIvTick). */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -474,23 +474,23 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[28];
-} ThetaDataDxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
+} ThetaDataDxTradeGreeksImpliedVolatilityTick THETADATADX_ALIGN64_END;
 
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
  * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html:
  *   date  <- Text "YYYY-MM-DD" header `created`, parsed to a YYYYMMDD int32
  *   rate  <- Number percent (e.g. 4.36 for SOFR 2025-04-28)
  */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     /* 4 bytes padding before the double field */
     double rate;
     uint8_t _tail_padding[48];
-} ThetaDataDxInterestRateTick TDX_ALIGN64_END;
+} ThetaDataDxInterestRateTick THETADATADX_ALIGN64_END;
 
 /* Interval-sampled implied-volatility tick (option_*_implied_volatility):
  * the bid/mid/ask quote with its bid/mid/ask IV triple. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double bid;
@@ -511,11 +511,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[28];
-} ThetaDataDxIvTick TDX_ALIGN64_END;
+} ThetaDataDxIvTick THETADATADX_ALIGN64_END;
 
 /* Settlement market-value tick (option_*_market_value): the contract's
  * bid/ask and reference price used for daily mark-to-market. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double market_bid;
@@ -529,11 +529,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[8];
-} ThetaDataDxMarketValueTick TDX_ALIGN64_END;
+} ThetaDataDxMarketValueTick THETADATADX_ALIGN64_END;
 
 /* OHLCVC bar tick (*_history_ohlc): one aggregated bar with
  * open/high/low/close, volume/count, and a SIP-rule VWAP. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double open;
@@ -555,11 +555,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[44];
-} ThetaDataDxOhlcTick TDX_ALIGN64_END;
+} ThetaDataDxOhlcTick THETADATADX_ALIGN64_END;
 
 /* Open-interest tick (option_*_open_interest): the outstanding contract
  * count reported for the contract. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
@@ -570,23 +570,23 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[32];
-} ThetaDataDxOpenInterestTick TDX_ALIGN64_END;
+} ThetaDataDxOpenInterestTick THETADATADX_ALIGN64_END;
 
 /* Bare index price tick (index_*_price): a single price stamped with
  * time and date, carrying no trade-side execution columns. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before the double field */
     double price;
     int32_t date;
     uint8_t _tail_padding[40];
-} ThetaDataDxPriceTick TDX_ALIGN64_END;
+} ThetaDataDxPriceTick THETADATADX_ALIGN64_END;
 
 /* Trade-shaped index price tick (index_at_time_price) -- carries the
  * seven trade-side execution columns (sequence, ext_condition1..4,
  * condition, size, exchange) the bare ThetaDataDxPriceTick silently dropped,
  * including the SIP-exchange attribution field. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -600,11 +600,11 @@ TDX_ALIGN64_BEGIN typedef struct {
     double price;
     int32_t date;
     uint8_t _tail_padding[12];
-} ThetaDataDxIndexPriceAtTimeTick TDX_ALIGN64_END;
+} ThetaDataDxIndexPriceAtTimeTick THETADATADX_ALIGN64_END;
 
 /* NBBO quote tick (*_history_quote): the bid/ask quote with sizes,
  * exchanges, conditions, and a derived midpoint. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -627,11 +627,11 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double midpoint;
     uint8_t _tail_padding[40];
-} ThetaDataDxQuoteTick TDX_ALIGN64_END;
+} ThetaDataDxQuoteTick THETADATADX_ALIGN64_END;
 
 /* Trade-with-quote tick (*_history_trade_quote): each trade print fused
  * with the bid/ask quote prevailing at execution time. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -667,11 +667,11 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[48];
-} ThetaDataDxTradeQuoteTick TDX_ALIGN64_END;
+} ThetaDataDxTradeQuoteTick THETADATADX_ALIGN64_END;
 
 /* Single trade-print tick (*_history_trade): one OPRA/SIP execution with
  * price, size, exchange, sequence, and condition codes. */
-TDX_ALIGN64_BEGIN typedef struct {
+THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -695,7 +695,7 @@ TDX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[40];
-} ThetaDataDxTradeTick TDX_ALIGN64_END;
+} ThetaDataDxTradeTick THETADATADX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Typed array return types                                              */
@@ -898,7 +898,7 @@ void thetadatadx_clear_error(void);
  *  subclasses in the TypeScript SDK) dispatch on this to pick the right
  *  exception / error subclass without substring-matching the formatted
  *  error string. The string from thetadatadx_last_error() carries the diagnostic.
- *  @return One of the TDX_ERR_* discriminants below; TDX_ERR_NONE when no
+ *  @return One of the THETADATADX_ERR_* discriminants below; THETADATADX_ERR_NONE when no
  *          error is set or after thetadatadx_clear_error(). */
 int32_t thetadatadx_last_error_code(void);
 
@@ -911,20 +911,20 @@ int32_t thetadatadx_last_error_code(void);
 int64_t thetadatadx_last_error_retry_after_ms(void);
 
 /* Error-code discriminants returned by `thetadatadx_last_error_code()`. */
-#define TDX_ERR_NONE 0
-#define TDX_ERR_OTHER 1
-#define TDX_ERR_AUTHENTICATION 2
-#define TDX_ERR_INVALID_CREDENTIALS 3
-#define TDX_ERR_SUBSCRIPTION 4
-#define TDX_ERR_RATE_LIMIT 5
-#define TDX_ERR_NOT_FOUND 6
-#define TDX_ERR_DEADLINE_EXCEEDED 7
-#define TDX_ERR_UNAVAILABLE 8
-#define TDX_ERR_NETWORK 9
-#define TDX_ERR_SCHEMA_MISMATCH 10
-#define TDX_ERR_STREAM 11
-#define TDX_ERR_CONFIG 12
-#define TDX_ERR_INVALID_PARAMETER 13
+#define THETADATADX_ERR_NONE 0
+#define THETADATADX_ERR_OTHER 1
+#define THETADATADX_ERR_AUTHENTICATION 2
+#define THETADATADX_ERR_INVALID_CREDENTIALS 3
+#define THETADATADX_ERR_SUBSCRIPTION 4
+#define THETADATADX_ERR_RATE_LIMIT 5
+#define THETADATADX_ERR_NOT_FOUND 6
+#define THETADATADX_ERR_DEADLINE_EXCEEDED 7
+#define THETADATADX_ERR_UNAVAILABLE 8
+#define THETADATADX_ERR_NETWORK 9
+#define THETADATADX_ERR_SCHEMA_MISMATCH 10
+#define THETADATADX_ERR_STREAM 11
+#define THETADATADX_ERR_CONFIG 12
+#define THETADATADX_ERR_INVALID_PARAMETER 13
 
 /* ── Credentials ── */
 
@@ -984,7 +984,7 @@ void thetadatadx_config_free(ThetaDataDxConfig* config);
  * @param policy Reconnect policy selector (0 = Auto, 1 = Manual).
  * @return 0 on success, -1 on an invalid policy (outside {0, 1}) or null
  *         config. A rejected policy sets thetadatadx_last_error_code to
- *         TDX_ERR_INVALID_PARAMETER so an unknown value is rejected with the
+ *         THETADATADX_ERR_INVALID_PARAMETER so an unknown value is rejected with the
  *         same typed class the Python / TypeScript bindings raise, never
  *         silently coerced to Auto.
  */
@@ -1692,7 +1692,7 @@ int32_t thetadatadx_config_get_metrics_port(const ThetaDataDxConfig* config, boo
  * @param config Config handle to mutate.
  * @param mode Flush mode selector (0 = Batched, 1 = Immediate).
  * @return 0 on success. -1 with thetadatadx_last_error set and thetadatadx_last_error_code =
- *         TDX_ERR_CONFIG when mode is outside {0, 1} or config is null.
+ *         THETADATADX_ERR_CONFIG when mode is outside {0, 1} or config is null.
  */
 int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
 
@@ -1971,7 +1971,7 @@ int64_t thetadatadx_timestamp_ms(int32_t date, int32_t ms_of_day);
  *                      (-2,147,483,648 ..= 2,147,483,647).
  *  @param out Receives the unsigned monotonic value on success.
  *  @return 0 on success; -1 with thetadatadx_last_error_code set to
- *          TDX_ERR_INVALID_PARAMETER when signed_value is outside the wire
+ *          THETADATADX_ERR_INVALID_PARAMETER when signed_value is outside the wire
  *          range or out is null, so an out-of-range value is rejected rather
  *          than silently reinterpreted. */
 int32_t thetadatadx_sequence_signed_to_unsigned(int64_t signed_value, uint64_t* out);
@@ -1982,7 +1982,7 @@ int32_t thetadatadx_sequence_signed_to_unsigned(int64_t signed_value, uint64_t* 
  *                        range (0 ..= 2^32 - 1).
  *  @param out Receives the signed wire value on success.
  *  @return 0 on success; -1 with thetadatadx_last_error_code set to
- *          TDX_ERR_INVALID_PARAMETER when unsigned_value is above the wire
+ *          THETADATADX_ERR_INVALID_PARAMETER when unsigned_value is above the wire
  *          range or out is null. */
 int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
 
@@ -2000,9 +2000,9 @@ int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t
  * `event->kind` and read the matching `event-><variant>` payload —
  * for example
  *
- *   if (event->kind == TDX_FPSS_LOGIN_SUCCESS)
+ *   if (event->kind == THETADATADX_FPSS_LOGIN_SUCCESS)
  *       printf("perms=%s\n", event->login_success.permissions);
- *   if (event->kind == TDX_FPSS_DISCONNECTED)
+ *   if (event->kind == THETADATADX_FPSS_DISCONNECTED)
  *       printf("reason=%d\n", event->disconnected.reason);
  *
  * Borrowed pointers (`Contract.symbol`, `LoginSuccess.permissions`,
@@ -2256,14 +2256,14 @@ ThetaDataDxClient* thetadatadx_client_connect_from_file(const char* path, const 
 int thetadatadx_client_set_callback(const ThetaDataDxClient* handle, ThetaDataDxStreamCallback callback, void* ctx);
 
 /** Subscription request scope discriminator (ThetaDataDxSubscriptionRequest.scope). */
-#define TDX_SUB_SCOPE_CONTRACT 0
-#define TDX_SUB_SCOPE_FULL     1
+#define THETADATADX_SUB_SCOPE_CONTRACT 0
+#define THETADATADX_SUB_SCOPE_FULL     1
 
 /** Subscription kind discriminator (ThetaDataDxSubscriptionRequest.kind). */
-#define TDX_SUB_KIND_QUOTE         0
-#define TDX_SUB_KIND_TRADE         1
-#define TDX_SUB_KIND_OPEN_INTEREST 2
-#define TDX_SUB_KIND_MARKET_VALUE  3
+#define THETADATADX_SUB_KIND_QUOTE         0
+#define THETADATADX_SUB_KIND_TRADE         1
+#define THETADATADX_SUB_KIND_OPEN_INTEREST 2
+#define THETADATADX_SUB_KIND_MARKET_VALUE  3
 
 /** Polymorphic subscribe / unsubscribe request payload.
  *
@@ -2274,8 +2274,8 @@ int thetadatadx_client_set_callback(const ThetaDataDxClient* handle, ThetaDataDx
  * - Full-stream: scope=FULL, sec_type="OPTION" (or "STOCK", "INDEX"), per-contract fields NULL.
  */
 typedef struct {
-    int32_t scope;            /* TDX_SUB_SCOPE_CONTRACT or TDX_SUB_SCOPE_FULL */
-    int32_t kind;             /* TDX_SUB_KIND_QUOTE / _TRADE / _OPEN_INTEREST / _MARKET_VALUE */
+    int32_t scope;            /* THETADATADX_SUB_SCOPE_CONTRACT or THETADATADX_SUB_SCOPE_FULL */
+    int32_t kind;             /* THETADATADX_SUB_KIND_QUOTE / _TRADE / _OPEN_INTEREST / _MARKET_VALUE */
     const char* symbol;       /* per-contract only */
     const char* expiration;   /* per-contract option only */
     const char* strike;       /* per-contract option only */

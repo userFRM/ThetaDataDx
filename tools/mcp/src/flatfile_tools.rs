@@ -268,7 +268,7 @@ pub(crate) async fn try_execute_flatfile_tool(
 /// gate with a typed invalid-parameter error before any upstream call —
 /// that is a client request fault (`-32602` Invalid params), not a
 /// server-side outage (`-32000` Server error). This mirrors the REST
-/// `400` and C-ABI `TDX_ERR_INVALID_PARAMETER` mappings: any core error
+/// `400` and C-ABI `THETADATADX_ERR_INVALID_PARAMETER` mappings: any core error
 /// whose kind reports [`is_invalid_parameter`](thetadatadx::ConfigErrorKind::is_invalid_parameter)
 /// routes to Invalid params, generically — never keyed on the tool name.
 fn classify_core_error(e: &thetadatadx::Error) -> ToolError {

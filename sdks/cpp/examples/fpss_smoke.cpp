@@ -24,31 +24,31 @@ constexpr const char* kRight = "C";
 constexpr auto kCollectFor = std::chrono::seconds(5);
 constexpr int kMaxEventsPrinted = 25;
 
-// Replaced the flat `TDX_FPSS_CONTROL` discriminant with
+// Replaced the flat `THETADATADX_FPSS_CONTROL` discriminant with
 // one kind per typed `StreamControl::*` variant. Returning a friendly
 // short name keeps the smoke test's stdout compact.
 const char* event_kind_name(thetadatadx::StreamEventKind kind) {
     switch (kind) {
-        case TDX_FPSS_QUOTE: return "quote";
-        case TDX_FPSS_TRADE: return "trade";
-        case TDX_FPSS_OPEN_INTEREST: return "open_interest";
-        case TDX_FPSS_OHLCVC: return "ohlcvc";
-        case TDX_FPSS_CONNECTED: return "connected";
-        case TDX_FPSS_CONTRACT_ASSIGNED: return "contract_assigned";
-        case TDX_FPSS_DISCONNECTED: return "disconnected";
-        case TDX_FPSS_PARSE_ERROR: return "parse_error";
-        case TDX_FPSS_LOGIN_SUCCESS: return "login_success";
-        case TDX_FPSS_MARKET_CLOSE: return "market_close";
-        case TDX_FPSS_MARKET_OPEN: return "market_open";
-        case TDX_FPSS_PING: return "ping";
-        case TDX_FPSS_RECONNECTED: return "reconnected";
-        case TDX_FPSS_RECONNECTED_SERVER: return "reconnected_server";
-        case TDX_FPSS_RECONNECTING: return "reconnecting";
-        case TDX_FPSS_REQ_RESPONSE: return "req_response";
-        case TDX_FPSS_RESTART: return "restart";
-        case TDX_FPSS_SERVER_ERROR: return "server_error";
-        case TDX_FPSS_UNKNOWN_CONTROL: return "unknown_control";
-        case TDX_FPSS_UNKNOWN_FRAME: return "unknown_frame";
+        case THETADATADX_FPSS_QUOTE: return "quote";
+        case THETADATADX_FPSS_TRADE: return "trade";
+        case THETADATADX_FPSS_OPEN_INTEREST: return "open_interest";
+        case THETADATADX_FPSS_OHLCVC: return "ohlcvc";
+        case THETADATADX_FPSS_CONNECTED: return "connected";
+        case THETADATADX_FPSS_CONTRACT_ASSIGNED: return "contract_assigned";
+        case THETADATADX_FPSS_DISCONNECTED: return "disconnected";
+        case THETADATADX_FPSS_PARSE_ERROR: return "parse_error";
+        case THETADATADX_FPSS_LOGIN_SUCCESS: return "login_success";
+        case THETADATADX_FPSS_MARKET_CLOSE: return "market_close";
+        case THETADATADX_FPSS_MARKET_OPEN: return "market_open";
+        case THETADATADX_FPSS_PING: return "ping";
+        case THETADATADX_FPSS_RECONNECTED: return "reconnected";
+        case THETADATADX_FPSS_RECONNECTED_SERVER: return "reconnected_server";
+        case THETADATADX_FPSS_RECONNECTING: return "reconnecting";
+        case THETADATADX_FPSS_REQ_RESPONSE: return "req_response";
+        case THETADATADX_FPSS_RESTART: return "restart";
+        case THETADATADX_FPSS_SERVER_ERROR: return "server_error";
+        case THETADATADX_FPSS_UNKNOWN_CONTROL: return "unknown_control";
+        case THETADATADX_FPSS_UNKNOWN_FRAME: return "unknown_frame";
     }
     return "unknown";
 }
@@ -57,10 +57,10 @@ const char* event_kind_name(thetadatadx::StreamEventKind kind) {
 // (everything except the four data variants).
 bool is_control_kind(thetadatadx::StreamEventKind kind) {
     switch (kind) {
-        case TDX_FPSS_QUOTE:
-        case TDX_FPSS_TRADE:
-        case TDX_FPSS_OPEN_INTEREST:
-        case TDX_FPSS_OHLCVC:
+        case THETADATADX_FPSS_QUOTE:
+        case THETADATADX_FPSS_TRADE:
+        case THETADATADX_FPSS_OPEN_INTEREST:
+        case THETADATADX_FPSS_OHLCVC:
             return false;
         default:
             return true;
@@ -90,77 +90,77 @@ int main(int argc, char** argv) {
             std::lock_guard<std::mutex> guard(print_mtx);
             std::cout << "[" << seq << "] kind=" << event_kind_name(event.kind);
             switch (event.kind) {
-                case TDX_FPSS_QUOTE:
+                case THETADATADX_FPSS_QUOTE:
                     std::cout << " symbol="
                               << (event.quote.contract.symbol ? event.quote.contract.symbol : "")
                               << " bid=" << event.quote.bid
                               << " ask=" << event.quote.ask;
                     break;
-                case TDX_FPSS_TRADE:
+                case THETADATADX_FPSS_TRADE:
                     std::cout << " symbol="
                               << (event.trade.contract.symbol ? event.trade.contract.symbol : "")
                               << " price=" << event.trade.price
                               << " size=" << event.trade.size;
                     break;
-                case TDX_FPSS_OPEN_INTEREST:
+                case THETADATADX_FPSS_OPEN_INTEREST:
                     std::cout << " symbol="
                               << (event.open_interest.contract.symbol
                                       ? event.open_interest.contract.symbol
                                       : "")
                               << " open_interest=" << event.open_interest.open_interest;
                     break;
-                case TDX_FPSS_OHLCVC:
+                case THETADATADX_FPSS_OHLCVC:
                     std::cout << " symbol="
                               << (event.ohlcvc.contract.symbol ? event.ohlcvc.contract.symbol : "")
                               << " close=" << event.ohlcvc.close;
                     break;
-                case TDX_FPSS_LOGIN_SUCCESS:
+                case THETADATADX_FPSS_LOGIN_SUCCESS:
                     if (event.login_success.permissions) {
                         std::cout << " permissions=" << event.login_success.permissions;
                     }
                     break;
-                case TDX_FPSS_CONTRACT_ASSIGNED:
+                case THETADATADX_FPSS_CONTRACT_ASSIGNED:
                     std::cout << " id=" << event.contract_assigned.id;
                     if (event.contract_assigned.contract.symbol) {
                         std::cout << " symbol=" << event.contract_assigned.contract.symbol;
                     }
                     break;
-                case TDX_FPSS_REQ_RESPONSE:
+                case THETADATADX_FPSS_REQ_RESPONSE:
                     std::cout << " req_id=" << event.req_response.req_id
                               << " result=" << event.req_response.result;
                     break;
-                case TDX_FPSS_DISCONNECTED:
+                case THETADATADX_FPSS_DISCONNECTED:
                     std::cout << " reason=" << event.disconnected.reason;
                     break;
-                case TDX_FPSS_RECONNECTING:
+                case THETADATADX_FPSS_RECONNECTING:
                     std::cout << " reason=" << event.reconnecting.reason
                               << " attempt=" << event.reconnecting.attempt
                               << " delay_ms=" << event.reconnecting.delay_ms;
                     break;
-                case TDX_FPSS_SERVER_ERROR:
+                case THETADATADX_FPSS_SERVER_ERROR:
                     if (event.server_error.message) {
                         std::cout << " message=" << event.server_error.message;
                     }
                     break;
-                case TDX_FPSS_PARSE_ERROR:
+                case THETADATADX_FPSS_PARSE_ERROR:
                     if (event.parse_error.message) {
                         std::cout << " message=" << event.parse_error.message;
                     }
                     break;
-                case TDX_FPSS_UNKNOWN_FRAME:
+                case THETADATADX_FPSS_UNKNOWN_FRAME:
                     std::cout << " code=" << static_cast<int>(event.unknown_frame.code)
                               << " len=" << event.unknown_frame.payload_len;
                     break;
-                case TDX_FPSS_PING:
+                case THETADATADX_FPSS_PING:
                     std::cout << " len=" << event.ping.payload_len;
                     break;
-                case TDX_FPSS_MARKET_OPEN:
-                case TDX_FPSS_MARKET_CLOSE:
-                case TDX_FPSS_CONNECTED:
-                case TDX_FPSS_RECONNECTED:
-                case TDX_FPSS_RECONNECTED_SERVER:
-                case TDX_FPSS_RESTART:
-                case TDX_FPSS_UNKNOWN_CONTROL:
+                case THETADATADX_FPSS_MARKET_OPEN:
+                case THETADATADX_FPSS_MARKET_CLOSE:
+                case THETADATADX_FPSS_CONNECTED:
+                case THETADATADX_FPSS_RECONNECTED:
+                case THETADATADX_FPSS_RECONNECTED_SERVER:
+                case THETADATADX_FPSS_RESTART:
+                case THETADATADX_FPSS_UNKNOWN_CONTROL:
                     // Payload-less variants — discriminator alone carries
                     // the meaning.
                     break;

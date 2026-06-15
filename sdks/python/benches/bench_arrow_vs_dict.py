@@ -139,7 +139,7 @@ def main() -> None:
     for n in (1_000, 10_000, 100_000):
         run_size(n)
     # 1M only if environment is generous.
-    if os.environ.get("THETADX_BENCH_BIG") == "1":
+    if os.environ.get("THETADATADX_BENCH_BIG") == "1":
         run_size(1_000_000)
     run_rss_probe()
 

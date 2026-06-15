@@ -15,7 +15,7 @@ Pins the contract that:
 * The bundled ``Client`` continues to expose its unified
   surface unchanged.
 
-Live tests are gated on ``THETADX_LIVE_CREDS=path/to/creds.txt`` and
+Live tests are gated on ``THETADATADX_LIVE_CREDS=path/to/creds.txt`` and
 hit production endpoints; static surface tests run offline.
 
 # Nexus session behaviour
@@ -86,10 +86,10 @@ def _live_creds_path() -> str | None:
     """Path to a two-line `email\\npassword` credentials file.
 
     Live tests are skipped when the env var is unset so CI without
-    secrets stays green. Set ``THETADX_LIVE_CREDS=/path/to/creds.txt``
+    secrets stays green. Set ``THETADATADX_LIVE_CREDS=/path/to/creds.txt``
     to exercise the parallel-auth and history smoke tests.
     """
-    return os.environ.get("THETADX_LIVE_CREDS")
+    return os.environ.get("THETADATADX_LIVE_CREDS")
 
 
 # ── Offline: pyclass surface + import-time exports ────────────────────
@@ -178,7 +178,7 @@ def test_mdds_client_blocks_fpss_attrs() -> None:
         # Live creds gate: constructing `HistoricalClient` requires the gRPC
         # handshake to succeed, so the attribute-block assertions
         # piggyback on the live test gate.
-        pytest.skip("THETADX_LIVE_CREDS unset -- skip live HistoricalClient attribute check")
+        pytest.skip("THETADATADX_LIVE_CREDS unset -- skip live HistoricalClient attribute check")
 
     creds = mod.Credentials.from_file(_live_creds_path())
     client = mod.HistoricalClient(creds, mod.Config.production())
@@ -320,12 +320,12 @@ def test_mdds_client_no_fpss_connection() -> None:
     )
 
 
-# ── Live tests (gated on THETADX_LIVE_CREDS) ──────────────────────────
+# ── Live tests (gated on THETADATADX_LIVE_CREDS) ──────────────────────────
 
 
 @pytest.mark.skipif(
     not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip live FPSS streaming callback smoke",
+    reason="THETADATADX_LIVE_CREDS unset -- skip live FPSS streaming callback smoke",
 )
 def test_fpss_streaming_callback_smoke() -> None:
     """Live FPSS smoke: construct `StreamingClient`, register a callback
@@ -361,7 +361,7 @@ def test_fpss_streaming_callback_smoke() -> None:
 
 @pytest.mark.skipif(
     not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip live FPSS reconnect regression",
+    reason="THETADATADX_LIVE_CREDS unset -- skip live FPSS reconnect regression",
 )
 def test_fpss_reconnect_restores_subscriptions() -> None:
     """Live FPSS regression: `reconnect()` must restore every active
@@ -414,7 +414,7 @@ def test_fpss_reconnect_restores_subscriptions() -> None:
 
 @pytest.mark.skipif(
     not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip live MDDS history smoke",
+    reason="THETADATADX_LIVE_CREDS unset -- skip live MDDS history smoke",
 )
 def test_mdds_history_smoke() -> None:
     """Live MDDS smoke: construct `HistoricalClient` and pull a 2-month
@@ -444,7 +444,7 @@ def test_mdds_history_smoke() -> None:
 
 @pytest.mark.skipif(
     not _live_creds_path(),
-    reason="THETADX_LIVE_CREDS unset -- skip parallel-creds live test",
+    reason="THETADATADX_LIVE_CREDS unset -- skip parallel-creds live test",
 )
 def test_concurrent_fpss_and_mdds_share_creds() -> None:
     """Hand the same `Credentials` instance to a standalone

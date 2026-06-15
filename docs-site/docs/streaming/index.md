@@ -99,7 +99,7 @@ int main() {
     auto client = thetadatadx::Client::connect(creds, thetadatadx::Config::production());
 
     client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-        if (event.kind == TDX_FPSS_QUOTE) {
+        if (event.kind == THETADATADX_FPSS_QUOTE) {
             auto& q = event.quote;
             std::cout << q.contract.symbol << " bid=" << q.bid << " ask=" << q.ask << "\n";
         }

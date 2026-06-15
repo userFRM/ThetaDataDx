@@ -139,9 +139,9 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
 /// `mode` is outside the documented `{0, 1}` set or when `config` is
 /// null. A rejected `mode` value carries
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` (the same typed
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` (the same typed
 /// class the Python / TypeScript bindings raise for a bad enum value);
-/// a null `config` carries `TDX_ERR_CONFIG`.
+/// a null `config` carries `THETADATADX_ERR_CONFIG`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
     config: *mut ThetaDataDxConfig,
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
         if config.is_null() {
             crate::error::set_error_with_code(
                 "thetadatadx_config_set_flush_mode: config handle is null",
-                crate::error::TDX_ERR_CONFIG,
+                crate::error::THETADATADX_ERR_CONFIG,
             );
             return -1;
         }
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
                     &format!(
                         "thetadatadx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
                     ),
-                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
@@ -217,11 +217,11 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
 /// - `policy = 1`: Manual -- no auto-reconnect, user calls reconnect explicitly
 ///
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` /
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` when `policy` is
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` when `policy` is
 /// outside the documented `{0, 1}` set, so an unknown policy is rejected
 /// with the same typed class the Python / TypeScript bindings raise
 /// rather than being silently coerced to `Auto`. A null `config` is
-/// rejected with `TDX_ERR_CONFIG`.
+/// rejected with `THETADATADX_ERR_CONFIG`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
     config: *mut ThetaDataDxConfig,
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
         if config.is_null() {
             crate::error::set_error_with_code(
                 "thetadatadx_config_set_reconnect_policy: config handle is null",
-                crate::error::TDX_ERR_CONFIG,
+                crate::error::THETADATADX_ERR_CONFIG,
             );
             return -1;
         }
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
                     &format!(
                         "thetadatadx_config_set_reconnect_policy: invalid policy {other}; expected 0 (Auto) or 1 (Manual)"
                     ),
-                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
@@ -690,7 +690,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_server_restart_ms
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
 /// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
 /// null. A rejected `mode` value carries
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
@@ -712,7 +712,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
                     &format!(
                         "thetadatadx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
                     ),
-                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
@@ -1193,7 +1193,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
 /// when `policy` is outside the documented `{0, 1}` set or `config`
 /// is null. A rejected `policy` value carries
-/// `thetadatadx_last_error_code = TDX_ERR_INVALID_PARAMETER` so an out-of-domain
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_selection(
@@ -1213,7 +1213,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_selection(
                     &format!(
                         "thetadatadx_config_set_streaming_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
                     ),
-                    crate::error::TDX_ERR_INVALID_PARAMETER,
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 );
                 return -1;
             }
@@ -2555,7 +2555,7 @@ mod reconnect_setter_tests {
             assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, 7), -1);
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
             );
             // The rejected call leaves the previously-set Manual policy
             // in place rather than overwriting it with a coerced Auto.
@@ -3413,12 +3413,12 @@ mod resilience_knob_tests {
             );
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
             );
             assert_eq!(super::thetadatadx_config_set_reconnect_policy(cfg, -5), -1);
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
             );
             assert_eq!(
                 super::thetadatadx_config_get_reconnect_policy(cfg, &mut policy),
@@ -3441,7 +3441,7 @@ mod resilience_knob_tests {
             assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 9), -1);
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
             );
             super::thetadatadx_config_free(cfg);
         }
@@ -3532,7 +3532,7 @@ mod resilience_knob_tests {
             );
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 "a rejected enum value surfaces the typed invalid-parameter class"
             );
             assert_eq!(
@@ -3657,7 +3657,7 @@ mod resilience_knob_tests {
             );
             assert_eq!(
                 crate::error::thetadatadx_last_error_code(),
-                crate::error::TDX_ERR_INVALID_PARAMETER,
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 "a rejected enum value surfaces the typed invalid-parameter class"
             );
 

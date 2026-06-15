@@ -13,7 +13,7 @@
 //   * The wrapper compiles with each method bound — symbol presence
 //     is the surface contract this file pins.
 //
-// Live tests (gated on `THETADX_LIVE_CREDS`) drive the full
+// Live tests (gated on `THETADATADX_LIVE_CREDS`) drive the full
 // set_callback -> stop_streaming -> reconnect -> await_drain ->
 // dropped_event_count -> is_streaming -> active_subscriptions cycle
 // against the production server.
@@ -100,9 +100,9 @@ TEST_CASE("Stream binds the full FPSS surface",
 }
 
 TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
-    const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
+    const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {
-        SKIP("THETADX_LIVE_CREDS not set");
+        SKIP("THETADATADX_LIVE_CREDS not set");
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();

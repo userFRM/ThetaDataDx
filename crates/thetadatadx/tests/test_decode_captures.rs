@@ -14,7 +14,7 @@
 //!
 //! When the upstream server changes its header surface, add the new column
 //! to `HEADER_ALIASES` (in `decode.rs`) and regenerate the affected fixture
-//! with `TDX_CAPTURE_RAW=… thetadatadx …` + `zstd -19 *.pb > *.pb.zst`.
+//! with `THETADATADX_CAPTURE_RAW=… thetadatadx …` + `zstd -19 *.pb > *.pb.zst`.
 
 use std::fs;
 

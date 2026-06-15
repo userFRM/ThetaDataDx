@@ -84,17 +84,17 @@ client.stream.startStreaming((event) => {
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
     switch (event.kind) {
-    case TDX_FPSS_QUOTE: {
+    case THETADATADX_FPSS_QUOTE: {
         auto& q = event.quote;
         std::cout << q.contract.symbol << " bid=" << q.bid << " ask=" << q.ask << "\n";
         break;
     }
-    case TDX_FPSS_TRADE: {
+    case THETADATADX_FPSS_TRADE: {
         auto& t = event.trade;
         std::cout << t.contract.symbol << " " << t.price << " x " << t.size << "\n";
         break;
     }
-    case TDX_FPSS_DISCONNECTED:
+    case THETADATADX_FPSS_DISCONNECTED:
         std::cerr << "disconnected; automatic reconnect underway\n";
         break;
     default:

@@ -79,7 +79,7 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == TDX_FPSS_QUOTE) {
+    if (event.kind == THETADATADX_FPSS_QUOTE) {
         auto& e = event.quote;
         std::cout << e.contract.symbol << " bid=" << e.bid << " ask=" << e.ask << "\n";
     }

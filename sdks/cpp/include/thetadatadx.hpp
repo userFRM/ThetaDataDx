@@ -341,7 +341,7 @@ public:
 /// TOML parse error, or an internal config invariant. Distinct from
 /// `InvalidParameterError` (a rejected user-supplied argument): a
 /// `ConfigError` is the environment, not the call site. Pinned to the
-/// reserved `TDX_ERR_CONFIG` discriminant so a `catch (const
+/// reserved `THETADATADX_ERR_CONFIG` discriminant so a `catch (const
 /// ConfigError&)` clause catches the same conditions the Python
 /// `ConfigError` and the C ABI config code surface.
 class ConfigError : public ThetaDataError {
@@ -360,7 +360,7 @@ public:
 namespace detail {
 
 /// Throw the [`ThetaDataError`] leaf that matches the typed C ABI
-/// discriminant `code` (one of the `TDX_ERR_*` constants in
+/// discriminant `code` (one of the `THETADATADX_ERR_*` constants in
 /// `thetadatadx.h`). Used by every wrapper that already has the formatted
 /// message in hand and wants the right leaf class without re-parsing.
 /// Read the thread-local rate-limit back-off hint and convert it to
@@ -375,34 +375,34 @@ inline std::optional<double> last_ffi_retry_after_seconds() {
 
 [[noreturn]] inline void throw_for_code(int32_t code, const std::string& message) {
     switch (code) {
-        case TDX_ERR_AUTHENTICATION:
+        case THETADATADX_ERR_AUTHENTICATION:
             throw AuthenticationError("thetadatadx: " + message);
-        case TDX_ERR_INVALID_CREDENTIALS:
+        case THETADATADX_ERR_INVALID_CREDENTIALS:
             throw InvalidCredentialsError("thetadatadx: " + message);
-        case TDX_ERR_SUBSCRIPTION:
+        case THETADATADX_ERR_SUBSCRIPTION:
             throw SubscriptionError("thetadatadx: " + message);
-        case TDX_ERR_RATE_LIMIT:
+        case THETADATADX_ERR_RATE_LIMIT:
             // Carry the server back-off hint (if any) so the caller can
             // read `RateLimitError::retry_after()` as a value.
             throw RateLimitError("thetadatadx: " + message, last_ffi_retry_after_seconds());
-        case TDX_ERR_NOT_FOUND:
+        case THETADATADX_ERR_NOT_FOUND:
             throw NotFoundError("thetadatadx: " + message);
-        case TDX_ERR_DEADLINE_EXCEEDED:
+        case THETADATADX_ERR_DEADLINE_EXCEEDED:
             throw DeadlineExceededError("thetadatadx: " + message);
-        case TDX_ERR_UNAVAILABLE:
+        case THETADATADX_ERR_UNAVAILABLE:
             throw UnavailableError("thetadatadx: " + message);
-        case TDX_ERR_NETWORK:
+        case THETADATADX_ERR_NETWORK:
             throw NetworkError("thetadatadx: " + message);
-        case TDX_ERR_SCHEMA_MISMATCH:
+        case THETADATADX_ERR_SCHEMA_MISMATCH:
             throw SchemaMismatchError("thetadatadx: " + message);
-        case TDX_ERR_INVALID_PARAMETER:
+        case THETADATADX_ERR_INVALID_PARAMETER:
             throw InvalidParameterError("thetadatadx: " + message);
-        case TDX_ERR_STREAM:
+        case THETADATADX_ERR_STREAM:
             throw StreamError("thetadatadx: " + message);
-        case TDX_ERR_CONFIG:
+        case THETADATADX_ERR_CONFIG:
             throw ConfigError("thetadatadx: " + message);
-        case TDX_ERR_OTHER:
-        case TDX_ERR_NONE:
+        case THETADATADX_ERR_OTHER:
+        case THETADATADX_ERR_NONE:
         default:
             throw ThetaDataError("thetadatadx: " + message);
     }
@@ -2512,16 +2512,16 @@ inline ThetaDataDxSubscriptionRequest build_subscription_request(const FluentSub
     req.sec_type = nullptr;
     using K = FluentSubscription::Kind;
     switch (sub.kind()) {
-        case K::Quote:        req.kind = TDX_SUB_KIND_QUOTE;         break;
-        case K::Trade:        req.kind = TDX_SUB_KIND_TRADE;         break;
-        case K::OpenInterest: req.kind = TDX_SUB_KIND_OPEN_INTEREST; break;
-        case K::MarketValue:  req.kind = TDX_SUB_KIND_MARKET_VALUE;  break;
+        case K::Quote:        req.kind = THETADATADX_SUB_KIND_QUOTE;         break;
+        case K::Trade:        req.kind = THETADATADX_SUB_KIND_TRADE;         break;
+        case K::OpenInterest: req.kind = THETADATADX_SUB_KIND_OPEN_INTEREST; break;
+        case K::MarketValue:  req.kind = THETADATADX_SUB_KIND_MARKET_VALUE;  break;
     }
     if (sub.scope() == FluentSubscription::Scope::Full) {
-        req.scope = TDX_SUB_SCOPE_FULL;
+        req.scope = THETADATADX_SUB_SCOPE_FULL;
         req.sec_type = sub.sec_type().c_str();
     } else {
-        req.scope = TDX_SUB_SCOPE_CONTRACT;
+        req.scope = THETADATADX_SUB_SCOPE_CONTRACT;
         req.symbol = sub.symbol().c_str();
         if (sub.is_option()) {
             req.expiration = sub.expiration().c_str();

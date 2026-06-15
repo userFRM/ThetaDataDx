@@ -8,7 +8,7 @@ If the binding wraps every `block_on` in `Python::detach`, the two
 threads run in parallel and elapsed-time stays bounded by the
 dispatcher alone.
 
-The live test requires `THETADX_TEST_CREDS` in the environment and
+The live test requires `THETADATADX_TEST_CREDS` in the environment and
 runs against the production gRPC endpoint. The structural test runs
 unconditionally and checks the shape of the audit grep that gates
 the binding: every `block_on` call site in `sdks/python/src/` MUST
@@ -108,14 +108,14 @@ def _busy_cpu(stop: threading.Event) -> None:
 
 
 @pytest.mark.skipif(
-    not os.getenv("THETADX_TEST_CREDS"),
-    reason="needs THETADX_TEST_CREDS (production gRPC credentials file)",
+    not os.getenv("THETADATADX_TEST_CREDS"),
+    reason="needs THETADATADX_TEST_CREDS (production gRPC credentials file)",
 )
 def test_historical_releases_gil() -> None:
     """Live GIL-drop probe — must overhead < 1.5x on a healthy SDK."""
     import thetadatadx as td
 
-    creds = td.Credentials.from_file(os.environ["THETADX_TEST_CREDS"])
+    creds = td.Credentials.from_file(os.environ["THETADATADX_TEST_CREDS"])
     config = td.Config.production()
     client = td.Client(creds, config)
 

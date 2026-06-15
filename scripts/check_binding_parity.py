@@ -1739,7 +1739,7 @@ def _check_subscription_kind_parity(
 #
 # Each core `thetadatadx::Error` variant maps to one leaf class on every
 # binding (`InvalidCredentialsError`, `RateLimitError`, ...) and one
-# `TDX_ERR_*` integer code on the C ABI. The leaf vocabulary is the
+# `THETADATADX_ERR_*` integer code on the C ABI. The leaf vocabulary is the
 # cross-binding contract: a caller porting an `except InvalidParameterError`
 # clause from Python to a `catch (InvalidParameterError&)` in C++ must
 # catch the same conditions. The Python `to_py_err`, the TypeScript
@@ -1772,26 +1772,26 @@ CANONICAL_ERROR_LEAVES: frozenset[str] = frozenset(
     }
 )
 
-# The canonical `TDX_ERR_*` code roster mapped to its integer value. The C
+# The canonical `THETADATADX_ERR_*` code roster mapped to its integer value. The C
 # ABI surfaces these via `thetadatadx_last_error_code`; the higher bindings
-# dispatch on them. `TDX_ERR_NONE` (0) is the no-error sentinel, present in
+# dispatch on them. `THETADATADX_ERR_NONE` (0) is the no-error sentinel, present in
 # the header but not a leaf class, so the leaf-to-code correspondence skips
 # it.
 CANONICAL_ERROR_CODES: dict[str, int] = {
-    "TDX_ERR_NONE": 0,
-    "TDX_ERR_OTHER": 1,
-    "TDX_ERR_AUTHENTICATION": 2,
-    "TDX_ERR_INVALID_CREDENTIALS": 3,
-    "TDX_ERR_SUBSCRIPTION": 4,
-    "TDX_ERR_RATE_LIMIT": 5,
-    "TDX_ERR_NOT_FOUND": 6,
-    "TDX_ERR_DEADLINE_EXCEEDED": 7,
-    "TDX_ERR_UNAVAILABLE": 8,
-    "TDX_ERR_NETWORK": 9,
-    "TDX_ERR_SCHEMA_MISMATCH": 10,
-    "TDX_ERR_STREAM": 11,
-    "TDX_ERR_CONFIG": 12,
-    "TDX_ERR_INVALID_PARAMETER": 13,
+    "THETADATADX_ERR_NONE": 0,
+    "THETADATADX_ERR_OTHER": 1,
+    "THETADATADX_ERR_AUTHENTICATION": 2,
+    "THETADATADX_ERR_INVALID_CREDENTIALS": 3,
+    "THETADATADX_ERR_SUBSCRIPTION": 4,
+    "THETADATADX_ERR_RATE_LIMIT": 5,
+    "THETADATADX_ERR_NOT_FOUND": 6,
+    "THETADATADX_ERR_DEADLINE_EXCEEDED": 7,
+    "THETADATADX_ERR_UNAVAILABLE": 8,
+    "THETADATADX_ERR_NETWORK": 9,
+    "THETADATADX_ERR_SCHEMA_MISMATCH": 10,
+    "THETADATADX_ERR_STREAM": 11,
+    "THETADATADX_ERR_CONFIG": 12,
+    "THETADATADX_ERR_INVALID_PARAMETER": 13,
 }
 
 PY_ERRORS_RS = REPO_ROOT / "sdks" / "python" / "src" / "errors.rs"
@@ -1872,9 +1872,9 @@ def _collect_cpp_error_leaves(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_error_codes(ffi_error_rs: pathlib.Path) -> dict[str, int]:
-    """`TDX_ERR_*` discriminants defined in the FFI `error.rs`.
+    """`THETADATADX_ERR_*` discriminants defined in the FFI `error.rs`.
 
-    Returns `{code_name: int_value}` for every `pub const TDX_ERR_* : i32 =
+    Returns `{code_name: int_value}` for every `pub const THETADATADX_ERR_* : i32 =
     N;` declaration — the source of truth for the C ABI error codes.
     """
     if not ffi_error_rs.is_file():
@@ -1882,14 +1882,14 @@ def _collect_ffi_error_codes(ffi_error_rs: pathlib.Path) -> dict[str, int]:
     text = ffi_error_rs.read_text(encoding="utf-8")
     out: dict[str, int] = {}
     for name, value in re.findall(
-        r"pub const (TDX_ERR_\w+)\s*:\s*i32\s*=\s*(\d+)\s*;", text
+        r"pub const (THETADATADX_ERR_\w+)\s*:\s*i32\s*=\s*(\d+)\s*;", text
     ):
         out[name] = int(value)
     return out
 
 
 def _collect_ffi_error_codes_dispatched(ffi_error_rs: pathlib.Path) -> set[str]:
-    """`TDX_ERR_*` codes the FFI `error_code_for` dispatch actually returns.
+    """`THETADATADX_ERR_*` codes the FFI `error_code_for` dispatch actually returns.
 
     Bounds the harvest to the `fn error_code_for` body so the roster is the
     set the dispatch routes to (not merely the defined constants).
@@ -1901,13 +1901,13 @@ def _collect_ffi_error_codes_dispatched(ffi_error_rs: pathlib.Path) -> set[str]:
     if not m:
         return set()
     body = _balanced_body(text, m.end())
-    return set(re.findall(r"\b(TDX_ERR_\w+)\b", body))
+    return set(re.findall(r"\b(THETADATADX_ERR_\w+)\b", body))
 
 
 def _collect_cpp_error_codes(cpp_h: pathlib.Path) -> dict[str, int]:
-    """`TDX_ERR_*` codes defined in the C ABI header `thetadatadx.h`.
+    """`THETADATADX_ERR_*` codes defined in the C ABI header `thetadatadx.h`.
 
-    Returns `{code_name: int_value}` for every `#define TDX_ERR_* N`. The
+    Returns `{code_name: int_value}` for every `#define THETADATADX_ERR_* N`. The
     header is hand-maintained; the gate asserts it matches the FFI Rust
     constants exactly so a code that drifts on the C side (invisible to
     `cargo build`) is caught.
@@ -1916,7 +1916,7 @@ def _collect_cpp_error_codes(cpp_h: pathlib.Path) -> dict[str, int]:
         return {}
     text = cpp_h.read_text(encoding="utf-8")
     out: dict[str, int] = {}
-    for name, value in re.findall(r"#define\s+(TDX_ERR_\w+)\s+(\d+)\b", text):
+    for name, value in re.findall(r"#define\s+(THETADATADX_ERR_\w+)\s+(\d+)\b", text):
         out[name] = int(value)
     return out
 
@@ -1939,13 +1939,13 @@ def _check_error_leaf_parity(
        canonical leaf set (so a variant invisible on one binding — the
        `FlatFilesUnavailable` / `PartialReconnect` defect — is caught, as
        is a missing `ConfigError` leaf).
-    2. The FFI `TDX_ERR_*` constants equal the canonical code table
+    2. The FFI `THETADATADX_ERR_*` constants equal the canonical code table
        (name → value), so a renumbered or renamed code trips.
     3. The C ABI header `#define`s match the FFI Rust constants exactly,
        so a hand-maintained-header drift (invisible to `cargo build`)
        trips.
     4. Every dispatched FFI code is defined, and every leaf class has a
-       corresponding `TDX_ERR_*` code, so the leaf set and the code set
+       corresponding `THETADATADX_ERR_*` code, so the leaf set and the code set
        stay in one-to-one correspondence.
     """
     if canonical_codes is None:
@@ -2867,7 +2867,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Error-leaf mapping parity: every core `Error` variant must map to
     # the same leaf class in Python / TypeScript / C++ and the same
-    # `TDX_ERR_*` code in the C ABI. Asserts the full leaf roster + code
+    # `THETADATADX_ERR_*` code in the C ABI. Asserts the full leaf roster + code
     # table — the seam where `FlatFilesUnavailable` / `PartialReconnect`
     # were invisible on Python / TypeScript, and where the `ConfigError`
     # leaf was missing.
@@ -4304,7 +4304,7 @@ def _run_selftest() -> int:
         """A renumbered FFI code (drift from the canonical table) trips."""
         leaves = set(CANONICAL_ERROR_LEAVES)
         bad_codes = dict(CANONICAL_ERROR_CODES)
-        bad_codes["TDX_ERR_STREAM"] = 99
+        bad_codes["THETADATADX_ERR_STREAM"] = 99
         errors = _check_error_leaf_parity(
             leaves,
             leaves,
@@ -4313,7 +4313,7 @@ def _run_selftest() -> int:
             set(CANONICAL_ERROR_CODES),
             bad_codes,
         )
-        assert any("ffi" in e and "TDX_ERR_STREAM" in e for e in errors), (
+        assert any("ffi" in e and "THETADATADX_ERR_STREAM" in e for e in errors), (
             f"a renumbered FFI code must trip; got {errors!r}"
         )
 
@@ -4323,7 +4323,7 @@ def _run_selftest() -> int:
         """
         leaves = set(CANONICAL_ERROR_LEAVES)
         header_codes = dict(CANONICAL_ERROR_CODES)
-        header_codes["TDX_ERR_CONFIG"] = 42
+        header_codes["THETADATADX_ERR_CONFIG"] = 42
         errors = _check_error_leaf_parity(
             leaves,
             leaves,
@@ -4332,7 +4332,7 @@ def _run_selftest() -> int:
             set(CANONICAL_ERROR_CODES),
             header_codes,
         )
-        assert any("cpp header" in e and "TDX_ERR_CONFIG" in e for e in errors), (
+        assert any("cpp header" in e and "THETADATADX_ERR_CONFIG" in e for e in errors), (
             f"a C-header code drift must trip; got {errors!r}"
         )
 

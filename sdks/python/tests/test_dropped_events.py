@@ -19,7 +19,7 @@ This shape mirrors the TypeScript binding's
 ``__tests__/dropped_events.test.mjs`` to keep the public contract
 identical across SDKs.
 
-Gated on ``THETADX_TEST_CREDS=path/to/creds.txt`` because
+Gated on ``THETADATADX_TEST_CREDS=path/to/creds.txt`` because
 ``Client`` needs a live FPSS handshake. Tests skip silently on
 developer machines that haven't wired creds. CI runs this in the
 surfaces job.
@@ -45,10 +45,10 @@ import pytest
 @pytest.fixture
 def client():
     """Build a real `Client` client or skip the test."""
-    creds_path = os.environ.get("THETADX_TEST_CREDS")
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
-            "set THETADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
         )
     try:
         import thetadatadx
