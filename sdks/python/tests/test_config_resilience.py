@@ -175,10 +175,11 @@ def test_flatfiles_budget_defaults_and_jitter_round_trip():
 
 def test_staleness_getters_exist_on_both_clients():
     """The staleness clock + connected-address getters are present on
-    the unified client and the standalone streaming client. Values are
+    the unified client's `StreamView` sub-namespace (reached via
+    ``client.stream``) and the standalone streaming client. Values are
     exercised live elsewhere; this pins the surface shape offline."""
     mod = _import_module()
-    for cls in (mod.Client, mod.StreamingClient):
+    for cls in (mod.StreamView, mod.StreamingClient):
         for name in (
             "millis_since_last_event",
             "last_event_received_at_unix_nanos",

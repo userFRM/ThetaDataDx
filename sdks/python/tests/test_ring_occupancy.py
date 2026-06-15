@@ -1,8 +1,8 @@
 """
 Ring-occupancy observability surface test.
 
-Pins the contract that ``tdx.ring_occupancy()`` and
-``tdx.ring_capacity()`` are callable across the streaming lifecycle
+Pins the contract that ``tdx.stream.ring_occupancy()`` and
+``tdx.stream.ring_capacity()`` are callable across the streaming lifecycle
 (pre-start / post-start / post-stop), return non-negative ints
 everywhere, and read 0 when streaming has not started.
 
@@ -70,7 +70,7 @@ def tdx():
     # Best-effort teardown; stop_streaming on a client that never
     # started is a noop per the Rust side contract.
     try:
-        client.stop_streaming()
+        client.stream.stop_streaming()
     except Exception:
         pass
 
@@ -83,11 +83,12 @@ def _noop_callback(_event):
 
 
 def test_ring_occupancy_surface_exists_offline() -> None:
-    """Both getters must exist on the unified client AND the standalone
+    """Both getters must exist on the unified client's `StreamView`
+    sub-namespace (reached via ``client.stream``) AND the standalone
     `StreamingClient` pyclass, mirroring `dropped_event_count`. Method
     presence on the type is checkable without a live connection."""
     mod = _import_module()
-    for cls_name in ("Client", "StreamingClient"):
+    for cls_name in ("StreamView", "StreamingClient"):
         cls = getattr(mod, cls_name)
         assert hasattr(cls, "ring_occupancy"), (
             f"{cls_name} must expose ring_occupancy() alongside "
@@ -106,8 +107,8 @@ def test_ring_occupancy_zero_before_streaming(tdx) -> None:
     """Both getters must be callable before `start_streaming(callback)`
     and return 0 -- the streaming slot is empty, so the wrappers
     forward 0 from the unified client."""
-    occupancy = tdx.ring_occupancy()
-    capacity = tdx.ring_capacity()
+    occupancy = tdx.stream.ring_occupancy()
+    capacity = tdx.stream.ring_capacity()
     assert isinstance(occupancy, int)
     assert isinstance(capacity, int)
     assert occupancy == 0, "pre-stream occupancy must be 0 -- no ring exists"
@@ -119,21 +120,21 @@ def test_ring_occupancy_lifecycle_callable(tdx) -> None:
     pre-start / post-start / post-stop. While streaming, capacity is
     the configured ring size (a positive power of two) and occupancy
     is bounded by it."""
-    tdx.start_streaming(_noop_callback)
+    tdx.stream.start_streaming(_noop_callback)
 
-    capacity = tdx.ring_capacity()
+    capacity = tdx.stream.ring_capacity()
     assert isinstance(capacity, int)
     assert capacity > 0, "a live ring must report its configured capacity"
     assert capacity & (capacity - 1) == 0, "ring capacity is a power of two"
 
-    occupancy = tdx.ring_occupancy()
+    occupancy = tdx.stream.ring_occupancy()
     assert isinstance(occupancy, int)
     assert 0 <= occupancy <= capacity, (
         "occupancy is clamped non-negative and never exceeds capacity"
     )
 
-    tdx.stop_streaming()
+    tdx.stream.stop_streaming()
     # After stop_streaming the streaming slot is empty; both getters
     # return 0 in that state.
-    assert tdx.ring_occupancy() == 0
-    assert tdx.ring_capacity() == 0
+    assert tdx.stream.ring_occupancy() == 0
+    assert tdx.stream.ring_capacity() == 0

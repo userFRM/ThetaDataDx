@@ -51,7 +51,7 @@ def tdx():
     client = mod.Client(creds, config)
     yield client
     try:
-        client.stop_streaming()
+        client.stream.stop_streaming()
     except Exception:
         pass
 
@@ -86,11 +86,11 @@ def test_context_manager_enter_exit_lifecycle(tdx) -> None:
     `start_streaming(callback)` and exits by calling
     `stop_streaming()` + `await_drain(5000)`.
     """
-    assert tdx.is_streaming() is False
+    assert tdx.stream.is_streaming() is False
     with tdx.streaming(_noop_callback) as session:
         # `session` is the StreamingSession; subscribe methods proxy
         # through __getattr__ to the underlying Client.
-        assert tdx.is_streaming() is True
+        assert tdx.stream.is_streaming() is True
         # Exercise the proxy SSOT: a method that lives on
         # `Client` is reachable on `session` without a hand-listed
         # mirror.
@@ -98,7 +98,7 @@ def test_context_manager_enter_exit_lifecycle(tdx) -> None:
         assert isinstance(active, list)
     # __exit__ must have called stop_streaming() (not just dropped the
     # ref) so is_streaming() flips back to False.
-    assert tdx.is_streaming() is False
+    assert tdx.stream.is_streaming() is False
 
 
 def test_context_manager_swallows_no_exceptions(tdx) -> None:
@@ -111,7 +111,7 @@ def test_context_manager_swallows_no_exceptions(tdx) -> None:
         with tdx.streaming(_noop_callback) as _session:
             raise sentinel
     # is_streaming flipped to False -- stop_streaming ran in __exit__.
-    assert tdx.is_streaming() is False
+    assert tdx.stream.is_streaming() is False
 
 
 def test_context_manager_proxies_subscribe_methods(tdx) -> None:
