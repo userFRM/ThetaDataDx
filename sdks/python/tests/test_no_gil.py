@@ -97,7 +97,115 @@ def test_every_block_on_is_preceded_by_detach() -> None:
     )
 
 
+def test_fpss_streaming_paths_release_the_gil() -> None:
+    """Audit gate: the standalone FPSS streaming connect, reconnect, and
+    subscribe paths release the GIL across their blocking I/O.
+
+    The FPSS standalone client does not route through `block_on`; its
+    blocking work is a synchronous TLS connect / handshake
+    (`StreamingClientBuilder::build`) and a synchronous wire write
+    (`StreamingClient::subscribe` / `unsubscribe`). The audit above
+    only covers `block_on` call sites, so this test pins the FPSS
+    surface separately: the connect must run inside `py.detach`, and
+    the shared `with_live` helper that brackets every subscribe /
+    unsubscribe wire write must release the GIL too.
+    """
+    src = (_sdk_src_root() / "fpss_client.rs").read_text()
+
+    # The connect (`.build()`) must sit inside a `py.detach` envelope.
+    assert ".detach(|| self.params.builder().build())" in src, (
+        "StreamingClient.start_streaming must wrap the blocking FPSS "
+        "connect (`builder().build()`) in `py.detach` so a sibling "
+        "Python thread keeps running during the TLS handshake"
+    )
+
+    # The `with_live` helper -- the single chokepoint every subscribe /
+    # unsubscribe wire write flows through -- must release the GIL
+    # around the cloned-out Rust handle.
+    assert "py.detach(move || f(&client)).map_err(to_py_err)" in src, (
+        "StreamingClient.with_live must release the GIL across the "
+        "blocking wire write so subscribe / unsubscribe do not hold "
+        "the GIL during the socket send"
+    )
+
+    # And every subscribe / unsubscribe entry point must flow through
+    # that helper rather than touching the live client directly.
+    for method in ("subscribe", "subscribe_many", "unsubscribe", "unsubscribe_many"):
+        sig = f"fn {method}(&self, py: Python<'_>"
+        assert sig in src, (
+            f"StreamingClient.{method} must take a `py` token and route "
+            f"its wire write through `with_live(py, ...)`; missing `{sig}`"
+        )
+
+
 # ── runtime verification (live, GIL-release on hot path) ────────────
+
+
+def test_fpss_connect_releases_the_gil() -> None:
+    """Runtime probe: a sibling Python thread makes progress while
+    `StreamingClient.start_streaming` blocks on the FPSS connect.
+
+    No credentials or live server required. We point the primary
+    streaming host at a non-routable address so the connect blocks on
+    the TCP handshake until `streaming_connect_timeout_ms`, then run a
+    counter-incrementing peer thread. If the binding held the GIL
+    across the connect the peer thread could not advance until the
+    blocking call returned; the assertion floor is far above what the
+    GIL-held path could reach inside the connect window.
+    """
+    import thetadatadx as td
+
+    creds = td.Credentials("user@example.com", "pw")
+    config = td.Config.production()
+    # Bound the connect window so the test stays fast while still being
+    # long enough for the peer thread to accumulate a decisive count.
+    config.streaming_connect_timeout_ms = 1500
+
+    fpss = td.StreamingClient(creds, config)
+
+    counter = 0
+    stop = threading.Event()
+
+    def peer() -> None:
+        nonlocal counter
+        while not stop.is_set():
+            counter += 1
+
+    t = threading.Thread(target=peer)
+    t.start()
+    try:
+        t0 = time.perf_counter()
+        # Blocks on the (unreachable) FPSS connect, then raises. The
+        # exception type is irrelevant here -- we only care that the
+        # call blocked AND the peer thread advanced during the block.
+        with pytest.raises(Exception):
+            fpss.start_streaming(lambda _event: None)
+        blocked_for = time.perf_counter() - t0
+    finally:
+        stop.set()
+        t.join(timeout=5.0)
+
+    # The connect must have actually blocked (otherwise the probe is
+    # vacuous). A non-routable host plus the connect-timeout floor
+    # guarantees a multi-hundred-ms block.
+    assert blocked_for > 0.2, (
+        f"connect returned too fast ({blocked_for:.3f}s) -- the probe "
+        "did not exercise a blocking connect; raise the host count or "
+        "lower reachability"
+    )
+    # If the GIL were held across the connect, the peer thread would be
+    # frozen for the entire `blocked_for` window and `counter` would be
+    # ~0. Releasing the GIL lets it spin freely; even a slow CI box
+    # clears this floor by orders of magnitude.
+    assert counter > 100_000, (
+        f"sibling thread advanced only {counter} steps while "
+        f"start_streaming blocked for {blocked_for:.3f}s -- the GIL "
+        "appears to be held across the FPSS connect"
+    )
+
+
+def _busy_cpu(stop: threading.Event) -> None:
+    s = 0
 
 
 def _busy_cpu(stop: threading.Event) -> None:
