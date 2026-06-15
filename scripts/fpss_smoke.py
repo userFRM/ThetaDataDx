@@ -11,7 +11,7 @@ import time
 
 
 def _subscriptions_snapshot(client) -> set[tuple[str, str]]:
-    return {(entry["kind"], entry["contract"]) for entry in client.active_subscriptions()}
+    return {(entry["kind"], entry["contract"]) for entry in client.stream.active_subscriptions()}
 
 
 def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str, str]:
@@ -62,12 +62,12 @@ def main() -> int:
         except queue.Full:
             pass
 
-    client.start_streaming(on_event)
+    client.stream.start_streaming(on_event)
 
     try:
-        client.subscribe(Contract.stock(args.symbol).quote())
-        client.subscribe(Contract.stock(args.symbol).trade())
-        client.subscribe(
+        client.stream.subscribe(Contract.stock(args.symbol).quote())
+        client.stream.subscribe(Contract.stock(args.symbol).trade())
+        client.stream.subscribe(
             Contract.option(
                 args.option_symbol,
                 expiration=args.expiration,
@@ -87,7 +87,7 @@ def main() -> int:
                 "data variants must surface the resolved typed Contract"
             )
 
-        client.reconnect()
+        client.stream.reconnect()
         after = _subscriptions_snapshot(client)
         if after != expected_subs:
             raise RuntimeError(
@@ -101,8 +101,8 @@ def main() -> int:
             )
     finally:
         stop_consuming.set()
-        client.stop_streaming()
-        client.await_drain(5_000)
+        client.stream.stop_streaming()
+        client.stream.await_drain(5_000)
 
     print(
         "python fpss smoke: ok "
