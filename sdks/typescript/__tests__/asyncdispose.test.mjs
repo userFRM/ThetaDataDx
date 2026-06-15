@@ -42,13 +42,17 @@ describe('streaming-session wrapper', () => {
 
   it('Symbol.asyncDispose pairs stopStreaming with awaitDrain', async () => {
     const calls = [];
+    // The unified client's streaming surface lives on the `client.stream`
+    // sub-namespace view, so the session resolves these through `_tdx.stream`.
     const fakeTdx = {
-      stopStreaming() { calls.push('stopStreaming'); },
-      async awaitDrain(timeoutMs) {
-        calls.push(['awaitDrain', timeoutMs]);
-        return true;
+      stream: {
+        stopStreaming() { calls.push('stopStreaming'); },
+        async awaitDrain(timeoutMs) {
+          calls.push(['awaitDrain', timeoutMs]);
+          return true;
+        },
+        subscribe(sub) { calls.push(['subscribe', sub]); },
       },
-      subscribe(sub) { calls.push(['subscribe', sub]); },
     };
     const session = new mod.StreamingSession(fakeTdx);
 
@@ -64,8 +68,10 @@ describe('streaming-session wrapper', () => {
 
   it('warns to console when awaitDrain returns false', async () => {
     const fakeTdx = {
-      stopStreaming() {},
-      async awaitDrain() { return false; },
+      stream: {
+        stopStreaming() {},
+        async awaitDrain() { return false; },
+      },
     };
     const session = new mod.StreamingSession(fakeTdx);
 
@@ -88,10 +94,12 @@ describe('streaming-session wrapper', () => {
     // method to the napi binding makes it reachable on the session
     // automatically without a wrapper-side mirror.
     const fakeTdx = {
-      stopStreaming() {},
-      async awaitDrain() { return true; },
-      activeSubscriptions() { return [{ kind: 'Trade', contract: 'AAPL' }]; },
-      droppedEventCount() { return 42n; },
+      stream: {
+        stopStreaming() {},
+        async awaitDrain() { return true; },
+        activeSubscriptions() { return [{ kind: 'Trade', contract: 'AAPL' }]; },
+        droppedEventCount() { return 42n; },
+      },
     };
     const session = new mod.StreamingSession(fakeTdx);
     assert.deepEqual(session.activeSubscriptions(), [{ kind: 'Trade', contract: 'AAPL' }]);

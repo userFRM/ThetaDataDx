@@ -403,7 +403,68 @@ pub struct Client {
     /// is `Arc`-managed but only exposed through the
     /// `Arc<`ThreadsafeFunctionHandle`>` field on the struct), so the
     /// outer `Arc` here is the canonical way to share the handle.
-    callback: Mutex<Option<Arc<TsfnCallback>>>,
+    ///
+    /// Wrapped in `Arc<Mutex<...>>` so the same callback slot is shared
+    /// with the [`StreamView`] returned by `client.stream`: both the
+    /// `Client` shell and every `StreamView` handle observe and mutate one
+    /// registration, keeping `startStreaming` / `stopStreaming` /
+    /// `reconnect` idempotent regardless of which surface the caller
+    /// reaches through.
+    callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
+}
+
+/// User-facing historical-data sub-namespace returned by the
+/// `client.historical` getter.
+///
+/// Holds a cheap `Arc` clone of the inner unified client; constructing it
+/// performs no auth round-trip and mutates no streaming state. Every
+/// historical endpoint method is generated onto this view from
+/// `endpoint_surface.toml`, so the surface stays a single generated
+/// source of truth.
+#[napi]
+pub struct HistoricalView {
+    tdx: Arc<thetadatadx::Client>,
+}
+
+/// User-facing real-time-streaming sub-namespace returned by the
+/// `client.stream` getter.
+///
+/// Shares the parent client's `Arc<thetadatadx::Client>` and its
+/// `Arc<Mutex<Option<Arc<TsfnCallback>>>>` callback slot, so
+/// `startStreaming`, `stopStreaming`, `reconnect`, and the subscription
+/// methods observe the same registration the unified client does.
+#[napi]
+pub struct StreamView {
+    tdx: Arc<thetadatadx::Client>,
+    callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
+}
+
+#[napi]
+impl Client {
+    /// Historical-data sub-namespace: `client.historical.stockHistoryEod(...)`.
+    ///
+    /// Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
+    /// inner client. No auth round-trip, no streaming-state mutation.
+    #[napi(getter)]
+    pub fn historical(&self) -> HistoricalView {
+        HistoricalView {
+            tdx: Arc::clone(&self.tdx),
+        }
+    }
+
+    /// Real-time-streaming sub-namespace: `client.stream.subscribe(...)`,
+    /// `client.stream.startStreaming(cb)`, …
+    ///
+    /// Returns a fresh [`StreamView`] sharing the inner client and the
+    /// parent's callback slot, so the streaming lifecycle observed through
+    /// the view is the one the unified client manages.
+    #[napi(getter)]
+    pub fn stream(&self) -> StreamView {
+        StreamView {
+            tdx: Arc::clone(&self.tdx),
+            callback: Arc::clone(&self.callback),
+        }
+    }
 }
 
 #[napi]
@@ -435,7 +496,7 @@ impl Client {
             .map_err(to_napi_err)?;
         Ok(Client {
             tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
+            callback: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -455,10 +516,13 @@ impl Client {
             .map_err(to_napi_err)?;
         Ok(Client {
             tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
+            callback: Arc::new(Mutex::new(None)),
         })
     }
+}
 
+#[napi]
+impl StreamView {
     /// Cumulative count of FPSS events that were dropped because the
     /// callback fell behind and the in-flight buffer was full.
     ///
@@ -541,7 +605,10 @@ impl Client {
     pub fn last_connected_addr(&self) -> Option<String> {
         self.tdx.stream().last_connected_addr()
     }
+}
 
+#[napi]
+impl Client {
     /// Cumulative count of user-callback panics caught at the per-event
     /// isolation boundary since the current stream started.
     ///
@@ -732,7 +799,7 @@ mod fpss_client;
 pub use fpss_client::StreamingClient;
 
 #[napi]
-impl Client {
+impl StreamView {
     /// Polymorphic subscribe — primary fluent entry point. Accepts the
     /// `Subscription` value returned by `Contract.quote()` /
     /// `Contract.trade()` / `Contract.openInterest()` (per-contract
@@ -740,7 +807,10 @@ impl Client {
     /// `SecType.option().fullOpenInterest()` (full-stream scope).
     #[napi]
     pub fn subscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx.stream().subscribe(sub.snapshot()).map_err(to_napi_err)
+        self.tdx
+            .stream()
+            .subscribe(sub.snapshot())
+            .map_err(to_napi_err)
     }
 
     /// Bulk-subscribe an array of `Subscription` values. Stops at the
@@ -755,14 +825,20 @@ impl Client {
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     #[napi]
     pub fn unsubscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx.stream().unsubscribe(sub.snapshot()).map_err(to_napi_err)
+        self.tdx
+            .stream()
+            .unsubscribe(sub.snapshot())
+            .map_err(to_napi_err)
     }
 
     /// Bulk-unsubscribe an array of `Subscription` values.
     #[napi(js_name = "unsubscribeMany")]
     pub fn unsubscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.tdx.stream().unsubscribe_many(snaps).map_err(to_napi_err)
+        self.tdx
+            .stream()
+            .unsubscribe_many(snaps)
+            .map_err(to_napi_err)
     }
 }
 

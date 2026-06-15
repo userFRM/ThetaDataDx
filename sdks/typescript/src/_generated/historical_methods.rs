@@ -1473,7 +1473,7 @@ pub struct StockHistoryOHLCRangeOptions {
 }
 
 #[napi]
-impl Client {
+impl HistoricalView {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.

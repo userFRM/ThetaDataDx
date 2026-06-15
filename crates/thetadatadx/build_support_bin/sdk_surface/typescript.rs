@@ -6,12 +6,12 @@ use std::fmt::Write as _;
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
-/// Renders the TypeScript streaming methods source: the `#[napi]` block on `Client`.
+/// Renders the TypeScript streaming methods source: the `#[napi]` block on `StreamView`.
 pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("#[napi]\n");
-    out.push_str("impl Client {\n");
+    out.push_str("impl StreamView {\n");
     for method in methods {
         out.push_str(&ts_streaming_method(method));
         out.push('\n');

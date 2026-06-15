@@ -63,7 +63,12 @@ use super::super::sdk_helpers::{
 /// identical method bodies onto both keeps the historical surface in
 /// lockstep at zero per-method cost — adding an endpoint to
 /// `endpoint_surface.toml` lands it on both classes automatically.
-const HISTORICAL_IMPL_CLASSES: &[&str] = &["Client", "HistoricalClient"];
+///
+/// The unified client exposes these through the `client.historical`
+/// sub-namespace, so the generated block targets `HistoricalView` (the
+/// view returned by the `historical` getter); the standalone
+/// `HistoricalClient` keeps its flat historical surface.
+const HISTORICAL_IMPL_CLASSES: &[&str] = &["HistoricalView", "HistoricalClient"];
 
 /// Renders the TypeScript historical surface: the per-endpoint options
 /// structs and one napi `impl` block per historical class, each carrying

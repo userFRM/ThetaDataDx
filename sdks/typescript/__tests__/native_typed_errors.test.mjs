@@ -361,7 +361,7 @@ describe('timeoutMs input-validation parity (native)', () => {
       }
 
       await assert.rejects(
-        () => tdx.stockSnapshotQuote('AAPL', { timeoutMs: value }),
+        () => tdx.historical.stockSnapshotQuote('AAPL', { timeoutMs: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} timeoutMs must reject as InvalidParameterError, not coerce`,
       );
@@ -378,7 +378,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     }
 
     await assert.rejects(
-      () => tdx.stockListSymbols({ timeoutMs: -1 }),
+      () => tdx.historical.stockListSymbols({ timeoutMs: -1 }),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'a negative timeoutMs must reject on the string-list path too',
     );
@@ -397,7 +397,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     // client. The round-trip may surface a data/network error, but it must
     // never be an InvalidParameterError from the deadline guard.
     try {
-      await tdx.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
+      await tdx.historical.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
     } catch (err) {
       assert.ok(
         !(err instanceof mod.InvalidParameterError),
