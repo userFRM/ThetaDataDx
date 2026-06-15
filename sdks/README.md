@@ -88,7 +88,7 @@ creds = Credentials.from_file("creds.txt")
 client = Client(creds, Config.production())
 
 # Historical data
-eod = client.stock_history_eod("AAPL", "20240101", "20240315")
+eod = client.historical.stock_history_eod("AAPL", "20240101", "20240315")
 
 # Greeks
 g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
@@ -116,7 +116,7 @@ import { Client } from 'thetadatadx';
 
 const client = await Client.connectFromFile('creds.txt');
 
-const eod = client.stockHistoryEOD('AAPL', '20240101', '20240315');
+const eod = client.historical.stockHistoryEOD('AAPL', '20240101', '20240315');
 ```
 
 Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.
