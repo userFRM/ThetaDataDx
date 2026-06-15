@@ -15,18 +15,18 @@
 //!         DirectConfig::production(),
 //!     ).await?;
 //!
-//!     // Historical -- works immediately
-//!     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//!     // Historical -- works immediately, via the `historical` surface
+//!     let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
-//!     // Streaming -- FPSS connects lazily on first subscribe
+//!     // Streaming -- FPSS connects lazily on first subscribe, via `stream`
 //!     use thetadatadx::fpss::{StreamData, StreamEvent};
 //!     use thetadatadx::fpss::protocol::Contract;
-//!     tdx.start_streaming(|event| {
+//!     tdx.stream().start_streaming(|event| {
 //!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
 //!         }
 //!     })?;
-//!     tdx.subscribe(Contract::stock("AAPL").quote())?;
+//!     tdx.stream().subscribe(Contract::stock("AAPL").quote())?;
 //!
 //!     Ok(())
 //! }
@@ -130,11 +130,16 @@ pub enum ConnectionStatus {
 /// Unified `ThetaData` client.
 ///
 /// Authenticates once at connect time. Historical data (MDDS) is
-/// available immediately. Streaming (FPSS) connects lazily when
-/// you call [`start_streaming`](Self::start_streaming).
+/// available immediately via the [`historical`](Self::historical)
+/// surface. Streaming (FPSS) connects lazily on the first
+/// [`start_streaming`](StreamSurface::start_streaming) on the
+/// [`stream`](Self::stream) surface.
 ///
-/// All historical endpoint methods are available via `Deref`.
-/// Streaming methods are on this struct directly.
+/// The data surfaces are sub-namespace accessors:
+/// `client.historical().<query>(..)` exposes the same method set as the
+/// standalone [`HistoricalClient`]; `client.stream().<op>(..)` exposes
+/// the streaming lifecycle. The FLATFILES bulk-download methods stay on
+/// the client directly.
 pub struct Client {
     historical: HistoricalClient,
     creds: Credentials,
@@ -269,7 +274,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
+    pub(crate) fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
     {
@@ -297,7 +302,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming_scoped<F, S>(&self, mut handler: F, scope: S) -> Result<(), Error>
+    pub(crate) fn start_streaming_scoped<F, S>(&self, mut handler: F, scope: S) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
@@ -524,7 +529,7 @@ impl Client {
     /// second) and emit a `warn` log on any non-zero delta. A
     /// per-drop log would amplify under sustained overflow.
     #[must_use]
-    pub fn dropped_event_count(&self) -> u64 {
+    pub(crate) fn dropped_event_count(&self) -> u64 {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.dropped_count(),
@@ -545,7 +550,7 @@ impl Client {
     /// pair of relaxed atomic loads on the calling thread; poll it
     /// from your own monitoring thread at any cadence.
     #[must_use]
-    pub fn ring_occupancy(&self) -> usize {
+    pub(crate) fn ring_occupancy(&self) -> usize {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_occupancy(),
@@ -562,7 +567,7 @@ impl Client {
     /// and further publishes will be dropped (counted by
     /// [`Self::dropped_event_count`]).
     #[must_use]
-    pub fn ring_capacity(&self) -> usize {
+    pub(crate) fn ring_capacity(&self) -> usize {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_capacity(),
@@ -580,7 +585,7 @@ impl Client {
     /// value is the earliest external signal of a dead or wedged
     /// connection.
     #[must_use]
-    pub fn millis_since_last_event(&self) -> Option<u64> {
+    pub(crate) fn millis_since_last_event(&self) -> Option<u64> {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.millis_since_last_event(),
@@ -594,7 +599,7 @@ impl Client {
     /// [`Self::millis_since_last_event`], exposed for callers
     /// correlating against their own pipeline timestamps.
     #[must_use]
-    pub fn last_event_received_at_unix_nanos(&self) -> i64 {
+    pub(crate) fn last_event_received_at_unix_nanos(&self) -> i64 {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.last_event_received_at_unix_nanos(),
@@ -606,7 +611,7 @@ impl Client {
     /// session is connected to, following the session across
     /// auto-reconnects. Returns `None` when streaming has not started.
     #[must_use]
-    pub fn last_connected_addr(&self) -> Option<String> {
+    pub(crate) fn last_connected_addr(&self) -> Option<String> {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => Some(client.last_connected_addr()),
@@ -622,7 +627,7 @@ impl Client {
     /// TypeScript binding surfaces JS errors via Node's `uncaughtException`
     /// instead of this counter. Returns `0` when streaming has not started.
     #[must_use]
-    pub fn panic_count(&self) -> u64 {
+    pub(crate) fn panic_count(&self) -> u64 {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.panic_count(),
@@ -637,7 +642,7 @@ impl Client {
     /// boundary. No-op when streaming is not active.
     #[cfg(feature = "__internal")]
     #[doc(hidden)]
-    pub fn record_panic(&self) {
+    pub(crate) fn record_panic(&self) {
         let snap = self.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.record_panic();
@@ -659,7 +664,7 @@ impl Client {
     /// No-op when streaming has not started; on the next
     /// [`Self::start_streaming`] the threshold defaults back to
     /// disabled (callers must re-arm).
-    pub fn set_slow_callback_threshold(&self, threshold: Duration) {
+    pub(crate) fn set_slow_callback_threshold(&self, threshold: Duration) {
         let snap = self.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.set_slow_callback_threshold(threshold);
@@ -671,7 +676,7 @@ impl Client {
     /// [`Self::set_slow_callback_threshold`]. Returns `0` when the
     /// watchdog is disabled or when streaming has not started.
     #[must_use]
-    pub fn slow_callback_count(&self) -> u64 {
+    pub(crate) fn slow_callback_count(&self) -> u64 {
         let snap = self.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.slow_callback_count(),
@@ -693,7 +698,7 @@ impl Client {
     /// stronger guarantee — e.g. before freeing an FFI callback
     /// context, replacing the callback closure, or asserting the old
     /// consumer thread has joined.
-    pub fn is_streaming(&self) -> bool {
+    pub(crate) fn is_streaming(&self) -> bool {
         match &**self.state.load() {
             StreamingSlot::Live { .. } => {
                 let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
@@ -732,7 +737,7 @@ impl Client {
     /// so a long-lived handle that has cycled through many sessions
     /// does not leak `Arc<AtomicBool>` entries.
     #[must_use]
-    pub fn prev_drained_is_set(&self) -> bool {
+    pub(crate) fn prev_drained_is_set(&self) -> bool {
         match self.prev_drained.try_lock() {
             Ok(mut guard) => {
                 guard.retain(|f| !f.load(Ordering::Acquire));
@@ -766,7 +771,7 @@ impl Client {
     /// a non-backlogged ring); the worst case is bounded by the user
     /// callback's wall-clock budget on the slowest in-flight tick.
     #[must_use]
-    pub fn await_drain(&self, timeout: Duration) -> bool {
+    pub(crate) fn await_drain(&self, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
         loop {
             let all_drained = {
@@ -822,16 +827,16 @@ impl Client {
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
     /// let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
-    /// client.subscribe(stock.quote())?;
-    /// client.subscribe(option.trade())?;
-    /// client.subscribe(SecType::Option.full_trades())?;
+    /// client.stream().subscribe(stock.quote())?;
+    /// client.stream().subscribe(option.trade())?;
+    /// client.stream().subscribe(SecType::Option.full_trades())?;
     /// # Ok(()) }
     /// ```
     ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe(&self, sub: Subscription) -> Result<(), Error> {
+    pub(crate) fn subscribe(&self, sub: Subscription) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe(sub.clone()))
     }
 
@@ -845,7 +850,7 @@ impl Client {
     ///
     /// Returns an error on the first failed subscription. Successful
     /// installs that preceded the failure are NOT rolled back.
-    pub fn subscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    pub(crate) fn subscribe_many<I>(&self, subs: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = Subscription>,
     {
@@ -860,7 +865,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe(&self, sub: Subscription) -> Result<(), Error> {
+    pub(crate) fn unsubscribe(&self, sub: Subscription) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe(sub.clone()))
     }
 
@@ -870,7 +875,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error on the first failed unsubscribe.
-    pub fn unsubscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    pub(crate) fn unsubscribe_many<I>(&self, subs: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = Subscription>,
     {
@@ -884,7 +889,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns [`Error::Fpss`] when streaming has not been started.
-    pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
+    pub(crate) fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
 
@@ -892,7 +897,9 @@ impl Client {
     /// # Errors
     ///
     /// Returns [`Error::Fpss`] when streaming has not been started.
-    pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
+    pub(crate) fn active_full_subscriptions(
+        &self,
+    ) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }
 
@@ -916,7 +923,7 @@ impl Client {
     /// when the caller needs to free a callback context, replace the
     /// callback closure, or otherwise rely on the old user callback
     /// having stopped firing.
-    pub fn stop_streaming(&self) {
+    pub(crate) fn stop_streaming(&self) {
         // Bump the stop generation BEFORE the slot swap so any
         // in-flight `start_streaming*()` that snapshotted the previous
         // value will fail its install check and not resurrect the
@@ -1017,7 +1024,7 @@ impl Client {
     /// those subscriptions or surface the partial failure to the operator.
     /// Per-subscription `tracing::warn!` lines are still emitted for
     /// operational visibility.
-    pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
+    pub(crate) fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
     {
@@ -1039,7 +1046,7 @@ impl Client {
     /// Returns [`Error::PartialReconnect`] when some subscriptions fail
     /// to restore, or a network / authentication / parsing error on the
     /// restart itself.
-    pub fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    pub(crate) fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
@@ -1088,7 +1095,7 @@ impl Client {
     /// list of subscriptions that failed to restore; everything not in
     /// the list was re-installed. Per-subscription `tracing::warn!`
     /// lines are emitted for operational visibility.
-    pub fn restore_subscriptions(
+    pub(crate) fn restore_subscriptions(
         &self,
         per_contract: &[(SubscriptionKind, Contract)],
         full_type: &[(SubscriptionKind, SecType)],
@@ -1132,7 +1139,7 @@ impl Client {
     }
 
     /// Get the current streaming connection status.
-    pub fn connection_status(&self) -> ConnectionStatus {
+    pub(crate) fn connection_status(&self) -> ConnectionStatus {
         match &**self.state.load() {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
@@ -1478,12 +1485,316 @@ impl Drop for Client {
     }
 }
 
-// All historical methods available directly via Deref.
-#[doc(hidden)]
-impl std::ops::Deref for Client {
-    type Target = HistoricalClient;
-    fn deref(&self) -> &HistoricalClient {
+impl Client {
+    /// Historical data surface — the query endpoints (EOD, history,
+    /// snapshots, list, at-time).
+    ///
+    /// Borrowed view over the unified client's already-open MDDS
+    /// channel. Exposes the exact same method set as the standalone
+    /// [`HistoricalClient`], so `client.historical().stock_history_eod(..)`
+    /// and a standalone `HistoricalClient::stock_history_eod(..)` are one
+    /// surface.
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::Client;
+    /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
+    /// let eod = client
+    ///     .historical()
+    ///     .stock_history_eod("AAPL", "20240101", "20240301")
+    ///     .await?;
+    /// # let _ = eod;
+    /// # Ok(()) }
+    /// ```
+    #[must_use]
+    pub fn historical(&self) -> &HistoricalClient {
         &self.historical
+    }
+
+    /// Streaming surface — subscribe / unsubscribe, the dispatcher
+    /// lifecycle, reconnect, and the back-pressure / health counters.
+    ///
+    /// Lightweight borrowed view over the unified client's streaming
+    /// state machine; constructing it is a pointer copy and performs no
+    /// connection work. FPSS connects lazily on the first
+    /// [`StreamSurface::start_streaming`].
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::Client;
+    /// # use thetadatadx::fpss::protocol::Contract;
+    /// # use thetadatadx::fpss::{StreamData, StreamEvent};
+    /// # fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
+    /// client.stream().start_streaming(|event| {
+    ///     if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
+    ///         println!("trade {price} x {size}");
+    ///     }
+    /// })?;
+    /// client.stream().subscribe(Contract::stock("AAPL").quote())?;
+    /// # Ok(()) }
+    /// ```
+    #[must_use]
+    pub fn stream(&self) -> StreamSurface<'_> {
+        StreamSurface(self)
+    }
+}
+
+/// Borrowed view exposing the unified [`Client`]'s streaming surface.
+///
+/// Returned by [`Client::stream`]. Holds a shared borrow of the client
+/// and forwards every call onto the same atomic streaming state machine
+/// the unified client owns — no duplicated state, no behavior change.
+/// The view is `Copy`; take it per call site rather than storing it.
+#[derive(Clone, Copy)]
+pub struct StreamSurface<'a>(&'a Client);
+
+impl StreamSurface<'_> {
+    /// Start the FPSS streaming connection with a callback handler.
+    ///
+    /// The callback fires on the dispatcher thread, one event at a time,
+    /// each invocation panic-isolated. It MUST return within
+    /// microseconds; hand slow work off to a bounded queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+    {
+        self.0.start_streaming(handler)
+    }
+
+    /// Start FPSS streaming with each consumer batch drain wrapped in a
+    /// caller-supplied `scope`. See [`Self::start_streaming`]; `scope`
+    /// brackets each batch drain so a binding can amortise an
+    /// interpreter lock across a batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn start_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+        S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
+    {
+        self.0.start_streaming_scoped(handler, scope)
+    }
+
+    /// Polymorphic subscribe — primary fluent entry point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn subscribe(&self, sub: Subscription) -> Result<(), Error> {
+        self.0.subscribe(sub)
+    }
+
+    /// Bulk-subscribe a batch of [`Subscription`] values. Stops at the
+    /// first error; previously-installed subscriptions remain active.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on the first failed subscription.
+    pub fn subscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = Subscription>,
+    {
+        self.0.subscribe_many(subs)
+    }
+
+    /// Polymorphic unsubscribe — fluent counterpart to [`Self::subscribe`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn unsubscribe(&self, sub: Subscription) -> Result<(), Error> {
+        self.0.unsubscribe(sub)
+    }
+
+    /// Bulk-unsubscribe a batch of [`Subscription`] values. Stops at the
+    /// first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on the first failed unsubscribe.
+    pub fn unsubscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = Subscription>,
+    {
+        self.0.unsubscribe_many(subs)
+    }
+
+    /// Get all active per-contract subscriptions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Fpss`] when streaming has not been started.
+    pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
+        self.0.active_subscriptions()
+    }
+
+    /// Get all active full-type (full-stream) subscriptions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Fpss`] when streaming has not been started.
+    pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
+        self.0.active_full_subscriptions()
+    }
+
+    /// Shut down the streaming connection. Historical remains available.
+    ///
+    /// Idempotent. Returns once the slot has swapped to stopped and the
+    /// shutdown signal is raised; pair with [`Self::await_drain`] for
+    /// full quiescence before freeing a callback context.
+    pub fn stop_streaming(&self) {
+        self.0.stop_streaming();
+    }
+
+    /// Reconnect the streaming connection, re-subscribing all previous
+    /// subscriptions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] when the session re-established
+    /// but some subscriptions failed to restore, or a network /
+    /// authentication / parsing error on the restart.
+    pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+    {
+        self.0.reconnect_streaming(handler)
+    }
+
+    /// Reconnect, re-registering `handler` with each consumer batch drain
+    /// wrapped in `scope`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] when some subscriptions fail to
+    /// restore, or a network / authentication / parsing error.
+    pub fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+        S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
+    {
+        self.0.reconnect_streaming_scoped(handler, scope)
+    }
+
+    /// Re-subscribe a saved subscription snapshot onto the live session,
+    /// paced per the configured replay knobs.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] carrying the list of
+    /// subscriptions that failed to restore.
+    pub fn restore_subscriptions(
+        &self,
+        per_contract: &[(SubscriptionKind, Contract)],
+        full_type: &[(SubscriptionKind, SecType)],
+    ) -> Result<(), Error> {
+        self.0.restore_subscriptions(per_contract, full_type)
+    }
+
+    /// Get the current streaming connection status.
+    #[must_use]
+    pub fn connection_status(&self) -> ConnectionStatus {
+        self.0.connection_status()
+    }
+
+    /// Whether streaming is currently active. See [`Client`] notes: this
+    /// flips immediately on stop, BEFORE the previous callback drains.
+    #[must_use]
+    pub fn is_streaming(&self) -> bool {
+        self.0.is_streaming()
+    }
+
+    /// Wait for every retired streaming session to drain. Returns `false`
+    /// on timeout.
+    #[must_use]
+    pub fn await_drain(&self, timeout: Duration) -> bool {
+        self.0.await_drain(timeout)
+    }
+
+    /// Whether a prior streaming session has registered a drain flag for
+    /// [`Self::await_drain`] to poll on.
+    #[must_use]
+    pub fn prev_drained_is_set(&self) -> bool {
+        self.0.prev_drained_is_set()
+    }
+
+    /// Snapshot of events dropped because the consumer fell behind and
+    /// the ring was full. `0` when streaming has not started.
+    #[must_use]
+    pub fn dropped_event_count(&self) -> u64 {
+        self.0.dropped_event_count()
+    }
+
+    /// In-flight depth between the I/O thread and the callback. `0` when
+    /// streaming has not started.
+    #[must_use]
+    pub fn ring_occupancy(&self) -> usize {
+        self.0.ring_occupancy()
+    }
+
+    /// Configured capacity of the streaming event ring in slots. `0`
+    /// when streaming has not started.
+    #[must_use]
+    pub fn ring_capacity(&self) -> usize {
+        self.0.ring_capacity()
+    }
+
+    /// Milliseconds since the most recent inbound streaming frame, or
+    /// `None` when streaming has not started or no frame arrived yet.
+    #[must_use]
+    pub fn millis_since_last_event(&self) -> Option<u64> {
+        self.0.millis_since_last_event()
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// frame. `0` when streaming has not started or no frame arrived yet.
+    #[must_use]
+    pub fn last_event_received_at_unix_nanos(&self) -> i64 {
+        self.0.last_event_received_at_unix_nanos()
+    }
+
+    /// Address (`host:port`) of the streaming server the session is
+    /// connected to. `None` when streaming has not started.
+    #[must_use]
+    pub fn last_connected_addr(&self) -> Option<String> {
+        self.0.last_connected_addr()
+    }
+
+    /// Cumulative count of user-callback faults. `0` when streaming has
+    /// not started.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        self.0.panic_count()
+    }
+
+    /// Increment the panic counter on the live session by one.
+    ///
+    /// Called by language-binding dispatchers when the user callback
+    /// raises a language-level exception that bypasses the Rust
+    /// `catch_unwind` boundary. No-op when streaming is not active.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
+    pub fn record_panic(&self) {
+        self.0.record_panic();
+    }
+
+    /// Set the slow-callback wall-clock threshold for the live session.
+    /// Pass `Duration::ZERO` to disable. No-op when streaming has not
+    /// started.
+    pub fn set_slow_callback_threshold(&self, threshold: Duration) {
+        self.0.set_slow_callback_threshold(threshold);
+    }
+
+    /// Snapshot of user-callback invocations whose wall-clock duration
+    /// exceeded the configured threshold. `0` when disabled or not
+    /// streaming.
+    #[must_use]
+    pub fn slow_callback_count(&self) -> u64 {
+        self.0.slow_callback_count()
     }
 }
 

@@ -1845,7 +1845,7 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 if let Some(&ms) = matches.get_one::<u64>("timeout-ms") {
                     args = args.with_timeout_ms(ms);
                 }
-                let output = invoke_endpoint(&client, ep.name, &args).await?;
+                let output = invoke_endpoint(client.historical(), ep.name, &args).await?;
                 render_output(ep, output, &fmt);
             } else {
                 // No sub-command: print help for this category

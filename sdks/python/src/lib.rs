@@ -1332,7 +1332,7 @@ impl Client {
     // one place to audit.
 
     fn __repr__(&self) -> String {
-        let streaming = if self.tdx.is_streaming() {
+        let streaming = if self.tdx.stream().is_streaming() {
             "streaming=connected"
         } else {
             "streaming=none"
@@ -1363,7 +1363,7 @@ impl Client {
     /// should poll this on a periodic timer and emit a log on any
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
-        self.tdx.dropped_event_count()
+        self.tdx.stream().dropped_event_count()
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1381,7 +1381,7 @@ impl Client {
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
-        self.tdx.ring_occupancy()
+        self.tdx.stream().ring_occupancy()
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1393,7 +1393,7 @@ impl Client {
     /// :meth:`dropped_event_count`). Returns 0 before
     /// `start_streaming` and after `stop_streaming`.
     fn ring_capacity(&self) -> usize {
-        self.tdx.ring_capacity()
+        self.tdx.stream().ring_capacity()
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1405,7 +1405,7 @@ impl Client {
     /// when no market data flows), so a steadily growing value is the
     /// earliest external signal of a dead or wedged connection.
     fn millis_since_last_event(&self) -> Option<u64> {
-        self.tdx.millis_since_last_event()
+        self.tdx.stream().millis_since_last_event()
     }
 
     /// UNIX-nanosecond receive timestamp of the most recent inbound
@@ -1414,14 +1414,14 @@ impl Client {
     /// :meth:`millis_since_last_event`, exposed for callers
     /// correlating against their own pipeline timestamps.
     fn last_event_received_at_unix_nanos(&self) -> i64 {
-        self.tdx.last_event_received_at_unix_nanos()
+        self.tdx.stream().last_event_received_at_unix_nanos()
     }
 
     /// Address (``host:port``) of the streaming server the current
     /// session is connected to, following the session across
     /// auto-reconnects. ``None`` when streaming has not started.
     fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.last_connected_addr()
+        self.tdx.stream().last_connected_addr()
     }
 }
 
@@ -1454,7 +1454,7 @@ impl Client {
     /// ```
     fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.subscribe(inner).map_err(to_py_err)
+        self.tdx.stream().subscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-subscribe a list / iterable of `Subscription` values.
@@ -1464,19 +1464,19 @@ impl Client {
     /// protocol does not support batched transactions).
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.subscribe_many(list).map_err(to_py_err)
+        self.tdx.stream().subscribe_many(list).map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.tdx.unsubscribe(inner).map_err(to_py_err)
+        self.tdx.stream().unsubscribe(inner).map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
     fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.tdx.unsubscribe_many(list).map_err(to_py_err)
+        self.tdx.stream().unsubscribe_many(list).map_err(to_py_err)
     }
 }
 

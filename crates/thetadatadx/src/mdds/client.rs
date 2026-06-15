@@ -41,7 +41,7 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// let creds = Credentials::from_file("creds.txt")?;
 /// let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 ///
-/// let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+/// let eod = tdx.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }

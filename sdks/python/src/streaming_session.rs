@@ -244,6 +244,7 @@ impl crate::Client {
         use crate::errors::to_py_err;
         use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
         self.tdx
+            .stream()
             .active_full_subscriptions()
             .map(|subs| {
                 subs.into_iter()
@@ -272,7 +273,7 @@ impl crate::Client {
     /// [`crate::fpss_client::StreamingClient`] and the upstream
     /// [`thetadatadx::Client::panic_count`].
     fn panic_count(&self) -> u64 {
-        self.tdx.panic_count()
+        self.tdx.stream().panic_count()
     }
 
     /// Current MDDS session UUID. Reads through the shared session

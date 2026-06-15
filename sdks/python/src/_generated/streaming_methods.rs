@@ -91,6 +91,7 @@ impl Client {
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
         self.tdx
+            .stream()
             .start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
@@ -115,7 +116,7 @@ impl Client {
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.record_panic();
+                            panic_recorder.stream().record_panic();
                         }
                     });
                 },
@@ -134,12 +135,13 @@ impl Client {
 
     /// Whether the streaming connection is active.
     fn is_streaming(&self) -> bool {
-        self.tdx.is_streaming()
+        self.tdx.stream().is_streaming()
     }
 
     /// Get a snapshot of currently active subscriptions.
     fn active_subscriptions(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {
         self.tdx
+            .stream()
             .active_subscriptions()
             .map(|subs| {
                 subs.into_iter()
@@ -202,6 +204,7 @@ impl Client {
         // across the idle wait; the per-event `Python::attach` is the
         // cheap reentrant fast path.
         self.tdx
+            .stream()
             .reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
@@ -218,7 +221,7 @@ impl Client {
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.record_panic();
+                            panic_recorder.stream().record_panic();
                         }
                     });
                 },
@@ -240,7 +243,7 @@ impl Client {
     ///
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
-        py.detach(|| self.tdx.stop_streaming());
+        py.detach(|| self.tdx.stream().stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -249,7 +252,7 @@ impl Client {
     ///
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     pub(crate) fn shutdown(&self, py: Python<'_>) {
-        py.detach(|| self.tdx.stop_streaming());
+        py.detach(|| self.tdx.stream().stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -257,7 +260,7 @@ impl Client {
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         py.detach(|| {
-            self.tdx.await_drain(std::time::Duration::from_millis(timeout_ms))
+            self.tdx.stream().await_drain(std::time::Duration::from_millis(timeout_ms))
         })
     }
 

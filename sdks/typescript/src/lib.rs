@@ -472,7 +472,7 @@ impl Client {
     /// (Number would top out at 2^53).
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.dropped_event_count())
+        napi::bindgen_prelude::BigInt::from(self.tdx.stream().dropped_event_count())
     }
 
     /// Point-in-time count of streaming events published into the
@@ -491,7 +491,7 @@ impl Client {
     /// streaming counters.
     #[napi(js_name = "ringOccupancy")]
     pub fn ring_occupancy(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.ring_occupancy() as u64)
+        napi::bindgen_prelude::BigInt::from(self.tdx.stream().ring_occupancy() as u64)
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -505,7 +505,7 @@ impl Client {
     /// shape-consistency with the other streaming counters.
     #[napi(js_name = "ringCapacity")]
     pub fn ring_capacity(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.ring_capacity() as u64)
+        napi::bindgen_prelude::BigInt::from(self.tdx.stream().ring_capacity() as u64)
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -519,6 +519,7 @@ impl Client {
     #[napi(js_name = "millisSinceLastEvent")]
     pub fn millis_since_last_event(&self) -> Option<napi::bindgen_prelude::BigInt> {
         self.tdx
+            .stream()
             .millis_since_last_event()
             .map(napi::bindgen_prelude::BigInt::from)
     }
@@ -530,7 +531,7 @@ impl Client {
     /// their own pipeline timestamps.
     #[napi(js_name = "lastEventReceivedAtUnixNanos")]
     pub fn last_event_received_at_unix_nanos(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.last_event_received_at_unix_nanos())
+        napi::bindgen_prelude::BigInt::from(self.tdx.stream().last_event_received_at_unix_nanos())
     }
 
     /// Address (`host:port`) of the streaming server the current
@@ -538,7 +539,7 @@ impl Client {
     /// auto-reconnects. `null` when streaming has not started.
     #[napi(js_name = "lastConnectedAddr")]
     pub fn last_connected_addr(&self) -> Option<String> {
-        self.tdx.last_connected_addr()
+        self.tdx.stream().last_connected_addr()
     }
 
     /// Cumulative count of user-callback panics caught at the per-event
@@ -552,7 +553,7 @@ impl Client {
     /// (Number would top out at 2^53).
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.tdx.panic_count())
+        napi::bindgen_prelude::BigInt::from(self.tdx.stream().panic_count())
     }
 
     /// Snapshot of full-stream subscriptions (e.g. `OPTION` /
@@ -569,6 +570,7 @@ impl Client {
     pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
         use thetadatadx::fpss::protocol::SubscriptionKind;
         self.tdx
+            .stream()
             .active_full_subscriptions()
             .map(|subs| {
                 serde_json::json!(subs
@@ -738,7 +740,7 @@ impl Client {
     /// `SecType.option().fullOpenInterest()` (full-stream scope).
     #[napi]
     pub fn subscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx.subscribe(sub.snapshot()).map_err(to_napi_err)
+        self.tdx.stream().subscribe(sub.snapshot()).map_err(to_napi_err)
     }
 
     /// Bulk-subscribe an array of `Subscription` values. Stops at the
@@ -747,20 +749,20 @@ impl Client {
     #[napi(js_name = "subscribeMany")]
     pub fn subscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.tdx.subscribe_many(snaps).map_err(to_napi_err)
+        self.tdx.stream().subscribe_many(snaps).map_err(to_napi_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     #[napi]
     pub fn unsubscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.tdx.unsubscribe(sub.snapshot()).map_err(to_napi_err)
+        self.tdx.stream().unsubscribe(sub.snapshot()).map_err(to_napi_err)
     }
 
     /// Bulk-unsubscribe an array of `Subscription` values.
     #[napi(js_name = "unsubscribeMany")]
     pub fn unsubscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.tdx.unsubscribe_many(snaps).map_err(to_napi_err)
+        self.tdx.stream().unsubscribe_many(snaps).map_err(to_napi_err)
     }
 }
 
