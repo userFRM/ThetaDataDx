@@ -27,7 +27,7 @@ from thetadatadx import AsyncClient
 tdx = AsyncClient.from_file("creds.txt")
 
 async def pull(day):
-    return await tdx.stock_history_trade_async("AAPL", day)
+    return await tdx.historical.stock_history_trade_async("AAPL", day)
 
 results = asyncio.run(asyncio.gather(*(pull(d) for d in days)))
 ```

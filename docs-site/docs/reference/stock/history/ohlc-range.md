@@ -30,6 +30,7 @@ Optional parameters chain on the builder: `.interval(&str)`, `.start_time(&str)`
 
 ```rust
 let rows = tdx
+    .historical()
     .stock_history_ohlc_range("AAPL", "20250303", "20250306")
     .interval("1m")
     .await?;
@@ -43,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.stock_history_ohlc_range(
+Client.historical.stock_history_ohlc_range(
     symbol, start_date, end_date,
     *,
     interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None,
@@ -55,7 +56,12 @@ Client.stock_history_ohlc_range(
 **Example**
 
 ```python
-rows = tdx.stock_history_ohlc_range("AAPL", "20250303", "20250306", interval="1m")
+rows = tdx.historical.stock_history_ohlc_range(
+    "AAPL",
+    "20250303",
+    "20250306",
+    interval="1m",
+)
 for t in rows:
     print(t.date, t.open, t.high, t.low, t.close)
 ```
@@ -76,7 +82,7 @@ Optional parameters ride in a single trailing options object: `interval?: string
 **Example**
 
 ```typescript
-const rows = await tdx.stockHistoryOHLCRange('AAPL', '20250303', '20250306', { interval: '1m' });
+const rows = await tdx.historical.stockHistoryOHLCRange('AAPL', '20250303', '20250306', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.open, t.high, t.low, t.close);
 }
@@ -99,7 +105,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_interval(...)`, `.
 **Example**
 
 ```cpp
-auto rows = client.stock_history_ohlc_range("AAPL", "20250303", "20250306",
+auto rows = client.historical().stock_history_ohlc_range("AAPL", "20250303", "20250306",
     thetadatadx::EndpointRequestOptions{}.with_interval("1m"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.high << ' ' << t.low << ' ' << t.close << "\n";

@@ -35,7 +35,7 @@ Execute with `.await` → `Result<Vec<InterestRateTick>, Error>`, or decode chun
 **Example**
 
 ```rust
-let rows = tdx.interest_rate_history_eod("SOFR", "20250303", "20250306").await?;
+let rows = tdx.historical().interest_rate_history_eod("SOFR", "20250303", "20250306").await?;
 for t in &rows {
     println!("date={} rate={}", t.date, t.rate);
 }
@@ -46,7 +46,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.interest_rate_history_eod(
+Client.historical.interest_rate_history_eod(
     symbol, start_date, end_date,
     *,
     timeout_ms=None,
@@ -58,7 +58,7 @@ Client.interest_rate_history_eod(
 **Example**
 
 ```python
-rows = tdx.interest_rate_history_eod("SOFR", "20250303", "20250306")
+rows = tdx.historical.interest_rate_history_eod("SOFR", "20250303", "20250306")
 for t in rows:
     print(t.date, t.rate)
 ```
@@ -79,7 +79,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.interestRateHistoryEOD('SOFR', '20250303', '20250306');
+const rows = await tdx.historical.interestRateHistoryEOD('SOFR', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.rate);
 }
@@ -102,7 +102,7 @@ Throws `thetadatadx::Error` on failure.
 **Example**
 
 ```cpp
-auto rows = client.interest_rate_history_eod("SOFR", "20250303", "20250306");
+auto rows = client.historical().interest_rate_history_eod("SOFR", "20250303", "20250306");
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.rate << "\n";
 }

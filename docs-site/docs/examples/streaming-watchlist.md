@@ -28,7 +28,7 @@ def on_event(event):
         trade_count[event.contract.symbol] += 1
 
 with tdx.streaming(on_event):
-    tdx.subscribe_many(
+    tdx.stream.subscribe_many(
         [Contract.stock(s).quote() for s in WATCHLIST]
         + [Contract.stock(s).trade() for s in WATCHLIST]
     )
@@ -38,7 +38,7 @@ with tdx.streaming(on_event):
         for sym in WATCHLIST:
             bid, ask = last_quote.get(sym, (None, None))
             print(f"{sym:6} bid={bid} ask={ask} trades={trade_count[sym]}")
-        print("dropped:", tdx.dropped_event_count())
+        print("dropped:", tdx.stream.dropped_event_count())
 ```
 
 Keep the callback to dictionary writes and counters — heavy work belongs on another thread feeding from these structures. `dropped_event_count()` staying at zero is the proof your callback keeps up; see [Reconnection & Monitoring](/streaming/reliability).

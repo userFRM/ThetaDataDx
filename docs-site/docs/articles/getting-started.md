@@ -102,7 +102,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 
-    let rows = tdx.stock_history_eod("AAPL", "20250303", "20250306").await?;
+    let rows = tdx.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
     for t in &rows {
         println!("{}: open={} close={} volume={}", t.date, t.open, t.close, t.volume);
     }
@@ -120,7 +120,7 @@ from thetadatadx import Config, Credentials, Client
 creds = Credentials.from_file("creds.txt")
 tdx = Client(creds, Config.production())
 
-rows = tdx.stock_history_eod("AAPL", "20250303", "20250306")
+rows = tdx.historical.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
     print(t.date, t.open, t.close, t.volume)
 ```

@@ -26,7 +26,7 @@ Execute with `.await` → `Result<Vec<String>, Error>`.
 **Example**
 
 ```rust
-let rows = tdx.stock_list_dates("trade", "AAPL").await?;
+let rows = tdx.historical().stock_list_dates("trade", "AAPL").await?;
 for value in &rows {
     println!("{value}");
 }
@@ -37,7 +37,11 @@ for value in &rows {
 <template #python>
 
 ```python
-Client.stock_list_dates(request_type, symbol, *, timeout_ms=None) -> StringList
+Client.historical.stock_list_dates(
+    request_type, symbol,
+    *,
+    timeout_ms=None,
+) -> StringList
 ```
 
 `stock_list_dates_async(...)` awaits the same call shape.
@@ -45,7 +49,7 @@ Client.stock_list_dates(request_type, symbol, *, timeout_ms=None) -> StringList
 **Example**
 
 ```python
-rows = tdx.stock_list_dates("trade", "AAPL")
+rows = tdx.historical.stock_list_dates("trade", "AAPL")
 for value in rows:
     print(value)
 ```
@@ -65,7 +69,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.stockListDates('trade', 'AAPL');
+const rows = await tdx.historical.stockListDates('trade', 'AAPL');
 for (const value of rows) {
   console.log(value);
 }
@@ -87,7 +91,7 @@ Throws `thetadatadx::Error` on failure.
 **Example**
 
 ```cpp
-auto rows = client.stock_list_dates("trade", "AAPL");
+auto rows = client.historical().stock_list_dates("trade", "AAPL");
 for (const auto& value : rows) {
     std::cout << value << "\n";
 }

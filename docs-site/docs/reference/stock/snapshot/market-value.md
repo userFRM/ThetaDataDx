@@ -28,7 +28,7 @@ Optional parameters chain on the builder: `.venue(&str)`, `.min_time(&str)`. Exe
 **Example**
 
 ```rust
-let rows = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+let rows = tdx.historical().stock_snapshot_market_value(&["AAPL"]).await?;
 for t in &rows {
     println!("date={} market_price={}", t.date, t.market_price);
 }
@@ -39,7 +39,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.stock_snapshot_market_value(
+Client.historical.stock_snapshot_market_value(
     symbols,
     *,
     venue=None, min_time=None, timeout_ms=None,
@@ -51,7 +51,7 @@ Client.stock_snapshot_market_value(
 **Example**
 
 ```python
-rows = tdx.stock_snapshot_market_value(["AAPL"])
+rows = tdx.historical.stock_snapshot_market_value(["AAPL"])
 for t in rows:
     print(t.date, t.market_price)
 ```
@@ -71,7 +71,7 @@ Optional parameters ride in a single trailing options object: `venue?: string`, 
 **Example**
 
 ```typescript
-const rows = await tdx.stockSnapshotMarketValue(['AAPL']);
+const rows = await tdx.historical.stockSnapshotMarketValue(['AAPL']);
 for (const t of rows) {
   console.log(t.date, t.marketPrice);
 }
@@ -92,7 +92,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.wit
 **Example**
 
 ```cpp
-auto rows = client.stock_snapshot_market_value({"AAPL"});
+auto rows = client.historical().stock_snapshot_market_value({"AAPL"});
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.market_price << "\n";
 }

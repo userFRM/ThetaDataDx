@@ -35,6 +35,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.int
 
 ```rust
 let rows = tdx
+    .historical()
     .option_history_greeks_all("SPY", "20250321", "20250303")
     .strike("570")
     .right("C")
@@ -50,7 +51,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.option_history_greeks_all(
+Client.historical.option_history_greeks_all(
     symbol, expiration, date,
     *,
     strike=None, right=None, interval=None, start_time=None, end_time=None,
@@ -64,7 +65,7 @@ Client.option_history_greeks_all(
 **Example**
 
 ```python
-rows = tdx.option_history_greeks_all(
+rows = tdx.historical.option_history_greeks_all(
     "SPY",
     "20250321",
     "20250303",
@@ -92,7 +93,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.optionHistoryGreeksAll('SPY', '20250321', '20250303', { strike: '570', right: 'C', interval: '1m' });
+const rows = await tdx.historical.optionHistoryGreeksAll('SPY', '20250321', '20250303', { strike: '570', right: 'C', interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.delta, t.gamma, t.theta, t.impliedVolatility);
 }
@@ -115,7 +116,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.wi
 **Example**
 
 ```cpp
-auto rows = client.option_history_greeks_all("SPY", "20250321", "20250303",
+auto rows = client.historical().option_history_greeks_all("SPY", "20250321", "20250303",
     thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_interval("1m"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.delta << ' ' << t.gamma << ' ' << t.theta << ' ' << t.implied_volatility << "\n";

@@ -20,17 +20,17 @@ use thetadatadx::fpss::protocol::SecTypeExt;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
-tdx.start_streaming(|event: &StreamEvent| {
+tdx.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
         println!("{} price={price} size={size}", contract.symbol);
     }
 })?;
 
 let sub = SecType::Stock.full_trades();
-tdx.subscribe(sub.clone())?;
+tdx.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)?;
+tdx.stream().unsubscribe(sub)?;
 ```
 
 </template>
@@ -44,13 +44,13 @@ def on_event(event):
     if event.kind == "trade":
         print(event.contract.symbol, event.price, event.size)
 
-tdx.start_streaming(on_event)
+tdx.stream.start_streaming(on_event)
 
 sub = SecType.STOCK.full_trades()
-tdx.subscribe(sub)
+tdx.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub)
+tdx.stream.unsubscribe(sub)
 ```
 
 </template>
@@ -60,7 +60,7 @@ tdx.unsubscribe(sub)
 ```typescript
 import { SecType } from 'thetadatadx';
 
-tdx.startStreaming((event) => {
+tdx.stream.startStreaming((event) => {
   if (event.kind === 'trade') {
     const e = event.trade!;
     console.log(e.contract.symbol, e.price, e.size);
@@ -68,10 +68,10 @@ tdx.startStreaming((event) => {
 });
 
 const sub = SecType.stock().fullTrades();
-tdx.subscribe(sub);
+tdx.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-tdx.unsubscribe(sub);
+tdx.stream.unsubscribe(sub);
 ```
 
 </template>
@@ -79,7 +79,7 @@ tdx.unsubscribe(sub);
 <template #cpp>
 
 ```cpp
-client.set_callback([](const thetadatadx::StreamEvent& event) {
+client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
     if (event.kind == TDX_FPSS_TRADE) {
         auto& e = event.trade;
         std::cout << e.contract.symbol << " price=" << e.price << " size=" << e.size << "\n";
@@ -87,10 +87,10 @@ client.set_callback([](const thetadatadx::StreamEvent& event) {
 });
 
 auto sub = thetadatadx::SecType::stock().full_trades();
-client.subscribe(sub);
+client.stream().subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
-client.unsubscribe(sub);
+client.stream().unsubscribe(sub);
 ```
 
 </template>

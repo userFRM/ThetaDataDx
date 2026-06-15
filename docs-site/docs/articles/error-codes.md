@@ -29,7 +29,7 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 from thetadatadx import NoDataFoundError, RateLimitError, ThetaDataError
 
 try:
-    rows = tdx.option_history_trade("SPY", "20250321", "20250303", strike="570", right="C")
+    rows = tdx.historical.option_history_trade("SPY", "20250321", "20250303", strike="570", right="C")
 except NoDataFoundError:
     rows = []                # nothing traded — a normal outcome, not a failure
 except RateLimitError:

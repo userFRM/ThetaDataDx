@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.start_time(&str)`, `.end_time(&str)`
 **Example**
 
 ```rust
-let rows = tdx.stock_history_trade_quote("AAPL", "20250303").await?;
+let rows = tdx.historical().stock_history_trade_quote("AAPL", "20250303").await?;
 for t in &rows {
     println!("ms_of_day={} price={} bid={} ask={}", t.ms_of_day, t.price, t.bid, t.ask);
 }
@@ -38,7 +38,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.stock_history_trade_quote(
+Client.historical.stock_history_trade_quote(
     symbol, date,
     *,
     start_time=None, end_time=None, exclusive=None, venue=None, start_date=None,
@@ -51,7 +51,7 @@ Client.stock_history_trade_quote(
 **Example**
 
 ```python
-rows = tdx.stock_history_trade_quote("AAPL", "20250303")
+rows = tdx.historical.stock_history_trade_quote("AAPL", "20250303")
 for t in rows:
     print(t.ms_of_day, t.price, t.bid, t.ask)
 ```
@@ -71,7 +71,7 @@ Optional parameters ride in a single trailing options object: `startTime?: strin
 **Example**
 
 ```typescript
-const rows = await tdx.stockHistoryTradeQuote('AAPL', '20250303');
+const rows = await tdx.historical.stockHistoryTradeQuote('AAPL', '20250303');
 for (const t of rows) {
   console.log(t.msOfDay, t.price, t.bid, t.ask);
 }
@@ -93,7 +93,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_start_time(...)`, 
 **Example**
 
 ```cpp
-auto rows = client.stock_history_trade_quote("AAPL", "20250303");
+auto rows = client.historical().stock_history_trade_quote("AAPL", "20250303");
 for (const auto& t : rows) {
     std::cout << t.ms_of_day << ' ' << t.price << ' ' << t.bid << ' ' << t.ask << "\n";
 }

@@ -30,6 +30,7 @@ Optional parameters chain on the builder: `.interval(&str)`, `.start_time(&str)`
 
 ```rust
 let rows = tdx
+    .historical()
     .index_history_price("SPX", "20250303")
     .interval("1m")
     .await?;
@@ -43,7 +44,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.index_history_price(
+Client.historical.index_history_price(
     symbol, date,
     *,
     interval=None, start_time=None, end_time=None, start_date=None,
@@ -56,7 +57,7 @@ Client.index_history_price(
 **Example**
 
 ```python
-rows = tdx.index_history_price("SPX", "20250303", interval="1m")
+rows = tdx.historical.index_history_price("SPX", "20250303", interval="1m")
 for t in rows:
     print(t.date, t.ms_of_day, t.price)
 ```
@@ -76,7 +77,7 @@ Optional parameters ride in a single trailing options object: `interval?: string
 **Example**
 
 ```typescript
-const rows = await tdx.indexHistoryPrice('SPX', '20250303', { interval: '1m' });
+const rows = await tdx.historical.indexHistoryPrice('SPX', '20250303', { interval: '1m' });
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }
@@ -98,7 +99,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_interval(...)`, `.
 **Example**
 
 ```cpp
-auto rows = client.index_history_price("SPX", "20250303",
+auto rows = client.historical().index_history_price("SPX", "20250303",
     thetadatadx::EndpointRequestOptions{}.with_interval("1m"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.price << "\n";

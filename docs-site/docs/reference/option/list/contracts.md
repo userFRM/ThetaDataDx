@@ -35,7 +35,7 @@ Optional parameters chain on the builder: `.max_dte(i32)`. Execute with `.await`
 **Example**
 
 ```rust
-let rows = tdx.option_list_contracts("trade", "SPY", "20250303").await?;
+let rows = tdx.historical().option_list_contracts("trade", "SPY", "20250303").await?;
 for t in &rows {
     println!("symbol={} expiration={} strike={} right={}", t.symbol, t.expiration, t.strike, t.right);
 }
@@ -46,7 +46,7 @@ for t in &rows {
 <template #python>
 
 ```python
-Client.option_list_contracts(
+Client.historical.option_list_contracts(
     request_type, symbol, date,
     *,
     max_dte=None, timeout_ms=None,
@@ -58,7 +58,7 @@ Client.option_list_contracts(
 **Example**
 
 ```python
-rows = tdx.option_list_contracts("trade", "SPY", "20250303")
+rows = tdx.historical.option_list_contracts("trade", "SPY", "20250303")
 for t in rows:
     print(t.symbol, t.expiration, t.strike, t.right)
 ```
@@ -78,7 +78,7 @@ Optional parameters ride in a single trailing options object: `maxDTE?: number`,
 **Example**
 
 ```typescript
-const rows = await tdx.optionListContracts('trade', 'SPY', '20250303');
+const rows = await tdx.historical.optionListContracts('trade', 'SPY', '20250303');
 for (const t of rows) {
   console.log(t.symbol, t.expiration, t.strike, t.right);
 }
@@ -101,7 +101,7 @@ Optional parameters chain on `EndpointRequestOptions`: `.with_max_dte(...)`. Thr
 **Example**
 
 ```cpp
-auto rows = client.option_list_contracts("trade", "SPY", "20250303");
+auto rows = client.historical().option_list_contracts("trade", "SPY", "20250303");
 for (const auto& t : rows) {
     std::cout << t.symbol << ' ' << t.expiration << ' ' << t.strike << ' ' << t.right << "\n";
 }
