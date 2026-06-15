@@ -18,7 +18,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     // never drift below the actual generated surface.
     out.push_str(
         "/// Names of every FPSS-touching method emitted on \
-         `Client`.\n",
+         `StreamView`.\n",
     );
     out.push_str(
         "/// SSOT for cross-class block-list drift checks (see \
@@ -31,7 +31,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     out.push_str("];\n\n");
 
     out.push_str("#[pymethods]\n");
-    out.push_str("impl Client {\n");
+    out.push_str("impl StreamView {\n");
     for method in methods {
         out.push_str(&python_streaming_method(method));
         out.push('\n');

@@ -204,7 +204,7 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
     out.push_str("}\n\n");
 
     out.push_str("#[pymethods]\n");
-    out.push_str("impl Client {\n");
+    out.push_str("impl HistoricalView {\n");
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))

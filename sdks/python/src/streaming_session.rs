@@ -52,10 +52,12 @@ impl StreamableHandle {
         }
     }
 
-    /// Invoke `start_streaming(callback)` through the typed enum.
+    /// Invoke `start_streaming(callback)` through the typed enum. The
+    /// unified-client streaming lifecycle lives on the `client.stream`
+    /// `StreamView` surface, so the `Tdx` arm dispatches through it.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming(callback),
+            Self::Tdx(handle) => handle.borrow(py).stream().start_streaming(callback),
             Self::Fpss(handle) => handle.borrow(py).start_streaming(callback),
         }
     }
@@ -63,7 +65,7 @@ impl StreamableHandle {
     /// Invoke `stop_streaming()` through the typed enum.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stop_streaming(py),
+            Self::Tdx(handle) => handle.borrow(py).stream().stop_streaming(py),
             Self::Fpss(handle) => handle.borrow(py).stop_streaming(py),
         }
     }
@@ -74,7 +76,7 @@ impl StreamableHandle {
     /// wait.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).await_drain(py, timeout_ms),
+            Self::Tdx(handle) => handle.borrow(py).stream().await_drain(py, timeout_ms),
             Self::Fpss(handle) => handle.borrow(py).await_drain(py, timeout_ms),
         }
     }
@@ -187,7 +189,21 @@ impl StreamingSession {
     /// defined on this class take precedence and never reach this
     /// proxy.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
-        Ok(self.tdx.bind_any(py).getattr(name)?.unbind())
+        let bound = self.tdx.bind_any(py);
+        // The unified client's subscription / diagnostic surface moved onto
+        // the `client.stream` `StreamView`, so the `Tdx` session arm resolves
+        // a name there first (e.g. `session.subscribe(...)`,
+        // `session.active_subscriptions`) before falling back to the methods
+        // that stay on `Client` (`session_uuid`, `subscription_info`,
+        // `active_full_subscriptions`, `panic_count`). The standalone
+        // `StreamingClient` arm keeps its flat surface and has no `stream`
+        // accessor, so the fallback path handles it unchanged.
+        if let Ok(stream) = bound.getattr("stream") {
+            if let Ok(attr) = stream.getattr(name) {
+                return Ok(attr.unbind());
+            }
+        }
+        Ok(bound.getattr(name)?.unbind())
     }
 }
 

@@ -42,11 +42,11 @@ use pyo3::prelude::*;
 
 use crate::{Client, Config, Credentials};
 
-/// Methods on [`crate::Client`] that touch the FPSS
-/// transport. Reaching for any of these through `HistoricalClient` raises
-/// `AttributeError` so callers who chose the MDDS-only surface
-/// cannot accidentally open an FPSS connection that would conflict
-/// with a parallel FPSS process.
+/// Methods on the `client.stream` [`crate::StreamView`] surface (plus
+/// the `stream` accessor itself) that touch the FPSS transport. Reaching
+/// for any of these through `HistoricalClient` raises `AttributeError` so
+/// callers who chose the MDDS-only surface cannot accidentally open an
+/// FPSS connection that would conflict with a parallel FPSS process.
 ///
 /// The block-list approach (vs. the inverted `AsyncClient`
 /// allowlist) keeps the historical / FLATFILES surface — which is
@@ -96,6 +96,11 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // pairs every name here with the
     // `mdds_client._blocked_fpss_methods()` introspection helper.
     "streaming",
+    // The `client.stream` sub-namespace accessor — blocking the
+    // accessor itself closes the transitive path
+    // `mdds.stream.subscribe(...)` that would otherwise reach the FPSS
+    // surface around the per-method block-list.
+    "stream",
 ];
 
 /// `const fn` byte-wise string compare for the compile-time guard
@@ -238,6 +243,16 @@ impl HistoricalClient {
             )));
         }
         let bound = self.inner.bind(py);
+        // Historical endpoints (sync, `*_async`, `*_builder`) live on the
+        // `client.historical` `HistoricalView` surface; resolve there first
+        // so `mdds.stock_history_eod(...)` keeps its flat call shape. The
+        // FLATFILES surface (`flat_files`, `dump_*`) and the remaining
+        // historical-session accessors stay on `Client` and resolve through
+        // the fallback.
+        let historical = bound.getattr("historical")?;
+        if let Ok(attr) = historical.getattr(name) {
+            return Ok(attr.unbind());
+        }
         Ok(bound.getattr(name)?.unbind())
     }
 
