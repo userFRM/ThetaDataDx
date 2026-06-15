@@ -141,7 +141,7 @@ def test_fpss_streaming_paths_release_the_gil() -> None:
 # ── runtime verification (live, GIL-release on hot path) ────────────
 
 
-def test_fpss_connect_releases_the_gil() -> None:
+def test_fpss_connect_releases_the_gil(monkeypatch) -> None:
     """Runtime probe: a sibling Python thread makes progress while
     `StreamingClient.start_streaming` blocks on the FPSS connect.
 
@@ -155,8 +155,21 @@ def test_fpss_connect_releases_the_gil() -> None:
     """
     import thetadatadx as td
 
+    # Point the primary streaming host at an RFC 5737 TEST-NET-1 address
+    # (guaranteed non-routable) so the TCP connect blocks until
+    # `streaming_connect_timeout_ms` on every runner, instead of failing
+    # fast against a reachable production host. `Config.production()`
+    # applies the THETADATA_STREAMING_* overrides.
+    monkeypatch.setenv("THETADATA_STREAMING_HOST", "192.0.2.1")
+    monkeypatch.setenv("THETADATA_STREAMING_PORT", "20000")
+
     creds = td.Credentials("user@example.com", "pw")
     config = td.Config.production()
+    # The env override only rewrites the primary host slot, leaving the
+    # other production hosts in place; pin fixed-order selection so the
+    # blackhole primary is the first connect attempt and the call blocks
+    # there rather than failing fast against a reachable host.
+    config.streaming_host_selection = "fixed_order"
     # Bound the connect window so the test stays fast while still being
     # long enough for the peer thread to accumulate a decisive count.
     config.streaming_connect_timeout_ms = 1500
@@ -185,14 +198,18 @@ def test_fpss_connect_releases_the_gil() -> None:
         stop.set()
         t.join(timeout=5.0)
 
-    # The connect must have actually blocked (otherwise the probe is
-    # vacuous). A non-routable host plus the connect-timeout floor
-    # guarantees a multi-hundred-ms block.
-    assert blocked_for > 0.2, (
-        f"connect returned too fast ({blocked_for:.3f}s) -- the probe "
-        "did not exercise a blocking connect; raise the host count or "
-        "lower reachability"
-    )
+    # The probe is only meaningful if the connect actually blocked. On a
+    # runner that RSTs the blackhole address (rather than dropping the
+    # SYN) the call returns immediately and the GIL-release window never
+    # opens -- skip rather than fail, since the structural test
+    # (`test_fpss_streaming_paths_release_the_gil`) covers the guarantee
+    # unconditionally.
+    if blocked_for <= 0.2:
+        pytest.skip(
+            f"connect returned in {blocked_for:.3f}s -- the blackhole host "
+            "did not produce a blocking connect on this runner, so the "
+            "GIL-release probe is vacuous"
+        )
     # If the GIL were held across the connect, the peer thread would be
     # frozen for the entire `blocked_for` window and `counter` would be
     # ~0. Releasing the GIL lets it spin freely; even a slow CI box
