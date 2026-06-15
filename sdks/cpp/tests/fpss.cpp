@@ -37,9 +37,9 @@ TEST_CASE("StreamingClient is move-constructible", "[fpss][offline]") {
 
 TEST_CASE("StreamingClient registers a callback and receives at least one event",
           "[fpss][live]") {
-    const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
+    const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {
-        SKIP("THETADX_LIVE_CREDS not set");
+        SKIP("THETADATADX_LIVE_CREDS not set");
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();

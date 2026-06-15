@@ -12,7 +12,7 @@ Pins the contract that the wrapper:
   underlying `Client` via `StreamingSession.__getattr__` proxy --
   no hand-listed mirror, single source of truth.
 
-Live tests are gated on ``THETADX_TEST_CREDS=path/to/creds.txt``
+Live tests are gated on ``THETADATADX_TEST_CREDS=path/to/creds.txt``
 because the underlying `Client` needs a real FPSS handshake.
 Static surface tests run without credentials.
 """
@@ -40,10 +40,10 @@ def _import_module():
 @pytest.fixture
 def client():
     """Build a real `Client` client or skip the test."""
-    creds_path = os.environ.get("THETADX_TEST_CREDS")
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
-            "set THETADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
         )
     mod = _import_module()
     creds = mod.Credentials.from_file(creds_path)

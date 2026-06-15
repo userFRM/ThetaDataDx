@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Path to the Rust FFI library (built with: cargo build --release -p thetadatadx-ffi)
-set(THETADX_FFI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../target/release" CACHE PATH
+set(THETADATADX_FFI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../target/release" CACHE PATH
     "Directory containing the platform-specific thetadatadx FFI artifacts")
 
 # ── thetadatadx C++ library ──
@@ -26,30 +26,30 @@ target_include_directories(thetadatadx_cpp PUBLIC
 add_library(thetadatadx_ffi SHARED IMPORTED GLOBAL)
 
 if(WIN32)
-    set(THETADX_FFI_IMPLIB "${THETADX_FFI_DIR}/thetadatadx_ffi.dll.lib")
-    set(THETADX_FFI_RUNTIME "${THETADX_FFI_DIR}/thetadatadx_ffi.dll")
-    if(NOT EXISTS "${THETADX_FFI_IMPLIB}")
-        message(FATAL_ERROR "thetadatadx FFI import library not found: ${THETADX_FFI_IMPLIB}")
+    set(THETADATADX_FFI_IMPLIB "${THETADATADX_FFI_DIR}/thetadatadx_ffi.dll.lib")
+    set(THETADATADX_FFI_RUNTIME "${THETADATADX_FFI_DIR}/thetadatadx_ffi.dll")
+    if(NOT EXISTS "${THETADATADX_FFI_IMPLIB}")
+        message(FATAL_ERROR "thetadatadx FFI import library not found: ${THETADATADX_FFI_IMPLIB}")
     endif()
     set_target_properties(thetadatadx_ffi PROPERTIES
-        IMPORTED_IMPLIB "${THETADX_FFI_IMPLIB}"
-        IMPORTED_LOCATION "${THETADX_FFI_RUNTIME}"
+        IMPORTED_IMPLIB "${THETADATADX_FFI_IMPLIB}"
+        IMPORTED_LOCATION "${THETADATADX_FFI_RUNTIME}"
     )
 elseif(APPLE)
-    set(THETADX_FFI_LIB "${THETADX_FFI_DIR}/libthetadatadx_ffi.dylib")
-    if(NOT EXISTS "${THETADX_FFI_LIB}")
-        message(FATAL_ERROR "thetadatadx FFI shared library not found: ${THETADX_FFI_LIB}")
+    set(THETADATADX_FFI_LIB "${THETADATADX_FFI_DIR}/libthetadatadx_ffi.dylib")
+    if(NOT EXISTS "${THETADATADX_FFI_LIB}")
+        message(FATAL_ERROR "thetadatadx FFI shared library not found: ${THETADATADX_FFI_LIB}")
     endif()
     set_target_properties(thetadatadx_ffi PROPERTIES
-        IMPORTED_LOCATION "${THETADX_FFI_LIB}"
+        IMPORTED_LOCATION "${THETADATADX_FFI_LIB}"
     )
 else()
-    set(THETADX_FFI_LIB "${THETADX_FFI_DIR}/libthetadatadx_ffi.so")
-    if(NOT EXISTS "${THETADX_FFI_LIB}")
-        message(FATAL_ERROR "thetadatadx FFI shared library not found: ${THETADX_FFI_LIB}")
+    set(THETADATADX_FFI_LIB "${THETADATADX_FFI_DIR}/libthetadatadx_ffi.so")
+    if(NOT EXISTS "${THETADATADX_FFI_LIB}")
+        message(FATAL_ERROR "thetadatadx FFI shared library not found: ${THETADATADX_FFI_LIB}")
     endif()
     set_target_properties(thetadatadx_ffi PROPERTIES
-        IMPORTED_LOCATION "${THETADX_FFI_LIB}"
+        IMPORTED_LOCATION "${THETADATADX_FFI_LIB}"
     )
 endif()
 

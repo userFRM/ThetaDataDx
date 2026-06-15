@@ -3,7 +3,7 @@
 // Confirms the connect / disconnect path against the production
 // server (live-only) and the type-level surface that does not need
 // credentials (offline). The live half is gated on
-// `THETADX_LIVE_CREDS` pointing at a `creds.txt` file with the
+// `THETADATADX_LIVE_CREDS` pointing at a `creds.txt` file with the
 // account email on line 1 and the password on line 2.
 
 #include <cstdlib>
@@ -56,9 +56,9 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
 }
 
 TEST_CASE("HistoricalClient::connect succeeds against the production server", "[lifecycle][live]") {
-    const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
+    const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {
-        SKIP("THETADX_LIVE_CREDS not set");
+        SKIP("THETADATADX_LIVE_CREDS not set");
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();

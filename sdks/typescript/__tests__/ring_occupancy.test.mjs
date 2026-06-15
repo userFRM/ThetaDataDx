@@ -15,7 +15,7 @@
 // positive power-of-two capacity with occupancy bounded by it while a
 // stream is live.
 //
-// The live section is gated on THETADX_TEST_CREDS=/path/to/creds.txt —
+// The live section is gated on THETADATADX_TEST_CREDS=/path/to/creds.txt —
 // the underlying `Client.connectFromFile(...)` needs a live
 // FPSS handshake. Skips silently on dev machines without creds; CI
 // runs this in the surfaces job. Mirrors dropped_events.test.mjs.
@@ -48,11 +48,11 @@ describe('client.stream.ringOccupancy() / client.stream.ringCapacity()', () => {
   });
 
   it('is callable across the streaming lifecycle and reads 0n when stopped', async () => {
-    const credsPath = process.env.THETADX_TEST_CREDS;
+    const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
       // Live test — credentials are a legitimate runtime opt-in, not a build artefact.
       console.log(
-        'SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt to enable this live test'
+        'SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt to enable this live test'
       );
       return;
     }

@@ -44,12 +44,12 @@ TEST_CASE("ThetaDataError is the root of the SDK exception hierarchy",
 
 TEST_CASE("throw_for_code routes config discriminants to their leaf classes",
           "[errors][offline]") {
-    // A rejected client parameter (`TDX_ERR_INVALID_PARAMETER`) must
+    // A rejected client parameter (`THETADATADX_ERR_INVALID_PARAMETER`) must
     // surface as `InvalidParameterError`, distinguishable by catch type
-    // from the environmental config fault (`TDX_ERR_CONFIG`) that
+    // from the environmental config fault (`THETADATADX_ERR_CONFIG`) that
     // surfaces as `ConfigError`.
     try {
-        thetadatadx::detail::throw_for_code(TDX_ERR_INVALID_PARAMETER, "bad date");
+        thetadatadx::detail::throw_for_code(THETADATADX_ERR_INVALID_PARAMETER, "bad date");
         FAIL("throw_for_code must throw");
     } catch (const thetadatadx::InvalidParameterError&) {
         // expected
@@ -60,10 +60,10 @@ TEST_CASE("throw_for_code routes config discriminants to their leaf classes",
     // The environmental config code routes to the dedicated
     // `ConfigError` leaf, not `InvalidParameterError` and not the root.
     try {
-        thetadatadx::detail::throw_for_code(TDX_ERR_CONFIG, "toml parse");
+        thetadatadx::detail::throw_for_code(THETADATADX_ERR_CONFIG, "toml parse");
         FAIL("throw_for_code must throw");
     } catch (const thetadatadx::InvalidParameterError& e) {
-        FAIL("TDX_ERR_CONFIG must not surface as InvalidParameterError: " << e.what());
+        FAIL("THETADATADX_ERR_CONFIG must not surface as InvalidParameterError: " << e.what());
     } catch (const thetadatadx::ConfigError&) {
         // expected — environmental config fault
     } catch (const thetadatadx::ThetaDataError& e) {
@@ -169,12 +169,12 @@ TEST_CASE("forced Unauthenticated from a real RPC surfaces as AuthenticationErro
     // as a typed error. The C++ wrapper must catch on
     // `AuthenticationError`, not the generic `std::runtime_error`.
     //
-    // Gated on `THETADX_LIVE_CREDS` because Nexus must actually be
+    // Gated on `THETADATADX_LIVE_CREDS` because Nexus must actually be
     // reachable for the error path to fire — the offline harness
     // can't stand it up.
-    const char* creds_path_raw = std::getenv("THETADX_LIVE_CREDS");
+    const char* creds_path_raw = std::getenv("THETADATADX_LIVE_CREDS");
     if (creds_path_raw == nullptr) {
-        SKIP("THETADX_LIVE_CREDS not set");
+        SKIP("THETADATADX_LIVE_CREDS not set");
     }
 
     auto bogus = thetadatadx::Credentials::from_email("not-a-real-user@example.invalid",

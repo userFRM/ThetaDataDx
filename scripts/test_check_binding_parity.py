@@ -540,11 +540,11 @@ def test_error_leaf_code_renumber_trips() -> None:
     leaves = set(cbp.CANONICAL_ERROR_LEAVES)
     codes = dict(cbp.CANONICAL_ERROR_CODES)
     bad = dict(codes)
-    bad["TDX_ERR_STREAM"] = 99
+    bad["THETADATADX_ERR_STREAM"] = 99
     errors = cbp._check_error_leaf_parity(
         leaves, leaves, leaves, bad, set(codes), bad
     )
-    assert any("ffi" in e and "TDX_ERR_STREAM" in e for e in errors), (
+    assert any("ffi" in e and "THETADATADX_ERR_STREAM" in e for e in errors), (
         f"a renumbered FFI code must trip; got {errors!r}"
     )
 
@@ -556,11 +556,11 @@ def test_error_leaf_header_drift_trips() -> None:
     leaves = set(cbp.CANONICAL_ERROR_LEAVES)
     codes = dict(cbp.CANONICAL_ERROR_CODES)
     header = dict(codes)
-    header["TDX_ERR_CONFIG"] = 42
+    header["THETADATADX_ERR_CONFIG"] = 42
     errors = cbp._check_error_leaf_parity(
         leaves, leaves, leaves, codes, set(codes), header
     )
-    assert any("cpp header" in e and "TDX_ERR_CONFIG" in e for e in errors), (
+    assert any("cpp header" in e and "THETADATADX_ERR_CONFIG" in e for e in errors), (
         f"a C-header code drift must trip; got {errors!r}"
     )
 

@@ -21,7 +21,7 @@ This shape mirrors the TypeScript binding's
 across SDKs.
 
 Surface-existence checks run offline against the pyclass types; the
-lifecycle checks are gated on ``THETADX_TEST_CREDS=path/to/creds.txt``
+lifecycle checks are gated on ``THETADATADX_TEST_CREDS=path/to/creds.txt``
 because ``Client`` needs a live FPSS handshake, mirroring
 the dropped-events test.
 
@@ -56,10 +56,10 @@ def _import_module():
 @pytest.fixture
 def client():
     """Build a real `Client` client or skip the test."""
-    creds_path = os.environ.get("THETADX_TEST_CREDS")
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
-            "set THETADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
         )
     thetadatadx = _import_module()
 

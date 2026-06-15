@@ -141,7 +141,7 @@ jobs:
           print(round(iv, 6), round(err, 6))
           PY
       # Run the Python pytest suite against the freshly-installed wheel. The
-      # `THETADX_TEST_CREDS`-gated tests skip cleanly without secrets so this
+      # `THETADATADX_TEST_CREDS`-gated tests skip cleanly without secrets so this
       # step exercises the install path AND the public-API surface contracts
       # that don't need a live FPSS handshake. Kept as a separate step from
       # the import smoke above so a pytest regression points at the suite,
@@ -224,12 +224,12 @@ jobs:
           path: dist/
       - shell: bash
         run: |
-          python -m venv /tmp/tdx-smoke
-          /tmp/tdx-smoke/bin/pip install --upgrade pip
-          /tmp/tdx-smoke/bin/pip install pytest
-          /tmp/tdx-smoke/bin/pip install dist/*.whl
-          /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_fresh_install_smoke.py -v
-          /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_module_exports.py -v
+          python -m venv /tmp/thetadatadx-smoke
+          /tmp/thetadatadx-smoke/bin/pip install --upgrade pip
+          /tmp/thetadatadx-smoke/bin/pip install pytest
+          /tmp/thetadatadx-smoke/bin/pip install dist/*.whl
+          /tmp/thetadatadx-smoke/bin/python -m pytest sdks/python/tests/test_fresh_install_smoke.py -v
+          /tmp/thetadatadx-smoke/bin/python -m pytest sdks/python/tests/test_module_exports.py -v
 
   nogil-throughput:
     # Parallel-throughput gate — only meaningful on the free-threaded

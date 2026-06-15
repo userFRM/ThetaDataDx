@@ -80,7 +80,7 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == TDX_FPSS_OPEN_INTEREST) {
+    if (event.kind == THETADATADX_FPSS_OPEN_INTEREST) {
         auto& e = event.open_interest;
         std::cout << e.contract.symbol << " oi=" << e.open_interest << "\n";
     }

@@ -43,7 +43,7 @@ jobs:
       # symbol inventory from `nm -D --defined-only` on the compiled
       # .so. A regex pass over source would miss macro-emitted symbols
       # (`tick_array_free!` etc.); the nm-based ground truth catches
-      # every exported `tdx_*` symbol the loader will actually expose.
+      # every exported `thetadatadx_*` symbol the loader will actually expose.
       - run: cargo build -p thetadatadx-ffi --release
       - run: python3 scripts/check_c_abi_completeness.py
 
