@@ -14,7 +14,7 @@
 //! seven endpoints whose silent mis-routing previously dropped the
 //! trade-side execution / EOD trade-quote columns, the harness:
 //!
-//!   1. Loads the verified-live capture fixture as a raw
+//!   1. Loads the captured wire fixture as a raw
 //!      `proto::ResponseData`.
 //!   2. Spins up the in-process `grpc_mock_server` mock and serves
 //!      that single `ResponseData` chunk under the gRPC stub path
@@ -95,8 +95,7 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
     let first = ticks.first().expect("non-empty ticks");
     // EOD trade-quote columns the earlier routing dropped. Pin values
-    // from the verified-live capture (terminal jar `202605221`,
-    // fixture meta `first_row_*`).
+    // from the captured wire fixture (fixture meta `first_row_*`).
     assert!(
         (first.open - 41.71).abs() < 1e-4,
         "open dropped or wrong (got {})",

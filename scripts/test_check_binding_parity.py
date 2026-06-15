@@ -746,6 +746,55 @@ def test_from_file_parity_live_sources_clean() -> None:
     assert errors == [], f"live from_file sources must be clean; got {errors!r}"
 
 
+# ─── Client view-accessor reverse-orphan ───────────────────────────
+
+
+def test_client_view_accessors_all_enrolled_passes() -> None:
+    """Every view accessor present on `Client` has an enrolling row."""
+    rows = [
+        {"class": "Client", "name": "historical", "python": True, "typescript": True, "cpp": True},
+        {"class": "Client", "name": "stream", "python": True, "typescript": True, "cpp": True},
+        {"class": "Client", "name": "flatFiles", "python": True, "typescript": True, "cpp": True},
+    ]
+    py_methods = {"Client": {"historical", "stream", "flat_files"}}
+    ts_methods = {"Client": {"historical", "stream", "flatFiles"}}
+    cpp_methods = {"Client": {"historical", "stream", "flat_files"}}
+    errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+    assert errors == [], f"fully-enrolled view accessors must pass; got {errors!r}"
+
+
+def test_client_view_accessor_orphan_trips() -> None:
+    """A view accessor on `Client` with no enrolling row trips the gate."""
+    rows = [
+        {"class": "Client", "name": "historical", "python": True, "typescript": True, "cpp": True},
+        {"class": "Client", "name": "stream", "python": True, "typescript": True, "cpp": True},
+        # `flatFiles` deliberately omitted — present on the bindings below.
+    ]
+    py_methods = {"Client": {"historical", "stream", "flat_files"}}
+    ts_methods = {"Client": {"historical", "stream", "flatFiles"}}
+    cpp_methods = {"Client": {"historical", "stream", "flat_files"}}
+    errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+    assert any("flatFiles" in e and "no Client [[method]] row" in e for e in errors), (
+        f"an unenrolled view accessor must trip the reverse-orphan scan; got {errors!r}"
+    )
+
+
+def test_client_view_accessors_live_sources_enrolled() -> None:
+    """The live `Client` view accessors are all enrolled and symmetric."""
+    import tomllib
+
+    data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    rows = data.get("method", [])
+    py_methods = cbp._collect_python_class_methods(cbp.PY_SRC)
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
+    errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+    accessor_errors = [e for e in errors if "view accessor" in e]
+    assert accessor_errors == [], (
+        f"live Client view accessors must be enrolled; got {accessor_errors!r}"
+    )
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -778,6 +827,9 @@ def main() -> int:
     _check("from-file untracked client trips", test_from_file_untracked_client_trips)
     _check("from-file FFI stem maps class name", test_from_file_ffi_stem_maps_class_name)
     _check("from-file live sources clean", test_from_file_parity_live_sources_clean)
+    _check("client view accessors all-enrolled passes", test_client_view_accessors_all_enrolled_passes)
+    _check("client view accessor orphan trips", test_client_view_accessor_orphan_trips)
+    _check("client view accessors live sources enrolled", test_client_view_accessors_live_sources_enrolled)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")

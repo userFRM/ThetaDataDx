@@ -659,6 +659,8 @@ impl IndexPriceAtTimeTick {
 
 /// Interest rate tick. End-of-day interest rate (percent).
 ///
+/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`:
+///
 /// The `date` decode flows through `thetadatadx::decode::row_date`, which
 /// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
 /// decodes either the documented Text-ISO shape or any future
@@ -686,6 +688,8 @@ impl InterestRateTick {
 }
 
 /// Implied volatility tick.
+///
+/// The `option_history_greeks_implied_volatility` wire columns map as:
 ///
 /// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
 /// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
@@ -801,7 +805,12 @@ impl MarketValueTick {
 
 /// OHLC tick. Aggregated bar data including SIP-rule VWAP.
 ///
-/// The snapshot variants (`*_snapshot_ohlc`) omit `vwap`; the generated parser's optional-column path defaults the field to `0.0` for those endpoints, mirroring how `volume`/`count` already zero-default on quote-only intraday bars.
+/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`
+/// emit the same 8 data columns (`timestamp,open,high,low,close,
+/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
+/// `vwap`; the generated parser's optional-column path defaults the
+/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
+/// already zero-default on quote-only intraday bars.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1144,7 +1153,9 @@ impl TradeGreeksAllTick {
     }
 }
 
-/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+/// / lambda) paired with the trade-side execution columns identifying the
+/// OPRA print each Greek was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1229,7 +1240,10 @@ impl TradeGreeksFirstOrderTick {
     }
 }
 
-/// Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against.
+/// Per-trade implied-volatility tick (single `implied_volatility` +
+/// `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
+/// `IvTick`) paired with the trade-side execution columns identifying the
+/// OPRA print the IV was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1302,7 +1316,9 @@ impl TradeGreeksImpliedVolatilityTick {
     }
 }
 
-/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against.
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+/// veta) paired with the trade-side execution columns identifying the OPRA
+/// print each Greek was calculated against.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -1385,7 +1401,10 @@ impl TradeGreeksSecondOrderTick {
     }
 }
 
-/// Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`.
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+/// paired with the trade-side execution columns identifying the OPRA print
+/// each Greek was calculated against. The vendor's third-order schema does
+/// not publish `vera`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]

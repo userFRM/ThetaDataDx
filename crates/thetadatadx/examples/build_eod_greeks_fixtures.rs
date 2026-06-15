@@ -1,12 +1,11 @@
-//! Build verified-live fixtures for the EOD-Greek and index-price
+//! Build wire-shape fixtures for the EOD-Greek and index-price
 //! parser regression tests:
 //!   * `option_history_greeks_eod` -> `GreeksEodTick`
 //!   * `index_at_time_price`        -> `IndexPriceAtTimeTick`
 //!
 //! Each fixture is a single `proto::ResponseData` whose `compressed_data`
 //! is a zstd-compressed `proto::DataTable` with the EXACT wire shape the
-//! terminal jar build `202605221` emitted (queried via `curl
-//! http://127.0.0.1:25503/v3/...`).
+//! server emits (queried via `curl http://127.0.0.1:25503/v3/...`).
 //!
 //! Headers come from the captured CSV header row; the per-row values are
 //! captured CSV row 1 verbatim, encoded as the same `DataValue` shapes
@@ -78,7 +77,7 @@ fn dv_text(s: &str) -> proto::DataValue {
 // option_history_greeks_eod -- SPY 2024-06-21 500 CALL on 2024-06-14
 // ────────────────────────────────────────────────────────────────────────
 //
-// CSV row 1 (verified-live from terminal jar build `202605221`):
+// CSV row 1 (captured from the live server):
 //   "SPY","2024-06-21",500.000,"CALL",
 //   2024-06-14T16:11:12.295,41.71,42.78,40.48,42.78,683,99,
 //   325,5,42.39,50,418,5,43.25,50,
@@ -159,7 +158,7 @@ fn build_greeks_eod_row() -> proto::DataValueList {
 // index_at_time_price -- SPX 2024-06-14 10:30:00 ET
 // ────────────────────────────────────────────────────────────────────────
 //
-// CSV row 1 (verified-live from terminal jar build `202605221`):
+// CSV row 1 (captured from the live server):
 //   2024-06-14T10:30:00.000,0,255,255,255,255,0,0,5,5414.14
 //
 // Index prints carry sequence=0 (no SIP sequence assigned), ext_conditions

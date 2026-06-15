@@ -332,7 +332,7 @@ fn replay_success_fixture_emits_expected_event_sequence() {
 
 /// Drive the pathological fixture and verify the framing layer never
 /// panics, never deadlocks, and surfaces a typed error on truncation.
-/// Unknown opcodes are silently consumed (matches Java terminal
+/// Unknown opcodes are silently consumed (matches JVM terminal
 /// behaviour); corrupt FIT data falls through to `RawData`.
 #[test]
 fn replay_pathological_fixture_never_panics_or_blocks() {

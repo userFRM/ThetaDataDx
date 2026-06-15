@@ -1121,6 +1121,20 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     return out
 
 
+# The unified `Client`'s data surfaces are reached through view
+# accessors that return a cheap handle clone (`historical`, `stream`,
+# `flatFiles`). They are hand-written per binding rather than generated
+# from `endpoint_surface.toml`, so a drop or rename in one binding would
+# otherwise pass silently. The forward `[[method]]` check catches a drop
+# of a declared accessor; this roster anchors the reverse-direction scan
+# that catches a NEW symmetric view accessor added on a binding without
+# an enrolling row. Names are the canonical camelCase row spelling; the
+# scan derives the per-binding form exactly as the forward check does.
+CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
+    {"historical", "stream", "flatFiles"}
+)
+
+
 def _check_method_rows(
     method_rows: list[dict[str, Any]],
     py_methods: dict[str, set[str]],
@@ -1134,6 +1148,12 @@ def _check_method_rows(
     verifies the actual binding state against the declared state and
     returns a list of human-readable mismatch strings (empty when
     every row matches).
+
+    Beyond the per-row forward check, the unified `Client` view accessors
+    (`CLIENT_VIEW_ACCESSORS`) get a reverse-direction orphan scan: a view
+    accessor that exists on the `Client` class in a binding but carries no
+    enrolling `Client` `[[method]]` row trips the gate, so a future
+    accessor cannot ship on one binding untracked.
     """
     errors: list[str] = []
     for row in method_rows:
@@ -1200,6 +1220,40 @@ def _check_method_rows(
                 f"actual={actual_cpp} ({verb} -- expected `{snake}(` "
                 f"or `get_{snake}(` inside `class {cpp_class}` body in "
                 f"sdks/cpp/include/thetadatadx.hpp)"
+            )
+
+    # Reverse-direction orphan scan for the unified-client view accessors.
+    # An accessor present on the `Client` class in a binding but carrying
+    # no enrolling `Client` `[[method]]` row is undocumented drift: the
+    # symmetric `historical` / `stream` / `flatFiles` surface stays in
+    # lockstep only if every accessor each binding exposes is enrolled.
+    enrolled_client_methods = {
+        row["name"]
+        for row in method_rows
+        if row.get("class") == "Client" and row.get("name")
+    }
+    py_client = py_methods.get("Client", set())
+    ts_client = ts_methods.get("Client", set())
+    cpp_client = cpp_methods.get(_cpp_class_for("Client"), set())
+    for camel in sorted(CLIENT_VIEW_ACCESSORS):
+        if camel in enrolled_client_methods:
+            continue
+        snake = _camel_to_snake(camel)
+        present_on = sorted(
+            lang
+            for lang, seen in (
+                ("python", snake in py_client or f"get_{snake}" in py_client),
+                ("typescript", camel in ts_client),
+                ("cpp", snake in cpp_client or f"get_{snake}" in cpp_client),
+            )
+            if seen
+        )
+        if present_on:
+            errors.append(
+                f"  Client.{camel}: view accessor present on {present_on} but "
+                f"has no Client [[method]] row. Add one enrolling its "
+                f"per-binding presence so the unified-client view surface "
+                f"stays tracked."
             )
 
     return errors

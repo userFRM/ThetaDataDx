@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Columnar output — DataFrame / Arrow column names follow the public field names everywhere: `OptionContract` tables emit `symbol` (was the wire spelling `root`) and `InterestRateTick` tables emit `date` (was the wire spelling `created`), matching the row-object attributes.
 - HTTP server — REST responses carry the vendor's v3 field shapes for contract identity: `expiration` is an ISO `YYYY-MM-DD` string and EOD rows use the `created` / `last_trade` keys. Time-of-day values remain Eastern-Time millisecond integers paired with `date`, documented as the SDK's raw-time convention.
 - Python stub — the `StreamParseError` stub alias and the phantom `Error` exception stub are gone; the stub names match the runtime exactly.
-- The async worker-thread configuration knob is renamed to a neutral client name on every binding: Python `worker_threads`, TypeScript `setWorkerThreadsExplicit` / `workerThreads` (and the exported `WorkerThreadsSetting`), C++ `set_worker_threads_explicit` / `get_worker_threads`, and the C-ABI `thetadatadx_config_set_worker_threads_explicit` / `thetadatadx_config_get_worker_threads` (the prior names carried a runtime-internal token). The presence-plus-value ABI shape is unchanged.
+- The async worker-thread configuration knob is renamed to a neutral client name on every binding: Python `worker_threads`, TypeScript `setWorkerThreads` / `workerThreads` (and the exported `WorkerThreadsSetting`), C++ `set_worker_threads` / `get_worker_threads`, and the C-ABI `thetadatadx_config_set_worker_threads` / `thetadatadx_config_get_worker_threads` (the prior names carried a runtime-internal token). The presence-plus-value ABI shape is unchanged.
 
 ### Added
 

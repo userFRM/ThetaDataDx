@@ -1,7 +1,7 @@
 //! `option_history_trade_greeks_*` regression tests.
 //!
-//! Five fixtures replay the verified-live wire shape (terminal jar build
-//! `202605221`) for the five `option_history_trade_greeks_*` endpoints
+//! Five fixtures replay the captured wire shape for the five
+//! `option_history_trade_greeks_*` endpoints
 //! and assert that the sibling tick types preserve every column the
 //! server publishes -- specifically the nine trade-side execution
 //! columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
@@ -93,7 +93,7 @@ fn assert_f64_eq(field: &str, got: f64, expected: f64) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Per-endpoint tests. Each pins the verified-live header list, decodes
+// Per-endpoint tests. Each pins the captured header list, decodes
 // through the production `decode_data_table` -> per-tick parser path,
 // and asserts the nine trade-side columns are present AND the Greek
 // values match the captured row 1 verbatim.

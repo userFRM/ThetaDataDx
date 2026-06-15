@@ -89,7 +89,7 @@ fn reconnect_storm_preserves_framing_invariants() {
     // The decoder state spans cycles in production: between
     // reconnects the io_loop preserves the `DeltaState` cache (FIT
     // delta sequences may resume after a transient disconnect, per
-    // Java terminal). What MUST reset is the framing state and the
+    // JVM terminal). What MUST reset is the framing state and the
     // contract cache (cleared on each session's MarketOpen / restart
     // — and in a real reconnect, on the new login itself).
     let mut delta = DeltaState::new();

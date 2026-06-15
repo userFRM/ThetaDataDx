@@ -1,9 +1,9 @@
-//! Build verified-live `option_history_trade_greeks_*` fixtures used by
+//! Build `option_history_trade_greeks_*` fixtures used by
 //! `tests/test_trade_greeks_schema.rs`.
 //!
 //! Each fixture is a single `proto::ResponseData` whose `compressed_data`
 //! is a zstd-compressed `proto::DataTable` with the EXACT wire shape the
-//! terminal jar build `202605221` emitted for SPY 2026-01-16 540 CALL on
+//! server emits for SPY 2026-01-16 540 CALL on
 //! 2025-05-02 (queried via `curl
 //! http://127.0.0.1:25503/v3/option/history/trade_greeks/<sub>?...`).
 //!

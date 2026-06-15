@@ -438,7 +438,7 @@ cpp = true          # `ThetaDataDxStreamParseError` C struct, `thetadatadx::Stre
 
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
-# Two tick types model the verified-live wire shape on two endpoints
+# Two tick types model the captured wire shape on two endpoints
 # whose earlier routing dropped server-emitted columns:
 #
 #   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
@@ -940,6 +940,34 @@ ffi = true
 # cross-binding setter contract at the field level.
 
 # ── Client (the unified entry-point client) ──
+#
+# The unified `Client` exposes its data surfaces through three view
+# accessors — `historical`, `stream`, and `flatFiles` — each returning a
+# cheap handle clone over the inner client. They are symmetric across
+# Python (`#[getter]`), TypeScript (`#[napi(getter)]`), and C++ (a member
+# accessor), and the reverse-orphan scan below fails if any binding drops
+# or renames one without the matrix recording it.
+
+[[method]]
+class = "Client"
+name = "historical"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Client"
+name = "stream"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Client"
+name = "flatFiles"
+python = true
+typescript = true
+cpp = true
 
 [[method]]
 class = "StreamView"
