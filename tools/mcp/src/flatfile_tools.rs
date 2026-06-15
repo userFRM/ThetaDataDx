@@ -258,8 +258,74 @@ pub(crate) async fn try_execute_flatfile_tool(
             "format": format.extension(),
             "date": date,
         })),
-        Err(e) => Err(ToolError::ServerError(crate::sanitize_error(
-            &e.to_string(),
-        ))),
+        Err(e) => Err(classify_core_error(&e)),
     })
+}
+
+/// Map a core [`thetadatadx::Error`] onto the JSON-RPC error taxonomy.
+///
+/// An unserved `(sec_type, req_type)` pair fails the SDK's local dataset
+/// gate with a typed invalid-parameter error before any upstream call —
+/// that is a client request fault (`-32602` Invalid params), not a
+/// server-side outage (`-32000` Server error). This mirrors the REST
+/// `400` and C-ABI `TDX_ERR_INVALID_PARAMETER` mappings: any core error
+/// whose kind reports [`is_invalid_parameter`](thetadatadx::ConfigErrorKind::is_invalid_parameter)
+/// routes to Invalid params, generically — never keyed on the tool name.
+fn classify_core_error(e: &thetadatadx::Error) -> ToolError {
+    let message = crate::sanitize_error(&e.to_string());
+    if matches!(
+        e,
+        thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter()
+    ) {
+        ToolError::InvalidParams(message)
+    } else {
+        ToolError::ServerError(message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An unserved (sec_type, req_type) flat-file pair — e.g. option
+    /// quote — is rejected by the core dataset gate with the same typed
+    /// invalid-parameter error reproduced here. It must surface through
+    /// the MCP tool dispatch as `-32602` Invalid params (via
+    /// `ToolError::InvalidParams`), mirroring the REST 400, not `-32000`
+    /// Server error.
+    #[test]
+    fn unserved_pair_maps_to_invalid_params() {
+        // Byte-for-byte the error the core dataset gate raises for an
+        // unserved pair (see flatfiles::request::validate_dataset).
+        let err = thetadatadx::Error::config_invalid(
+            "flatfiles.dataset",
+            "flat-file service does not serve option quote",
+        );
+        let thetadatadx::Error::Config { kind, .. } = &err else {
+            panic!("config_invalid must build an Error::Config");
+        };
+        assert!(
+            kind.is_invalid_parameter(),
+            "the unserved-pair error must classify as invalid-parameter"
+        );
+        assert!(
+            matches!(classify_core_error(&err), ToolError::InvalidParams(_)),
+            "MCP dispatch must route an invalid-parameter core error to -32602 Invalid params"
+        );
+    }
+
+    /// A genuine upstream/server fault carries no invalid-parameter
+    /// classification and must stay on `-32000` Server error.
+    #[test]
+    fn server_fault_maps_to_server_error() {
+        let err = thetadatadx::Error::config_internal("flatfiles: decode task panicked");
+        let thetadatadx::Error::Config { kind, .. } = &err else {
+            panic!("config_internal must build an Error::Config");
+        };
+        assert!(!kind.is_invalid_parameter());
+        assert!(matches!(
+            classify_core_error(&err),
+            ToolError::ServerError(_)
+        ));
+    }
 }

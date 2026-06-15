@@ -51,12 +51,12 @@ Failures use one envelope shape across every route — see the [error codes tabl
 Whole-universe daily archives stream through dedicated routes with chunked bodies (bounded server memory at any download size):
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/flatfile/option/quote?date=2025-03-03&format=csv' -o quotes.csv
+curl 'http://127.0.0.1:25503/v3/flatfile/option/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
 
 curl -X POST 'http://127.0.0.1:25503/v3/flatfile/request' \
     -H 'Content-Type: application/json' \
-    -d '{"sec_type":"OPTION","req_type":"QUOTE","date":"20250303","format":"csv"}' \
-    -o quotes.csv
+    -d '{"sec_type":"OPTION","req_type":"TRADE_QUOTE","date":"20250303","format":"csv"}' \
+    -o trade_quotes.csv
 ```
 
 See [Flat Files](/articles/flat-files) for sizing guidance.
