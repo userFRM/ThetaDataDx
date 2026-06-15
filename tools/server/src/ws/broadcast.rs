@@ -85,7 +85,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         }
     });
 
-    state.tdx().start_streaming(move |event: &StreamEvent| {
+    state.tdx().stream().start_streaming(move |event: &StreamEvent| {
         // Update connection status.
         match event {
             StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {

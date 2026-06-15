@@ -23,8 +23,8 @@ def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str
     raise RuntimeError(f"timed out waiting for data event (last kind={last_kind})")
 
 
-def _subscriptions_snapshot(client) -> set[tuple[str, str]]:
-    subs = client.active_subscriptions()
+def _subscriptions_snapshot(stream) -> set[tuple[str, str]]:
+    subs = stream.active_subscriptions()
     return {(entry["kind"], entry["contract"]) for entry in subs}
 
 
@@ -64,7 +64,8 @@ def main() -> int:
         except queue.Full:
             pass
 
-    client.start_streaming(on_event)
+    stream = client.stream
+    stream.start_streaming(on_event)
 
     reconnect_count = 0
     data_events = 0
@@ -72,9 +73,9 @@ def main() -> int:
     expected_subs: set[tuple[str, str]] = set()
 
     try:
-        client.subscribe(Contract.stock(args.symbol).quote())
-        client.subscribe(Contract.stock(args.symbol).trade())
-        expected_subs = _subscriptions_snapshot(client)
+        stream.subscribe(Contract.stock(args.symbol).quote())
+        stream.subscribe(Contract.stock(args.symbol).trade())
+        expected_subs = _subscriptions_snapshot(stream)
         if len(expected_subs) < 2:
             raise RuntimeError(f"expected 2 active subscriptions, got {expected_subs!r}")
 
@@ -88,9 +89,9 @@ def main() -> int:
 
         while time.monotonic() < reconnect_deadline:
             if reconnect_count < args.reconnects and time.monotonic() >= next_reconnect:
-                client.reconnect()
+                stream.reconnect()
                 reconnect_count += 1
-                after = _subscriptions_snapshot(client)
+                after = _subscriptions_snapshot(stream)
                 if after != expected_subs:
                     raise RuntimeError(
                         f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
@@ -121,8 +122,8 @@ def main() -> int:
             )
     finally:
         stop_consuming.set()
-        client.stop_streaming()
-        client.await_drain(5_000)
+        stream.stop_streaming()
+        stream.await_drain(5_000)
 
     print(
         f"fpss soak: ok ({reconnect_count} reconnects, {data_events} data events, symbol={args.symbol})"

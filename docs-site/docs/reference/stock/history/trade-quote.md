@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.start_time(&str)`, `.end_time(&str)`
 **Example**
 
 ```rust
-let rows = tdx.historical().stock_history_trade_quote("AAPL", "20250303").await?;
+let rows = client.historical().stock_history_trade_quote("AAPL", "20250303").await?;
 for t in &rows {
     println!("ms_of_day={} price={} bid={} ask={}", t.ms_of_day, t.price, t.bid, t.ask);
 }
@@ -51,7 +51,7 @@ Client.historical.stock_history_trade_quote(
 **Example**
 
 ```python
-rows = tdx.historical.stock_history_trade_quote("AAPL", "20250303")
+rows = client.historical.stock_history_trade_quote("AAPL", "20250303")
 for t in rows:
     print(t.ms_of_day, t.price, t.bid, t.ask)
 ```
@@ -71,7 +71,7 @@ Optional parameters ride in a single trailing options object: `startTime?: strin
 **Example**
 
 ```typescript
-const rows = await tdx.historical.stockHistoryTradeQuote('AAPL', '20250303');
+const rows = await client.historical.stockHistoryTradeQuote('AAPL', '20250303');
 for (const t of rows) {
   console.log(t.msOfDay, t.price, t.bid, t.ask);
 }

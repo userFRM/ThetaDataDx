@@ -19,10 +19,10 @@ The `flat_files` namespace exposes one method per (security type, request type) 
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 
 // Vendor-format file straight to disk (bounded memory):
-tdx.flatfile_option_quote("20250303", "quotes.csv", FlatFileFormat::Csv).await?;
+client.flatfile_option_quote("20250303", "quotes.csv", FlatFileFormat::Csv).await?;
 
 // Decoded rows in memory:
-let rows = tdx.flatfile_request_decoded(SecType::Option, ReqType::Quote, "20250303").await?;
+let rows = client.flatfile_request_decoded(SecType::Option, ReqType::Quote, "20250303").await?;
 ```
 
 </template>
@@ -30,11 +30,11 @@ let rows = tdx.flatfile_request_decoded(SecType::Option, ReqType::Quote, "202503
 <template #python>
 
 ```python
-rows = tdx.flat_files.option_quote("20250303")
+rows = client.flat_files.option_quote("20250303")
 df = rows.to_polars()          # or .to_pandas() / .to_arrow() / .to_list()
 
 # Or write the vendor-format file straight to disk (bounded memory):
-tdx.flatfile_to_path("OPTION", "QUOTE", "20250303", "quotes.csv", "csv")
+client.flatfile_to_path("OPTION", "QUOTE", "20250303", "quotes.csv", "csv")
 ```
 
 </template>
@@ -42,7 +42,7 @@ tdx.flatfile_to_path("OPTION", "QUOTE", "20250303", "quotes.csv", "csv")
 <template #typescript>
 
 ```typescript
-const rows = tdx.flatFiles.optionQuote('20250303');
+const rows = client.flatFiles.optionQuote('20250303');
 const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
 ```
 

@@ -1018,7 +1018,7 @@ typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "activeFullSubscriptions"
 python = true
 typescript = true
@@ -1046,7 +1046,7 @@ typescript = true
 cpp = true
 
 [[method]]
-class = "Client"
+class = "StreamView"
 name = "panicCount"
 python = true
 typescript = true

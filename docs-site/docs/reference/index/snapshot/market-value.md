@@ -27,7 +27,7 @@ Optional parameters chain on the builder: `.min_time(&str)`. Execute with `.awai
 **Example**
 
 ```rust
-let rows = tdx.historical().index_snapshot_market_value(&["SPX"]).await?;
+let rows = client.historical().index_snapshot_market_value(&["SPX"]).await?;
 for t in &rows {
     println!("date={} market_price={}", t.date, t.market_price);
 }
@@ -50,7 +50,7 @@ Client.historical.index_snapshot_market_value(
 **Example**
 
 ```python
-rows = tdx.historical.index_snapshot_market_value(["SPX"])
+rows = client.historical.index_snapshot_market_value(["SPX"])
 for t in rows:
     print(t.date, t.market_price)
 ```
@@ -70,7 +70,7 @@ Optional parameters ride in a single trailing options object: `minTime?: string 
 **Example**
 
 ```typescript
-const rows = await tdx.historical.indexSnapshotMarketValue(['SPX']);
+const rows = await client.historical.indexSnapshotMarketValue(['SPX']);
 for (const t of rows) {
   console.log(t.date, t.marketPrice);
 }

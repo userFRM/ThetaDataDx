@@ -14,14 +14,14 @@ import asyncio
 
 from thetadatadx import Config, Credentials, Client, split_date_range
 
-tdx = Client(Credentials.from_file("creds.txt"), Config.production())
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 
 def on_chunk(chunk):
     # chunk: list of TradeTick — write to your store, then it is freed.
     store.append(chunk)
 
 async def pull(start, end):
-    builder = tdx.historical.stock_history_trade_builder("AAPL", start).end_date(end)
+    builder = client.historical.stock_history_trade_builder("AAPL", start).end_date(end)
     await builder.stream_async(on_chunk)
 
 windows = split_date_range("20250101", "20250331")
@@ -39,7 +39,7 @@ Every endpoint has a `<endpoint>_builder(...)` factory whose `.stream(...)` / `.
 ```rust
 let days = ["20250303", "20250304", "20250305"];
 for day in days {
-    tdx.historical.stock_history_trade("AAPL", day)
+    client.historical.stock_history_trade("AAPL", day)
         .stream(|chunk| {
             // &[TradeTick] — persist, then the chunk is dropped.
             write_parquet(chunk);

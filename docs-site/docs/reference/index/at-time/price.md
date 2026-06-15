@@ -33,7 +33,7 @@ Execute with `.await` → `Result<Vec<IndexPriceAtTimeTick>, Error>`, or decode 
 **Example**
 
 ```rust
-let rows = tdx.historical().index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000").await?;
+let rows = client.historical().index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000").await?;
 for t in &rows {
     println!("date={} ms_of_day={} price={}", t.date, t.ms_of_day, t.price);
 }
@@ -56,7 +56,12 @@ Client.historical.index_at_time_price(
 **Example**
 
 ```python
-rows = tdx.historical.index_at_time_price("SPX", "20250303", "20250306", "10:30:00.000")
+rows = client.historical.index_at_time_price(
+    "SPX",
+    "20250303",
+    "20250306",
+    "10:30:00.000",
+)
 for t in rows:
     print(t.date, t.ms_of_day, t.price)
 ```
@@ -77,7 +82,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.historical.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
+const rows = await client.historical.indexAtTimePrice('SPX', '20250303', '20250306', '10:30:00.000');
 for (const t of rows) {
   console.log(t.date, t.msOfDay, t.price);
 }

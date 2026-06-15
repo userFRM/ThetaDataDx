@@ -11,9 +11,9 @@ The `at_time` endpoints answer "what was the market at 10:30 every day last quar
 from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
-rows = tdx.historical.stock_at_time_quote("AAPL", "20250101", "20250331", "10:30:00.000")
+rows = client.historical.stock_at_time_quote("AAPL", "20250101", "20250331", "10:30:00.000")
 for t in rows:
     mid = (t.bid + t.ask) / 2
     print(t.date, f"mid={mid:.2f}", f"spread={t.ask - t.bid:.2f}")
@@ -22,7 +22,7 @@ for t in rows:
 The same shape exists for [trades](/reference/stock/at-time/trade), [option contracts](/reference/option/at-time/quote), and [index values](/reference/index/at-time/price):
 
 ```python
-opt = tdx.historical.option_at_time_quote("SPY", "20250321", "20250101", "20250331",
+opt = client.historical.option_at_time_quote("SPY", "20250321", "20250101", "20250331",
                                "10:30:00.000", strike="570", right="C")
 ```
 

@@ -17,4 +17,4 @@ One page per endpoint. Each page carries the typed signature and a runnable samp
 
 Conventions shared by every endpoint — identifiers, units, timestamps — live in [Symbology & Contract Identity](/articles/symbology). Tier badges on each page map to [Subscriptions](/articles/subscriptions).
 
-Connection setup is one [Getting Started](/articles/getting-started) away; every sample on these pages assumes a connected client named `tdx` (`client` in C++) and runs as-is with only `creds.txt` present.
+Connection setup is one [Getting Started](/articles/getting-started) away; every sample on these pages assumes a connected client named `client` and runs as-is with only `creds.txt` present.

@@ -23,18 +23,18 @@ use thetadatadx::{Credentials, DirectConfig, Client};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
 
-    tdx.start_streaming(|event: &StreamEvent| {
+    client.stream().start_streaming(|event: &StreamEvent| {
         if let StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) = event {
             println!("{} bid={bid} ask={ask}", contract.symbol);
         }
     })?;
 
-    tdx.subscribe(Contract::stock("AAPL").quote())?;
+    client.stream().subscribe(Contract::stock("AAPL").quote())?;
     std::thread::sleep(std::time::Duration::from_secs(60));
 
-    tdx.stop_streaming();
+    client.stream().stop_streaming();
     Ok(())
 }
 ```
@@ -51,18 +51,18 @@ import time
 from thetadatadx import Config, Contract, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
 def on_event(event):
     if event.kind == "quote":
         print(event.contract.symbol, event.bid, event.ask)
 
-with tdx.streaming(on_event):          # stops streaming and drains on exit
-    tdx.subscribe(Contract.stock("AAPL").quote())
+with client.streaming(on_event):          # stops streaming and drains on exit
+    client.stream.subscribe(Contract.stock("AAPL").quote())
     time.sleep(60)
 ```
 
-Prefer the `with tdx.streaming(...)` context manager; it pairs `stop_streaming()` with a drain wait on exit. `tdx.start_streaming(on_event)` / `tdx.stop_streaming()` are the explicit form.
+Prefer the `with client.streaming(...)` context manager; it pairs `stop_streaming()` with a drain wait on exit. `client.stream.start_streaming(on_event)` / `client.stream.stop_streaming()` are the explicit form.
 
 </template>
 
@@ -71,18 +71,18 @@ Prefer the `with tdx.streaming(...)` context manager; it pairs `stop_streaming()
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const tdx = Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 
-tdx.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'quote') {
     const q = event.quote!;
     console.log(q.contract.symbol, q.bid, q.ask);
   }
 });
 
-tdx.subscribe(Contract.stock('AAPL').quote());
+client.stream.subscribe(Contract.stock('AAPL').quote());
 
-setTimeout(() => tdx.stopStreaming(), 60_000);
+setTimeout(() => client.stream.stopStreaming(), 60_000);
 ```
 
 </template>
@@ -98,14 +98,14 @@ int main() {
     auto creds = thetadatadx::Credentials::from_file("creds.txt");
     auto client = thetadatadx::Client::connect(creds, thetadatadx::Config::production());
 
-    client.set_callback([](const thetadatadx::StreamEvent& event) {
+    client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {
             auto& q = event.quote;
             std::cout << q.contract.symbol << " bid=" << q.bid << " ask=" << q.ask << "\n";
         }
     });
 
-    client.subscribe(thetadatadx::Contract::stock("AAPL").quote());
+    client.stream().subscribe(thetadatadx::Contract::stock("AAPL").quote());
     std::this_thread::sleep_for(std::chrono::seconds(60));
     // RAII: the destructor stops streaming and drains.
 }
@@ -140,7 +140,7 @@ The per-stream-type pages in the sidebar carry the exact subscribe code, the eve
 
 ## Lifecycle
 
-- **Start once, subscribe many.** `start_streaming(callback)` opens the session; subscriptions attach and detach freely afterwards.
-- **Stopping.** `stop_streaming()` closes the session and clears the callback (in C++, the destructor does this). `await_drain(timeout_ms)` blocks until queued events have been delivered.
+- **Start once, subscribe many.** `client.stream.start_streaming(callback)` opens the session; subscriptions attach and detach freely afterwards.
+- **Stopping.** `client.stream.stop_streaming()` closes the session and clears the callback (in C++, the destructor does this). `client.stream.await_drain(timeout_ms)` blocks until queued events have been delivered.
 - **Reconnects are automatic** with resubscription of everything you had installed; policy and monitoring live in [Reconnection & Monitoring](/streaming/reliability).
 - **Event order is per-connection arrival order;** every data event carries `received_at_ns`, the local receive timestamp.

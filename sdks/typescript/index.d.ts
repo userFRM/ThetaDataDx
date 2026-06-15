@@ -21,15 +21,15 @@ export declare class Client {
    * Connect to ThetaData with a `Credentials` handle. Pass an
    * optional `Config` (`dev` / `stage` / `production`, plus any
    * tuned setters) to override the production-default endpoint.
-   * Historical only; call startStreaming() to begin FPSS
-   * real-time data.
+   * Historical only; call `client.stream.startStreaming(...)` to
+   * begin FPSS real-time data.
    *
    * The config is snapshot at connect time: the `Config` handle may be
    * reused or mutated afterward without affecting this client.
    *
    * ```js
    * const creds = Credentials.fromFile("creds.txt");
-   * const tdx = Client.connect(creds);
+   * const client = Client.connect(creds);
    * ```
    */
   static connect(creds: Credentials, config?: Config | undefined | null): Client
@@ -40,31 +40,6 @@ export declare class Client {
    * production-default endpoint.
    */
   static connectFromFile(path: string, config?: Config | undefined | null): Client
-  /**
-   * Cumulative count of user-callback panics caught at the per-event
-   * isolation boundary since the current stream started.
-   *
-   * A panic in the callback is caught, recorded here, and does not
-   * stop event delivery — the next event continues normally. The
-   * value matches every other binding (C ABI, Python, C++).
-   *
-   * Returned as `bigint` so it can represent the full 64-bit unsigned range
-   * (Number would top out at 2^53).
-   */
-  panicCount(): bigint
-  /**
-   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
-   * `full_trades`, `OPTION` / `full_open_interest`).
-   *
-   * Each entry has the same `{ kind, contract }` shape returned by
-   * `activeSubscriptions()`, where `kind` is one of
-   * `"full_trades"` / `"full_open_interest"` and `contract` carries
-   * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
-   * Quote is never a valid full-stream kind on the FPSS wire, so
-   * any such row from the core is dropped from the projection.
-   * Empty array when streaming has not started.
-   */
-  activeFullSubscriptions(): any
   /** FLATFILES namespace handle. Cheap — clones the inner Arc. */
   get flatFiles(): FlatFilesNamespace
   /**
@@ -583,7 +558,7 @@ export declare class ContractRef {
  * ```js
  * const { Credentials, Client } = require("@thetadatadx/sdk");
  * const creds = Credentials.fromFile("creds.txt");
- * const tdx = Client.connect(creds);
+ * const client = Client.connect(creds);
  * ```
  */
 export declare class Credentials {
@@ -2626,6 +2601,31 @@ export declare class StreamView {
    * auto-reconnects. `null` when streaming has not started.
    */
   lastConnectedAddr(): string | null
+  /**
+   * Cumulative count of user-callback panics caught at the per-event
+   * isolation boundary since the current stream started.
+   *
+   * A panic in the callback is caught, recorded here, and does not
+   * stop event delivery — the next event continues normally. The
+   * value matches every other binding (C ABI, Python, C++).
+   *
+   * Returned as `bigint` so it can represent the full 64-bit unsigned range
+   * (Number would top out at 2^53).
+   */
+  panicCount(): bigint
+  /**
+   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
+   * `full_trades`, `OPTION` / `full_open_interest`).
+   *
+   * Each entry has the same `{ kind, contract }` shape returned by
+   * `activeSubscriptions()`, where `kind` is one of
+   * `"full_trades"` / `"full_open_interest"` and `contract` carries
+   * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
+   * Quote is never a valid full-stream kind on the FPSS wire, so
+   * any such row from the core is dropped from the projection.
+   * Empty array when streaming has not started.
+   */
+  activeFullSubscriptions(): any
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *

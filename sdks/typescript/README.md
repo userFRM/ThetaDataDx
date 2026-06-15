@@ -37,10 +37,10 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ```typescript
 import { Client } from 'thetadatadx';
 
-const tdx = Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-const greeks = await tdx.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
+const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
@@ -49,14 +49,14 @@ for (const t of greeks.slice(0, 5)) {
 Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
 
 ```typescript
-const eod = await tdx.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
+const eod = await client.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
 console.log(eod.length, eod[0].close);
 
-const bars = await tdx.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
-const exps = await tdx.historical.optionListExpirations('SPY');
+const bars = await client.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
+const exps = await client.historical.optionListExpirations('SPY');
 
 // Optional parameters — including a per-call timeout — ride in the trailing options object
-const snap = await tdx.historical.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
+const snap = await client.historical.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
 ```
 
 ## Streaming
@@ -66,7 +66,7 @@ Real-time quotes and trades flow through the same client. Register a callback wi
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const tdx = Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;
@@ -76,7 +76,7 @@ const formatContract = (contract: {
   .filter((value) => value != null)
   .join(' ');
 
-tdx.stream.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'trade' && event.trade) {
     const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
     console.log(
@@ -94,7 +94,7 @@ tdx.stream.startStreaming((event) => {
 });
 
 const leg = { expiration: '20260620', strike: '550', right: 'C' };
-tdx.stream.subscribeMany([
+client.stream.subscribeMany([
   Contract.option('SPY', leg).quote(),
   Contract.option('SPY', leg).trade(),
 ]);
@@ -108,8 +108,8 @@ import { Contract, SecType } from 'thetadatadx';
 const stock = Contract.stock('AAPL');
 const option = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
 
-tdx.stream.subscribe(stock.quote());
-tdx.stream.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
+client.stream.subscribe(stock.quote());
+client.stream.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
 ```
 
 Or take a whole-market feed — every option trade across the universe, no per-contract setup:
@@ -117,14 +117,14 @@ Or take a whole-market feed — every option trade across the universe, no per-c
 ```typescript
 import { SecType } from 'thetadatadx';
 
-tdx.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
+client.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
 ```
 
 When you are done, stop the stream and drain it. By the time `awaitDrain` resolves, the callback has stopped firing, so any state it closed over can be released safely:
 
 ```typescript
-tdx.stream.stopStreaming();
-const drained = await tdx.stream.awaitDrain(5000);
+client.stream.stopStreaming();
+const drained = await client.stream.awaitDrain(5000);
 ```
 
 > [!TIP]
@@ -143,7 +143,7 @@ import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetada
 The streaming callback receives a discriminated `StreamEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
 
 ```typescript
-tdx.stream.startStreaming((event: StreamEvent) => {
+client.stream.startStreaming((event: StreamEvent) => {
   switch (event.kind) {
     case 'trade':         /* event.trade is Trade */                break;
     case 'quote':         /* event.quote is Quote */                break;
@@ -169,19 +169,19 @@ Whole-universe daily snapshots for one `(security type, request type, date)` at 
 import { Client } from 'thetadatadx';
 import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
-const tdx = Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 
-const rows = tdx.flatFiles.optionQuote('20260428');
+const rows = client.flatFiles.optionQuote('20260428');
 console.log(rows.len());
 
 const table = tableFromIPC(rows.toArrowIpc());
 // Or skip Arrow entirely: const json = JSON.parse(rows.toJson());
 
 // Generic dispatcher when security type / request type come from config
-const oi = tdx.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428');
+const oi = client.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428');
 
 // Or write the raw vendor file straight to disk
-tdx.flatFileToPath('OPTION', 'QUOTE', '20260428', '/tmp/option-quote', 'csv');
+client.flatFileToPath('OPTION', 'QUOTE', '20260428', '/tmp/option-quote', 'csv');
 ```
 
 Available `flatFiles.*` methods: `optionQuote`, `optionTrade`, `optionTradeQuote`, `optionOhlc`, `optionOpenInterest`, `optionEod`, `stockQuote`, `stockTrade`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`.

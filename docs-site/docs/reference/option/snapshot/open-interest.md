@@ -29,7 +29,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.max
 **Example**
 
 ```rust
-let rows = tdx
+let rows = client
     .historical()
     .option_snapshot_open_interest("SPY", "20250321")
     .strike("570")
@@ -58,7 +58,7 @@ Client.historical.option_snapshot_open_interest(
 **Example**
 
 ```python
-rows = tdx.historical.option_snapshot_open_interest(
+rows = client.historical.option_snapshot_open_interest(
     "SPY",
     "20250321",
     strike="570",
@@ -83,7 +83,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.historical.optionSnapshotOpenInterest('SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await client.historical.optionSnapshotOpenInterest('SPY', '20250321', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.openInterest);
 }

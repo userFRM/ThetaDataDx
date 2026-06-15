@@ -43,10 +43,10 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 ```python
 from thetadatadx import Client, Credentials, Config
 
-tdx = Client(Credentials.from_file("creds.txt"), Config.production())
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = tdx.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
+greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -55,14 +55,14 @@ print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
 Every historical method returns a typed list — iterate it, index it, or convert it to a dataframe:
 
 ```python
-eod = tdx.historical.stock_history_eod("AAPL", "20240101", "20240301")
+eod = client.historical.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = tdx.historical.stock_history_ohlc("AAPL", "20240315", "1m")   # 1-minute bars
-exps = tdx.historical.option_list_expirations("SPY")
-strikes = tdx.historical.option_list_strikes("SPY", exps[0])
+bars = client.historical.stock_history_ohlc("AAPL", "20240315", "1m")   # 1-minute bars
+exps = client.historical.option_list_expirations("SPY")
+strikes = client.historical.option_list_strikes("SPY", exps[0])
 ```
 
 ## DataFrames
@@ -81,7 +81,7 @@ The `.to_arrow()` terminal hands the underlying Arrow buffers to pyarrow over th
 ```python
 import duckdb
 
-table = tdx.historical.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+table = client.historical.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 con = duckdb.connect()
 con.register("eod", table)                 # zero-copy into DuckDB
 con.sql("SELECT AVG(close) FROM eod").show()
@@ -96,7 +96,7 @@ def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(tdx.historical.option_history_quote_builder("QQQ", "20260516", "20260516")
+(client.historical.option_history_quote_builder("QQQ", "20260516", "20260516")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))
@@ -136,7 +136,7 @@ def on_event(event):
 
 spy_call = Contract.option("SPY", expiration="20260620", strike="550", right="C")
 
-with tdx.streaming(on_event) as session:
+with client.streaming(on_event) as session:
     session.subscribe_many([spy_call.quote(), spy_call.trade()])
     time.sleep(60)   # park the main thread while events flow into on_event
 ```
@@ -149,7 +149,7 @@ from thetadatadx import Contract, SecType
 stock  = Contract.stock("AAPL")
 option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
 
-with tdx.streaming(on_event) as session:
+with client.streaming(on_event) as session:
     session.subscribe(stock.quote())
     session.subscribe_many([option.quote(), option.trade(), option.open_interest(), option.market_value()])
 ```
@@ -159,13 +159,13 @@ The option constructor is `Contract.option(symbol, *, expiration, strike, right)
 Or take a whole-market feed — every option trade across the universe, no per-contract setup:
 
 ```python
-with tdx.streaming(on_event) as session:
+with client.streaming(on_event) as session:
     session.subscribe(SecType.OPTION.full_trades())
     time.sleep(60)   # the callback runs on the streaming thread — keep it fast
 ```
 
 > [!TIP]
-> The `with tdx.streaming(callback)` block opens the session on entry and drains
+> The `with client.streaming(callback)` block opens the session on entry and drains
 > it cleanly on exit, so the callback has stopped firing by the time the block
 > returns. On an involuntary disconnect the client recovers on its own —
 > exponential backoff with jitter, host failover, then a paced re-subscribe of
@@ -194,15 +194,15 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30 / 365, 8.50, "C")
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so flat-file results chain through the same DataFrame terminals as history:
 
 ```python
-rows = tdx.flat_files.option_quote(date="20260428")
+rows = client.flat_files.option_quote(date="20260428")
 print(len(rows))
 df = rows.to_polars()                       # or .to_pandas() / .to_arrow() / .to_list()
 
 # Generic dispatcher when security type / request type come from config
-oi = tdx.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
+oi = client.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
 
 # Or write the raw vendor file straight to disk — no decode, no row materialise
-path = tdx.flatfile_to_path("OPTION", "QUOTE", "20260428",
+path = client.flatfile_to_path("OPTION", "QUOTE", "20260428",
                             "/tmp/option-quote", format="csv")
 ```
 

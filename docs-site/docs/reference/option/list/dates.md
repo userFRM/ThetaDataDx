@@ -32,7 +32,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`. Execu
 **Example**
 
 ```rust
-let rows = tdx
+let rows = client
     .historical()
     .option_list_dates("trade", "SPY", "20250321")
     .strike("570")
@@ -60,7 +60,7 @@ Client.historical.option_list_dates(
 **Example**
 
 ```python
-rows = tdx.historical.option_list_dates(
+rows = client.historical.option_list_dates(
     "trade",
     "SPY",
     "20250321",
@@ -87,7 +87,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.historical.optionListDates('trade', 'SPY', '20250321', { strike: '570', right: 'C' });
+const rows = await client.historical.optionListDates('trade', 'SPY', '20250321', { strike: '570', right: 'C' });
 for (const value of rows) {
   console.log(value);
 }

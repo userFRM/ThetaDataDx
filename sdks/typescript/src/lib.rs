@@ -103,7 +103,7 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 /// ```js
 /// const { Credentials, Client } = require("@thetadatadx/sdk");
 /// const creds = Credentials.fromFile("creds.txt");
-/// const tdx = Client.connect(creds);
+/// const client = Client.connect(creds);
 /// ```
 #[napi]
 #[derive(Clone)]
@@ -474,15 +474,15 @@ impl Client {
     /// Connect to ThetaData with a `Credentials` handle. Pass an
     /// optional `Config` (`dev` / `stage` / `production`, plus any
     /// tuned setters) to override the production-default endpoint.
-    /// Historical only; call startStreaming() to begin FPSS
-    /// real-time data.
+    /// Historical only; call `client.stream.startStreaming(...)` to
+    /// begin FPSS real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
     /// reused or mutated afterward without affecting this client.
     ///
     /// ```js
     /// const creds = Credentials.fromFile("creds.txt");
-    /// const tdx = Client.connect(creds);
+    /// const client = Client.connect(creds);
     /// ```
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
@@ -605,10 +605,7 @@ impl StreamView {
     pub fn last_connected_addr(&self) -> Option<String> {
         self.tdx.stream().last_connected_addr()
     }
-}
 
-#[napi]
-impl Client {
     /// Cumulative count of user-callback panics caught at the per-event
     /// isolation boundary since the current stream started.
     ///

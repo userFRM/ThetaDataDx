@@ -35,7 +35,7 @@ Optional parameters chain on the builder: `.strike(&str)`, `.right(&str)`, `.max
 **Example**
 
 ```rust
-let rows = tdx
+let rows = client
     .historical()
     .option_history_eod("SPY", "20250321", "20250303", "20250306")
     .strike("570")
@@ -63,7 +63,7 @@ Client.historical.option_history_eod(
 **Example**
 
 ```python
-rows = tdx.historical.option_history_eod(
+rows = client.historical.option_history_eod(
     "SPY",
     "20250321",
     "20250303",
@@ -91,7 +91,7 @@ Optional parameters ride in a single trailing options object: `strike?: string`,
 **Example**
 
 ```typescript
-const rows = await tdx.historical.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
+const rows = await client.historical.optionHistoryEOD('SPY', '20250321', '20250303', '20250306', { strike: '570', right: 'C' });
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }

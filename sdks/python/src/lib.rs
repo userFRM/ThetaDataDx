@@ -1203,16 +1203,16 @@ include!("_generated/utility_functions.rs");
 ///
 /// Usage::
 ///
-///     tdx = Client(creds, config)
-///     eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+///     client = Client(creds, config)
+///     eod = client.historical.stock_history_eod("AAPL", "20240101", "20240301")
 ///
 ///     def on_event(event):
 ///         print(event.kind, event)
 ///
-///     tdx.start_streaming(callback=on_event)
-///     tdx.subscribe(Contract.stock("AAPL").quote())
+///     client.stream.start_streaming(callback=on_event)
+///     client.stream.subscribe(Contract.stock("AAPL").quote())
 ///     # ... events arrive on the dispatcher's drain thread ...
-///     tdx.stop_streaming()
+///     client.stream.stop_streaming()
 // `frozen` — every `#[pymethods]` entry on this pyclass takes
 // `&self` (never `&mut self`). The inner `tdx: Arc<...>` carries its
 // own mutex / atomic state for transient surfaces; the pyclass shell
@@ -1239,7 +1239,7 @@ struct Client {
     /// Holding the GIL across that join would deadlock. Callers MUST
     /// invoke `stop_streaming()` (the generated method uses `py.detach`
     /// around the teardown so the dispatcher exits cleanly) before
-    /// letting the pyclass fall out of scope. The `with tdx.streaming(cb)`
+    /// letting the pyclass fall out of scope. The `with client.streaming(cb)`
     /// context manager pairs `start_streaming(cb)` with
     /// `stop_streaming() + await_drain(5000)` on exit to enforce this
     /// ordering automatically. The fully-shared `Arc<>` (cloned into
@@ -1486,6 +1486,54 @@ impl StreamView {
     fn last_connected_addr(&self) -> Option<String> {
         self.tdx.stream().last_connected_addr()
     }
+
+    /// Snapshot of full-stream subscriptions (e.g.
+    /// `SecType.OPTION.full_trades()`).
+    ///
+    /// Returns the same typed `Subscription` values the caller passes
+    /// to `subscribe()`. Quote is never a valid full-stream kind on
+    /// the FPSS wire, so any such row from the core is dropped from
+    /// the projection. Empty list when streaming has not started.
+    ///
+    /// Mirrors the cross-binding contract on the C++
+    /// `Stream::active_full_subscriptions` (see
+    /// `sdks/cpp/include/thetadx.hpp`) and the standalone
+    /// [`crate::fpss_client::StreamingClient::active_full_subscriptions`].
+    fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
+        use crate::errors::to_py_err;
+        use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
+        self.tdx
+            .stream()
+            .active_full_subscriptions()
+            .map(|subs| {
+                subs.into_iter()
+                    .filter_map(|(kind, sec_type)| {
+                        let full_kind = match kind {
+                            SubscriptionKind::Trade => FullSubscriptionKind::Trades,
+                            SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
+                            SubscriptionKind::Quote => return None,
+                            _ => return None,
+                        };
+                        Some(crate::fluent::PySubscription {
+                            inner: thetadatadx::fpss::protocol::Subscription::Full {
+                                sec_type,
+                                kind: full_kind,
+                            },
+                        })
+                    })
+                    .collect()
+            })
+            .map_err(to_py_err)
+    }
+
+    /// Cumulative count of user-callback panics caught by the
+    /// Disruptor consumer's `catch_unwind` boundary. Mirrors the
+    /// `panic_count()` getter on the standalone
+    /// [`crate::fpss_client::StreamingClient`] and the upstream
+    /// [`thetadatadx::Client::panic_count`].
+    fn panic_count(&self) -> u64 {
+        self.tdx.stream().panic_count()
+    }
 }
 
 // ── Fluent contract-first API on the unified client ──────────────────────
@@ -1622,14 +1670,15 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// `client.stream.<name>`. Every entry must appear in either
 /// `PYTHON_UNIFIED_FPSS_METHODS` (generated streaming block) or the
 /// hand-written `StreamView` methods in `lib.rs`; the remaining
-/// allowlisted names (`active_full_subscriptions`, `panic_count`,
-/// `streaming`, `flat_files`) stay on `Client` and resolve directly.
+/// allowlisted names (`streaming`, `flat_files`) stay on `Client` and
+/// resolve directly.
 const STREAM_VIEW_PROXY_METHODS: &[&str] = &[
     "subscribe",
     "subscribe_many",
     "unsubscribe",
     "unsubscribe_many",
     "active_subscriptions",
+    "active_full_subscriptions",
     "start_streaming",
     "stop_streaming",
     "shutdown",
@@ -1637,6 +1686,7 @@ const STREAM_VIEW_PROXY_METHODS: &[&str] = &[
     "is_streaming",
     "await_drain",
     "dropped_event_count",
+    "panic_count",
     "ring_occupancy",
     "ring_capacity",
 ];
@@ -1660,14 +1710,14 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "subscribe_many",
     "unsubscribe",
     "unsubscribe_many",
-    // Full-stream subscription snapshot stays on `Client`
-    // (streaming_session.rs).
+    // Full-stream subscription snapshot lives on the `client.stream`
+    // `StreamView` surface (lib.rs).
     "active_full_subscriptions",
-    // Diagnostic getters — `dropped_event_count`, `ring_occupancy`, and
-    // `ring_capacity` live on the `client.stream` `StreamView` surface
-    // (lib.rs); `panic_count` stays on `Client` (streaming_session.rs).
-    // All forward to the core `thetadatadx::Client` accessors so the
-    // counts match every other binding.
+    // Diagnostic getters — `dropped_event_count`, `panic_count`,
+    // `ring_occupancy`, and `ring_capacity` all live on the
+    // `client.stream` `StreamView` surface (lib.rs). All forward to the
+    // core `thetadatadx::Client` accessors so the counts match every
+    // other binding.
     "dropped_event_count",
     "panic_count",
     "ring_occupancy",

@@ -26,7 +26,7 @@ Execute with `.await` → `Result<Vec<String>, Error>`.
 **Example**
 
 ```rust
-let rows = tdx.historical().option_list_symbols().await?;
+let rows = client.historical().option_list_symbols().await?;
 for value in &rows {
     println!("{value}");
 }
@@ -45,7 +45,7 @@ Client.historical.option_list_symbols(*, timeout_ms=None) -> StringList
 **Example**
 
 ```python
-rows = tdx.historical.option_list_symbols()
+rows = client.historical.option_list_symbols()
 for value in rows:
     print(value)
 ```
@@ -63,7 +63,7 @@ Optional parameters ride in a single trailing options object: `timeoutMs?: numbe
 **Example**
 
 ```typescript
-const rows = await tdx.historical.optionListSymbols();
+const rows = await client.historical.optionListSymbols();
 for (const value of rows) {
   console.log(value);
 }

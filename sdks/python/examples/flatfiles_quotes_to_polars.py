@@ -10,11 +10,11 @@ Run with a credentials file: ``python flatfiles_quotes_to_polars.py``.
 from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = Client(creds, Config.production())
+client = Client(creds, Config.production())
 
 # Whole-universe option quotes for one trading day. Several hundred MB
 # decoded -- expect this call to take a few seconds even on a fast link.
-rows = tdx.flat_files.option_quote(date="20260428")
+rows = client.flat_files.option_quote(date="20260428")
 print(f"option_quote rows: {len(rows)}")
 
 # polars.DataFrame -- one column per vendor field, plus the contract key
@@ -24,13 +24,13 @@ df = rows.to_polars()
 print(df.head())
 
 # Same path, dispatched dynamically -- same `FlatFileRowList` return.
-oi = tdx.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
+oi = client.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
 print(f"open_interest rows: {len(oi)}")
 
 # Drop the raw vendor CSV bytes to disk without materialising the
 # decoded `FlatFileRowList`. Returns the final on-disk path with the
 # format extension auto-appended if missing.
-path = tdx.flatfile_to_path(
+path = client.flatfile_to_path(
     "OPTION", "QUOTE", "20260428", "/tmp/option-quote", format="csv"
 )
 print(f"raw vendor CSV at {path}")

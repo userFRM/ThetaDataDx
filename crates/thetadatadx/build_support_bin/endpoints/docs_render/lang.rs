@@ -174,12 +174,12 @@ pub(super) fn rust_example(endpoint: &GeneratedEndpoint) -> String {
     if showcased.is_empty() {
         let _ = writeln!(
             code,
-            "let rows = tdx.historical().{}({}).await?;",
+            "let rows = client.historical().{}({}).await?;",
             endpoint.name,
             args.join(", ")
         );
     } else {
-        let _ = writeln!(code, "let rows = tdx");
+        let _ = writeln!(code, "let rows = client");
         let _ = writeln!(code, "    .historical()");
         let _ = writeln!(code, "    .{}({})", endpoint.name, args.join(", "));
         for p in &showcased {
@@ -294,13 +294,13 @@ pub(super) fn python_example(endpoint: &GeneratedEndpoint) -> String {
     }
 
     let mut code = format!(
-        "rows = tdx.historical.{}({})\n",
+        "rows = client.historical.{}({})\n",
         endpoint.name,
         args.join(", ")
     );
     if code.len() > 90 {
         code = format!(
-            "rows = tdx.historical.{}(\n    {},\n)\n",
+            "rows = client.historical.{}(\n    {},\n)\n",
             endpoint.name,
             args.join(",\n    ")
         );
@@ -441,7 +441,7 @@ pub(super) fn typescript_example(endpoint: &GeneratedEndpoint) -> String {
     // The method returns a Promise resolved off the execution thread, so
     // the sample awaits it — the idiomatic JavaScript shape for a fetch.
     let mut code = format!(
-        "const rows = await tdx.historical.{method}({});\n",
+        "const rows = await client.historical.{method}({});\n",
         args.join(", ")
     );
     if endpoint.return_type == "StringList" {
