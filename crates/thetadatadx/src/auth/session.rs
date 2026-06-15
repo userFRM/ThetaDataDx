@@ -5,7 +5,7 @@
 //! `Unauthenticated` mid-session (token expired, server restart, etc.)
 //! we re-authenticate and swap the UUID in place so every in-flight and
 //! future request switches to the new token without rebuilding the
-//! whole `MddsClient`.
+//! whole `HistoricalClient`.
 //!
 //! # Concurrency
 //!

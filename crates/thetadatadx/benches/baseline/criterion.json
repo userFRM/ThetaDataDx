@@ -15,29 +15,29 @@
     "p50_ns": 2151760.2,
     "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events"
   },
-  "FpssEvent::clone/Quote": {
+  "StreamEvent::clone/Quote": {
     "p50_ns": 21.9,
-    "criterion_path": "FpssEvent__clone/Quote"
+    "criterion_path": "StreamEvent__clone/Quote"
   },
-  "FpssEvent::clone/Trade": {
+  "StreamEvent::clone/Trade": {
     "p50_ns": 26.5,
-    "criterion_path": "FpssEvent__clone/Trade"
+    "criterion_path": "StreamEvent__clone/Trade"
   },
-  "FpssEvent::clone/Ohlcvc": {
+  "StreamEvent::clone/Ohlcvc": {
     "p50_ns": 21.9,
-    "criterion_path": "FpssEvent__clone/Ohlcvc"
+    "criterion_path": "StreamEvent__clone/Ohlcvc"
   },
-  "FpssEvent::match/Quote": {
+  "StreamEvent::match/Quote": {
     "p50_ns": 1.2,
-    "criterion_path": "FpssEvent__match/Quote"
+    "criterion_path": "StreamEvent__match/Quote"
   },
-  "FpssEvent::match/Trade": {
+  "StreamEvent::match/Trade": {
     "p50_ns": 1.0,
-    "criterion_path": "FpssEvent__match/Trade"
+    "criterion_path": "StreamEvent__match/Trade"
   },
-  "FpssEvent::match/Ohlcvc": {
+  "StreamEvent::match/Ohlcvc": {
     "p50_ns": 1.0,
-    "criterion_path": "FpssEvent__match/Ohlcvc"
+    "criterion_path": "StreamEvent__match/Ohlcvc"
   },
   "_deferred": {
     "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner \u2014 within the timer resolution noise floor. Defer until the noise-aware throughput gate (future noise-aware throughput gate) lands.",

@@ -2,7 +2,7 @@
 //
 // PR D (#482) replaced the poll-style `nextEvent` API with callback
 // registration via `startStreaming(callback)`. The dropped-event
-// counter forwards to `thetadatadx::ThetaDataDxClient::dropped_event_count`
+// counter forwards to `thetadatadx::Client::dropped_event_count`
 // (which counts `Producer::try_publish` overflow on the LMAX Disruptor
 // ring) and is surfaced to JS as `tdx.droppedEventCount(): bigint`.
 //
@@ -12,7 +12,7 @@
 // non-negative across the cycle.
 //
 // Gated on THETADX_TEST_CREDS=/path/to/creds.txt — the underlying
-// `ThetaDataDxClient.connectFromFile(...)` needs a live FPSS handshake.
+// `Client.connectFromFile(...)` needs a live FPSS handshake.
 // Skips silently on dev machines without creds; CI runs this in the
 // surfaces job.
 
@@ -40,7 +40,7 @@ describe('tdx.droppedEventCount()', () => {
       return;
     }
 
-    const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);
+    const tdx = mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so the count is
     // 0. Must already be readable (the getter forwards to the unified
@@ -91,7 +91,7 @@ describe('tdx.droppedEventCount()', () => {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);
+    const tdx = mod.Client.connectFromFile(credsPath);
     tdx.startStreaming(() => {});
     assert.throws(
       () => tdx.startStreaming(() => {}),
@@ -107,7 +107,7 @@ describe('tdx.droppedEventCount()', () => {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);
+    const tdx = mod.Client.connectFromFile(credsPath);
     assert.throws(
       () => tdx.reconnect(),
       /no callback registered/,

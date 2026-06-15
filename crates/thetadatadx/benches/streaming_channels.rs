@@ -67,7 +67,7 @@
 //!    `__test-helpers` feature because the constructor is crate-internal.
 //!
 //! Every variant drives exactly `EVENTS_PER_ITER` (= 100_000)
-//! `FpssEvent::Control(FpssControl::Connected)` deliveries per Criterion sample.
+//! `StreamEvent::Control(StreamControl::Connected)` deliveries per Criterion sample.
 //! `Throughput::Elements(EVENTS_PER_ITER as u64)` is exact by
 //! construction; the reported ns/event are callback-delivery cost.
 //!
@@ -81,7 +81,7 @@ use std::thread;
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
-use thetadatadx::fpss::{FpssControl, FpssEvent};
+use thetadatadx::fpss::{StreamControl, StreamEvent};
 
 // Variant 5 drives the crate's production ring constructor, which is
 // crate-internal and only re-exported under the private `__test-helpers`
@@ -106,17 +106,17 @@ const RING_SIZE: usize = 4096;
 
 #[derive(Default)]
 struct RingSlot {
-    event: Option<FpssEvent>,
+    event: Option<StreamEvent>,
 }
 
 /// Type alias for the mutable user-handler cell shared with the
 /// Disruptor consumer closure. Factored out so each variant doesn't
 /// repeat the `Mutex<Box<dyn FnMut(...)>>` shape and so clippy's
 /// `type_complexity` lint stays quiet at `-D warnings`.
-type BoxedHandler = Mutex<Box<dyn FnMut(&FpssEvent) + Send>>;
+type BoxedHandler = Mutex<Box<dyn FnMut(&StreamEvent) + Send>>;
 
 // SAFETY: matches the live `RingEvent` impl in
-// `crates/thetadatadx/src/fpss/ring.rs` — `FpssEvent: Clone + Send`,
+// `crates/thetadatadx/src/fpss/ring.rs` — `StreamEvent: Clone + Send`,
 // the Disruptor's sequencing guarantees exclusive write / shared read.
 unsafe impl Sync for RingSlot {}
 
@@ -133,7 +133,7 @@ fn run_disruptor_consumer_panic_isolated() -> (u64, u64) {
     // a `Mutex<F>` so the Disruptor consumer (which expects `Fn`) can
     // call it mutably across the boundary. Single-locker pattern — no
     // contention because only the consumer thread takes the lock.
-    let user_handler: BoxedHandler = Mutex::new(Box::new(move |_event: &FpssEvent| {
+    let user_handler: BoxedHandler = Mutex::new(Box::new(move |_event: &StreamEvent| {
         // Per-event delivered counter increments BEFORE the user
         // closure body so a panic inside the callback still counts
         // as a delivery (matches the bench's per-callback-entry
@@ -163,7 +163,7 @@ fn run_disruptor_consumer_panic_isolated() -> (u64, u64) {
         loop {
             if producer
                 .try_publish(|slot| {
-                    slot.event = Some(FpssEvent::Control(FpssControl::Connected));
+                    slot.event = Some(StreamEvent::Control(StreamControl::Connected));
                 })
                 .is_ok()
             {
@@ -187,7 +187,7 @@ fn run_disruptor_consumer_no_catch_unwind() -> (u64, u64) {
     let delivered = Arc::new(AtomicU64::new(0));
     let delivered_consumer = Arc::clone(&delivered);
 
-    let user_handler: BoxedHandler = Mutex::new(Box::new(|_event: &FpssEvent| {}));
+    let user_handler: BoxedHandler = Mutex::new(Box::new(|_event: &StreamEvent| {}));
 
     let factory = || RingSlot { event: None };
     let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
@@ -207,7 +207,7 @@ fn run_disruptor_consumer_no_catch_unwind() -> (u64, u64) {
         loop {
             if producer
                 .try_publish(|slot| {
-                    slot.event = Some(FpssEvent::Control(FpssControl::Connected));
+                    slot.event = Some(StreamEvent::Control(StreamControl::Connected));
                 })
                 .is_ok()
             {
@@ -232,12 +232,12 @@ fn run_direct_callback() -> (u64, u64) {
     // invoked by the producer in-place, with no ring, no consumer
     // thread, no `catch_unwind`. Reserved for an inline-callback
     // variant if it ever lands.
-    let trampoline: Box<dyn Fn(&FpssEvent)> = Box::new(move |_event: &FpssEvent| {
+    let trampoline: Box<dyn Fn(&StreamEvent)> = Box::new(move |_event: &StreamEvent| {
         delivered_cb.fetch_add(1, Ordering::Relaxed);
     });
 
     for _ in 0..EVENTS_PER_ITER {
-        let event = FpssEvent::Control(FpssControl::Connected);
+        let event = StreamEvent::Control(StreamControl::Connected);
         trampoline(&event);
     }
 
@@ -258,7 +258,7 @@ fn run_disruptor_cross_thread() -> (u64, u64) {
     let delivered = Arc::new(AtomicU64::new(0));
     let delivered_consumer = Arc::clone(&delivered);
 
-    let user_handler: BoxedHandler = Mutex::new(Box::new(|_event: &FpssEvent| {}));
+    let user_handler: BoxedHandler = Mutex::new(Box::new(|_event: &StreamEvent| {}));
 
     let factory = || RingSlot { event: None };
     let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
@@ -281,7 +281,7 @@ fn run_disruptor_cross_thread() -> (u64, u64) {
             loop {
                 if producer
                     .try_publish(|slot| {
-                        slot.event = Some(FpssEvent::Control(FpssControl::Connected));
+                        slot.event = Some(StreamEvent::Control(StreamControl::Connected));
                     })
                     .is_ok()
                 {
@@ -318,7 +318,7 @@ fn run_disruptor_cross_thread() -> (u64, u64) {
 #[cfg(feature = "__test-helpers")]
 fn run_disruptor_production_ctor() -> (u64, u64) {
     // Shared occupancy cursors the production adapter records into — the
-    // exact pair `FpssClient::ring_occupancy` samples in the live client.
+    // exact pair `StreamingClient::ring_occupancy` samples in the live client.
     let cursors = Arc::new(RingCursors::new());
     let (mut producer, mut poller) = build_poller_producer(RING_SIZE, Arc::clone(&cursors));
 
@@ -335,7 +335,7 @@ fn run_disruptor_production_ctor() -> (u64, u64) {
             loop {
                 if producer
                     .try_publish(|slot| {
-                        slot.set_public(FpssEvent::Control(FpssControl::Connected));
+                        slot.set_public(StreamEvent::Control(StreamControl::Connected));
                     })
                     .is_ok()
                 {

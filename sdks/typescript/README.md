@@ -35,9 +35,9 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 > line 2) via `connectFromFile`, or inline via `connect(email, password)`.
 
 ```typescript
-import { ThetaDataDxClient } from 'thetadatadx';
+import { Client } from 'thetadatadx';
 
-const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const tdx = Client.connectFromFile('creds.txt');
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 const greeks = await tdx.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
@@ -64,9 +64,9 @@ const snap = await tdx.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 })
 Real-time quotes and trades flow through the same client. Register a callback with `startStreaming`; events are discriminated on `event.kind` and the typed payload narrows automatically:
 
 ```typescript
-import { Contract, ThetaDataDxClient } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx';
 
-const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const tdx = Client.connectFromFile('creds.txt');
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;
@@ -137,13 +137,13 @@ const drained = await tdx.awaitDrain(5000);
 Every tick type and streaming event is exported. Import the ones you need:
 
 ```typescript
-import type { OhlcTick, GreeksAllTick, Quote, Trade, FpssEvent } from 'thetadatadx';
+import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetadatadx';
 ```
 
-The streaming callback receives a discriminated `FpssEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
+The streaming callback receives a discriminated `StreamEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
 
 ```typescript
-tdx.startStreaming((event: FpssEvent) => {
+tdx.startStreaming((event: StreamEvent) => {
   switch (event.kind) {
     case 'trade':         /* event.trade is Trade */                break;
     case 'quote':         /* event.quote is Quote */                break;
@@ -166,10 +166,10 @@ tdx.startStreaming((event: FpssEvent) => {
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so the binding emits Arrow IPC bytes — pair with `apache-arrow`'s `tableFromIPC` to materialise a typed `Table`:
 
 ```typescript
-import { ThetaDataDxClient } from 'thetadatadx';
+import { Client } from 'thetadatadx';
 import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
-const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const tdx = Client.connectFromFile('creds.txt');
 
 const rows = tdx.flatFiles.optionQuote('20260428');
 console.log(rows.len());
@@ -198,7 +198,7 @@ Available `flatFiles.*` methods: `optionQuote`, `optionTrade`, `optionTradeQuote
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every endpoint is a camelCase method on `ThetaDataDxClient`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every endpoint is a camelCase method on `Client`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

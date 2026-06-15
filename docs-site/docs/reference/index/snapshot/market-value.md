@@ -38,7 +38,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.index_snapshot_market_value(
+Client.index_snapshot_market_value(
     symbols,
     *,
     min_time=None, timeout_ms=None,
@@ -86,7 +86,7 @@ std::vector<MarketValueTick> index_snapshot_market_value(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

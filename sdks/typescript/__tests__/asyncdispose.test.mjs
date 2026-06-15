@@ -4,10 +4,10 @@
 //   * defines a `Symbol.asyncDispose` slot
 //   * pairs `stopStreaming()` + `awaitDrain(5000)` on dispose
 //   * fires `console.warn` when `awaitDrain` returns `false`
-//   * proxies subscription methods to the underlying `ThetaDataDxClient`
+//   * proxies subscription methods to the underlying `Client`
 //     via the `Proxy` SSOT path
 //
-// Runs without a live FPSS handshake by stubbing the `ThetaDataDxClient`
+// Runs without a live FPSS handshake by stubbing the `Client`
 // instance the wrapper drives. The native binding is loaded only to
 // verify the static factory shape; the streaming lifecycle itself is
 // exercised against an in-memory mock so the test stays unit-scoped
@@ -35,9 +35,9 @@ try {
 describe('streaming-session wrapper', () => {
   it('exports StreamingSession constructor', () => {
     assert.equal(typeof mod.StreamingSession, 'function');
-    assert.equal(typeof mod.ThetaDataDxClient, 'function');
+    assert.equal(typeof mod.Client, 'function');
     // streaming() is monkey-patched onto the prototype on require.
-    assert.equal(typeof mod.ThetaDataDxClient.prototype.streaming, 'function');
+    assert.equal(typeof mod.Client.prototype.streaming, 'function');
   });
 
   it('Symbol.asyncDispose pairs stopStreaming with awaitDrain', async () => {

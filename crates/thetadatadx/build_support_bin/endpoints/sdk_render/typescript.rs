@@ -2,8 +2,8 @@
 //!
 //! Renders `sdks/typescript/src/_generated/historical_methods.rs` — the
 //! shared per-endpoint options structs plus one `impl` block per
-//! historical napi class (`ThetaDataDxClient`, the unified handle, and
-//! `MddsClient`, the standalone historical-only handle). Both carry the
+//! historical napi class (`Client`, the unified handle, and
+//! `HistoricalClient`, the standalone historical-only handle). Both carry the
 //! identical method bodies (every body references `self.tdx`), so the
 //! historical surface stays in lockstep across the two at zero
 //! per-method cost. napi-rs compiles the result into the Node.js native
@@ -26,7 +26,7 @@
 //! camelCase parameter names; absent keys behave exactly like an omitted
 //! parameter. `timeoutMs` rides in the same object: when set, the call is
 //! given a deadline; on expiry the Promise rejects and the underlying
-//! request is cancelled. The `ThetaDataDxClient` handle remains usable.
+//! request is cancelled. The `Client` handle remains usable.
 //!
 //! Every history endpoint that returns a typed row collection also gets a
 //! `<endpoint>Stream(...args, options, callback)` server-stream companion
@@ -50,20 +50,20 @@ use super::super::sdk_helpers::{
 };
 
 /// napi classes that carry the historical endpoint surface. Both wrap an
-/// `Arc<thetadatadx::ThetaDataDxClient>` field named `tdx`, so the
+/// `Arc<thetadatadx::Client>` field named `tdx`, so the
 /// generated method bodies (which all reference `self.tdx`) compile
 /// unchanged against either receiver.
 ///
-/// `ThetaDataDxClient` is the unified handle (historical + FPSS
-/// streaming); `MddsClient` is the standalone historical-only handle
+/// `Client` is the unified handle (historical + FPSS
+/// streaming); `HistoricalClient` is the standalone historical-only handle
 /// that never opens the FPSS transport. The standalone client mirrors
-/// the Python `MddsClient` (`sdks/python/src/mdds_client.rs`), the C++
-/// `tdx::Client`, and the C ABI `tdx_client_*` entry points: the same
+/// the Python `HistoricalClient` (`sdks/python/src/mdds_client.rs`), the C++
+/// `thetadatadx::Client`, and the C ABI `tdx_client_*` entry points: the same
 /// MDDS/Nexus surface with no streaming methods reachable. Emitting the
 /// identical method bodies onto both keeps the historical surface in
 /// lockstep at zero per-method cost — adding an endpoint to
 /// `endpoint_surface.toml` lands it on both classes automatically.
-const HISTORICAL_IMPL_CLASSES: &[&str] = &["ThetaDataDxClient", "MddsClient"];
+const HISTORICAL_IMPL_CLASSES: &[&str] = &["Client", "HistoricalClient"];
 
 /// Renders the TypeScript historical surface: the per-endpoint options
 /// structs and one napi `impl` block per historical class, each carrying
@@ -93,10 +93,10 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
 /// Emit a single `#[napi] impl <ClassName> { ... }` block carrying every
 /// historical endpoint method (and its server-stream companion). The
 /// method bodies reference `self.tdx`, so the block compiles against any
-/// napi class that exposes an `Arc<thetadatadx::ThetaDataDxClient>` field
+/// napi class that exposes an `Arc<thetadatadx::Client>` field
 /// named `tdx`. Parameterising over the class name lets the generator
-/// project the identical surface onto the unified `ThetaDataDxClient` and
-/// the standalone `MddsClient` without duplicating the per-endpoint
+/// project the identical surface onto the unified `Client` and
+/// the standalone `HistoricalClient` without duplicating the per-endpoint
 /// rendering.
 fn render_typescript_historical_impl_block(
     endpoints: &[GeneratedEndpoint],

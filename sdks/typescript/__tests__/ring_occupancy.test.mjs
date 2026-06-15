@@ -16,7 +16,7 @@
 // stream is live.
 //
 // The live section is gated on THETADX_TEST_CREDS=/path/to/creds.txt —
-// the underlying `ThetaDataDxClient.connectFromFile(...)` needs a live
+// the underlying `Client.connectFromFile(...)` needs a live
 // FPSS handshake. Skips silently on dev machines without creds; CI
 // runs this in the surfaces job. Mirrors dropped_events.test.mjs.
 
@@ -36,14 +36,14 @@ try {
 describe('tdx.ringOccupancy() / tdx.ringCapacity()', () => {
   it('exists on the class surface alongside droppedEventCount', () => {
     assert.equal(
-      typeof mod.ThetaDataDxClient.prototype.ringOccupancy,
+      typeof mod.Client.prototype.ringOccupancy,
       'function',
-      'ringOccupancy() must be a method on ThetaDataDxClient'
+      'ringOccupancy() must be a method on Client'
     );
     assert.equal(
-      typeof mod.ThetaDataDxClient.prototype.ringCapacity,
+      typeof mod.Client.prototype.ringCapacity,
       'function',
-      'ringCapacity() must be a method on ThetaDataDxClient'
+      'ringCapacity() must be a method on Client'
     );
   });
 
@@ -57,7 +57,7 @@ describe('tdx.ringOccupancy() / tdx.ringCapacity()', () => {
       return;
     }
 
-    const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);
+    const tdx = mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so both read 0n.
     const preOccupancy = tdx.ringOccupancy();

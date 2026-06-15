@@ -20,26 +20,26 @@
 TEST_CASE("ThetaDataError is the root of the SDK exception hierarchy",
           "[errors][offline]") {
     // The whole point of B4 is that callers can write
-    // `catch (const tdx::SubscriptionError&)` to handle a tier /
-    // permission error, and `catch (const tdx::ThetaDataError&)` to
+    // `catch (const thetadatadx::SubscriptionError&)` to handle a tier /
+    // permission error, and `catch (const thetadatadx::ThetaDataError&)` to
     // catch everything from the SDK. The class hierarchy must root
     // on `ThetaDataError`, which itself must inherit from
     // `std::runtime_error` so callers writing
     // `catch (const std::exception&)` still observe the failure.
-    STATIC_REQUIRE(std::is_base_of_v<std::runtime_error, tdx::ThetaDataError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::SubscriptionError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::RateLimitError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::AuthenticationError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::NotFoundError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::DeadlineExceededError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::UnavailableError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::NetworkError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::SchemaMismatchError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::InvalidParameterError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::StreamError>);
-    STATIC_REQUIRE(std::is_base_of_v<tdx::ThetaDataError, tdx::ConfigError>);
+    STATIC_REQUIRE(std::is_base_of_v<std::runtime_error, thetadatadx::ThetaDataError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::SubscriptionError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::RateLimitError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::AuthenticationError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::NotFoundError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::DeadlineExceededError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::UnavailableError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::NetworkError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::SchemaMismatchError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::InvalidParameterError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::StreamError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::ThetaDataError, thetadatadx::ConfigError>);
     // InvalidCredentialsError narrows AuthenticationError.
-    STATIC_REQUIRE(std::is_base_of_v<tdx::AuthenticationError, tdx::InvalidCredentialsError>);
+    STATIC_REQUIRE(std::is_base_of_v<thetadatadx::AuthenticationError, thetadatadx::InvalidCredentialsError>);
 }
 
 TEST_CASE("throw_for_code routes config discriminants to their leaf classes",
@@ -49,24 +49,24 @@ TEST_CASE("throw_for_code routes config discriminants to their leaf classes",
     // from the environmental config fault (`TDX_ERR_CONFIG`) that
     // surfaces as `ConfigError`.
     try {
-        tdx::detail::throw_for_code(TDX_ERR_INVALID_PARAMETER, "bad date");
+        thetadatadx::detail::throw_for_code(TDX_ERR_INVALID_PARAMETER, "bad date");
         FAIL("throw_for_code must throw");
-    } catch (const tdx::InvalidParameterError&) {
+    } catch (const thetadatadx::InvalidParameterError&) {
         // expected
-    } catch (const tdx::ThetaDataError& e) {
+    } catch (const thetadatadx::ThetaDataError& e) {
         FAIL("expected InvalidParameterError, got generic ThetaDataError: " << e.what());
     }
 
     // The environmental config code routes to the dedicated
     // `ConfigError` leaf, not `InvalidParameterError` and not the root.
     try {
-        tdx::detail::throw_for_code(TDX_ERR_CONFIG, "toml parse");
+        thetadatadx::detail::throw_for_code(TDX_ERR_CONFIG, "toml parse");
         FAIL("throw_for_code must throw");
-    } catch (const tdx::InvalidParameterError& e) {
+    } catch (const thetadatadx::InvalidParameterError& e) {
         FAIL("TDX_ERR_CONFIG must not surface as InvalidParameterError: " << e.what());
-    } catch (const tdx::ConfigError&) {
+    } catch (const thetadatadx::ConfigError&) {
         // expected — environmental config fault
-    } catch (const tdx::ThetaDataError& e) {
+    } catch (const thetadatadx::ThetaDataError& e) {
         FAIL("expected ConfigError, got generic ThetaDataError: " << e.what());
     }
 }
@@ -81,26 +81,26 @@ TEST_CASE("with_deadline rejects a negative deadline as InvalidParameterError",
     // matches the reject-don't-coerce contract the TypeScript binding
     // holds for the same out-of-domain `timeoutMs`, so a deadline a caller
     // could not have meant fails loudly across both surfaces.
-    tdx::EndpointRequestOptions options;
+    thetadatadx::EndpointRequestOptions options;
     try {
         options.with_deadline(std::chrono::milliseconds(-5));
         FAIL("with_deadline must reject a negative deadline");
-    } catch (const tdx::InvalidParameterError&) {
+    } catch (const thetadatadx::InvalidParameterError&) {
         // expected — distinguishable by catch type from a generic fault
-    } catch (const tdx::ThetaDataError& e) {
+    } catch (const thetadatadx::ThetaDataError& e) {
         FAIL("expected InvalidParameterError, got generic ThetaDataError: " << e.what());
     }
 
     // A non-negative deadline is accepted and recorded as whole
     // milliseconds; the setter returns the bag by reference for chaining.
-    tdx::EndpointRequestOptions ok;
+    thetadatadx::EndpointRequestOptions ok;
     REQUIRE_NOTHROW(ok.with_deadline(std::chrono::milliseconds(5000)));
     REQUIRE(ok.timeout_ms.has_value());
     REQUIRE(ok.timeout_ms.value() == 5000u);
 
     // The boundary value zero is a valid (immediate) deadline, not a
     // rejected one.
-    tdx::EndpointRequestOptions zero;
+    thetadatadx::EndpointRequestOptions zero;
     REQUIRE_NOTHROW(zero.with_deadline(std::chrono::milliseconds(0)));
     REQUIRE(zero.timeout_ms.value() == 0u);
 }
@@ -109,56 +109,56 @@ TEST_CASE("RateLimitError carries the server retry_after as a typed value",
           "[errors][offline]") {
     // A `RateLimitError` constructed with a back-off hint exposes it as
     // seconds; one constructed without a hint reports `std::nullopt`.
-    tdx::RateLimitError with_hint("thetadatadx: 429", 1.5);
+    thetadatadx::RateLimitError with_hint("thetadatadx: 429", 1.5);
     REQUIRE(with_hint.retry_after().has_value());
     REQUIRE(with_hint.retry_after().value() == 1.5);
 
-    tdx::RateLimitError without_hint("thetadatadx: 429", std::nullopt);
+    thetadatadx::RateLimitError without_hint("thetadatadx: 429", std::nullopt);
     REQUIRE_FALSE(without_hint.retry_after().has_value());
 
     // The legacy single-arg constructor still compiles and defaults the
     // hint to absent.
-    tdx::RateLimitError legacy("thetadatadx: 429");
+    thetadatadx::RateLimitError legacy("thetadatadx: 429");
     REQUIRE_FALSE(legacy.retry_after().has_value());
 }
 
 TEST_CASE("classify_grpc_kind routes every canonical gRPC status to the right leaf",
           "[errors][offline]") {
-    // Dispatch table test for `tdx::detail::throw_for_grpc_kind` —
+    // Dispatch table test for `thetadatadx::detail::throw_for_grpc_kind` —
     // the seam every generated FFI wrapper hits when
     // `tdx_get_last_error_code()` returns a typed discriminant. The
     // routing must match the Python leaf set one-for-one so a Python
     // user porting `except thetadatadx.SubscriptionError` to C++
-    // gets `catch (const tdx::SubscriptionError&)` and the same
+    // gets `catch (const thetadatadx::SubscriptionError&)` and the same
     // semantics.
-    using K = tdx::GrpcStatusKind;
+    using K = thetadatadx::GrpcStatusKind;
 
     auto throws_as = [](K kind, auto check) {
         try {
-            tdx::detail::throw_for_grpc_kind(kind, "test");
+            thetadatadx::detail::throw_for_grpc_kind(kind, "test");
             FAIL("throw_for_grpc_kind must throw");
-        } catch (const tdx::ThetaDataError& e) {
+        } catch (const thetadatadx::ThetaDataError& e) {
             check(e);
         }
     };
 
-    throws_as(K::PermissionDenied, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::SubscriptionError*>(&e) != nullptr);
+    throws_as(K::PermissionDenied, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::SubscriptionError*>(&e) != nullptr);
     });
-    throws_as(K::ResourceExhausted, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::RateLimitError*>(&e) != nullptr);
+    throws_as(K::ResourceExhausted, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::RateLimitError*>(&e) != nullptr);
     });
-    throws_as(K::Unauthenticated, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::AuthenticationError*>(&e) != nullptr);
+    throws_as(K::Unauthenticated, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::AuthenticationError*>(&e) != nullptr);
     });
-    throws_as(K::NotFound, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::NotFoundError*>(&e) != nullptr);
+    throws_as(K::NotFound, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::NotFoundError*>(&e) != nullptr);
     });
-    throws_as(K::DeadlineExceeded, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::DeadlineExceededError*>(&e) != nullptr);
+    throws_as(K::DeadlineExceeded, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::DeadlineExceededError*>(&e) != nullptr);
     });
-    throws_as(K::Unavailable, [](const tdx::ThetaDataError& e) {
-        REQUIRE(dynamic_cast<const tdx::UnavailableError*>(&e) != nullptr);
+    throws_as(K::Unavailable, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::UnavailableError*>(&e) != nullptr);
     });
 }
 
@@ -177,15 +177,15 @@ TEST_CASE("forced Unauthenticated from a real RPC surfaces as AuthenticationErro
         SKIP("THETADX_LIVE_CREDS not set");
     }
 
-    auto bogus = tdx::Credentials::from_email("not-a-real-user@example.invalid",
+    auto bogus = thetadatadx::Credentials::from_email("not-a-real-user@example.invalid",
                                               "not-a-real-password");
-    auto config = tdx::Config::production();
+    auto config = thetadatadx::Config::production();
     try {
-        (void)tdx::MddsClient::connect(bogus, config);
+        (void)thetadatadx::HistoricalClient::connect(bogus, config);
         FAIL("bogus credentials must surface an error");
-    } catch (const tdx::AuthenticationError&) {
+    } catch (const thetadatadx::AuthenticationError&) {
         // expected — auth failed before any data round-trip
-    } catch (const tdx::ThetaDataError& e) {
+    } catch (const thetadatadx::ThetaDataError& e) {
         FAIL("expected AuthenticationError, got generic ThetaDataError: " << e.what());
     }
 }
@@ -198,17 +198,17 @@ TEST_CASE("config enum setters reject an out-of-domain value with InvalidParamet
     // catch type matches the Python `ValueError` / TypeScript
     // `InvalidParameterError` for the same input. A valid value must not
     // throw.
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
 
     REQUIRE_NOTHROW(cfg.set_flush_mode(1));
-    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), tdx::InvalidParameterError);
-    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), tdx::ThetaDataError);
+    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), thetadatadx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_flush_mode(9), thetadatadx::ThetaDataError);
 
     REQUIRE_NOTHROW(cfg.set_reconnect_jitter(2));
-    REQUIRE_THROWS_AS(cfg.set_reconnect_jitter(9), tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_reconnect_jitter(9), thetadatadx::InvalidParameterError);
 
     REQUIRE_NOTHROW(cfg.set_fpss_host_selection(1));
-    REQUIRE_THROWS_AS(cfg.set_fpss_host_selection(5), tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(cfg.set_fpss_host_selection(5), thetadatadx::InvalidParameterError);
 }
 
 TEST_CASE("sequence converters reject out-of-wire-range inputs with InvalidParameterError",
@@ -218,23 +218,23 @@ TEST_CASE("sequence converters reject out-of-wire-range inputs with InvalidParam
     // must throw `InvalidParameterError`, matching the Python
     // `ValueError` / TypeScript `InvalidParameterError`. In-range inputs
     // round-trip without throwing.
-    REQUIRE_NOTHROW(tdx::util::sequence_signed_to_unsigned(0));
-    REQUIRE(tdx::util::sequence_signed_to_unsigned(-1) ==
-            tdx::util::sequence_signed_to_unsigned(-1));
+    REQUIRE_NOTHROW(thetadatadx::util::sequence_signed_to_unsigned(0));
+    REQUIRE(thetadatadx::util::sequence_signed_to_unsigned(-1) ==
+            thetadatadx::util::sequence_signed_to_unsigned(-1));
 
     // i32::MAX + 1 and i32::MIN - 1 are outside the signed wire range.
-    REQUIRE_THROWS_AS(tdx::util::sequence_signed_to_unsigned(2147483648LL),
-                      tdx::InvalidParameterError);
-    REQUIRE_THROWS_AS(tdx::util::sequence_signed_to_unsigned(-2147483649LL),
-                      tdx::InvalidParameterError);
+    REQUIRE_THROWS_AS(thetadatadx::util::sequence_signed_to_unsigned(2147483648LL),
+                      thetadatadx::InvalidParameterError);
+    REQUIRE_THROWS_AS(thetadatadx::util::sequence_signed_to_unsigned(-2147483649LL),
+                      thetadatadx::InvalidParameterError);
 
     // 2^32 is the first value past the unsigned wire range; the audit
     // repro that returned 0 before now rejects.
-    REQUIRE_THROWS_AS(tdx::util::sequence_unsigned_to_signed(4294967296ULL),
-                      tdx::InvalidParameterError);
-    REQUIRE_THROWS_AS(tdx::util::sequence_unsigned_to_signed(4294967296ULL),
-                      tdx::ThetaDataError);
+    REQUIRE_THROWS_AS(thetadatadx::util::sequence_unsigned_to_signed(4294967296ULL),
+                      thetadatadx::InvalidParameterError);
+    REQUIRE_THROWS_AS(thetadatadx::util::sequence_unsigned_to_signed(4294967296ULL),
+                      thetadatadx::ThetaDataError);
 
     // The largest valid unsigned wire value still converts.
-    REQUIRE_NOTHROW(tdx::util::sequence_unsigned_to_signed(4294967295ULL));
+    REQUIRE_NOTHROW(thetadatadx::util::sequence_unsigned_to_signed(4294967295ULL));
 }

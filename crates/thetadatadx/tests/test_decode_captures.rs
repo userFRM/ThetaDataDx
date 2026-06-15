@@ -114,7 +114,7 @@ fn load_endpoint_info(endpoint: &str) -> EndpointInfo {
 // ────────────────────────────────────────────────────────────────────────────
 // Per-endpoint tests. Each test:
 //  1. loads the capture,
-//  2. runs `decode_data_table` (same path the MddsClient uses),
+//  2. runs `decode_data_table` (same path the HistoricalClient uses),
 //  3. asserts the row count and header list match the fixture,
 //  4. runs the tick-specific parser and asserts first-row field values.
 // ────────────────────────────────────────────────────────────────────────────

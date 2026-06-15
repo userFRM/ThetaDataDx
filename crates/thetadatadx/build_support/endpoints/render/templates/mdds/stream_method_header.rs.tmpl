@@ -3,7 +3,7 @@
     ///
     /// On expiry the in-flight gRPC stream is cancelled and the
     /// `stream(...)` call resolves to `Err(Error::Timeout)`. The
-    /// underlying `MddsClient` is unaffected; subsequent calls on
+    /// underlying `HistoricalClient` is unaffected; subsequent calls on
     /// the same handle succeed. `Duration::ZERO` is normalized to
     /// "no deadline" — see [`crate::mdds::macros`] for the full
     /// rationale.

@@ -21,12 +21,12 @@ pub struct TdxCredentials {
 
 /// Opaque historical (MDDS) client handle.
 ///
-/// `repr(transparent)` guarantees `*const TdxMddsClient` and
-/// `*const MddsClient` have identical layout, allowing safe pointer casts in
-/// `tdx_unified_historical()`.
+/// `repr(transparent)` guarantees `*const TdxHistoricalClient` and
+/// `*const HistoricalClient` have identical layout, allowing safe pointer casts in
+/// `tdx_client_historical()`.
 #[repr(transparent)]
-pub struct TdxMddsClient {
-    pub(crate) inner: thetadatadx::mdds::MddsClient,
+pub struct TdxHistoricalClient {
+    pub(crate) inner: thetadatadx::mdds::HistoricalClient,
 }
 
 /// Opaque config handle.

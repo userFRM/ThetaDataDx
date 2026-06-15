@@ -1,7 +1,7 @@
 """
 FPSS control-variant typed-class smoke tests.
 
-Pins the contract that every `FpssControl::*` Rust variant has a
+Pins the contract that every `StreamControl::*` Rust variant has a
 typed `#[pyclass]` mirror exported from `thetadatadx`, that each
 mirror declares the right field set, and that Python's structural
 `match` machinery dispatches on the class type without further
@@ -16,7 +16,7 @@ a live handshake. What this test pins instead:
 
 * The class exists in the `thetadatadx` namespace.
 * Its fully-qualified name matches the schema-declared variant
-  (which mirrors `FpssControl::*`).
+  (which mirrors `StreamControl::*`).
 * `__match_args__` (when present) and the field-getter set match
   the schema's `columns` declaration -- pyo3 generates getters
   on every `#[pyo3(get)]` field, so `dir(cls)` exposes them.
@@ -66,7 +66,7 @@ def thetadatadx_mod():
 
 @pytest.mark.parametrize("variant,fields", CONTROL_VARIANTS, ids=lambda v: v if isinstance(v, str) else "")
 def test_control_variant_exported(thetadatadx_mod, variant, fields):
-    """Every `FpssControl::*` variant has a typed pyclass on the package."""
+    """Every `StreamControl::*` variant has a typed pyclass on the package."""
     cls = getattr(thetadatadx_mod, variant)
     assert cls is not None, f"thetadatadx.{variant} missing"
     # pyo3 frozen pyclasses expose the schema name as the type name.
@@ -88,7 +88,7 @@ def test_control_variant_field_getters(thetadatadx_mod, variant, fields):
 def test_kind_getter_per_variant(thetadatadx_mod):
     """Every typed event class exposes a `kind` property whose value
     is the snake_case variant name -- the same discriminator the
-    TypeScript SDK's `FpssEvent.kind` field carries."""
+    TypeScript SDK's `StreamEvent.kind` field carries."""
     expected_kinds = {
         "LoginSuccess": "login_success",
         "ContractAssigned": "contract_assigned",
@@ -122,7 +122,7 @@ def test_kind_getter_per_variant(thetadatadx_mod):
         )
         # The schema-driven generator emits a `&'static str` literal
         # equal to `expected_kind`; the value is checked indirectly
-        # via the TS SDK's `FpssEvent.kind` literal-union test (and
+        # via the TS SDK's `StreamEvent.kind` literal-union test (and
         # in the live-stream callback path on real events).
         del expected_kind  # unused locally; documents the intent
 

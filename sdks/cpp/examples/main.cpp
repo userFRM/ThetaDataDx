@@ -1,6 +1,6 @@
 // Minimal end-to-end example for the C++ SDK.
 //
-// Connects an `MddsClient` from a `creds.txt` file, pulls end-of-day
+// Connects an `HistoricalClient` from a `creds.txt` file, pulls end-of-day
 // history for one symbol, and runs the offline Greeks / implied-volatility
 // calculators that need no server connection.
 
@@ -11,9 +11,9 @@
 int main() {
     try {
         // Load credentials from creds.txt (line 1 = email, line 2 = password)
-        auto creds = tdx::Credentials::from_file("creds.txt");
-        auto config = tdx::Config::production();
-        auto client = tdx::MddsClient::connect(creds, config);
+        auto creds = thetadatadx::Credentials::from_file("creds.txt");
+        auto config = thetadatadx::Config::production();
+        auto client = thetadatadx::HistoricalClient::connect(creds, config);
 
         // Fetch end-of-day data -- prices are already decoded to f64
         auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
@@ -30,7 +30,7 @@ int main() {
         }
 
         // Greeks calculator (no server connection needed)
-        auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
+        auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
         std::cout << "\nGreeks:"
                   << " IV=" << std::setprecision(4) << g.iv
                   << " Delta=" << g.delta
@@ -39,7 +39,7 @@ int main() {
                   << std::endl;
 
         // Implied volatility
-        auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
+        auto [iv, err] = thetadatadx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
         std::cout << "IV=" << std::setprecision(6) << iv
                   << " (error=" << std::scientific << err << ")" << std::endl;
 

@@ -17,7 +17,7 @@ from thetadatadx import (
     Credentials,
     Quote,
     SecType,
-    ThetaDataDxClient,
+    Client,
     Trade,
 )
 
@@ -38,7 +38,7 @@ def on_event(event):
 
 def main() -> None:
     creds = Credentials.from_file("creds.txt")
-    client = ThetaDataDxClient(creds, Config.production())
+    client = Client(creds, Config.production())
 
     # Build a strike chain around 550, both wings, 20-Jun-2026.
     expiration = "20260620"

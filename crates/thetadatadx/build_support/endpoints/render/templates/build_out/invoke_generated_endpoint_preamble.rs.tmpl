@@ -3,7 +3,7 @@
 /// The build script emits one match arm per endpoint from the shared endpoint
 /// metadata so registry-driven projections stay aligned with the SDK surface.
 pub async fn invoke_generated_endpoint(
-    client: &crate::mdds::MddsClient,
+    client: &crate::mdds::HistoricalClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {

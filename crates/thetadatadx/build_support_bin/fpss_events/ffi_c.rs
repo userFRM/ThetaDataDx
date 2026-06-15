@@ -1,7 +1,7 @@
 //! C mirror header emitter (`sdks/cpp/include/fpss_event_structs.h.inc`).
 //!
 //! Emits one C struct per `kind = "control"` schema entry, alongside the
-//! data-variant structs. The tagged `TdxFpssEvent` embeds all of them by
+//! data-variant structs. The tagged `TdxStreamEvent` embeds all of them by
 //! value; consumers dispatch on `event.kind` and read the matching
 //! `event.<variant>` field.
 
@@ -12,14 +12,14 @@ use super::schema::{
     sorted_control_events, sorted_data_events, sorted_event_names, EventDef, Schema,
 };
 
-/// Emit the `TdxFpssEventKind` C enum. One discriminant per variant,
+/// Emit the `TdxStreamEventKind` C enum. One discriminant per variant,
 /// schema-driven.
 fn render_kind_enum_c(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
         "/* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.\n\
  * Check `event.kind` then read the matching `event.<variant>` field on\n\
- * `TdxFpssEvent`. Values are stable across the v9.x C ABI but may\n\
+ * `TdxStreamEvent`. Values are stable across the v9.x C ABI but may\n\
  * renumber on a future major bump. */\n",
     );
     out.push_str("typedef enum {\n");
@@ -28,7 +28,7 @@ fn render_kind_enum_c(schema: &Schema) -> String {
         let upper = snake_case(name).to_uppercase();
         writeln!(out, "    TDX_FPSS_{upper} = {idx},").unwrap();
     }
-    out.push_str("} TdxFpssEventKind;\n\n");
+    out.push_str("} TdxStreamEventKind;\n\n");
     out
 }
 
@@ -56,7 +56,7 @@ typedef struct {\n\
 } TdxContract;\n\n"
 }
 
-/// Emit one `typedef struct { ... } TdxFpss<Variant>;` for a data or
+/// Emit one `typedef struct { ... } TdxStream<Variant>;` for a data or
 /// control variant. Empty (unit) control variants get a single
 /// `uint8_t _padding;` so MSVC / Clang / GCC all agree on `sizeof == 1`.
 fn render_event_struct_c(out: &mut String, event_name: &str, def: &EventDef) {
@@ -80,7 +80,7 @@ fn render_event_struct_c(out: &mut String, event_name: &str, def: &EventDef) {
             }
         }
     }
-    writeln!(out, "}} TdxFpss{event_name};\n").unwrap();
+    writeln!(out, "}} TdxStream{event_name};\n").unwrap();
 }
 
 /// Emit the C mirror of the Rust FFI event structs. `#include`'d from
@@ -113,18 +113,18 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
 
     out.push_str("/* Tagged FPSS event. Read `kind` first, then access only the\n");
     out.push_str(" * matching `event.<variant>` field. Per-variant control payloads\n");
-    out.push_str(" * mirror the Rust `FpssControl::*` enum one-for-one. */\n");
+    out.push_str(" * mirror the Rust `StreamControl::*` enum one-for-one. */\n");
     out.push_str("typedef struct {\n");
-    out.push_str("    TdxFpssEventKind kind;\n");
+    out.push_str("    TdxStreamEventKind kind;\n");
     for (event_name, _) in sorted_data_events(schema) {
         let field = snake_case(event_name);
-        writeln!(out, "    TdxFpss{event_name} {field};").unwrap();
+        writeln!(out, "    TdxStream{event_name} {field};").unwrap();
     }
     for (event_name, _) in sorted_control_events(schema) {
         let field = snake_case(event_name);
-        writeln!(out, "    TdxFpss{event_name} {field};").unwrap();
+        writeln!(out, "    TdxStream{event_name} {field};").unwrap();
     }
-    out.push_str("} TdxFpssEvent;\n");
+    out.push_str("} TdxStreamEvent;\n");
 
     out
 }

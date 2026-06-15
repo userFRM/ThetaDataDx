@@ -17,7 +17,7 @@ baseline; bulk cells (`all_strikes_one_exp`, `bulk_chain` on option
 history / at-time endpoints) use 180 seconds because a full-chain
 payload legitimately takes longer than a minute. On expiry the in-flight
 gRPC stream is cancelled and a RuntimeError carrying "Request deadline
-exceeded" is raised. The `ThetaDataDxClient` handle stays usable for
+exceeded" is raised. The `Client` handle stays usable for
 subsequent cells.
 """
 import json
@@ -25,13 +25,13 @@ import pathlib
 import sys
 import time
 
-from thetadatadx import Credentials, Config, ThetaDataDxClient
+from thetadatadx import Credentials, Config, Client
 
 PER_CELL_TIMEOUT_MS = 60_000
 SLOW_MODE_TIMEOUT_MS = 180_000
 ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / "artifacts" / "validator_python.json"
 
-client = ThetaDataDxClient(Credentials.from_file(sys.argv[1]), Config.production())
+client = Client(Credentials.from_file(sys.argv[1]), Config.production())
 
 # (endpoint, mode_name, declared_min_tier, rationale, callable)
 # `declared_min_tier` is informational only (printed on tier-permission

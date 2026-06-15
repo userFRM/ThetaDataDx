@@ -19,10 +19,10 @@ use super::protocol::Contract;
 /// `contract.strike_thousandths`, `contract.is_call`. The wire-internal numeric id the
 /// FPSS server assigns is no longer surfaced on data events; downstream code
 /// that needs an id-keyed map builds it from the
-/// [`FpssControl::ContractAssigned`] event stream.
+/// [`StreamControl::ContractAssigned`] event stream.
 ///
 /// The I/O thread populates an internal `contract_id -> Arc<Contract>` cache
-/// on [`FpssControl::ContractAssigned`] so each decoded event only pays a
+/// on [`StreamControl::ContractAssigned`] so each decoded event only pays a
 /// refcount bump. Each event carries the fully resolved [`Contract`] alongside
 /// the payload.
 ///
@@ -43,7 +43,7 @@ use super::protocol::Contract;
 /// wire ids from public data events.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum FpssData {
+pub enum StreamData {
     /// Decoded quote tick (code 21).
     Quote {
         /// Full parsed contract for this tick. Holds the unresolved-
@@ -195,7 +195,7 @@ pub enum FpssData {
 /// Control/lifecycle events from the FPSS stream.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum FpssControl {
+pub enum StreamControl {
     /// Login succeeded (METADATA code 3).
     ///
     /// `permissions` is the server's "Bundle" string, copied verbatim from the
@@ -312,7 +312,7 @@ pub enum FpssControl {
     },
     /// Server-side reconnect ack (code 13).
     ///
-    /// Distinct from [`FpssControl::Reconnected`], which the client
+    /// Distinct from [`StreamControl::Reconnected`], which the client
     /// emits from its auto-reconnect state machine once the new TLS
     /// session is authenticated. `ReconnectedServer` is the server
     /// telling the client that the server-side session has just
@@ -338,20 +338,20 @@ pub enum FpssControl {
 /// discriminant `1`, with identical payload positions. The I/O loop
 /// publishes `FpssEventInternal` into the event ring (so it can
 /// also carry decode-fallback / placeholder variants without surfacing
-/// them publicly), then delivers a `&FpssEvent` reference to the user
+/// them publicly), then delivers a `&StreamEvent` reference to the user
 /// callback for `Data` / `Control` slots only via a layout-compatible
 /// zero-clone reborrow.
 #[derive(Debug, Clone)]
 #[repr(C, u8)]
 #[non_exhaustive]
-pub enum FpssEvent {
+pub enum StreamEvent {
     /// Tick data event (quote, trade, open interest, OHLCVC).
-    Data(FpssData) = FPSS_EVENT_TAG_DATA,
+    Data(StreamData) = FPSS_EVENT_TAG_DATA,
     /// Control/lifecycle event (login, contract assignment, market open/close, etc.).
-    Control(FpssControl) = FPSS_EVENT_TAG_CONTROL,
+    Control(StreamControl) = FPSS_EVENT_TAG_CONTROL,
 }
 
-// Discriminant tags shared between `FpssEvent` and `FpssEventInternal`.
+// Discriminant tags shared between `StreamEvent` and `FpssEventInternal`.
 // `pub(crate)` so the I/O loop, ring, and decode layers can match on the
 // same source of truth as the enum definitions.
 pub(crate) const FPSS_EVENT_TAG_DATA: u8 = 0;
@@ -369,7 +369,7 @@ pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
 /// SemVer bump.
 ///
 /// Carries the same `Data` / `Control` variants as the public
-/// [`FpssEvent`] (and at the same discriminant + layout, see the
+/// [`StreamEvent`] (and at the same discriminant + layout, see the
 /// `repr(C, u8)` clause), plus two crate-private variants the SDK never
 /// surfaces to the user callback:
 ///
@@ -381,20 +381,20 @@ pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
 /// * [`FpssEventInternal::Empty`] — pre-allocation placeholder for
 ///   ring-buffer slots that have never been written; folding the empty
 ///   case into a variant lets the consumer closure avoid an
-///   `Option<FpssEvent>` discriminant test.
+///   `Option<StreamEvent>` discriminant test.
 ///
 /// The I/O thread builds `FpssEventInternal` directly from the wire
 /// decoder; the event-dispatch consumer reborrows the slot reference to a
-/// `&FpssEvent` via [`Self::as_public`] (zero-clone, layout-compatible)
+/// `&StreamEvent` via [`Self::as_public`] (zero-clone, layout-compatible)
 /// and only invokes the user callback when that reborrow succeeds.
 #[derive(Debug, Clone)]
 #[repr(C, u8)]
 #[doc(hidden)]
 pub enum FpssEventInternal {
-    /// Same payload + discriminant as [`FpssEvent::Data`].
-    Data(FpssData) = FPSS_EVENT_TAG_DATA,
-    /// Same payload + discriminant as [`FpssEvent::Control`].
-    Control(FpssControl) = FPSS_EVENT_TAG_CONTROL,
+    /// Same payload + discriminant as [`StreamEvent::Data`].
+    Data(StreamData) = FPSS_EVENT_TAG_DATA,
+    /// Same payload + discriminant as [`StreamEvent::Control`].
+    Control(StreamControl) = FPSS_EVENT_TAG_CONTROL,
     /// Decoder rejected this frame (truncated FIT payload). Filtered
     /// before user callbacks; surfaced on the
     /// `thetadatadx.fpss.decode_failures` metric counter and visible
@@ -413,7 +413,7 @@ impl Default for FpssEventInternal {
 }
 
 // Compile-time layout-compatibility guards for the `FpssEventInternal ->
-// FpssEvent` reborrow performed by [`FpssEventInternal::as_public`]. Both
+// StreamEvent` reborrow performed by [`FpssEventInternal::as_public`]. Both
 // enums are `#[repr(C, u8)]` with identical payload types at the
 // `Data` / `Control` discriminants, so size + alignment must match
 // exactly. A divergence here trips the build before any callback can
@@ -421,21 +421,21 @@ impl Default for FpssEventInternal {
 // separately by the runtime `assert_layout_compat` unit test (it
 // requires `Arc`-bearing constructed values and is not const-evaluable).
 const _: () = assert!(
-    core::mem::size_of::<FpssEvent>() == core::mem::size_of::<FpssEventInternal>(),
-    "FpssEvent and FpssEventInternal must have identical size for the as_public reborrow",
+    core::mem::size_of::<StreamEvent>() == core::mem::size_of::<FpssEventInternal>(),
+    "StreamEvent and FpssEventInternal must have identical size for the as_public reborrow",
 );
 const _: () = assert!(
-    core::mem::align_of::<FpssEvent>() == core::mem::align_of::<FpssEventInternal>(),
-    "FpssEvent and FpssEventInternal must have identical alignment for the as_public reborrow",
+    core::mem::align_of::<StreamEvent>() == core::mem::align_of::<FpssEventInternal>(),
+    "StreamEvent and FpssEventInternal must have identical alignment for the as_public reborrow",
 );
 
 impl FpssEventInternal {
-    /// Borrow this internal event as a public [`FpssEvent`] reference,
+    /// Borrow this internal event as a public [`StreamEvent`] reference,
     /// or return `None` for the internal-only variants.
     ///
     /// # Safety / soundness
     ///
-    /// Both `FpssEvent` and `FpssEventInternal` are
+    /// Both `StreamEvent` and `FpssEventInternal` are
     /// `#[repr(C, u8)]`, share the same discriminant constants for the
     /// `Data` and `Control` arms ([`FPSS_EVENT_TAG_DATA`],
     /// [`FPSS_EVENT_TAG_CONTROL`]), and carry the same payload type at
@@ -447,7 +447,7 @@ impl FpssEventInternal {
     /// where `padding` is determined entirely by the alignment of the
     /// payload type, which is the same for both enums (same payload
     /// type ⇒ same alignment ⇒ same padding). Casting a
-    /// `&FpssEventInternal` to a `&FpssEvent` is therefore sound when
+    /// `&FpssEventInternal` to a `&StreamEvent` is therefore sound when
     /// the discriminant is `Data` or `Control`.
     ///
     /// The cast is gated on the discriminant tag, so the
@@ -459,15 +459,15 @@ impl FpssEventInternal {
     ///
     /// * Compile-time `const _: () = assert!(...)` items at the bottom
     ///   of this module check `size_of` and `align_of` equality between
-    ///   `FpssEvent` and `FpssEventInternal`. Any divergence — e.g.
-    ///   someone adding a private field to `FpssData` only on the
+    ///   `StreamEvent` and `FpssEventInternal`. Any divergence — e.g.
+    ///   someone adding a private field to `StreamData` only on the
     ///   internal side — fails the build before it can corrupt a user
     ///   callback.
     /// * The runtime unit test [`assert_layout_compat`] additionally
     ///   pins discriminant-byte equality (which requires constructing
     ///   `Arc`-bearing payloads and is therefore not const-evaluable).
     #[inline]
-    pub fn as_public(&self) -> Option<&FpssEvent> {
+    pub fn as_public(&self) -> Option<&StreamEvent> {
         // Gate the layout-compatibility cast on a real `match`. The
         // arm bindings (`_d`, `_c`) read the variant payload bytes
         // through `discriminant_data_offset` / `discriminant_control_offset`
@@ -484,9 +484,9 @@ impl FpssEventInternal {
                 // backend Rust ships.
                 core::hint::black_box(d);
                 // SAFETY: this match arm proves the discriminant is
-                // `FPSS_EVENT_TAG_DATA`. `FpssEvent` and
+                // `FPSS_EVENT_TAG_DATA`. `StreamEvent` and
                 // `FpssEventInternal` are both `#[repr(C, u8)]` with
-                // identical `Data(FpssData)` payloads at that
+                // identical `Data(StreamData)` payloads at that
                 // discriminant, so the in-memory layout is shared
                 // (Rust reference, "Primitive representation of enums
                 // with fields"). The compile-time `const _` items at
@@ -497,7 +497,7 @@ impl FpssEventInternal {
                 // layout divergence can corrupt a callback. The reborrow
                 // inherits the `&self` lifetime; aliasing rules treat
                 // it like the original borrow.
-                Some(unsafe { &*(self as *const Self as *const FpssEvent) })
+                Some(unsafe { &*(self as *const Self as *const StreamEvent) })
             }
             Self::Control(c) => {
                 // Same field-read marker as the `Data` arm.
@@ -505,28 +505,28 @@ impl FpssEventInternal {
                 // SAFETY: same layout-compatibility argument as the
                 // `Data` arm — same `#[repr(C, u8)]` discipline,
                 // same payload type at this discriminant.
-                Some(unsafe { &*(self as *const Self as *const FpssEvent) })
+                Some(unsafe { &*(self as *const Self as *const StreamEvent) })
             }
             Self::Unparseable | Self::Empty => None,
         }
     }
 }
 
-impl From<FpssEvent> for FpssEventInternal {
+impl From<StreamEvent> for FpssEventInternal {
     #[inline]
-    fn from(evt: FpssEvent) -> Self {
+    fn from(evt: StreamEvent) -> Self {
         match evt {
-            FpssEvent::Data(d) => Self::Data(d),
-            FpssEvent::Control(c) => Self::Control(c),
+            StreamEvent::Data(d) => Self::Data(d),
+            StreamEvent::Control(c) => Self::Control(c),
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// Command channel -- FpssClient -> I/O thread
+// Command channel -- StreamingClient -> I/O thread
 // ---------------------------------------------------------------------------
 
-/// Commands sent from the `FpssClient` handle to the I/O thread.
+/// Commands sent from the `StreamingClient` handle to the I/O thread.
 pub(super) enum IoCommand {
     /// Write a raw frame (code + payload) to the TLS stream.
     WriteFrame {
@@ -544,7 +544,7 @@ mod tests {
 
     /// Pins the layout compatibility `FpssEventInternal::as_public`
     /// relies on. Any change that breaks size, alignment, or discriminant
-    /// equality between `FpssEvent` and the public-facing variants of
+    /// equality between `StreamEvent` and the public-facing variants of
     /// `FpssEventInternal` must trip this test before it can corrupt a
     /// reborrow.
     ///
@@ -557,24 +557,24 @@ mod tests {
         // Same `#[repr(C, u8)]` declaration on both enums plus
         // identical payload types ⇒ identical size + alignment.
         assert_eq!(
-            std::mem::size_of::<FpssEvent>(),
+            std::mem::size_of::<StreamEvent>(),
             std::mem::size_of::<FpssEventInternal>(),
-            "FpssEvent and FpssEventInternal must have identical size for the layout-compat reborrow",
+            "StreamEvent and FpssEventInternal must have identical size for the layout-compat reborrow",
         );
         assert_eq!(
-            std::mem::align_of::<FpssEvent>(),
+            std::mem::align_of::<StreamEvent>(),
             std::mem::align_of::<FpssEventInternal>(),
-            "FpssEvent and FpssEventInternal must have identical alignment",
+            "StreamEvent and FpssEventInternal must have identical alignment",
         );
 
         // Discriminant-byte equality. The `as_public` reborrow assumes
         // a constructed `FpssEventInternal::Data(_)` shares the same
-        // first-byte tag as `FpssEvent::Data(_)`, and likewise for
+        // first-byte tag as `StreamEvent::Data(_)`, and likewise for
         // `Control`. If a contributor reorders the explicit
         // `= FPSS_EVENT_TAG_*` discriminants on either enum (or removes
         // the explicit tag) this fires before silent corruption ships.
         let contract = Arc::new(Contract::stock("DISC"));
-        let internal_data = FpssEventInternal::Data(FpssData::Quote {
+        let internal_data = FpssEventInternal::Data(StreamData::Quote {
             contract: Arc::clone(&contract),
             ms_of_day: 0,
             bid_size: 0,
@@ -588,10 +588,10 @@ mod tests {
             date: 0,
             received_at_ns: 0,
         });
-        let internal_control = FpssEventInternal::Control(FpssControl::LoginSuccess {
+        let internal_control = FpssEventInternal::Control(StreamControl::LoginSuccess {
             permissions: String::new(),
         });
-        let public_data = FpssEvent::Data(FpssData::Quote {
+        let public_data = StreamEvent::Data(StreamData::Quote {
             contract: Arc::clone(&contract),
             ms_of_day: 0,
             bid_size: 0,
@@ -605,11 +605,11 @@ mod tests {
             date: 0,
             received_at_ns: 0,
         });
-        let public_control = FpssEvent::Control(FpssControl::LoginSuccess {
+        let public_control = StreamEvent::Control(StreamControl::LoginSuccess {
             permissions: String::new(),
         });
         // SAFETY: `p` points at a local stack value (one of the four
-        // `FpssEvent` / `FpssEventInternal` bindings constructed above)
+        // `StreamEvent` / `FpssEventInternal` bindings constructed above)
         // whose first byte holds the `#[repr(C, u8)]` discriminant tag.
         // Reading exactly 1 byte through `*const u8` is sound for the
         // duration of the enclosing test scope — the bindings outlive
@@ -623,7 +623,7 @@ mod tests {
         assert_eq!(
             tag(&public_data as *const _ as *const u8),
             FPSS_EVENT_TAG_DATA,
-            "FpssEvent::Data discriminant byte must equal FPSS_EVENT_TAG_DATA",
+            "StreamEvent::Data discriminant byte must equal FPSS_EVENT_TAG_DATA",
         );
         assert_eq!(
             tag(&internal_control as *const _ as *const u8),
@@ -633,19 +633,19 @@ mod tests {
         assert_eq!(
             tag(&public_control as *const _ as *const u8),
             FPSS_EVENT_TAG_CONTROL,
-            "FpssEvent::Control discriminant byte must equal FPSS_EVENT_TAG_CONTROL",
+            "StreamEvent::Control discriminant byte must equal FPSS_EVENT_TAG_CONTROL",
         );
     }
 
     /// Verify that constructing a `Data` / `Control` `FpssEventInternal`
     /// and reborrowing it via `as_public` yields a value-equal
-    /// `FpssEvent`. Round-trips data + control payloads through the
+    /// `StreamEvent`. Round-trips data + control payloads through the
     /// reborrow so payload bytes (Arc pointers, scalar fields) are not
     /// corrupted by the cast.
     #[test]
     fn fpss_event_internal_roundtrips_data_and_control() {
         let contract = Arc::new(Contract::stock("MSFT"));
-        let internal = FpssEventInternal::Data(FpssData::Trade {
+        let internal = FpssEventInternal::Data(StreamData::Trade {
             contract: Arc::clone(&contract),
             ms_of_day: 12_345,
             sequence: 7,
@@ -668,7 +668,7 @@ mod tests {
             .as_public()
             .expect("Data variant must reborrow as public");
         match public {
-            FpssEvent::Data(FpssData::Trade {
+            StreamEvent::Data(StreamData::Trade {
                 contract: pub_contract,
                 ms_of_day,
                 sequence,
@@ -689,15 +689,15 @@ mod tests {
             other => panic!("expected Data(Trade) after reborrow, got {other:?}"),
         }
 
-        let internal_ctrl = FpssEventInternal::Control(FpssControl::MarketOpen);
+        let internal_ctrl = FpssEventInternal::Control(StreamControl::MarketOpen);
         assert!(matches!(
             internal_ctrl.as_public(),
-            Some(FpssEvent::Control(FpssControl::MarketOpen)),
+            Some(StreamEvent::Control(StreamControl::MarketOpen)),
         ));
     }
 
     /// The `Unparseable` and `Empty` variants must NEVER escape into a
-    /// public `FpssEvent` reference — `as_public` maps them to `None`.
+    /// public `StreamEvent` reference — `as_public` maps them to `None`.
     /// Pinning the filter at the type level is the whole point of the
     /// internal/public split.
     #[test]
@@ -708,12 +708,12 @@ mod tests {
 
     #[test]
     fn fpss_control_reconnecting_variant() {
-        let evt = FpssEvent::Control(FpssControl::Reconnecting {
+        let evt = StreamEvent::Control(StreamControl::Reconnecting {
             reason: RemoveReason::ServerRestarting,
             attempt: 1,
             delay_ms: 2000,
         });
-        if let FpssEvent::Control(FpssControl::Reconnecting {
+        if let StreamEvent::Control(StreamControl::Reconnecting {
             reason,
             attempt,
             delay_ms,
@@ -729,17 +729,21 @@ mod tests {
 
     #[test]
     fn fpss_control_reconnected_variant() {
-        let evt = FpssEvent::Control(FpssControl::Reconnected);
-        assert!(matches!(&evt, FpssEvent::Control(FpssControl::Reconnected)));
+        let evt = StreamEvent::Control(StreamControl::Reconnected);
+        assert!(matches!(
+            &evt,
+            StreamEvent::Control(StreamControl::Reconnected)
+        ));
     }
 
     #[test]
     fn fpss_control_reconnects_exhausted_variant() {
-        let evt = FpssEvent::Control(FpssControl::ReconnectsExhausted {
+        let evt = StreamEvent::Control(StreamControl::ReconnectsExhausted {
             reason: RemoveReason::TimedOut,
             attempts: 30,
         });
-        if let FpssEvent::Control(FpssControl::ReconnectsExhausted { reason, attempts }) = &evt {
+        if let StreamEvent::Control(StreamControl::ReconnectsExhausted { reason, attempts }) = &evt
+        {
             assert_eq!(*reason, RemoveReason::TimedOut);
             assert_eq!(*attempts, 30);
         } else {
@@ -747,13 +751,13 @@ mod tests {
         }
         // Round-trips through the internal/public reborrow like every
         // other control variant.
-        let internal = FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+        let internal = FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
             reason: RemoveReason::Unspecified,
             attempts: 0,
         });
         assert!(matches!(
             internal.as_public(),
-            Some(FpssEvent::Control(FpssControl::ReconnectsExhausted {
+            Some(StreamEvent::Control(StreamControl::ReconnectsExhausted {
                 attempts: 0,
                 ..
             }))
@@ -763,7 +767,7 @@ mod tests {
     #[test]
     fn fpss_event_split_data_control() {
         let contract = Arc::new(Contract::stock("AAPL"));
-        let data_evt = FpssEvent::Data(FpssData::Trade {
+        let data_evt = StreamEvent::Data(StreamData::Trade {
             contract: Arc::clone(&contract),
             ms_of_day: 0,
             sequence: 0,
@@ -783,7 +787,7 @@ mod tests {
             received_at_ns: 0,
         });
         match &data_evt {
-            FpssEvent::Data(FpssData::Trade {
+            StreamEvent::Data(StreamData::Trade {
                 contract, price, ..
             }) => {
                 assert_eq!(&*contract.symbol, "AAPL");
@@ -793,8 +797,11 @@ mod tests {
             }
             other => panic!("expected Data(Trade), got {other:?}"),
         }
-        let ctrl = FpssEvent::Control(FpssControl::MarketOpen);
-        assert!(matches!(&ctrl, FpssEvent::Control(FpssControl::MarketOpen)));
+        let ctrl = StreamEvent::Control(StreamControl::MarketOpen);
+        assert!(matches!(
+            &ctrl,
+            StreamEvent::Control(StreamControl::MarketOpen)
+        ));
     }
 
     #[test]
@@ -802,28 +809,31 @@ mod tests {
         // Every new control variant must round-trip and expose its payload
         // correctly — matching the JVM terminal hand-off where codes
         // 4 / 10 / 13 / 31 each land on their own typed listener.
-        let connected = FpssEvent::Control(FpssControl::Connected);
+        let connected = StreamEvent::Control(StreamControl::Connected);
         assert!(matches!(
             &connected,
-            FpssEvent::Control(FpssControl::Connected)
+            StreamEvent::Control(StreamControl::Connected)
         ));
 
-        let ping = FpssEvent::Control(FpssControl::Ping {
+        let ping = StreamEvent::Control(StreamControl::Ping {
             payload: vec![0x00],
         });
-        if let FpssEvent::Control(FpssControl::Ping { payload }) = &ping {
+        if let StreamEvent::Control(StreamControl::Ping { payload }) = &ping {
             assert_eq!(payload.as_slice(), &[0x00]);
         } else {
             panic!("expected Ping");
         }
 
-        let reconnected_server = FpssEvent::Control(FpssControl::ReconnectedServer);
+        let reconnected_server = StreamEvent::Control(StreamControl::ReconnectedServer);
         assert!(matches!(
             &reconnected_server,
-            FpssEvent::Control(FpssControl::ReconnectedServer)
+            StreamEvent::Control(StreamControl::ReconnectedServer)
         ));
 
-        let restart = FpssEvent::Control(FpssControl::Restart);
-        assert!(matches!(&restart, FpssEvent::Control(FpssControl::Restart)));
+        let restart = StreamEvent::Control(StreamControl::Restart);
+        assert!(matches!(
+            &restart,
+            StreamEvent::Control(StreamControl::Restart)
+        ));
     }
 }

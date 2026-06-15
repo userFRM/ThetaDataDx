@@ -325,7 +325,7 @@ impl DirectConfig {
         }
         // Validate ring_size eagerly so a bad config fails fast rather
         // than waiting for the connect attempt. Re-validation happens
-        // at `FpssClient::connect` for callers that bypass `validate`.
+        // at `StreamingClient::connect` for callers that bypass `validate`.
         if let Err(e) = crate::fpss::ring::check_ring_size(self.fpss.ring_size) {
             return Err(Error::config_invalid("fpss.ring_size", e.to_string()));
         }

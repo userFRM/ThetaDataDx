@@ -85,7 +85,7 @@ def test_scanner_finds_anchor_classes() -> None:
     """Guard against regex regression — if the scanner ever returns
     nothing, every parametrised case above would silently pass."""
     names = _collect()
-    for anchor in ("Credentials", "Config", "Contract", "Subscription", "FpssClient"):
+    for anchor in ("Credentials", "Config", "Contract", "Subscription", "StreamingClient"):
         assert anchor in names, (
             f"scanner failed to locate `#[pyclass]` for {anchor!r}; "
             "regex regression in PYCLASS_RE?"

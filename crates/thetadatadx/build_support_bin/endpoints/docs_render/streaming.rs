@@ -149,7 +149,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::stock(\"AAPL\").quote()",
         python_sub: "Contract.stock(\"AAPL\").quote()",
         ts_sub: "Contract.stock('AAPL').quote()",
-        cpp_sub: "tdx::Contract::stock(\"AAPL\").quote()",
+        cpp_sub: "thetadatadx::Contract::stock(\"AAPL\").quote()",
         ws_req_type: "QUOTE",
         ws_sec_type: "STOCK",
         ws_contract: Some(r#"{"symbol": "AAPL"}"#),
@@ -165,7 +165,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::stock(\"AAPL\").trade()",
         python_sub: "Contract.stock(\"AAPL\").trade()",
         ts_sub: "Contract.stock('AAPL').trade()",
-        cpp_sub: "tdx::Contract::stock(\"AAPL\").trade()",
+        cpp_sub: "thetadatadx::Contract::stock(\"AAPL\").trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "STOCK",
         ws_contract: Some(r#"{"symbol": "AAPL"}"#),
@@ -181,7 +181,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "SecType::Stock.full_trades()",
         python_sub: "SecType.STOCK.full_trades()",
         ts_sub: "SecType.stock().fullTrades()",
-        cpp_sub: "tdx::SecType::stock().full_trades()",
+        cpp_sub: "thetadatadx::SecType::stock().full_trades()",
         ws_req_type: "FULL_TRADES",
         ws_sec_type: "STOCK",
         ws_contract: None,
@@ -197,7 +197,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::option(\"SPY\", OptionLeg { expiration: \"20260618\", strike: \"570\", right: \"C\" })?.quote()",
         python_sub: "Contract.option(\"SPY\", expiration=\"20260618\", strike=\"570\", right=\"C\").quote()",
         ts_sub: "Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).quote()",
-        cpp_sub: "tdx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).quote()",
+        cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).quote()",
         ws_req_type: "QUOTE",
         ws_sec_type: "OPTION",
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
@@ -213,7 +213,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::option(\"SPY\", OptionLeg { expiration: \"20260618\", strike: \"570\", right: \"C\" })?.trade()",
         python_sub: "Contract.option(\"SPY\", expiration=\"20260618\", strike=\"570\", right=\"C\").trade()",
         ts_sub: "Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).trade()",
-        cpp_sub: "tdx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).trade()",
+        cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "OPTION",
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
@@ -229,7 +229,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::option(\"SPY\", OptionLeg { expiration: \"20260618\", strike: \"570\", right: \"C\" })?.open_interest()",
         python_sub: "Contract.option(\"SPY\", expiration=\"20260618\", strike=\"570\", right=\"C\").open_interest()",
         ts_sub: "Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).openInterest()",
-        cpp_sub: "tdx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).open_interest()",
+        cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).open_interest()",
         ws_req_type: "OPEN_INTEREST",
         ws_sec_type: "OPTION",
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
@@ -245,7 +245,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "SecType::Option.full_trades()",
         python_sub: "SecType.OPTION.full_trades()",
         ts_sub: "SecType.option().fullTrades()",
-        cpp_sub: "tdx::SecType::option().full_trades()",
+        cpp_sub: "thetadatadx::SecType::option().full_trades()",
         ws_req_type: "FULL_TRADES",
         ws_sec_type: "OPTION",
         ws_contract: None,
@@ -261,7 +261,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "SecType::Option.full_open_interest()",
         python_sub: "SecType.OPTION.full_open_interest()",
         ts_sub: "SecType.option().fullOpenInterest()",
-        cpp_sub: "tdx::SecType::option().full_open_interest()",
+        cpp_sub: "thetadatadx::SecType::option().full_open_interest()",
         ws_req_type: "FULL_OPEN_INTEREST",
         ws_sec_type: "OPTION",
         ws_contract: None,
@@ -277,7 +277,7 @@ const STREAMS: &[StreamSpec] = &[
         rust_sub: "Contract::index(\"SPX\").trade()",
         python_sub: "Contract.stock(\"SPX\").trade()",
         ts_sub: "Contract.index('SPX').trade()",
-        cpp_sub: "tdx::Contract::index(\"SPX\").trade()",
+        cpp_sub: "thetadatadx::Contract::index(\"SPX\").trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "INDEX",
         ws_contract: Some(r#"{"symbol": "SPX"}"#),
@@ -291,27 +291,27 @@ const STREAMS: &[StreamSpec] = &[
 fn rust_tab(spec: &StreamSpec) -> String {
     let needs_sectype = spec.rust_sub.starts_with("SecType");
     let imports = if needs_sectype {
-        "use thetadatadx::fpss::protocol::SecTypeExt;\nuse thetadatadx::fpss::{FpssData, FpssEvent};\nuse thetadatadx::SecType;"
+        "use thetadatadx::fpss::protocol::SecTypeExt;\nuse thetadatadx::fpss::{StreamData, StreamEvent};\nuse thetadatadx::SecType;"
     } else {
-        "use thetadatadx::fpss::protocol::Contract;\nuse thetadatadx::fpss::{FpssData, FpssEvent};"
+        "use thetadatadx::fpss::protocol::Contract;\nuse thetadatadx::fpss::{StreamData, StreamEvent};"
     };
     let (pattern, print) = match spec.event {
         "Quote" => (
-            "FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. })",
+            "StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. })",
             "println!(\"{} bid={bid} ask={ask}\", contract.symbol);",
         ),
         "Trade" => (
-            "FpssEvent::Data(FpssData::Trade { contract, price, size, .. })",
+            "StreamEvent::Data(StreamData::Trade { contract, price, size, .. })",
             "println!(\"{} price={price} size={size}\", contract.symbol);",
         ),
         "OpenInterest" => (
-            "FpssEvent::Data(FpssData::OpenInterest { contract, open_interest, .. })",
+            "StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. })",
             "println!(\"{} oi={open_interest}\", contract.symbol);",
         ),
         other => panic!("no Rust callback template for event {other}"),
     };
     format!(
-        "```rust\n{imports}\n\ntdx.start_streaming(|event: &FpssEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;\n\nlet sub = {};\ntdx.subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\ntdx.unsubscribe(sub)?;\n```\n",
+        "```rust\n{imports}\n\ntdx.start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;\n\nlet sub = {};\ntdx.subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\ntdx.unsubscribe(sub)?;\n```\n",
         spec.rust_sub
     )
 }
@@ -393,7 +393,7 @@ fn cpp_tab(spec: &StreamSpec) -> String {
         other => panic!("no C++ callback template for event {other}"),
     };
     format!(
-        "```cpp\nclient.set_callback([](const tdx::FpssEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});\n\nauto sub = {};\nclient.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.unsubscribe(sub);\n```\n",
+        "```cpp\nclient.set_callback([](const thetadatadx::StreamEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});\n\nauto sub = {};\nclient.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.unsubscribe(sub);\n```\n",
         spec.cpp_sub
     )
 }

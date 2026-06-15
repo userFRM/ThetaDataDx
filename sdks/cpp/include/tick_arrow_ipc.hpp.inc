@@ -2,7 +2,7 @@
 
 /// Serialise a `CalendarDay` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> calendar_days_to_arrow_ipc(const std::vector<CalendarDay>& rows) {
     TdxArrowBytes raw = tdx_calendar_days_to_arrow_ipc(rows.data(), rows.size());
@@ -16,7 +16,7 @@ inline std::vector<uint8_t> calendar_days_to_arrow_ipc(const std::vector<Calenda
 
 /// Serialise a `EodTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> eod_ticks_to_arrow_ipc(const std::vector<EodTick>& rows) {
     TdxArrowBytes raw = tdx_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -30,7 +30,7 @@ inline std::vector<uint8_t> eod_ticks_to_arrow_ipc(const std::vector<EodTick>& r
 
 /// Serialise a `GreeksAllTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc(const std::vector<GreeksAllTick>& rows) {
     TdxArrowBytes raw = tdx_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -44,7 +44,7 @@ inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc(const std::vector<Gree
 
 /// Serialise a `GreeksEodTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc(const std::vector<GreeksEodTick>& rows) {
     TdxArrowBytes raw = tdx_greeks_eod_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -58,7 +58,7 @@ inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc(const std::vector<Gree
 
 /// Serialise a `GreeksFirstOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc(const std::vector<GreeksFirstOrderTick>& rows) {
     TdxArrowBytes raw = tdx_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -72,7 +72,7 @@ inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc(const std::vec
 
 /// Serialise a `GreeksSecondOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc(const std::vector<GreeksSecondOrderTick>& rows) {
     TdxArrowBytes raw = tdx_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -86,7 +86,7 @@ inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc(const std::ve
 
 /// Serialise a `GreeksThirdOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc(const std::vector<GreeksThirdOrderTick>& rows) {
     TdxArrowBytes raw = tdx_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -100,7 +100,7 @@ inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc(const std::vec
 
 /// Serialise a `IndexPriceAtTimeTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc(const std::vector<IndexPriceAtTimeTick>& rows) {
     TdxArrowBytes raw = tdx_index_price_at_time_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -114,7 +114,7 @@ inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc(const std::ve
 
 /// Serialise a `InterestRateTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc(const std::vector<InterestRateTick>& rows) {
     TdxArrowBytes raw = tdx_interest_rate_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -128,7 +128,7 @@ inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc(const std::vector<I
 
 /// Serialise a `IvTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> iv_ticks_to_arrow_ipc(const std::vector<IvTick>& rows) {
     TdxArrowBytes raw = tdx_iv_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -142,7 +142,7 @@ inline std::vector<uint8_t> iv_ticks_to_arrow_ipc(const std::vector<IvTick>& row
 
 /// Serialise a `MarketValueTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc(const std::vector<MarketValueTick>& rows) {
     TdxArrowBytes raw = tdx_market_value_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -156,7 +156,7 @@ inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc(const std::vector<Ma
 
 /// Serialise a `OhlcTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc(const std::vector<OhlcTick>& rows) {
     TdxArrowBytes raw = tdx_ohlc_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -170,7 +170,7 @@ inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc(const std::vector<OhlcTick>&
 
 /// Serialise a `OpenInterestTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc(const std::vector<OpenInterestTick>& rows) {
     TdxArrowBytes raw = tdx_open_interest_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -184,7 +184,7 @@ inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc(const std::vector<O
 
 /// Serialise a `PriceTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> price_ticks_to_arrow_ipc(const std::vector<PriceTick>& rows) {
     TdxArrowBytes raw = tdx_price_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -198,7 +198,7 @@ inline std::vector<uint8_t> price_ticks_to_arrow_ipc(const std::vector<PriceTick
 
 /// Serialise a `QuoteTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> quote_ticks_to_arrow_ipc(const std::vector<QuoteTick>& rows) {
     TdxArrowBytes raw = tdx_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -212,7 +212,7 @@ inline std::vector<uint8_t> quote_ticks_to_arrow_ipc(const std::vector<QuoteTick
 
 /// Serialise a `TradeGreeksAllTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc(const std::vector<TradeGreeksAllTick>& rows) {
     TdxArrowBytes raw = tdx_trade_greeks_all_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -226,7 +226,7 @@ inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc(const std::vecto
 
 /// Serialise a `TradeGreeksFirstOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksFirstOrderTick>& rows) {
     TdxArrowBytes raw = tdx_trade_greeks_first_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -240,7 +240,7 @@ inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc(const st
 
 /// Serialise a `TradeGreeksImpliedVolatilityTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc(const std::vector<TradeGreeksImpliedVolatilityTick>& rows) {
     TdxArrowBytes raw = tdx_trade_greeks_implied_volatility_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -254,7 +254,7 @@ inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc(c
 
 /// Serialise a `TradeGreeksSecondOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksSecondOrderTick>& rows) {
     TdxArrowBytes raw = tdx_trade_greeks_second_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -268,7 +268,7 @@ inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc(const s
 
 /// Serialise a `TradeGreeksThirdOrderTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc(const std::vector<TradeGreeksThirdOrderTick>& rows) {
     TdxArrowBytes raw = tdx_trade_greeks_third_order_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -282,7 +282,7 @@ inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc(const st
 
 /// Serialise a `TradeQuoteTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc(const std::vector<TradeQuoteTick>& rows) {
     TdxArrowBytes raw = tdx_trade_quote_ticks_to_arrow_ipc(rows.data(), rows.size());
@@ -296,7 +296,7 @@ inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc(const std::vector<Tra
 
 /// Serialise a `TradeTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
-/// gives. Throws `tdx::Error` on serialisation failure. The returned
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
 /// vector owns its memory; the FFI buffer is freed before return.
 inline std::vector<uint8_t> trade_ticks_to_arrow_ipc(const std::vector<TradeTick>& rows) {
     TdxArrowBytes raw = tdx_trade_ticks_to_arrow_ipc(rows.data(), rows.size());

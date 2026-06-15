@@ -11,12 +11,12 @@ Install a basket of subscriptions in one `subscribe_many` call and route events 
 import time
 from collections import defaultdict
 
-from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Contract, Credentials, Client
 
 WATCHLIST = ["AAPL", "MSFT", "NVDA", "SPY", "TSLA"]
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 last_quote = {}
 trade_count = defaultdict(int)

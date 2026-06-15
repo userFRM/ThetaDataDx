@@ -95,12 +95,12 @@ No subscription yet? Create an account at [thetadata.net](https://www.thetadata.
 <template #rust>
 
 ```rust
-use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
+use thetadatadx::{Credentials, DirectConfig, Client};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 
     let rows = tdx.stock_history_eod("AAPL", "20250303", "20250306").await?;
     for t in &rows {
@@ -115,10 +115,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
 <template #python>
 
 ```python
-from thetadatadx import Config, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 rows = tdx.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
@@ -130,9 +130,9 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-import { ThetaDataDxClient } from 'thetadatadx';
+import { Client } from 'thetadatadx';
 
-const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const tdx = Client.connectFromFile('creds.txt');
 
 const rows = await tdx.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
@@ -149,8 +149,8 @@ for (const t of rows) {
 #include <iostream>
 
 int main() {
-    auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::MddsClient::connect(creds, tdx::Config::production());
+    auto creds = thetadatadx::Credentials::from_file("creds.txt");
+    auto client = thetadatadx::HistoricalClient::connect(creds, thetadatadx::Config::production());
 
     auto rows = client.stock_history_eod("AAPL", "20250303", "20250306");
     for (const auto& t : rows) {

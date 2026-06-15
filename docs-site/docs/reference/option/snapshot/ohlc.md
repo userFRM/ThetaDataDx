@@ -42,7 +42,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_snapshot_ohlc(
+Client.option_snapshot_ohlc(
     symbol, expiration,
     *,
     strike=None, right=None, max_dte=None, strike_range=None, min_time=None,
@@ -92,13 +92,13 @@ std::vector<OhlcTick> option_snapshot_ohlc(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`, `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_snapshot_ohlc("SPY", "20250321",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.high << ' ' << t.low << ' ' << t.close << "\n";
 }

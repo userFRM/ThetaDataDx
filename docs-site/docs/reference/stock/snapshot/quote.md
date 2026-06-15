@@ -39,7 +39,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.stock_snapshot_quote(
+Client.stock_snapshot_quote(
     symbols,
     *,
     venue=None, min_time=None, timeout_ms=None,
@@ -85,7 +85,7 @@ std::vector<QuoteTick> stock_snapshot_quote(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

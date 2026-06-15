@@ -40,7 +40,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.stock_snapshot_ohlc(
+Client.stock_snapshot_ohlc(
     symbols,
     *,
     venue=None, min_time=None, timeout_ms=None,
@@ -86,7 +86,7 @@ std::vector<OhlcTick> stock_snapshot_ohlc(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.with_min_time(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`, `.with_min_time(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

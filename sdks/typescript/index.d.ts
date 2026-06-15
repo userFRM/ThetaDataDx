@@ -1,1695 +1,6 @@
 /* auto-generated — do not edit by hand */
 /* eslint-disable */
-/**
- * SDK configuration.
- *
- * Build a config via one of the three static factories
- * (`Config.production` / `Config.dev` / `Config.stage`), tune
- * it with the setters below, then pass it as the optional second
- * argument to `ThetaDataDxClient.connect(creds, config)` /
- * `ThetaDataDxClient.connectFromFile(path, config)`.
- *
- * Mutating methods follow JS convention and
- * return `void` (chain by calling `cfg.method(...)` then passing
- * `cfg` itself).
- *
- * The config is consumed at connect time, so once it has been used
- * to connect a client further mutations have no effect on that client.
- */
-export declare class Config {
-  /** Production config (`ThetaData` NJ datacenter). */
-  static production(): Config
-  /** Dev streaming config (port 20200, infinite historical replay). */
-  static dev(): Config
-  /** Stage streaming config (port 20100, unstable testing servers). */
-  static stage(): Config
-  /**
-   * Set the number of concurrent in-flight gRPC requests.
-   *
-   * `0` (default) auto-detects from the Nexus subscription tier
-   * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
-   * the tier cap are clamped at connect time with a warn.
-   */
-  setConcurrentRequests(n: number): void
-  /** Current `concurrent_requests` setting (`0` = auto-detect). */
-  get concurrentRequests(): number
-  /**
-   * Set the warning threshold (in bytes) for buffered (non-streaming)
-   * historical responses. Endpoints whose decoded total exceeds this
-   * value log a warning pointing the caller at the
-   * matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
-   * which delivers the same rows chunk-by-chunk through a callback with
-   * memory bounded to a single chunk; the buffered data is still
-   * delivered. `0n` disables the warning entirely. Default is
-   * `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
-   * 32-bit unsigned range, so the setter takes a `BigInt`.
-   */
-  setWarnOnBufferedThresholdBytes(n: bigint): void
-  /**
-   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
-   * returned as a `BigInt`).
-   */
-  get warnOnBufferedThresholdBytes(): bigint
-  /**
-   * Set the streaming reconnect policy.
-   *
-   * - `"auto"` (default): auto-reconnect with the per-class attempt
-   *   budgets supplied by `Config.setReconnectMaxAttempts` and
-   *   `Config.setReconnectMaxRateLimitedAttempts`.
-   * - `"manual"`: no auto-reconnect; callers reconnect explicitly.
-   */
-  setReconnectPolicy(policy: string): void
-  /**
-   * Set the per-class transient-failure attempt budget for the
-   * auto-reconnect path. Default `30`. No effect unless the
-   * reconnect policy is `Auto`.
-   */
-  setReconnectMaxAttempts(maxAttempts: number): void
-  /**
-   * Set the per-class rate-limited (`TooManyRequests`) attempt
-   * budget for the auto-reconnect path. Default `100`. No effect
-   * unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
-  /**
-   * Set the continuous successful-data-flow window (in seconds)
-   * after which the auto-reconnect attempt counters reset. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
-   *
-   * Accepts a `bigint` for parity with the Python / C++ / FFI
-   * surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
-   * value: `setReconnectStableWindowSecs(BigInt(60))`.
-   */
-  setReconnectStableWindowSecs(secs: bigint): void
-  /**
-   * Set the reconnect delay (ms) honoured for generic transient
-   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
-   * Plumbed through to the streaming I/O loop at connect time.
-   * Default `250`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
-   */
-  setReconnectWaitMs(ms: bigint): void
-  /** Current reconnect `wait_ms` value (default `250`). */
-  get reconnectWaitMs(): bigint
-  /**
-   * Set the reconnect delay (ms) honoured for `TooManyRequests`
-   * rate-limited disconnects. Default `130_000`.
-   */
-  setReconnectWaitRateLimitedMs(ms: bigint): void
-  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
-  get reconnectWaitRateLimitedMs(): bigint
-  /**
-   * Set the cap (ms) on the exponential generic-transient reconnect
-   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
-   * consecutive attempt up to this value. Default `30_000n`.
-   */
-  setReconnectWaitMaxMs(ms: bigint): void
-  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
-  get reconnectWaitMaxMs(): bigint
-  /**
-   * Set the flat reconnect cadence (ms) for `ServerRestarting`
-   * disconnects. Default `5_000n`.
-   */
-  setReconnectWaitServerRestartMs(ms: bigint): void
-  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
-  get reconnectWaitServerRestartMs(): bigint
-  /**
-   * Set the jitter strategy applied to every reconnect delay.
-   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
-   * `"none"` (case-insensitive).
-   */
-  setReconnectJitter(mode: string): void
-  /** Current reconnect jitter mode as a lowercase string. */
-  get reconnectJitter(): string
-  /**
-   * Set the wall-clock reconnect envelope (seconds) for the
-   * generic-transient and server-restart classes, measured from the
-   * first attempt of a consecutive-reconnect sequence. `0n` disables
-   * the envelope (attempt budgets only). Default `300n`. No effect
-   * unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxElapsedSecs(secs: bigint): void
-  /**
-   * Current wall-clock reconnect envelope in seconds (default
-   * `300n`; `0n` = disabled). Reads the default-limits value when
-   * the policy is not `Auto`.
-   */
-  get reconnectMaxElapsedSecs(): bigint
-  /**
-   * Set the `ServerRestarting` reconnect attempt budget. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxServerRestartAttempts(n: number): void
-  /**
-   * Current `ServerRestarting` reconnect attempt budget (default
-   * `60`). Reads the default-limits value when the policy is not
-   * `Auto`.
-   */
-  get reconnectMaxServerRestartAttempts(): number
-  /**
-   * Current reconnect policy as a string (`"auto"`, `"manual"`, or
-   * `"custom"`).
-   */
-  get reconnectPolicy(): string
-  /**
-   * Current generic-transient reconnect attempt budget (default
-   * `30`). Reads the default-limits value when the policy is not
-   * `Auto`.
-   */
-  get reconnectMaxAttempts(): number
-  /**
-   * Current rate-limited reconnect attempt budget (default `100`).
-   * Reads the default-limits value when the policy is not `Auto`.
-   */
-  get reconnectMaxRateLimitedAttempts(): number
-  /**
-   * Current stable-window reset interval in seconds (default `60n`).
-   * Reads the default-limits value when the policy is not `Auto`.
-   */
-  get reconnectStableWindowSecs(): bigint
-  /**
-   * Set the subscription-replay burst size used after an
-   * auto-reconnect: frames are written in bursts of this many, each
-   * burst flushed and followed by a jittered `replayPaceMs` pause.
-   * Minimum `1` (validated at connect). Default `50`.
-   */
-  setReconnectReplayBurstSize(n: number): void
-  /** Current `replay_burst_size` value (default `50`). */
-  get reconnectReplayBurstSize(): number
-  /**
-   * Set the pause (ms) between subscription-replay bursts after an
-   * auto-reconnect. `0n` removes the pause. Default `5n`.
-   */
-  setReconnectReplayPaceMs(ms: bigint): void
-  /** Current `replay_pace_ms` value (default `5n`). */
-  get reconnectReplayPaceMs(): bigint
-  /**
-   * Install a custom reconnect policy driven by a JS callback.
-   *
-   * `callback(reason: number, attempt: number)` is invoked (on the
-   * Node main thread, queued from the streaming I/O thread) after
-   * each retriable involuntary disconnect. Return the reconnect
-   * delay in milliseconds, or `null` to stop reconnecting (the
-   * stream then emits the terminal `ReconnectsExhausted` event).
-   * Permanent disconnect reasons (bad credentials, account
-   * conflicts) never reach the callback. Pass `null` to restore the
-   * default `Auto` policy.
-   *
-   * The streaming I/O thread waits for the decision, so the
-   * callback should return promptly; if no decision arrives within
-   * 30 seconds (for example because the Node event loop is blocked)
-   * the stream stops reconnecting and emits the terminal event.
-   */
-  setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
-  /** Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
-  setFpssTimeoutMs(ms: bigint): void
-  /** Current `fpss.timeout_ms` value (default `3_000n`). */
-  get fpssTimeoutMs(): bigint
-  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
-  setFpssConnectTimeoutMs(ms: bigint): void
-  /** Current `fpss.connect_timeout_ms` value (default `2_000n`). */
-  get fpssConnectTimeoutMs(): bigint
-  /** Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
-  setFpssPingIntervalMs(ms: bigint): void
-  /** Current `fpss.ping_interval_ms` value (default `250n`). */
-  get fpssPingIntervalMs(): bigint
-  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
-  setFpssIoReadSliceMs(ms: bigint): void
-  /** Current `fpss.io_read_slice_ms` value (default `25n`). */
-  get fpssIoReadSliceMs(): bigint
-  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
-  setFpssDataWatchdogMs(ms: bigint): void
-  /** Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
-  get fpssDataWatchdogMs(): bigint
-  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect. */
-  setFpssKeepaliveIdleSecs(ms: bigint): void
-  /** Current `fpss.keepalive_idle_secs` value (default `5n`). */
-  get fpssKeepaliveIdleSecs(): bigint
-  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
-  setFpssKeepaliveIntervalSecs(ms: bigint): void
-  /** Current `fpss.keepalive_interval_secs` value (default `2n`). */
-  get fpssKeepaliveIntervalSecs(): bigint
-  /**
-   * Set the number of unanswered TCP keepalive probes after which
-   * the kernel declares the FPSS connection dead (where the
-   * platform exposes the knob). Default `2`; validated to `[1, 10]`
-   * at connect.
-   */
-  setFpssKeepaliveRetries(n: number): void
-  /** Current `fpss.keepalive_retries` value (default `2`). */
-  get fpssKeepaliveRetries(): number
-  /**
-   * Set the FPSS event ring buffer size (slots). Must be a power of
-   * two `>= 64`; invalid values are rejected immediately. Default
-   * `131_072`.
-   */
-  setFpssRingSize(n: number): void
-  /** Current `fpss.ring_size` value (default `131_072`). */
-  get fpssRingSize(): number
-  /**
-   * Set the FPSS host-selection policy. Accepts `"shuffled"`
-   * (default — fault-domain-aware per-client shuffle) or
-   * `"fixed_order"` (declared order verbatim), case-insensitive.
-   */
-  setFpssHostSelection(policy: string): void
-  /** Current FPSS host-selection policy as a lowercase string. */
-  get fpssHostSelection(): string
-  /**
-   * Set the FPSS host-shuffle seed. `null` (default) derives a
-   * fresh per-client seed so a fleet shuffles independently; an
-   * explicit `bigint` makes the shuffled order deterministic —
-   * useful for fleet sharding and tests. Ignored under
-   * `"fixed_order"`.
-   */
-  setFpssHostShuffleSeed(seed?: bigint | undefined | null): void
-  /**
-   * Current `fpss.host_shuffle_seed` value (`null` = per-client
-   * entropy).
-   */
-  get fpssHostShuffleSeed(): bigint | null
-  /**
-   * Set the wall-clock envelope (seconds) for one
-   * historical-channel retry sequence, measured from the first
-   * attempt. `0n` disables the envelope (attempt budget only).
-   * Default `300n`.
-   */
-  setRetryMaxElapsedSecs(secs: bigint): void
-  /**
-   * Current `retry.max_elapsed` value in seconds (default `300n`;
-   * `0n` = disabled).
-   */
-  get retryMaxElapsedSecs(): bigint
-  /**
-   * Toggle AWS-style full jitter on the flatfile retry ladder.
-   * Default `true`; `false` gives the deterministic schedule,
-   * useful for tests that assert exact timings.
-   */
-  setFlatfilesJitter(jitter: boolean): void
-  /** Current `flatfiles.jitter` value (default `true`). */
-  get flatfilesJitter(): boolean
-  /**
-   * Set the async worker-thread count for embedded runtimes.
-   * `hasValue=false` defers to the default sizing; `hasValue=true`
-   * pins worker count to `n` (with `n=0` preserved verbatim rather
-   * than treated as unset).
-   *
-   * The async worker pool is process-global: it is built once, from the
-   * config of the first client connected in the process. This setting
-   * is therefore honored when the first client in the process is
-   * created; clients connected later share the already-built pool, so
-   * setting it on a subsequent config has no effect.
-   */
-  setWorkerThreads(hasValue: boolean, n: number): void
-  /**
-   * Current `workerThreads` setting as `{ hasValue, n }`.
-   * `hasValue=false` encodes the unset (auto) sentinel.
-   */
-  get workerThreads(): WorkerThreadsSetting
-  /**
-   * Set the initial backoff delay (ms) for the historical-channel retry policy.
-   * Default `250n`. Subsequent retries double from here, capped at
-   * `retryMaxDelayMs`.
-   */
-  setRetryInitialDelayMs(ms: bigint): void
-  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
-  get retryInitialDelayMs(): bigint
-  /**
-   * Set the upper-bound backoff delay (ms) for the MDDS retry
-   * policy. Default `30_000n` (30 s).
-   */
-  setRetryMaxDelayMs(ms: bigint): void
-  /** Current `retry.max_delay` value (ms, returned as BigInt). */
-  get retryMaxDelayMs(): bigint
-  /**
-   * Set the total attempt budget for the historical-channel retry policy. `1`
-   * disables retry; higher values permit retries up to
-   * `maxAttempts - 1` after the initial call. Default `20`.
-   */
-  setRetryMaxAttempts(n: number): void
-  /** Current `retry.max_attempts` value. */
-  get retryMaxAttempts(): number
-  /**
-   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
-   * `true`. `false` gives the deterministic backoff schedule
-   * `min(max_delay, initial * 2^attempt)`, useful for tests that
-   * need to assert exact timings.
-   */
-  setRetryJitter(jitter: boolean): void
-  /** Current `retry.jitter` value. */
-  get retryJitter(): boolean
-  /**
-   * Set the total attempt budget for the flatfile driver retry
-   * loop. `1` disables retry (single call only); higher values
-   * permit retries up to `maxAttempts - 1` after the initial call.
-   * Default `10`. Validated to the range `[1, 100]` at connect time.
-   */
-  setFlatfilesMaxAttempts(n: number): void
-  /** Current `flatfiles.max_attempts` value. */
-  get flatfilesMaxAttempts(): number
-  /**
-   * Set the initial backoff delay (seconds) for the flatfile
-   * driver retry loop. Doubles per attempt up to
-   * `flatfilesMaxBackoffSecs`. Default `1n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesInitialBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
-  get flatfilesInitialBackoffSecs(): bigint
-  /**
-   * Set the upper-bound backoff delay (seconds) for the flatfile
-   * driver retry loop. The doubling schedule never exceeds this
-   * value regardless of attempt number. Default `30n`. Must be
-   * greater than or equal to `flatfilesInitialBackoffSecs`
-   * (rejected at connect-time validate otherwise).
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesMaxBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
-  get flatfilesMaxBackoffSecs(): bigint
-  /**
-   * Set the Nexus auth URL. Default matches the upstream
-   * production endpoint; override to redirect at a staging
-   * cluster for testing.
-   */
-  setNexusUrl(url: string): void
-  /** Current `auth.nexus_url` value. */
-  get nexusUrl(): string
-  /**
-   * Set the `QueryInfo.client_type` identifier. Default is
-   * `"rust-thetadatadx"`; override to identify a deployment fleet
-   * in server-side dashboards.
-   */
-  setClientType(clientType: string): void
-  /** Current `auth.client_type` value. */
-  get clientType(): string
-  /** Override the historical gRPC host. Companion to `setMddsPort`. */
-  setMddsHost(host: string): void
-  /** Current historical gRPC host. */
-  get mddsHost(): string
-  /**
-   * Override the historical data port. Companion to `setMddsHost` —
-   * same test-only rationale. Rejects values outside the `0..=65535`
-   * port range.
-   */
-  setMddsPort(port: number): void
-  /** Current historical gRPC port. */
-  get mddsPort(): number
-  /**
-   * Set the Prometheus exporter port. Pass `null` or `undefined`
-   * to leave the exporter disabled (the default); pass a
-   * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
-   * `metrics-prometheus` feature is compiled in.
-   *
-   * Rejects values outside the `0..=65535` port range.
-   */
-  setMetricsPort(port?: number | undefined | null): void
-  /**
-   * Current `metrics.port` setting. `null` means the exporter is
-   * disabled; a `number` is the bound port.
-   */
-  get metricsPort(): number | null
-  /**
-   * Set the streaming write-flush policy.
-   *
-   * Accepts `"batched"` (default — flushes on the PING heartbeat,
-   * roughly every 100 ms — best throughput) or `"immediate"`
-   * (flushes after every wire write — lowest latency, higher
-   * per-frame syscall cost).
-   */
-  setFlushMode(mode: string): void
-  /**
-   * Current streaming write-flush policy (`"batched"` or
-   * `"immediate"`).
-   */
-  get flushMode(): string
-  /**
-   * Set whether to derive OHLCVC bars locally from trade events.
-   * When `false`, only server-sent OHLCVC frames are emitted,
-   * reducing per-trade throughput overhead. Default `true`.
-   */
-  setDeriveOhlcvc(enabled: boolean): void
-  /** Current OHLCVC derivation setting. */
-  get deriveOhlcvc(): boolean
-}
-
-/**
- * Fluent contract identifier — stock or option.
- *
- * Use `Contract.stock("AAPL")` / `Contract.option(...)` to build one.
- * The class is also exported under the name `ContractRef`; `Contract`
- * is an alias for it, so the two names are interchangeable.
- */
-export declare class ContractRef {
-  /** Construct a stock contract. */
-  static stock(symbol: string): ContractRef
-  /** Construct an index contract. */
-  static index(symbol: string): ContractRef
-  /**
-   * Construct an option contract. The expiration / strike / right
-   * travel in a single `OptionLeg` object with named keys —
-   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
-   * right: "C" })` — rather than as adjacent positional strings, so a
-   * swapped expiration/strike/right pair cannot pass silently. `right`
-   * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
-   * `strike` is the price in dollars as a number or string (`550`,
-   * `550.5`, and `"550"` are equivalent).
-   */
-  static option(symbol: string, leg: OptionLeg): ContractRef
-  /** Per-contract Quote subscription. */
-  quote(): Subscription
-  /** Per-contract Trade subscription. */
-  trade(): Subscription
-  /** Per-contract OpenInterest subscription. */
-  openInterest(): Subscription
-  /** Per-contract market-value subscription. */
-  marketValue(): Subscription
-  /** Underlying symbol (e.g. `"AAPL"`, `"SPY"`). */
-  get symbol(): string
-  /**
-   * Security type as an upper-case string (`"STOCK"`, `"OPTION"`,
-   * `"INDEX"`).
-   */
-  get secType(): string
-  /** Expiration date as a `YYYYMMDD` integer; `null` for non-options. */
-  get expiration(): number | null
-  /**
-   * Strike price in dollars; `null` for non-options. Reads back the
-   * same notation `Contract.option(.., strike, ..)` takes, and joins
-   * directly against historical-row `strike` columns.
-   */
-  get strike(): number | null
-  /** Option right (`"C"` / `"P"`); `null` for non-options. */
-  get right(): string | null
-  /**
-   * String rendering for `console.log` / template literals, e.g.
-   * `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
-   * in dollars, matching the `strike` getter. Delegates to
-   * the same core rendering the Python `Contract` `__str__` uses, so
-   * the two bindings print a contract identically. Without it a
-   * `ContractRef` prints as an opaque `ContractRef {}` because its
-   * getters do not surface on inspection.
-   */
-  toString(): string
-}
-
-/**
- * ThetaData login credentials.
- *
- * Build from an email + password pair (`new Credentials(email,
- * password)`) or load from a credentials file (`Credentials.fromFile`,
- * line 1 = email, line 2 = password), then pass the handle to a client
- * `connect(creds, config?)`.
- *
- * ```js
- * const { Credentials, ThetaDataDxClient } = require("@thetadatadx/sdk");
- * const creds = Credentials.fromFile("creds.txt");
- * const tdx = ThetaDataDxClient.connect(creds);
- * ```
- */
-export declare class Credentials {
-  /** Create credentials from an email and password. */
-  constructor(email: string, password: string)
-  /** Load credentials from a file (line 1 = email, line 2 = password). */
-  static fromFile(path: string): Credentials
-  /** Redacted string form — never exposes the email or password. */
-  toString(): string
-}
-
-/**
- * JS class wrapping a decoded flat-file row vector. Created by every
- * method on `FlatFilesNamespace`; carries the typed
- * rows until the user picks a terminal.
- */
-export declare class FlatFileRowList {
-  /**
-   * Number of decoded rows. Same value as `.length` on the JSON
-   * representation, exposed as a method so the API stays stable if
-   * the list later gains first-class iterator support.
-   */
-  len(): number
-  /** Whether the decoded row vector is empty. */
-  isEmpty(): boolean
-  /**
-   * Serialise the typed rows as Arrow IPC stream bytes. The dynamic
-   * schema is inferred from the first row. Deserialise on
-   * the JS side with `apache-arrow`'s `tableFromIPC`.
-   */
-  toArrowIpc(): Buffer
-  /**
-   * Return a JSON array of objects, one per row. Useful for quick
-   * inspection, structured logging, or wiring into JS-side
-   * dataframes that don't read Arrow IPC.
-   */
-  toJson(): string
-}
-
-/**
- * JS class returned from `tdx.flatFiles`. Each method maps to one
- * (security type, request type) pair and returns a `FlatFileRowList`.
- */
-export declare class FlatFilesNamespace {
-  /** Option quote flat file for the given `YYYYMMDD` date. */
-  optionQuote(date: string): FlatFileRowList
-  /** Option trade flat file for the given `YYYYMMDD` date. */
-  optionTrade(date: string): FlatFileRowList
-  /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
-  optionTradeQuote(date: string): FlatFileRowList
-  /** Option OHLC flat file for the given `YYYYMMDD` date. */
-  optionOhlc(date: string): FlatFileRowList
-  /** Option open-interest flat file for the given `YYYYMMDD` date. */
-  optionOpenInterest(date: string): FlatFileRowList
-  /** Option end-of-day flat file for the given `YYYYMMDD` date. */
-  optionEod(date: string): FlatFileRowList
-  /** Stock quote flat file for the given `YYYYMMDD` date. */
-  stockQuote(date: string): FlatFileRowList
-  /** Stock trade flat file for the given `YYYYMMDD` date. */
-  stockTrade(date: string): FlatFileRowList
-  /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
-  stockTradeQuote(date: string): FlatFileRowList
-  /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
-  stockEod(date: string): FlatFileRowList
-  /**
-   * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
-   * `"QUOTE"` style strings.
-   */
-  request(secType: string, reqType: string, date: string): FlatFileRowList
-}
-
-/**
- * Standalone FPSS-only streaming client.
- *
- * Opens ONLY the FPSS TLS transport — no historical data channel, no
- * Nexus HTTP authentication. Use when a parallel historical process is
- * already running in the same environment and you need to stream FPSS
- * without the bundled `ThetaDataDxClient` taking over the Nexus session
- * at connect time.
- *
- * ```js
- * const { FpssClient, Config, Contract } = require("@thetadatadx/sdk");
- * const fpss = FpssClient.connectFromFile("creds.txt");
- * fpss.startStreaming((event) => console.log(event.kind, event));
- * fpss.subscribe(Contract.stock("AAPL").quote());
- * // ... events arrive on the Node main thread ...
- * fpss.stopStreaming();
- * ```
- */
-export declare class FpssClient {
-  /**
-   * Allocate a standalone FPSS handle with a `Credentials` handle.
-   * Streaming only — opens no historical data channel and issues no
-   * Nexus request. Pass an optional `Config` (`dev` / `stage` /
-   * `production`, plus any tuned FPSS / reconnect setters) to override the
-   * production-default endpoint. The FPSS TLS connection opens on the
-   * first `startStreaming` call.
-   *
-   * The config is snapshot at construction time: the `Config` handle
-   * may be reused or mutated afterward without affecting this client.
-   */
-  static connect(creds: Credentials, config?: Config | undefined | null): FpssClient
-  /**
-   * Allocate a standalone FPSS handle with a credentials file (line 1 =
-   * email, line 2 = password). Convenience wrapper over
-   * `Credentials.fromFile` + `connect`. Pass an optional `Config` to
-   * override the production-default endpoint.
-   */
-  static connectFromFile(path: string, config?: Config | undefined | null): FpssClient
-  /**
-   * Start FPSS streaming and register a JS callback for incoming events.
-   *
-   * Opens the FPSS connection and begins delivering events. Each typed
-   * FPSS event is delivered to your `callback(event)` on the Node main
-   * thread, so the callback may use any JS API safely. A callback that
-   * panics or throws is isolated and does not interrupt the stream.
-   *
-   * Backpressure: a slow callback causes incoming events to queue and,
-   * once the buffer is full, the oldest events are dropped, observable
-   * via `droppedEventCount()`. The receive path is never blocked by a
-   * slow callback, so the upstream connection stays healthy regardless
-   * of callback speed.
-   */
-  startStreaming(callback: TsfnCallback): void
-  /**
-   * Whether the FPSS TLS connection is currently open. Returns `false`
-   * when the dispatcher thread has panicked — no events are arriving
-   * even though the TLS slot is still populated.
-   */
-  isStreaming(): boolean
-  /**
-   * Whether the FPSS session is currently authenticated. Distinct from
-   * `isStreaming()`: the TLS slot can hold a client whose authenticated
-   * flag has flipped to `false` after a server disconnect, before the
-   * application has issued `reconnect()`. A panicked dispatcher also
-   * folds back to `false` here.
-   */
-  isAuthenticated(): boolean
-  /**
-   * Polymorphic subscribe — primary fluent entry point. Accepts the
-   * `Subscription` value returned by `Contract.quote()` /
-   * `Contract.trade()` / `Contract.openInterest()` (per-contract scope)
-   * or by `SecType.option().fullTrades()` /
-   * `SecType.option().fullOpenInterest()` (full-stream scope).
-   */
-  subscribe(sub: Subscription): void
-  /**
-   * Bulk-subscribe an array of `Subscription` values. Stops at the first
-   * error and returns it; previously-installed subscriptions are NOT
-   * rolled back.
-   */
-  subscribeMany(subs: Array<Subscription>): void
-  /** Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`. */
-  unsubscribe(sub: Subscription): void
-  /** Bulk-unsubscribe an array of `Subscription` values. */
-  unsubscribeMany(subs: Array<Subscription>): void
-  /**
-   * Snapshot of per-contract subscriptions on the live session as an
-   * array of `{ kind, contract }` objects (matching the unified
-   * client's `activeSubscriptions()` projection). Empty array when
-   * streaming has not started.
-   */
-  activeSubscriptions(): any
-  /**
-   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
-   * `full_trades`). Each entry has the same `{ kind, contract }` shape
-   * as the unified client's `activeFullSubscriptions()`, where `kind` is
-   * `"full_trades"` / `"full_open_interest"` and `contract` carries the
-   * wire-level security type. Quote is never a valid full-stream kind,
-   * so any such row is dropped. Empty array when streaming has not
-   * started.
-   */
-  activeFullSubscriptions(): any
-  /**
-   * Cumulative count of FPSS events the TLS reader could not publish into
-   * the event ring because the consumer fell behind. Snapshot the value
-   * BEFORE `reconnect()` if you need to accumulate drops across session
-   * boundaries — `reconnect` rebuilds the inner client and the counter
-   * resets. Returned as `bigint` for the full 64-bit unsigned range.
-   */
-  droppedEventCount(): bigint
-  /**
-   * Point-in-time count of events published into the ring but not yet
-   * drained into your callback — the in-flight depth between the I/O
-   * thread and the dispatcher. The leading back-pressure signal: rises
-   * before `droppedEventCount()` moves. Returns `0n` when no session is
-   * live.
-   */
-  ringOccupancy(): bigint
-  /**
-   * Configured capacity of the event ring in slots (a power of two) —
-   * the fixed denominator for `ringOccupancy()`. Returns `0n` when no
-   * session is live.
-   */
-  ringCapacity(): bigint
-  /**
-   * Cumulative count of user-callback panics caught at the per-event
-   * isolation boundary. A panic is caught, recorded here, and does not
-   * stop event delivery. Returned as `bigint` for the full 64-bit unsigned range.
-   */
-  panicCount(): bigint
-  /**
-   * Milliseconds since the most recent inbound streaming frame of any
-   * kind (data tick, heartbeat, control), or `null` when no session is
-   * live or no frame has been received yet. The operator-facing
-   * staleness clock.
-   */
-  millisSinceLastEvent(): bigint | null
-  /**
-   * UNIX-nanosecond receive timestamp of the most recent inbound
-   * streaming frame of any kind. Returns `0n` when no session is live or
-   * no frame has been received yet.
-   */
-  lastEventReceivedAtUnixNanos(): bigint
-  /**
-   * Address (`host:port`) of the streaming server the current session is
-   * connected to, following the session across auto-reconnects. `null`
-   * when no session is live.
-   */
-  lastConnectedAddr(): string | null
-  /**
-   * Stop streaming and clear the registered callback. Same
-   * explicit-handoff semantics as the unified client: to resume after
-   * this returns, call `startStreaming(callback)` again with a freshly
-   * bound function; `reconnect()` throws because no callback is held.
-   *
-   * Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
-   */
-  stopStreaming(): void
-  /**
-   * Alias for `stopStreaming`. Mirrors the unified client's split surface
-   * where `shutdown` is documented as the terminal stop — on the
-   * standalone client both names are equivalent.
-   */
-  shutdown(): void
-  /**
-   * Re-open the FPSS connection and re-register the previously installed
-   * callback. Requires a prior `startStreaming(callback)`; throws
-   * otherwise.
-   *
-   * Saves the active per-contract and full-stream subscriptions against
-   * the old session, opens a fresh FPSS connection under the previously
-   * installed callback, and re-applies the saved subscriptions through
-   * the core's paced replay engine. Per-subscription failures surface as
-   * a single error naming every contract that did not re-subscribe — the
-   * streaming session itself is already up at that point.
-   */
-  reconnect(): void
-  /**
-   * Block until every superseded streaming session's event-ring consumer
-   * has finished firing the registered callback. Resolves `true` once
-   * all retired generations have drained, `false` on timeout. Polls at
-   * 1 ms cadence on a worker so the Node event loop stays free.
-   */
-  awaitDrain(timeoutMs: number): Promise<boolean>
-}
-
-/**
- * Standalone MDDS-only historical client.
- *
- * Opens ONLY the historical data channel and the Nexus authentication
- * flow — no real-time streaming connection or streaming state machine.
- * This lets a caller run a historical-only session alongside a parallel
- * streaming process without the unified `ThetaDataDxClient` taking over
- * the Nexus session at connect time.
- *
- * The full historical / list / snapshot / at-time / flat-files surface
- * is identical to the unified client, so `mddsClient.stockHistoryEod(...)`
- * behaves exactly like `client.stockHistoryEod(...)`. The streaming and
- * subscription methods are simply not present: there is no
- * `startStreaming` / `subscribe` on this class, so an MDDS-only handle
- * cannot open a streaming slot. Use `FpssClient` for streaming, or the
- * unified `ThetaDataDxClient` when you need both surfaces.
- *
- * ```js
- * const { MddsClient, Config } = require("@thetadatadx/sdk");
- * const mdds = MddsClient.connectFromFile("creds.txt");
- * const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
- * ```
- */
-export declare class MddsClient {
-  /**
-   * Connect to ThetaData with a `Credentials` handle and open the
-   * historical data channel. Historical only — this client never
-   * opens the FPSS streaming transport. Pass an optional `Config` to
-   * override the production-default endpoint. Use `FpssClient` for
-   * real-time data.
-   *
-   * The config is snapshot at connect time: the `Config` handle may be
-   * reused or mutated afterward without affecting this client.
-   */
-  static connect(creds: Credentials, config?: Config | undefined | null): MddsClient
-  /**
-   * Connect with a credentials file (line 1 = email, line 2 =
-   * password). Convenience wrapper over `Credentials.fromFile` +
-   * `connect`. Historical only. Pass an optional
-   * `Config` to override the production-default endpoint.
-   */
-  static connectFromFile(path: string, config?: Config | undefined | null): MddsClient
-  /**
-   * List all available stock ticker symbols.
-   *
-   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
-   */
-  stockListSymbols(options?: StockListSymbolsOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
-   *
-   * Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
-   */
-  stockListDates(requestType: string, symbol: string, options?: StockListDatesOptions | undefined | null): Promise<Array<string>>
-  /**
-   * Get the latest OHLC snapshot for one or more stocks.
-   *
-   * Provides a real-time Open, High, Low, Close for the current day.
-   * * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
-   * * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockSnapshotOHLC(symbols: string | Array<string>, options?: StockSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /**
-   * Get the latest trade snapshot for one or more stocks.
-   *
-   * Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   *
-   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockSnapshotTrade(symbols: string | Array<string>, options?: StockSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /**
-   * Get the latest NBBO quote snapshot for one or more stocks.
-   *
-   * * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
-   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockSnapshotQuote(symbols: string | Array<string>, options?: StockSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /**
-   * Get the latest market value snapshot for one or more stocks.
-   *
-   * * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
-   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockSnapshotMarketValue(symbols: string | Array<string>, options?: StockSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
-  /**
-   * Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
-   *
-   * Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
-   */
-  stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
-  /** Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: StockHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
-  /**
-   * Fetch intraday OHLC bars for a stock on a single date.
-   *
-   * - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `venue`: `"nqb"`
-   */
-  stockHistoryOHLC(symbol: string, date: string | Date, options?: StockHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /** Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryOHLCStream(symbol: string, date: string | Date, options: StockHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
-  /**
-   * Fetch all trades for a stock on a given date.
-   *
-   * Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `venue`: `"nqb"`
-   */
-  stockHistoryTrade(symbol: string, date: string | Date, options?: StockHistoryTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /** Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryTradeStream(symbol: string, date: string | Date, options: StockHistoryTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
-  /**
-   * Fetch NBBO quotes for a stock on a given date at a given interval.
-   *
-   * - Returns every NBBO quote reported by UTP and CTA.
-   * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
-   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `venue`: `"nqb"`
-   */
-  stockHistoryQuote(symbol: string, date: string | Date, options?: StockHistoryQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /** Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryQuoteStream(symbol: string, date: string | Date, options: StockHistoryQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
-  /**
-   * Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
-   *
-   * Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
-   * - `venue`: `"nqb"`
-   */
-  stockHistoryTradeQuote(symbol: string, date: string | Date, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
-  /** Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryTradeQuoteStream(symbol: string, date: string | Date, options: StockHistoryTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
-  /**
-   * Fetch the trade at a specific time of day across a date range.
-   *
-   * #### Real-time request:
-   * - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   * - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
-   *
-   * #### Historical request:
-   * Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
-   * Trade condition mappings can be found here.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockAtTimeTrade(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /** Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockAtTimeTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockAtTimeTradeStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: StockAtTimeTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
-  /**
-   * Fetch the quote at a specific time of day across a date range.
-   *
-   * #### Real-time request:
-   *   - Subscription tier standard or higher will default to NQB.
-   *   - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-   *   - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
-   *
-   * #### Historical request:
-   *   Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
-   *
-   * Defaults (upstream):
-   * - `venue`: `"nqb"`
-   */
-  stockAtTimeQuote(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /** Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockAtTimeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockAtTimeQuoteStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: StockAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
-  /**
-   * List all available option underlying symbols.
-   *
-   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
-   */
-  optionListSymbols(options?: OptionListSymbolsOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List available dates for an option contract by request type.
-   *
-   * Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
-   * This endpoint is updated overnight.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionListDates(requestType: string, symbol: string, expiration: string | Date, options?: OptionListDatesOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List available expiration dates for an option underlying.
-   *
-   * Lists all dates of expirations that are available for an option with a given symbol.
-   * This endpoint is updated overnight.
-   */
-  optionListExpirations(symbol: string, options?: OptionListExpirationsOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List available strike prices for an option at a given expiration.
-   *
-   * Lists all strikes that are available for an option with a given symbol and expiration date.
-   * This endpoint is updated overnight.
-   */
-  optionListStrikes(symbol: string, expiration: string | Date, options?: OptionListStrikesOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List all option contracts for a symbol on a given date.
-   *
-   * Lists all contracts that were traded or quoted on a particular date.
-   *
-   * If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-   * Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
-   * This endpoint is updated real-time.
-   */
-  optionListContracts(requestType: string, symbol: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
-  /** Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionListContractsStream(requestType: string, symbol: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
-  /**
-   * Get the latest OHLC snapshot for an option contract.
-   *
-   * - Retrieve a real-time last ohlc of an option contract for the trading day.
-   * - You might need to change the default expiration date to a different date if it is past the current date.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionSnapshotOHLC(symbol: string, expiration: string | Date, options?: OptionSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /**
-   * Get the latest trade snapshot for an option contract.
-   *
-   * - Retrieve the real-time last trade of an option contract.
-   * - You might need to change the default expiration date to a different date if it is past the current date.
-   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionSnapshotTrade(symbol: string, expiration: string | Date, options?: OptionSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /**
-   * Get the latest NBBO quote snapshot for an option contract.
-   *
-   * - Retrieve a real-time last NBBO quote of an option contract.
-   * - You might need to change the default expiration date to a different date if it is past the current date.
-   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionSnapshotQuote(symbol: string, expiration: string | Date, options?: OptionSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /**
-   * Get the latest open interest snapshot for an option contract.
-   *
-   * - Retrieve the last open interest message of an option contract.
-   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
-   * - You might need to change the default expiration date to a different date if it is past the current date.
-   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionSnapshotOpenInterest(symbol: string, expiration: string | Date, options?: OptionSnapshotOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
-  /**
-   * Get the latest market value snapshot for an option contract.
-   *
-   * * Returns a real-time market value derived from the last NBBO quote of an option contract.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionSnapshotMarketValue(symbol: string, expiration: string | Date, options?: OptionSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
-  /**
-   * Get implied volatility snapshot for an option contract (from ThetaData server).
-   *
-   * Returns implied volatilies calculated using the national best bid, mid, and ask price
-   * of the option respectively. The underlying price represents whatever the last underlying price was at the
-   * ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks
-   * here.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `use_market_value`: `false`
-   */
-  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
-  /**
-   * Get all Greeks snapshot for an option contract (from ThetaData server).
-   *
-   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
-   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
-   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `use_market_value`: `false`
-   */
-  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
-  /**
-   * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
-   *
-   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
-   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
-   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `use_market_value`: `false`
-   */
-  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
-  /**
-   * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
-   *
-   * - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
-   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
-   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `use_market_value`: `false`
-   */
-  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
-  /**
-   * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
-   *
-   * - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
-   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
-   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `use_market_value`: `false`
-   */
-  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
-  /**
-   * Fetch end-of-day option data for a contract over a date range.
-   *
-   * - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
-   * - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade.
-   * - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
-   * - You can read more about EOD & OHLC data here.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionHistoryEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
-  /** Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryEODStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options: OptionHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
-  /**
-   * Fetch intraday OHLC bars for an option contract.
-   *
-   * - Aggregated OHLC bars that use SIP rules for each bar.
-   * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   */
-  optionHistoryOHLC(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /** Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryOHLCStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
-  /**
-   * Fetch all trades for an option contract on a given date.
-   *
-   * - Returns every trade reported by OPRA.
-   * - Trade condition mappings can be found here.
-   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   */
-  optionHistoryTrade(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /** Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
-  /**
-   * Fetch NBBO quotes for an option contract on a given date.
-   *
-   * - Returns every NBBO quote reported by OPRA.
-   * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   */
-  optionHistoryQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /** Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryQuoteStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
-  /**
-   * Fetch combined trade + quote ticks for an option contract.
-   *
-   * - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
-   * - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp.
-   * - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
-   */
-  optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
-  /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeQuoteStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
-  /**
-   * Fetch open interest history for an option contract.
-   *
-   * - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
-   * - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
-   * - The reported open interest represents the open interest at the end of the previous trading day.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionHistoryOpenInterest(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
-  /** Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryOpenInterestStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryOpenInterestOptions | undefined | null, callback: ((arg: Array<OpenInterestTick>) => void)): Promise<void>
-  /**
-   * Fetch end-of-day Greeks history for an option contract.
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-   * - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   * - `underlyer_use_nbbo`: `false`
-   */
-  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
-  /** Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksEODStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options: OptionHistoryGreeksEodOptions | undefined | null, callback: ((arg: Array<GreeksEodTick>) => void)): Promise<void>
-  /**
-   * Fetch all Greeks history for an option contract (intraday, sampled by interval).
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
-  /** Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksAllStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksAllOptions | undefined | null, callback: ((arg: Array<GreeksAllTick>) => void)): Promise<void>
-  /**
-   * Fetch all Greeks on each trade for an option contract.
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by OPRA.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
-  /** Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeGreeksAllStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
-  /**
-   * Fetch first-order Greeks history (intraday, sampled by interval).
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
-  /** Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksFirstOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<GreeksFirstOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch first-order Greeks on each trade for an option contract.
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by OPRA.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
-  /** Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeGreeksFirstOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch second-order Greeks history (intraday, sampled by interval).
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
-  /** Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksSecondOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<GreeksSecondOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch second-order Greeks on each trade for an option contract.
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by OPRA.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
-  /** Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeGreeksSecondOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch third-order Greeks history (intraday, sampled by interval).
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
-  /** Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksThirdOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<GreeksThirdOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch third-order Greeks on each trade for an option contract.
-   *
-   * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Calculates greeks for every trade reported by OPRA.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
-  /** Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeGreeksThirdOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
-  /**
-   * Fetch implied volatility history (intraday, sampled by interval).
-   *
-   * - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
-  /** Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: IvTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryGreeksImpliedVolatilityStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksImpliedVolatilityOptions | undefined | null, callback: ((arg: Array<IvTick>) => void)): Promise<void>
-  /**
-   * Fetch implied volatility on each trade for an option contract.
-   *
-   * - Returns implied volatilies calculated using the trade reported by OPRA.
-   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
-   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `rate_type`: `"sofr"`
-   * - `version`: `"latest"`
-   */
-  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<TradeGreeksImpliedVolatilityTick>>
-  /** Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionHistoryTradeGreeksImpliedVolatilityStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null, callback: ((arg: Array<TradeGreeksImpliedVolatilityTick>) => void)): Promise<void>
-  /**
-   * Fetch the trade at a specific time of day across a date range for an option.
-   *
-   * - Returns the last trade reported by OPRA at a specified millisecond of the day.
-   * - Trade condition mappings can be found here.
-   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
-   * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionAtTimeTrade(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeTradeOptions | undefined | null): Promise<Array<TradeTick>>
-  /** Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionAtTimeTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionAtTimeTradeStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: OptionAtTimeTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
-  /**
-   * Fetch the quote at a specific time of day across a date range for an option.
-   *
-   * - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
-   * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
-   *
-   * Defaults (upstream):
-   * - `strike`: `"*"`
-   * - `right`: `"both"`
-   */
-  optionAtTimeQuote(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
-  /** Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionAtTimeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionAtTimeQuoteStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: OptionAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
-  /**
-   * List all available index symbols.
-   *
-   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
-   */
-  indexListSymbols(options?: IndexListSymbolsOptions | undefined | null): Promise<Array<string>>
-  /**
-   * List available dates for an index symbol.
-   *
-   * Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
-   */
-  indexListDates(symbol: string, options?: IndexListDatesOptions | undefined | null): Promise<Array<string>>
-  /**
-   * Get the latest OHLC snapshot for one or more indices.
-   *
-   * - Retrieves the real-time current day OHLC.
-   * - Exchanges typically generate a price report every second for popular indices like SPX.
-   */
-  indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /**
-   * Get the latest price snapshot for one or more indices.
-   *
-   * - Retrieves a real-time last index price.
-   * - Exchanges typically generate a price report every second for popular indices like SPX.
-   */
-  indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
-  /**
-   * Get the latest market value snapshot for one or more indices.
-   *
-   * - Retrieves a real-time last index market value.
-   * - Exchanges typically generate a price report every second for popular indices like SPX.
-   */
-  indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
-  /**
-   * Fetch end-of-day index data for a date range.
-   *
-   * - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
-   */
-  indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
-  /** Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  indexHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: IndexHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
-  /**
-   * Fetch intraday OHLC bars for an index.
-   *
-   * - Aggregated OHLC bars that use SIP rules for each bar.
-   * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-   * - Exchanges typically generate a price report every second for popular indices like SPX.
-   *
-   * Defaults (upstream):
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   */
-  indexHistoryOHLC(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
-  /** Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  indexHistoryOHLCStream(symbol: string, startDate: string | Date, endDate: string | Date, options: IndexHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
-  /**
-   * Fetch intraday price history for an index.
-   *
-   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
-   * - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
-   * - A price update from the exchange is omitted if the price remained the same from the previous update.
-   * - Multi-day requests are limited to 1 month of data.
-   *
-   * Defaults (upstream):
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   */
-  indexHistoryPrice(symbol: string, date: string | Date, options?: IndexHistoryPriceOptions | undefined | null): Promise<Array<PriceTick>>
-  /** Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(chunk: PriceTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryPrice` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  indexHistoryPriceStream(symbol: string, date: string | Date, options: IndexHistoryPriceOptions | undefined | null, callback: ((arg: Array<PriceTick>) => void)): Promise<void>
-  /**
-   * Fetch the index price at a specific time of day across a date range.
-   *
-   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
-   * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
-   */
-  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: IndexAtTimePriceOptions | undefined | null): Promise<Array<IndexPriceAtTimeTick>>
-  /** Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(chunk: IndexPriceAtTimeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexAtTimePrice` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  indexAtTimePriceStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: IndexAtTimePriceOptions | undefined | null, callback: ((arg: Array<IndexPriceAtTimeTick>) => void)): Promise<void>
-  /**
-   * Check whether the market is open today.
-   *
-   * - Retrieves current day equity market schedule
-   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-   */
-  calendarOpenToday(options?: CalendarOpenTodayOptions | undefined | null): Promise<Array<CalendarDay>>
-  /**
-   * Get calendar information for a specific date.
-   *
-   * - Retrieves equity market schedule for a given date
-   * - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
-   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-   */
-  calendarOnDate(date: string | Date, options?: CalendarOnDateOptions | undefined | null): Promise<Array<CalendarDay>>
-  /**
-   * Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
-   *
-   * - Retrieves equity market holidays for a given year
-   * - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
-   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-   */
-  calendarYear(year: string, options?: CalendarYearOptions | undefined | null): Promise<Array<CalendarDay>>
-  /**
-   * Fetch end-of-day interest rate history.
-   *
-   * - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
-   * - Valid `symbol` values per upstream `RateType` enum:
-   *   `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
-   *   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
-   *   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
-   */
-  interestRateHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: InterestRateHistoryEodOptions | undefined | null): Promise<Array<InterestRateTick>>
-  /** Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: InterestRateTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  interestRateHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: InterestRateHistoryEodOptions | undefined | null, callback: ((arg: Array<InterestRateTick>) => void)): Promise<void>
-  /**
-   * Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-   *
-   * Defaults (upstream):
-   * - `interval`: `"1s"`
-   * - `start_time`: `"09:30:00"`
-   * - `end_time`: `"16:00:00"`
-   * - `venue`: `"nqb"`
-   */
-  stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryOhlcRangeOptions | undefined | null): Promise<Array<OhlcTick>>
-  /** Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLCRange` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  stockHistoryOHLCRangeStream(symbol: string, startDate: string | Date, endDate: string | Date, options: StockHistoryOhlcRangeOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
-}
-
-/**
- * JS-visible `SecType` (frozen security-type enum). Construction
- * happens via the four named factories: `SecType.stock()`,
- * `SecType.option()`, `SecType.index()`, `SecType.rate()`. Returns
- * flow into `secType.fullTrades()` /
- * `secType.fullOpenInterest()` to build a full-stream
- * `Subscription`.
- */
-export declare class SecType {
-  /** `SecType.stock()` — equity-side full-stream constructor. */
-  static stock(): SecType
-  /** `SecType.option()` — option-side full-stream constructor. */
-  static option(): SecType
-  /** `SecType.index()` — index-side full-stream constructor. */
-  static index(): SecType
-  /** `SecType.rate()` — rate-side full-stream constructor. */
-  static rate(): SecType
-  /** Full-stream Trade subscription for this security type. */
-  fullTrades(): Subscription
-  /** Full-stream OpenInterest subscription for this security type. */
-  fullOpenInterest(): Subscription
-  /** Symbolic name (`"STOCK"`, `"OPTION"`, `"INDEX"`, `"RATE"`). */
-  get name(): string
-  /**
-   * String rendering for `console.log` / template literals. Returns
-   * the symbolic name (`"OPTION"`), matching the Python `SecType`
-   * `__str__`. Without it a `SecType` instance prints as an opaque
-   * `SecType {}` because its getters do not surface on inspection.
-   */
-  toString(): string
-}
-
-/**
- * Typed market-data subscription.
- *
- * Returned by `Contract.quote()` / `.trade()` / `.openInterest()`
- * (per-contract scope) and by `SecType.option().fullTrades()` /
- * `.fullOpenInterest()` (full-stream scope). Pass to
- * `client.subscribe(sub)` or `client.subscribeMany([...])`.
- */
-export declare class Subscription {
-  /**
-   * One of `"quote"`, `"trade"`, `"open_interest"`,
-   * `"market_value"`, `"full_trades"`, `"full_open_interest"` — the
-   * wire-level kind.
-   */
-  get kind(): string
-  /** `true` for full-stream (security-type-scoped) subscriptions. */
-  get isFull(): boolean
-  /**
-   * The bound contract for per-contract subscriptions, `null` for
-   * full-stream subscriptions.
-   */
-  get contract(): ContractRef | null
-  /**
-   * The security type for full-stream subscriptions, `null` for
-   * per-contract subscriptions.
-   */
-  get secType(): SecType | null
-  /**
-   * String rendering for `console.log` / template literals, e.g.
-   * `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
-   * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
-   * `Subscription` `__repr__`. Without it a `Subscription` prints as
-   * an opaque `Subscription {}` because its getters do not surface on
-   * inspection.
-   */
-  toString(): string
-}
-
-export declare class ThetaDataDxClient {
+export declare class Client {
   /**
    * Connect to ThetaData with a `Credentials` handle. Pass an
    * optional `Config` (`dev` / `stage` / `production`, plus any
@@ -1702,17 +13,17 @@ export declare class ThetaDataDxClient {
    *
    * ```js
    * const creds = Credentials.fromFile("creds.txt");
-   * const tdx = ThetaDataDxClient.connect(creds);
+   * const tdx = Client.connect(creds);
    * ```
    */
-  static connect(creds: Credentials, config?: Config | undefined | null): ThetaDataDxClient
+  static connect(creds: Credentials, config?: Config | undefined | null): Client
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
    * password). Convenience wrapper over `Credentials.fromFile` +
    * `connect`. Pass an optional `Config` to override the
    * production-default endpoint.
    */
-  static connectFromFile(path: string, config?: Config | undefined | null): ThetaDataDxClient
+  static connectFromFile(path: string, config?: Config | undefined | null): Client
   /**
    * Cumulative count of FPSS events that were dropped because the
    * callback fell behind and the in-flight buffer was full.
@@ -2631,7 +942,7 @@ export declare class ThetaDataDxClient {
    * blocked by a slow callback, so the upstream connection
    * stays healthy regardless of callback speed.
    */
-  startStreaming(callback: ((arg: FpssEvent) => void)): void
+  startStreaming(callback: ((arg: StreamEvent) => void)): void
   /** Whether the streaming connection is active. */
   isStreaming(): boolean
   /** Get a snapshot of currently active subscriptions. */
@@ -2704,6 +1015,1695 @@ export declare class ThetaDataDxClient {
   unsubscribe(sub: Subscription): void
   /** Bulk-unsubscribe an array of `Subscription` values. */
   unsubscribeMany(subs: Array<Subscription>): void
+}
+
+/**
+ * SDK configuration.
+ *
+ * Build a config via one of the three static factories
+ * (`Config.production` / `Config.dev` / `Config.stage`), tune
+ * it with the setters below, then pass it as the optional second
+ * argument to `Client.connect(creds, config)` /
+ * `Client.connectFromFile(path, config)`.
+ *
+ * Mutating methods follow JS convention and
+ * return `void` (chain by calling `cfg.method(...)` then passing
+ * `cfg` itself).
+ *
+ * The config is consumed at connect time, so once it has been used
+ * to connect a client further mutations have no effect on that client.
+ */
+export declare class Config {
+  /** Production config (`ThetaData` NJ datacenter). */
+  static production(): Config
+  /** Dev streaming config (port 20200, infinite historical replay). */
+  static dev(): Config
+  /** Stage streaming config (port 20100, unstable testing servers). */
+  static stage(): Config
+  /**
+   * Set the number of concurrent in-flight gRPC requests.
+   *
+   * `0` (default) auto-detects from the Nexus subscription tier
+   * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
+   * the tier cap are clamped at connect time with a warn.
+   */
+  setConcurrentRequests(n: number): void
+  /** Current `concurrent_requests` setting (`0` = auto-detect). */
+  get concurrentRequests(): number
+  /**
+   * Set the warning threshold (in bytes) for buffered (non-streaming)
+   * historical responses. Endpoints whose decoded total exceeds this
+   * value log a warning pointing the caller at the
+   * matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
+   * which delivers the same rows chunk-by-chunk through a callback with
+   * memory bounded to a single chunk; the buffered data is still
+   * delivered. `0n` disables the warning entirely. Default is
+   * `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
+   * 32-bit unsigned range, so the setter takes a `BigInt`.
+   */
+  setWarnOnBufferedThresholdBytes(n: bigint): void
+  /**
+   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
+   * returned as a `BigInt`).
+   */
+  get warnOnBufferedThresholdBytes(): bigint
+  /**
+   * Set the streaming reconnect policy.
+   *
+   * - `"auto"` (default): auto-reconnect with the per-class attempt
+   *   budgets supplied by `Config.setReconnectMaxAttempts` and
+   *   `Config.setReconnectMaxRateLimitedAttempts`.
+   * - `"manual"`: no auto-reconnect; callers reconnect explicitly.
+   */
+  setReconnectPolicy(policy: string): void
+  /**
+   * Set the per-class transient-failure attempt budget for the
+   * auto-reconnect path. Default `30`. No effect unless the
+   * reconnect policy is `Auto`.
+   */
+  setReconnectMaxAttempts(maxAttempts: number): void
+  /**
+   * Set the per-class rate-limited (`TooManyRequests`) attempt
+   * budget for the auto-reconnect path. Default `100`. No effect
+   * unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
+  /**
+   * Set the continuous successful-data-flow window (in seconds)
+   * after which the auto-reconnect attempt counters reset. Default
+   * `60`. No effect unless the reconnect policy is `Auto`.
+   *
+   * Accepts a `bigint` for parity with the Python / C++ / FFI
+   * surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
+   * value: `setReconnectStableWindowSecs(BigInt(60))`.
+   */
+  setReconnectStableWindowSecs(secs: bigint): void
+  /**
+   * Set the reconnect delay (ms) honoured for generic transient
+   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
+   * Plumbed through to the streaming I/O loop at connect time.
+   * Default `250`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+   */
+  setReconnectWaitMs(ms: bigint): void
+  /** Current reconnect `wait_ms` value (default `250`). */
+  get reconnectWaitMs(): bigint
+  /**
+   * Set the reconnect delay (ms) honoured for `TooManyRequests`
+   * rate-limited disconnects. Default `130_000`.
+   */
+  setReconnectWaitRateLimitedMs(ms: bigint): void
+  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
+  get reconnectWaitRateLimitedMs(): bigint
+  /**
+   * Set the cap (ms) on the exponential generic-transient reconnect
+   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
+   * consecutive attempt up to this value. Default `30_000n`.
+   */
+  setReconnectWaitMaxMs(ms: bigint): void
+  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
+  get reconnectWaitMaxMs(): bigint
+  /**
+   * Set the flat reconnect cadence (ms) for `ServerRestarting`
+   * disconnects. Default `5_000n`.
+   */
+  setReconnectWaitServerRestartMs(ms: bigint): void
+  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
+  get reconnectWaitServerRestartMs(): bigint
+  /**
+   * Set the jitter strategy applied to every reconnect delay.
+   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+   * `"none"` (case-insensitive).
+   */
+  setReconnectJitter(mode: string): void
+  /** Current reconnect jitter mode as a lowercase string. */
+  get reconnectJitter(): string
+  /**
+   * Set the wall-clock reconnect envelope (seconds) for the
+   * generic-transient and server-restart classes, measured from the
+   * first attempt of a consecutive-reconnect sequence. `0n` disables
+   * the envelope (attempt budgets only). Default `300n`. No effect
+   * unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current wall-clock reconnect envelope in seconds (default
+   * `300n`; `0n` = disabled). Reads the default-limits value when
+   * the policy is not `Auto`.
+   */
+  get reconnectMaxElapsedSecs(): bigint
+  /**
+   * Set the `ServerRestarting` reconnect attempt budget. Default
+   * `60`. No effect unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxServerRestartAttempts(n: number): void
+  /**
+   * Current `ServerRestarting` reconnect attempt budget (default
+   * `60`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxServerRestartAttempts(): number
+  /**
+   * Current reconnect policy as a string (`"auto"`, `"manual"`, or
+   * `"custom"`).
+   */
+  get reconnectPolicy(): string
+  /**
+   * Current generic-transient reconnect attempt budget (default
+   * `30`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxAttempts(): number
+  /**
+   * Current rate-limited reconnect attempt budget (default `100`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectMaxRateLimitedAttempts(): number
+  /**
+   * Current stable-window reset interval in seconds (default `60n`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectStableWindowSecs(): bigint
+  /**
+   * Set the subscription-replay burst size used after an
+   * auto-reconnect: frames are written in bursts of this many, each
+   * burst flushed and followed by a jittered `replayPaceMs` pause.
+   * Minimum `1` (validated at connect). Default `50`.
+   */
+  setReconnectReplayBurstSize(n: number): void
+  /** Current `replay_burst_size` value (default `50`). */
+  get reconnectReplayBurstSize(): number
+  /**
+   * Set the pause (ms) between subscription-replay bursts after an
+   * auto-reconnect. `0n` removes the pause. Default `5n`.
+   */
+  setReconnectReplayPaceMs(ms: bigint): void
+  /** Current `replay_pace_ms` value (default `5n`). */
+  get reconnectReplayPaceMs(): bigint
+  /**
+   * Install a custom reconnect policy driven by a JS callback.
+   *
+   * `callback(reason: number, attempt: number)` is invoked (on the
+   * Node main thread, queued from the streaming I/O thread) after
+   * each retriable involuntary disconnect. Return the reconnect
+   * delay in milliseconds, or `null` to stop reconnecting (the
+   * stream then emits the terminal `ReconnectsExhausted` event).
+   * Permanent disconnect reasons (bad credentials, account
+   * conflicts) never reach the callback. Pass `null` to restore the
+   * default `Auto` policy.
+   *
+   * The streaming I/O thread waits for the decision, so the
+   * callback should return promptly; if no decision arrives within
+   * 30 seconds (for example because the Node event loop is blocked)
+   * the stream stops reconnecting and emits the terminal event.
+   */
+  setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
+  /** Set the FPSS read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
+  setFpssTimeoutMs(ms: bigint): void
+  /** Current `fpss.timeout_ms` value (default `3_000n`). */
+  get fpssTimeoutMs(): bigint
+  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
+  setFpssConnectTimeoutMs(ms: bigint): void
+  /** Current `fpss.connect_timeout_ms` value (default `2_000n`). */
+  get fpssConnectTimeoutMs(): bigint
+  /** Set the FPSS heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
+  setFpssPingIntervalMs(ms: bigint): void
+  /** Current `fpss.ping_interval_ms` value (default `250n`). */
+  get fpssPingIntervalMs(): bigint
+  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
+  setFpssIoReadSliceMs(ms: bigint): void
+  /** Current `fpss.io_read_slice_ms` value (default `25n`). */
+  get fpssIoReadSliceMs(): bigint
+  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
+  setFpssDataWatchdogMs(ms: bigint): void
+  /** Current `fpss.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
+  get fpssDataWatchdogMs(): bigint
+  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent FPSS socket. Default `5n`; validated to `[1, 7_200]` at connect. */
+  setFpssKeepaliveIdleSecs(ms: bigint): void
+  /** Current `fpss.keepalive_idle_secs` value (default `5n`). */
+  get fpssKeepaliveIdleSecs(): bigint
+  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
+  setFpssKeepaliveIntervalSecs(ms: bigint): void
+  /** Current `fpss.keepalive_interval_secs` value (default `2n`). */
+  get fpssKeepaliveIntervalSecs(): bigint
+  /**
+   * Set the number of unanswered TCP keepalive probes after which
+   * the kernel declares the FPSS connection dead (where the
+   * platform exposes the knob). Default `2`; validated to `[1, 10]`
+   * at connect.
+   */
+  setFpssKeepaliveRetries(n: number): void
+  /** Current `fpss.keepalive_retries` value (default `2`). */
+  get fpssKeepaliveRetries(): number
+  /**
+   * Set the FPSS event ring buffer size (slots). Must be a power of
+   * two `>= 64`; invalid values are rejected immediately. Default
+   * `131_072`.
+   */
+  setFpssRingSize(n: number): void
+  /** Current `fpss.ring_size` value (default `131_072`). */
+  get fpssRingSize(): number
+  /**
+   * Set the FPSS host-selection policy. Accepts `"shuffled"`
+   * (default — fault-domain-aware per-client shuffle) or
+   * `"fixed_order"` (declared order verbatim), case-insensitive.
+   */
+  setFpssHostSelection(policy: string): void
+  /** Current FPSS host-selection policy as a lowercase string. */
+  get fpssHostSelection(): string
+  /**
+   * Set the FPSS host-shuffle seed. `null` (default) derives a
+   * fresh per-client seed so a fleet shuffles independently; an
+   * explicit `bigint` makes the shuffled order deterministic —
+   * useful for fleet sharding and tests. Ignored under
+   * `"fixed_order"`.
+   */
+  setFpssHostShuffleSeed(seed?: bigint | undefined | null): void
+  /**
+   * Current `fpss.host_shuffle_seed` value (`null` = per-client
+   * entropy).
+   */
+  get fpssHostShuffleSeed(): bigint | null
+  /**
+   * Set the wall-clock envelope (seconds) for one
+   * historical-channel retry sequence, measured from the first
+   * attempt. `0n` disables the envelope (attempt budget only).
+   * Default `300n`.
+   */
+  setRetryMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current `retry.max_elapsed` value in seconds (default `300n`;
+   * `0n` = disabled).
+   */
+  get retryMaxElapsedSecs(): bigint
+  /**
+   * Toggle AWS-style full jitter on the flatfile retry ladder.
+   * Default `true`; `false` gives the deterministic schedule,
+   * useful for tests that assert exact timings.
+   */
+  setFlatfilesJitter(jitter: boolean): void
+  /** Current `flatfiles.jitter` value (default `true`). */
+  get flatfilesJitter(): boolean
+  /**
+   * Set the async worker-thread count for embedded runtimes.
+   * `hasValue=false` defers to the default sizing; `hasValue=true`
+   * pins worker count to `n` (with `n=0` preserved verbatim rather
+   * than treated as unset).
+   *
+   * The async worker pool is process-global: it is built once, from the
+   * config of the first client connected in the process. This setting
+   * is therefore honored when the first client in the process is
+   * created; clients connected later share the already-built pool, so
+   * setting it on a subsequent config has no effect.
+   */
+  setWorkerThreads(hasValue: boolean, n: number): void
+  /**
+   * Current `workerThreads` setting as `{ hasValue, n }`.
+   * `hasValue=false` encodes the unset (auto) sentinel.
+   */
+  get workerThreads(): WorkerThreadsSetting
+  /**
+   * Set the initial backoff delay (ms) for the historical-channel retry policy.
+   * Default `250n`. Subsequent retries double from here, capped at
+   * `retryMaxDelayMs`.
+   */
+  setRetryInitialDelayMs(ms: bigint): void
+  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
+  get retryInitialDelayMs(): bigint
+  /**
+   * Set the upper-bound backoff delay (ms) for the MDDS retry
+   * policy. Default `30_000n` (30 s).
+   */
+  setRetryMaxDelayMs(ms: bigint): void
+  /** Current `retry.max_delay` value (ms, returned as BigInt). */
+  get retryMaxDelayMs(): bigint
+  /**
+   * Set the total attempt budget for the historical-channel retry policy. `1`
+   * disables retry; higher values permit retries up to
+   * `maxAttempts - 1` after the initial call. Default `20`.
+   */
+  setRetryMaxAttempts(n: number): void
+  /** Current `retry.max_attempts` value. */
+  get retryMaxAttempts(): number
+  /**
+   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+   * `true`. `false` gives the deterministic backoff schedule
+   * `min(max_delay, initial * 2^attempt)`, useful for tests that
+   * need to assert exact timings.
+   */
+  setRetryJitter(jitter: boolean): void
+  /** Current `retry.jitter` value. */
+  get retryJitter(): boolean
+  /**
+   * Set the total attempt budget for the flatfile driver retry
+   * loop. `1` disables retry (single call only); higher values
+   * permit retries up to `maxAttempts - 1` after the initial call.
+   * Default `10`. Validated to the range `[1, 100]` at connect time.
+   */
+  setFlatfilesMaxAttempts(n: number): void
+  /** Current `flatfiles.max_attempts` value. */
+  get flatfilesMaxAttempts(): number
+  /**
+   * Set the initial backoff delay (seconds) for the flatfile
+   * driver retry loop. Doubles per attempt up to
+   * `flatfilesMaxBackoffSecs`. Default `1n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesInitialBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
+  get flatfilesInitialBackoffSecs(): bigint
+  /**
+   * Set the upper-bound backoff delay (seconds) for the flatfile
+   * driver retry loop. The doubling schedule never exceeds this
+   * value regardless of attempt number. Default `30n`. Must be
+   * greater than or equal to `flatfilesInitialBackoffSecs`
+   * (rejected at connect-time validate otherwise).
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesMaxBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
+  get flatfilesMaxBackoffSecs(): bigint
+  /**
+   * Set the Nexus auth URL. Default matches the upstream
+   * production endpoint; override to redirect at a staging
+   * cluster for testing.
+   */
+  setNexusUrl(url: string): void
+  /** Current `auth.nexus_url` value. */
+  get nexusUrl(): string
+  /**
+   * Set the `QueryInfo.client_type` identifier. Default is
+   * `"rust-thetadatadx"`; override to identify a deployment fleet
+   * in server-side dashboards.
+   */
+  setClientType(clientType: string): void
+  /** Current `auth.client_type` value. */
+  get clientType(): string
+  /** Override the historical gRPC host. Companion to `setMddsPort`. */
+  setMddsHost(host: string): void
+  /** Current historical gRPC host. */
+  get mddsHost(): string
+  /**
+   * Override the historical data port. Companion to `setMddsHost` —
+   * same test-only rationale. Rejects values outside the `0..=65535`
+   * port range.
+   */
+  setMddsPort(port: number): void
+  /** Current historical gRPC port. */
+  get mddsPort(): number
+  /**
+   * Set the Prometheus exporter port. Pass `null` or `undefined`
+   * to leave the exporter disabled (the default); pass a
+   * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
+   * `metrics-prometheus` feature is compiled in.
+   *
+   * Rejects values outside the `0..=65535` port range.
+   */
+  setMetricsPort(port?: number | undefined | null): void
+  /**
+   * Current `metrics.port` setting. `null` means the exporter is
+   * disabled; a `number` is the bound port.
+   */
+  get metricsPort(): number | null
+  /**
+   * Set the streaming write-flush policy.
+   *
+   * Accepts `"batched"` (default — flushes on the PING heartbeat,
+   * roughly every 100 ms — best throughput) or `"immediate"`
+   * (flushes after every wire write — lowest latency, higher
+   * per-frame syscall cost).
+   */
+  setFlushMode(mode: string): void
+  /**
+   * Current streaming write-flush policy (`"batched"` or
+   * `"immediate"`).
+   */
+  get flushMode(): string
+  /**
+   * Set whether to derive OHLCVC bars locally from trade events.
+   * When `false`, only server-sent OHLCVC frames are emitted,
+   * reducing per-trade throughput overhead. Default `true`.
+   */
+  setDeriveOhlcvc(enabled: boolean): void
+  /** Current OHLCVC derivation setting. */
+  get deriveOhlcvc(): boolean
+}
+
+/**
+ * Fluent contract identifier — stock or option.
+ *
+ * Use `Contract.stock("AAPL")` / `Contract.option(...)` to build one.
+ * The class is also exported under the name `ContractRef`; `Contract`
+ * is an alias for it, so the two names are interchangeable.
+ */
+export declare class ContractRef {
+  /** Construct a stock contract. */
+  static stock(symbol: string): ContractRef
+  /** Construct an index contract. */
+  static index(symbol: string): ContractRef
+  /**
+   * Construct an option contract. The expiration / strike / right
+   * travel in a single `OptionLeg` object with named keys —
+   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
+   * right: "C" })` — rather than as adjacent positional strings, so a
+   * swapped expiration/strike/right pair cannot pass silently. `right`
+   * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
+   * `strike` is the price in dollars as a number or string (`550`,
+   * `550.5`, and `"550"` are equivalent).
+   */
+  static option(symbol: string, leg: OptionLeg): ContractRef
+  /** Per-contract Quote subscription. */
+  quote(): Subscription
+  /** Per-contract Trade subscription. */
+  trade(): Subscription
+  /** Per-contract OpenInterest subscription. */
+  openInterest(): Subscription
+  /** Per-contract market-value subscription. */
+  marketValue(): Subscription
+  /** Underlying symbol (e.g. `"AAPL"`, `"SPY"`). */
+  get symbol(): string
+  /**
+   * Security type as an upper-case string (`"STOCK"`, `"OPTION"`,
+   * `"INDEX"`).
+   */
+  get secType(): string
+  /** Expiration date as a `YYYYMMDD` integer; `null` for non-options. */
+  get expiration(): number | null
+  /**
+   * Strike price in dollars; `null` for non-options. Reads back the
+   * same notation `Contract.option(.., strike, ..)` takes, and joins
+   * directly against historical-row `strike` columns.
+   */
+  get strike(): number | null
+  /** Option right (`"C"` / `"P"`); `null` for non-options. */
+  get right(): string | null
+  /**
+   * String rendering for `console.log` / template literals, e.g.
+   * `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
+   * in dollars, matching the `strike` getter. Delegates to
+   * the same core rendering the Python `Contract` `__str__` uses, so
+   * the two bindings print a contract identically. Without it a
+   * `ContractRef` prints as an opaque `ContractRef {}` because its
+   * getters do not surface on inspection.
+   */
+  toString(): string
+}
+
+/**
+ * ThetaData login credentials.
+ *
+ * Build from an email + password pair (`new Credentials(email,
+ * password)`) or load from a credentials file (`Credentials.fromFile`,
+ * line 1 = email, line 2 = password), then pass the handle to a client
+ * `connect(creds, config?)`.
+ *
+ * ```js
+ * const { Credentials, Client } = require("@thetadatadx/sdk");
+ * const creds = Credentials.fromFile("creds.txt");
+ * const tdx = Client.connect(creds);
+ * ```
+ */
+export declare class Credentials {
+  /** Create credentials from an email and password. */
+  constructor(email: string, password: string)
+  /** Load credentials from a file (line 1 = email, line 2 = password). */
+  static fromFile(path: string): Credentials
+  /** Redacted string form — never exposes the email or password. */
+  toString(): string
+}
+
+/**
+ * JS class wrapping a decoded flat-file row vector. Created by every
+ * method on `FlatFilesNamespace`; carries the typed
+ * rows until the user picks a terminal.
+ */
+export declare class FlatFileRowList {
+  /**
+   * Number of decoded rows. Same value as `.length` on the JSON
+   * representation, exposed as a method so the API stays stable if
+   * the list later gains first-class iterator support.
+   */
+  len(): number
+  /** Whether the decoded row vector is empty. */
+  isEmpty(): boolean
+  /**
+   * Serialise the typed rows as Arrow IPC stream bytes. The dynamic
+   * schema is inferred from the first row. Deserialise on
+   * the JS side with `apache-arrow`'s `tableFromIPC`.
+   */
+  toArrowIpc(): Buffer
+  /**
+   * Return a JSON array of objects, one per row. Useful for quick
+   * inspection, structured logging, or wiring into JS-side
+   * dataframes that don't read Arrow IPC.
+   */
+  toJson(): string
+}
+
+/**
+ * JS class returned from `tdx.flatFiles`. Each method maps to one
+ * (security type, request type) pair and returns a `FlatFileRowList`.
+ */
+export declare class FlatFilesNamespace {
+  /** Option quote flat file for the given `YYYYMMDD` date. */
+  optionQuote(date: string): FlatFileRowList
+  /** Option trade flat file for the given `YYYYMMDD` date. */
+  optionTrade(date: string): FlatFileRowList
+  /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
+  optionTradeQuote(date: string): FlatFileRowList
+  /** Option OHLC flat file for the given `YYYYMMDD` date. */
+  optionOhlc(date: string): FlatFileRowList
+  /** Option open-interest flat file for the given `YYYYMMDD` date. */
+  optionOpenInterest(date: string): FlatFileRowList
+  /** Option end-of-day flat file for the given `YYYYMMDD` date. */
+  optionEod(date: string): FlatFileRowList
+  /** Stock quote flat file for the given `YYYYMMDD` date. */
+  stockQuote(date: string): FlatFileRowList
+  /** Stock trade flat file for the given `YYYYMMDD` date. */
+  stockTrade(date: string): FlatFileRowList
+  /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
+  stockTradeQuote(date: string): FlatFileRowList
+  /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
+  stockEod(date: string): FlatFileRowList
+  /**
+   * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
+   * `"QUOTE"` style strings.
+   */
+  request(secType: string, reqType: string, date: string): FlatFileRowList
+}
+
+/**
+ * Standalone MDDS-only historical client.
+ *
+ * Opens ONLY the historical data channel and the Nexus authentication
+ * flow — no real-time streaming connection or streaming state machine.
+ * This lets a caller run a historical-only session alongside a parallel
+ * streaming process without the unified `Client` taking over
+ * the Nexus session at connect time.
+ *
+ * The full historical / list / snapshot / at-time / flat-files surface
+ * is identical to the unified client, so `mddsClient.stockHistoryEod(...)`
+ * behaves exactly like `client.stockHistoryEod(...)`. The streaming and
+ * subscription methods are simply not present: there is no
+ * `startStreaming` / `subscribe` on this class, so an MDDS-only handle
+ * cannot open a streaming slot. Use `StreamingClient` for streaming, or the
+ * unified `Client` when you need both surfaces.
+ *
+ * ```js
+ * const { HistoricalClient, Config } = require("@thetadatadx/sdk");
+ * const mdds = HistoricalClient.connectFromFile("creds.txt");
+ * const eod = await mdds.stockHistoryEod("AAPL", "20240101", "20240301");
+ * ```
+ */
+export declare class HistoricalClient {
+  /**
+   * Connect to ThetaData with a `Credentials` handle and open the
+   * historical data channel. Historical only — this client never
+   * opens the FPSS streaming transport. Pass an optional `Config` to
+   * override the production-default endpoint. Use `StreamingClient` for
+   * real-time data.
+   *
+   * The config is snapshot at connect time: the `Config` handle may be
+   * reused or mutated afterward without affecting this client.
+   */
+  static connect(creds: Credentials, config?: Config | undefined | null): HistoricalClient
+  /**
+   * Connect with a credentials file (line 1 = email, line 2 =
+   * password). Convenience wrapper over `Credentials.fromFile` +
+   * `connect`. Historical only. Pass an optional
+   * `Config` to override the production-default endpoint.
+   */
+  static connectFromFile(path: string, config?: Config | undefined | null): HistoricalClient
+  /**
+   * List all available stock ticker symbols.
+   *
+   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
+   */
+  stockListSymbols(options?: StockListSymbolsOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
+   *
+   * Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
+   */
+  stockListDates(requestType: string, symbol: string, options?: StockListDatesOptions | undefined | null): Promise<Array<string>>
+  /**
+   * Get the latest OHLC snapshot for one or more stocks.
+   *
+   * Provides a real-time Open, High, Low, Close for the current day.
+   * * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
+   * * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockSnapshotOHLC(symbols: string | Array<string>, options?: StockSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /**
+   * Get the latest trade snapshot for one or more stocks.
+   *
+   * Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   *
+   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockSnapshotTrade(symbols: string | Array<string>, options?: StockSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /**
+   * Get the latest NBBO quote snapshot for one or more stocks.
+   *
+   * * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
+   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockSnapshotQuote(symbols: string | Array<string>, options?: StockSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /**
+   * Get the latest market value snapshot for one or more stocks.
+   *
+   * * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
+   * - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockSnapshotMarketValue(symbols: string | Array<string>, options?: StockSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
+  /**
+   * Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
+   *
+   * Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
+   */
+  stockHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: StockHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /**
+   * Fetch intraday OHLC bars for a stock on a single date.
+   *
+   * - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds.
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `venue`: `"nqb"`
+   */
+  stockHistoryOHLC(symbol: string, date: string | Date, options?: StockHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /** Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryOHLCStream(symbol: string, date: string | Date, options: StockHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
+  /**
+   * Fetch all trades for a stock on a given date.
+   *
+   * Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `venue`: `"nqb"`
+   */
+  stockHistoryTrade(symbol: string, date: string | Date, options?: StockHistoryTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /** Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryTradeStream(symbol: string, date: string | Date, options: StockHistoryTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
+  /**
+   * Fetch NBBO quotes for a stock on a given date at a given interval.
+   *
+   * - Returns every NBBO quote reported by UTP and CTA.
+   * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
+   * - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `venue`: `"nqb"`
+   */
+  stockHistoryQuote(symbol: string, date: string | Date, options?: StockHistoryQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /** Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryQuoteStream(symbol: string, date: string | Date, options: StockHistoryQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
+  /**
+   * Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+   *
+   * Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `exclusive`: `true`
+   * - `venue`: `"nqb"`
+   */
+  stockHistoryTradeQuote(symbol: string, date: string | Date, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryTradeQuoteStream(symbol: string, date: string | Date, options: StockHistoryTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /**
+   * Fetch the trade at a specific time of day across a date range.
+   *
+   * #### Real-time request:
+   * - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   * - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
+   *
+   * #### Historical request:
+   * Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+   * Trade condition mappings can be found here.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockAtTimeTrade(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /** Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockAtTimeTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockAtTimeTradeStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: StockAtTimeTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
+  /**
+   * Fetch the quote at a specific time of day across a date range.
+   *
+   * #### Real-time request:
+   *   - Subscription tier standard or higher will default to NQB.
+   *   - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+   *   - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
+   *
+   * #### Historical request:
+   *   Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
+   *
+   * Defaults (upstream):
+   * - `venue`: `"nqb"`
+   */
+  stockAtTimeQuote(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: StockAtTimeQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /** Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockAtTimeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockAtTimeQuoteStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: StockAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
+  /**
+   * List all available option underlying symbols.
+   *
+   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+   */
+  optionListSymbols(options?: OptionListSymbolsOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List available dates for an option contract by request type.
+   *
+   * Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+   * This endpoint is updated overnight.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionListDates(requestType: string, symbol: string, expiration: string | Date, options?: OptionListDatesOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List available expiration dates for an option underlying.
+   *
+   * Lists all dates of expirations that are available for an option with a given symbol.
+   * This endpoint is updated overnight.
+   */
+  optionListExpirations(symbol: string, options?: OptionListExpirationsOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List available strike prices for an option at a given expiration.
+   *
+   * Lists all strikes that are available for an option with a given symbol and expiration date.
+   * This endpoint is updated overnight.
+   */
+  optionListStrikes(symbol: string, expiration: string | Date, options?: OptionListStrikesOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List all option contracts for a symbol on a given date.
+   *
+   * Lists all contracts that were traded or quoted on a particular date.
+   *
+   * If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
+   * Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+   * This endpoint is updated real-time.
+   */
+  optionListContracts(requestType: string, symbol: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
+  /** Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionListContractsStream(requestType: string, symbol: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
+  /**
+   * Get the latest OHLC snapshot for an option contract.
+   *
+   * - Retrieve a real-time last ohlc of an option contract for the trading day.
+   * - You might need to change the default expiration date to a different date if it is past the current date.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionSnapshotOHLC(symbol: string, expiration: string | Date, options?: OptionSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /**
+   * Get the latest trade snapshot for an option contract.
+   *
+   * - Retrieve the real-time last trade of an option contract.
+   * - You might need to change the default expiration date to a different date if it is past the current date.
+   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionSnapshotTrade(symbol: string, expiration: string | Date, options?: OptionSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /**
+   * Get the latest NBBO quote snapshot for an option contract.
+   *
+   * - Retrieve a real-time last NBBO quote of an option contract.
+   * - You might need to change the default expiration date to a different date if it is past the current date.
+   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionSnapshotQuote(symbol: string, expiration: string | Date, options?: OptionSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /**
+   * Get the latest open interest snapshot for an option contract.
+   *
+   * - Retrieve the last open interest message of an option contract.
+   * - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
+   * - You might need to change the default expiration date to a different date if it is past the current date.
+   * - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionSnapshotOpenInterest(symbol: string, expiration: string | Date, options?: OptionSnapshotOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
+  /**
+   * Get the latest market value snapshot for an option contract.
+   *
+   * * Returns a real-time market value derived from the last NBBO quote of an option contract.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionSnapshotMarketValue(symbol: string, expiration: string | Date, options?: OptionSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
+  /**
+   * Get implied volatility snapshot for an option contract (from ThetaData server).
+   *
+   * Returns implied volatilies calculated using the national best bid, mid, and ask price
+   * of the option respectively. The underlying price represents whatever the last underlying price was at the
+   * ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks
+   * here.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
+  /**
+   * Get all Greeks snapshot for an option contract (from ThetaData server).
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /**
+   * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /**
+   * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
+   *
+   * - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
+   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /**
+   * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
+   *
+   * - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
+   * - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+   * - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /**
+   * Fetch end-of-day option data for a contract over a date range.
+   *
+   * - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+   * - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade.
+   * - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
+   * - You can read more about EOD & OHLC data here.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionHistoryEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryEODStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options: OptionHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /**
+   * Fetch intraday OHLC bars for an option contract.
+   *
+   * - Aggregated OHLC bars that use SIP rules for each bar.
+   * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   */
+  optionHistoryOHLC(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /** Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryOHLCStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
+  /**
+   * Fetch all trades for an option contract on a given date.
+   *
+   * - Returns every trade reported by OPRA.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   */
+  optionHistoryTrade(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /** Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
+  /**
+   * Fetch NBBO quotes for an option contract on a given date.
+   *
+   * - Returns every NBBO quote reported by OPRA.
+   * - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   */
+  optionHistoryQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /** Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryQuoteStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
+  /**
+   * Fetch combined trade + quote ticks for an option contract.
+   *
+   * - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
+   * - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp.
+   * - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `exclusive`: `true`
+   */
+  optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeQuoteStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /**
+   * Fetch open interest history for an option contract.
+   *
+   * - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+   * - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
+   * - The reported open interest represents the open interest at the end of the previous trading day.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionHistoryOpenInterest(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
+  /** Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryOpenInterestStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryOpenInterestOptions | undefined | null, callback: ((arg: Array<OpenInterestTick>) => void)): Promise<void>
+  /**
+   * Fetch end-of-day Greeks history for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+   * - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   * - `underlyer_use_nbbo`: `false`
+   */
+  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
+  /** Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksEODStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, options: OptionHistoryGreeksEodOptions | undefined | null, callback: ((arg: Array<GreeksEodTick>) => void)): Promise<void>
+  /**
+   * Fetch all Greeks history for an option contract (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /** Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksAllStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksAllOptions | undefined | null, callback: ((arg: Array<GreeksAllTick>) => void)): Promise<void>
+  /**
+   * Fetch all Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
+  /** Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeGreeksAllStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
+  /**
+   * Fetch first-order Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /** Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksFirstOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<GreeksFirstOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch first-order Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
+  /** Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeGreeksFirstOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch second-order Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /** Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksSecondOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<GreeksSecondOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch second-order Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
+  /** Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeGreeksSecondOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch third-order Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /** Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksThirdOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<GreeksThirdOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch third-order Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
+  /** Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeGreeksThirdOrderStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
+  /**
+   * Fetch implied volatility history (intraday, sampled by interval).
+   *
+   * - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
+  /** Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: IvTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryGreeksImpliedVolatilityStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryGreeksImpliedVolatilityOptions | undefined | null, callback: ((arg: Array<IvTick>) => void)): Promise<void>
+  /**
+   * Fetch implied volatility on each trade for an option contract.
+   *
+   * - Returns implied volatilies calculated using the trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `version`: `"latest"`
+   */
+  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<TradeGreeksImpliedVolatilityTick>>
+  /** Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryTradeGreeksImpliedVolatilityStream(symbol: string, expiration: string | Date, date: string | Date, options: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null, callback: ((arg: Array<TradeGreeksImpliedVolatilityTick>) => void)): Promise<void>
+  /**
+   * Fetch the trade at a specific time of day across a date range for an option.
+   *
+   * - Returns the last trade reported by OPRA at a specified millisecond of the day.
+   * - Trade condition mappings can be found here.
+   * - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+   * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionAtTimeTrade(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeTradeOptions | undefined | null): Promise<Array<TradeTick>>
+  /** Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionAtTimeTrade` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionAtTimeTradeStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: OptionAtTimeTradeOptions | undefined | null, callback: ((arg: Array<TradeTick>) => void)): Promise<void>
+  /**
+   * Fetch the quote at a specific time of day across a date range for an option.
+   *
+   * - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
+   * - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   */
+  optionAtTimeQuote(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: OptionAtTimeQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
+  /** Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionAtTimeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionAtTimeQuoteStream(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: OptionAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
+  /**
+   * List all available index symbols.
+   *
+   * A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+   */
+  indexListSymbols(options?: IndexListSymbolsOptions | undefined | null): Promise<Array<string>>
+  /**
+   * List available dates for an index symbol.
+   *
+   * Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
+   */
+  indexListDates(symbol: string, options?: IndexListDatesOptions | undefined | null): Promise<Array<string>>
+  /**
+   * Get the latest OHLC snapshot for one or more indices.
+   *
+   * - Retrieves the real-time current day OHLC.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
+   */
+  indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /**
+   * Get the latest price snapshot for one or more indices.
+   *
+   * - Retrieves a real-time last index price.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
+   */
+  indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
+  /**
+   * Get the latest market value snapshot for one or more indices.
+   *
+   * - Retrieves a real-time last index market value.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
+   */
+  indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
+  /**
+   * Fetch end-of-day index data for a date range.
+   *
+   * - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+   */
+  indexHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: IndexHistoryEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /**
+   * Fetch intraday OHLC bars for an index.
+   *
+   * - Aggregated OHLC bars that use SIP rules for each bar.
+   * - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+   * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   */
+  indexHistoryOHLC(symbol: string, startDate: string | Date, endDate: string | Date, options?: IndexHistoryOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
+  /** Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryOHLC` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexHistoryOHLCStream(symbol: string, startDate: string | Date, endDate: string | Date, options: IndexHistoryOhlcOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
+  /**
+   * Fetch intraday price history for an index.
+   *
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+   * - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
+   * - A price update from the exchange is omitted if the price remained the same from the previous update.
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   */
+  indexHistoryPrice(symbol: string, date: string | Date, options?: IndexHistoryPriceOptions | undefined | null): Promise<Array<PriceTick>>
+  /** Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(chunk: PriceTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryPrice` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexHistoryPriceStream(symbol: string, date: string | Date, options: IndexHistoryPriceOptions | undefined | null, callback: ((arg: Array<PriceTick>) => void)): Promise<void>
+  /**
+   * Fetch the index price at a specific time of day across a date range.
+   *
+   * - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+   * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
+   */
+  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options?: IndexAtTimePriceOptions | undefined | null): Promise<Array<IndexPriceAtTimeTick>>
+  /** Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(chunk: IndexPriceAtTimeTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexAtTimePrice` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexAtTimePriceStream(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, options: IndexAtTimePriceOptions | undefined | null, callback: ((arg: Array<IndexPriceAtTimeTick>) => void)): Promise<void>
+  /**
+   * Check whether the market is open today.
+   *
+   * - Retrieves current day equity market schedule
+   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+   */
+  calendarOpenToday(options?: CalendarOpenTodayOptions | undefined | null): Promise<Array<CalendarDay>>
+  /**
+   * Get calendar information for a specific date.
+   *
+   * - Retrieves equity market schedule for a given date
+   * - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+   */
+  calendarOnDate(date: string | Date, options?: CalendarOnDateOptions | undefined | null): Promise<Array<CalendarDay>>
+  /**
+   * Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+   *
+   * - Retrieves equity market holidays for a given year
+   * - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+   * - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+   * - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+   */
+  calendarYear(year: string, options?: CalendarYearOptions | undefined | null): Promise<Array<CalendarDay>>
+  /**
+   * Fetch end-of-day interest rate history.
+   *
+   * - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+   * - Valid `symbol` values per upstream `RateType` enum:
+   *   `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+   *   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+   *   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
+   */
+  interestRateHistoryEOD(symbol: string, startDate: string | Date, endDate: string | Date, options?: InterestRateHistoryEodOptions | undefined | null): Promise<Array<InterestRateTick>>
+  /** Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: InterestRateTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  interestRateHistoryEODStream(symbol: string, startDate: string | Date, endDate: string | Date, options: InterestRateHistoryEodOptions | undefined | null, callback: ((arg: Array<InterestRateTick>) => void)): Promise<void>
+  /**
+   * Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
+   *
+   * Defaults (upstream):
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `venue`: `"nqb"`
+   */
+  stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryOhlcRangeOptions | undefined | null): Promise<Array<OhlcTick>>
+  /** Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLCRange` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockHistoryOHLCRangeStream(symbol: string, startDate: string | Date, endDate: string | Date, options: StockHistoryOhlcRangeOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
+}
+
+/**
+ * JS-visible `SecType` (frozen security-type enum). Construction
+ * happens via the four named factories: `SecType.stock()`,
+ * `SecType.option()`, `SecType.index()`, `SecType.rate()`. Returns
+ * flow into `secType.fullTrades()` /
+ * `secType.fullOpenInterest()` to build a full-stream
+ * `Subscription`.
+ */
+export declare class SecType {
+  /** `SecType.stock()` — equity-side full-stream constructor. */
+  static stock(): SecType
+  /** `SecType.option()` — option-side full-stream constructor. */
+  static option(): SecType
+  /** `SecType.index()` — index-side full-stream constructor. */
+  static index(): SecType
+  /** `SecType.rate()` — rate-side full-stream constructor. */
+  static rate(): SecType
+  /** Full-stream Trade subscription for this security type. */
+  fullTrades(): Subscription
+  /** Full-stream OpenInterest subscription for this security type. */
+  fullOpenInterest(): Subscription
+  /** Symbolic name (`"STOCK"`, `"OPTION"`, `"INDEX"`, `"RATE"`). */
+  get name(): string
+  /**
+   * String rendering for `console.log` / template literals. Returns
+   * the symbolic name (`"OPTION"`), matching the Python `SecType`
+   * `__str__`. Without it a `SecType` instance prints as an opaque
+   * `SecType {}` because its getters do not surface on inspection.
+   */
+  toString(): string
+}
+
+/**
+ * Standalone FPSS-only streaming client.
+ *
+ * Opens ONLY the FPSS TLS transport — no historical data channel, no
+ * Nexus HTTP authentication. Use when a parallel historical process is
+ * already running in the same environment and you need to stream FPSS
+ * without the bundled `Client` taking over the Nexus session
+ * at connect time.
+ *
+ * ```js
+ * const { StreamingClient, Config, Contract } = require("@thetadatadx/sdk");
+ * const fpss = StreamingClient.connectFromFile("creds.txt");
+ * fpss.startStreaming((event) => console.log(event.kind, event));
+ * fpss.subscribe(Contract.stock("AAPL").quote());
+ * // ... events arrive on the Node main thread ...
+ * fpss.stopStreaming();
+ * ```
+ */
+export declare class StreamingClient {
+  /**
+   * Allocate a standalone FPSS handle with a `Credentials` handle.
+   * Streaming only — opens no historical data channel and issues no
+   * Nexus request. Pass an optional `Config` (`dev` / `stage` /
+   * `production`, plus any tuned FPSS / reconnect setters) to override the
+   * production-default endpoint. The FPSS TLS connection opens on the
+   * first `startStreaming` call.
+   *
+   * The config is snapshot at construction time: the `Config` handle
+   * may be reused or mutated afterward without affecting this client.
+   */
+  static connect(creds: Credentials, config?: Config | undefined | null): StreamingClient
+  /**
+   * Allocate a standalone FPSS handle with a credentials file (line 1 =
+   * email, line 2 = password). Convenience wrapper over
+   * `Credentials.fromFile` + `connect`. Pass an optional `Config` to
+   * override the production-default endpoint.
+   */
+  static connectFromFile(path: string, config?: Config | undefined | null): StreamingClient
+  /**
+   * Start FPSS streaming and register a JS callback for incoming events.
+   *
+   * Opens the FPSS connection and begins delivering events. Each typed
+   * FPSS event is delivered to your `callback(event)` on the Node main
+   * thread, so the callback may use any JS API safely. A callback that
+   * panics or throws is isolated and does not interrupt the stream.
+   *
+   * Backpressure: a slow callback causes incoming events to queue and,
+   * once the buffer is full, the oldest events are dropped, observable
+   * via `droppedEventCount()`. The receive path is never blocked by a
+   * slow callback, so the upstream connection stays healthy regardless
+   * of callback speed.
+   */
+  startStreaming(callback: TsfnCallback): void
+  /**
+   * Whether the FPSS TLS connection is currently open. Returns `false`
+   * when the dispatcher thread has panicked — no events are arriving
+   * even though the TLS slot is still populated.
+   */
+  isStreaming(): boolean
+  /**
+   * Whether the FPSS session is currently authenticated. Distinct from
+   * `isStreaming()`: the TLS slot can hold a client whose authenticated
+   * flag has flipped to `false` after a server disconnect, before the
+   * application has issued `reconnect()`. A panicked dispatcher also
+   * folds back to `false` here.
+   */
+  isAuthenticated(): boolean
+  /**
+   * Polymorphic subscribe — primary fluent entry point. Accepts the
+   * `Subscription` value returned by `Contract.quote()` /
+   * `Contract.trade()` / `Contract.openInterest()` (per-contract scope)
+   * or by `SecType.option().fullTrades()` /
+   * `SecType.option().fullOpenInterest()` (full-stream scope).
+   */
+  subscribe(sub: Subscription): void
+  /**
+   * Bulk-subscribe an array of `Subscription` values. Stops at the first
+   * error and returns it; previously-installed subscriptions are NOT
+   * rolled back.
+   */
+  subscribeMany(subs: Array<Subscription>): void
+  /** Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`. */
+  unsubscribe(sub: Subscription): void
+  /** Bulk-unsubscribe an array of `Subscription` values. */
+  unsubscribeMany(subs: Array<Subscription>): void
+  /**
+   * Snapshot of per-contract subscriptions on the live session as an
+   * array of `{ kind, contract }` objects (matching the unified
+   * client's `activeSubscriptions()` projection). Empty array when
+   * streaming has not started.
+   */
+  activeSubscriptions(): any
+  /**
+   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
+   * `full_trades`). Each entry has the same `{ kind, contract }` shape
+   * as the unified client's `activeFullSubscriptions()`, where `kind` is
+   * `"full_trades"` / `"full_open_interest"` and `contract` carries the
+   * wire-level security type. Quote is never a valid full-stream kind,
+   * so any such row is dropped. Empty array when streaming has not
+   * started.
+   */
+  activeFullSubscriptions(): any
+  /**
+   * Cumulative count of FPSS events the TLS reader could not publish into
+   * the event ring because the consumer fell behind. Snapshot the value
+   * BEFORE `reconnect()` if you need to accumulate drops across session
+   * boundaries — `reconnect` rebuilds the inner client and the counter
+   * resets. Returned as `bigint` for the full 64-bit unsigned range.
+   */
+  droppedEventCount(): bigint
+  /**
+   * Point-in-time count of events published into the ring but not yet
+   * drained into your callback — the in-flight depth between the I/O
+   * thread and the dispatcher. The leading back-pressure signal: rises
+   * before `droppedEventCount()` moves. Returns `0n` when no session is
+   * live.
+   */
+  ringOccupancy(): bigint
+  /**
+   * Configured capacity of the event ring in slots (a power of two) —
+   * the fixed denominator for `ringOccupancy()`. Returns `0n` when no
+   * session is live.
+   */
+  ringCapacity(): bigint
+  /**
+   * Cumulative count of user-callback panics caught at the per-event
+   * isolation boundary. A panic is caught, recorded here, and does not
+   * stop event delivery. Returned as `bigint` for the full 64-bit unsigned range.
+   */
+  panicCount(): bigint
+  /**
+   * Milliseconds since the most recent inbound streaming frame of any
+   * kind (data tick, heartbeat, control), or `null` when no session is
+   * live or no frame has been received yet. The operator-facing
+   * staleness clock.
+   */
+  millisSinceLastEvent(): bigint | null
+  /**
+   * UNIX-nanosecond receive timestamp of the most recent inbound
+   * streaming frame of any kind. Returns `0n` when no session is live or
+   * no frame has been received yet.
+   */
+  lastEventReceivedAtUnixNanos(): bigint
+  /**
+   * Address (`host:port`) of the streaming server the current session is
+   * connected to, following the session across auto-reconnects. `null`
+   * when no session is live.
+   */
+  lastConnectedAddr(): string | null
+  /**
+   * Stop streaming and clear the registered callback. Same
+   * explicit-handoff semantics as the unified client: to resume after
+   * this returns, call `startStreaming(callback)` again with a freshly
+   * bound function; `reconnect()` throws because no callback is held.
+   *
+   * Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
+   */
+  stopStreaming(): void
+  /**
+   * Alias for `stopStreaming`. Mirrors the unified client's split surface
+   * where `shutdown` is documented as the terminal stop — on the
+   * standalone client both names are equivalent.
+   */
+  shutdown(): void
+  /**
+   * Re-open the FPSS connection and re-register the previously installed
+   * callback. Requires a prior `startStreaming(callback)`; throws
+   * otherwise.
+   *
+   * Saves the active per-contract and full-stream subscriptions against
+   * the old session, opens a fresh FPSS connection under the previously
+   * installed callback, and re-applies the saved subscriptions through
+   * the core's paced replay engine. Per-subscription failures surface as
+   * a single error naming every contract that did not re-subscribe — the
+   * streaming session itself is already up at that point.
+   */
+  reconnect(): void
+  /**
+   * Block until every superseded streaming session's event-ring consumer
+   * has finished firing the registered callback. Resolves `true` once
+   * all retired generations have drained, `false` on timeout. Polls at
+   * 1 ms cadence on a worker so the Node event loop stays free.
+   */
+  awaitDrain(timeoutMs: number): Promise<boolean>
+}
+
+/**
+ * Typed market-data subscription.
+ *
+ * Returned by `Contract.quote()` / `.trade()` / `.openInterest()`
+ * (per-contract scope) and by `SecType.option().fullTrades()` /
+ * `.fullOpenInterest()` (full-stream scope). Pass to
+ * `client.subscribe(sub)` or `client.subscribeMany([...])`.
+ */
+export declare class Subscription {
+  /**
+   * One of `"quote"`, `"trade"`, `"open_interest"`,
+   * `"market_value"`, `"full_trades"`, `"full_open_interest"` — the
+   * wire-level kind.
+   */
+  get kind(): string
+  /** `true` for full-stream (security-type-scoped) subscriptions. */
+  get isFull(): boolean
+  /**
+   * The bound contract for per-contract subscriptions, `null` for
+   * full-stream subscriptions.
+   */
+  get contract(): ContractRef | null
+  /**
+   * The security type for full-stream subscriptions, `null` for
+   * per-contract subscriptions.
+   */
+  get secType(): SecType | null
+  /**
+   * String rendering for `console.log` / template literals, e.g.
+   * `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
+   * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
+   * `Subscription` `__repr__`. Without it a `Subscription` prints as
+   * an opaque `Subscription {}` because its getters do not surface on
+   * inspection.
+   */
+  toString(): string
 }
 
 /**
@@ -2964,44 +2964,6 @@ export interface EodTick {
  * dataframe from an in-band history result.
  */
 export declare function eodTickToArrowIpc(rows: Array<EodTick>): Buffer
-
-/**
- * A single FPSS event surfaced to JS/TS.
- *
- * `kind` is the discriminator — switch on it and read the matching
- * payload field. The shape is stable and every payload is typed, so
- * consumers never fall back to untyped `any`.
- */
-export interface FpssEvent {
-  /**
-   * Discriminator matching one of the typed payload fields below.
-   * Narrowed to a literal union in TS so `switch (event.kind)`
-   * correctly narrows the optional payload fields.
-   */
-  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
-  marketValue?: MarketValue
-  ohlcvc?: Ohlcvc
-  openInterest?: OpenInterest
-  quote?: Quote
-  trade?: Trade
-  connected?: Connected
-  contractAssigned?: ContractAssigned
-  disconnected?: Disconnected
-  loginSuccess?: LoginSuccess
-  marketClose?: MarketClose
-  marketOpen?: MarketOpen
-  parseError?: ParseError
-  ping?: Ping
-  reconnected?: Reconnected
-  reconnectedServer?: ReconnectedServer
-  reconnecting?: Reconnecting
-  reconnectsExhausted?: ReconnectsExhausted
-  reqResponse?: ReqResponse
-  restart?: Restart
-  serverError?: ServerError
-  unknownControl?: UnknownControl
-  unknownFrame?: UnknownFrame
-}
 
 /** Full union Greeks tick -- every Greek the v3 server publishes on the */
 export interface GreeksAllTick {
@@ -5238,6 +5200,44 @@ export interface StockSnapshotTradeOptions {
    * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
+}
+
+/**
+ * A single FPSS event surfaced to JS/TS.
+ *
+ * `kind` is the discriminator — switch on it and read the matching
+ * payload field. The shape is stable and every payload is typed, so
+ * consumers never fall back to untyped `any`.
+ */
+export interface StreamEvent {
+  /**
+   * Discriminator matching one of the typed payload fields below.
+   * Narrowed to a literal union in TS so `switch (event.kind)`
+   * correctly narrows the optional payload fields.
+   */
+  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
+  marketValue?: MarketValue
+  ohlcvc?: Ohlcvc
+  openInterest?: OpenInterest
+  quote?: Quote
+  trade?: Trade
+  connected?: Connected
+  contractAssigned?: ContractAssigned
+  disconnected?: Disconnected
+  loginSuccess?: LoginSuccess
+  marketClose?: MarketClose
+  marketOpen?: MarketOpen
+  parseError?: ParseError
+  ping?: Ping
+  reconnected?: Reconnected
+  reconnectedServer?: ReconnectedServer
+  reconnecting?: Reconnecting
+  reconnectsExhausted?: ReconnectsExhausted
+  reqResponse?: ReqResponse
+  restart?: Restart
+  serverError?: ServerError
+  unknownControl?: UnknownControl
+  unknownFrame?: UnknownFrame
 }
 
 /** FPSS Trade tick. */

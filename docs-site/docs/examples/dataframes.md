@@ -8,10 +8,10 @@ description: Convert any historical response to pandas, polars, or Arrow.
 Every Python historical response converts in one chained call — the rows cross into pyarrow via the Arrow C Data Interface, so the conversion itself is zero-copy.
 
 ```python
-from thetadatadx import Config, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 quotes = tdx.option_history_quote("SPY", "20250321", "20250303",
                                   strike="570", right="C", interval="1m")

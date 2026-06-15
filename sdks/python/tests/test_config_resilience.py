@@ -178,7 +178,7 @@ def test_staleness_getters_exist_on_both_clients():
     the unified client and the standalone streaming client. Values are
     exercised live elsewhere; this pins the surface shape offline."""
     mod = _import_module()
-    for cls in (mod.ThetaDataDxClient, mod.FpssClient):
+    for cls in (mod.Client, mod.StreamingClient):
         for name in (
             "millis_since_last_event",
             "last_event_received_at_unix_nanos",

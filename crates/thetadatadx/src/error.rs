@@ -470,7 +470,7 @@ pub enum Error {
     /// FLATFILES request, stream, or decode failed for the requested
     /// flat-file format.
     ///
-    /// Returned by [`crate::ThetaDataDxClient::flatfile_request`] and the
+    /// Returned by [`crate::Client::flatfile_request`] and the
     /// per-data-type convenience methods when the FLATFILES surface is
     /// unavailable or cannot complete the request. This may reflect
     /// authentication rejection, request rejection, stream interruption

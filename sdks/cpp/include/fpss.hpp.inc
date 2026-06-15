@@ -13,6 +13,6 @@
     /** Return true if the FPSS client is currently authenticated. */
     bool is_authenticated() const;
     /** Connect to FPSS streaming servers. Throws on failure. */
-    FpssClient(const Credentials& creds, const Config& config);
+    StreamingClient(const Credentials& creds, const Config& config);
     /** Connect to FPSS streaming servers, loading credentials from a file (line 1 = email, line 2 = password), defaulting to the production configuration. Throws on failure. */
-    static FpssClient from_file(const std::string& path, const Config& config = Config::production());
+    static StreamingClient from_file(const std::string& path, const Config& config = Config::production());

@@ -52,9 +52,9 @@ C++ ships as a single header plus a prebuilt library — see the [C++ guide](sdk
 ### Python
 
 ```python
-from thetadatadx import ThetaDataDxClient, Credentials, Config
+from thetadatadx import Client, Credentials, Config
 
-tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+tdx = Client(Credentials.from_file("creds.txt"), Config.production())
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 greeks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
@@ -104,9 +104,9 @@ with tdx.streaming(on_event) as session:
 ### TypeScript
 
 ```typescript
-import { Contract, ThetaDataDxClient } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx';
 
-const client = ThetaDataDxClient.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;
@@ -147,9 +147,9 @@ client.subscribeMany([
 #include <cstdio>
 
 int main() {
-    auto client = tdx::Client::connect(
-        tdx::Credentials::from_file("creds.txt"),
-        tdx::Config::production());
+    auto client = thetadatadx::Client::connect(
+        thetadatadx::Credentials::from_file("creds.txt"),
+        thetadatadx::Config::production());
 
     auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
     for (const auto& t : greeks) {
@@ -168,12 +168,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+use thetadatadx::{Client, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 
     let greeks = tdx
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")

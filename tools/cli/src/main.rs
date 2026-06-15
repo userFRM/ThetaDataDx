@@ -34,7 +34,7 @@ use thetadatadx::{by_category, find, EndpointMeta, CATEGORIES};
 fn build_cli() -> Command {
     let mut app = Command::new("tdx")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("ThetaDataDxClient CLI — query ThetaData from your terminal")
+        .about("Client CLI — query ThetaData from your terminal")
         .long_about(
             "Native CLI for ThetaData market data. No JVM required.\n\n\
              Requires a creds.txt file (email on line 1, password on line 2).",
@@ -447,13 +447,13 @@ const NULL_SENTINEL: &str = "\x00NULL\x00";
 async fn connect(
     creds_path: &str,
     preset: &str,
-) -> Result<thetadatadx::ThetaDataDxClient, thetadatadx::Error> {
+) -> Result<thetadatadx::Client, thetadatadx::Error> {
     let creds = thetadatadx::Credentials::from_file(creds_path)?;
     let config = match preset {
         "dev" => thetadatadx::DirectConfig::dev(),
         _ => thetadatadx::DirectConfig::production(),
     };
-    thetadatadx::ThetaDataDxClient::connect(&creds, config).await
+    thetadatadx::Client::connect(&creds, config).await
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

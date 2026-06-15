@@ -12,11 +12,11 @@
 //! [`tokio::time::timeout`]. On expiry the future is dropped: the local
 //! `_permit` releases the request-semaphore slot, the tonic `Streaming` is
 //! dropped (RST_STREAM on the underlying H2 stream), and the call returns
-//! `Err(Error::Timeout { duration_ms })`. The `MddsClient` is unaffected;
+//! `Err(Error::Timeout { duration_ms })`. The `HistoricalClient` is unaffected;
 //! a subsequent call on the same handle succeeds.
 //!
 //! List endpoints additionally expose a parallel `<name>_with_deadline(...)`
-//! async method on `MddsClient`: the existing `pub async fn <name>(...)`
+//! async method on `HistoricalClient`: the existing `pub async fn <name>(...)`
 //! signatures stay non-breaking, while the `_with_deadline` variant gives
 //! the same cancellation contract for the validator and registry dispatch.
 
@@ -508,7 +508,7 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits one method on `MddsClient`:
+/// Emits one method on `HistoricalClient`:
 /// - `pub async fn <name>(...)` — per-call deadline routed through
 ///   [`EndpointArgs::with_timeout_ms`] + the builder-style APIs.
 macro_rules! list_endpoint {
@@ -584,7 +584,7 @@ macro_rules! list_endpoint {
 /// ```rust,ignore
 /// // `ignore` here because the macro example references a live
 /// // `client` value — there is no in-scope construction path for a
-/// // doc-test to spin up an authenticated `MddsClient` without
+/// // doc-test to spin up an authenticated `HistoricalClient` without
 /// // credentials.
 /// // Simple -- just .await the builder directly
 /// let ticks = client.stock_history_ohlc("AAPL", "20260401").await?;
@@ -612,9 +612,9 @@ macro_rules! parsed_endpoint {
         $(dates: $($date_arg:ident),+ ;)?
         optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
     ) => {
-        /// Builder for the [`MddsClient::$name`] endpoint.
+        /// Builder for the [`HistoricalClient::$name`] endpoint.
         pub struct $builder_name<'a> {
-            client: &'a MddsClient,
+            client: &'a HistoricalClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
             $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
             pub(crate) deadline: Option<std::time::Duration>,
@@ -629,7 +629,7 @@ macro_rules! parsed_endpoint {
             ///
             /// On expiry the in-flight gRPC call is cancelled and the
             /// builder's future resolves to `Err(Error::Timeout)`. The
-            /// underlying `MddsClient` is unaffected; subsequent calls
+            /// underlying `HistoricalClient` is unaffected; subsequent calls
             /// on the same handle succeed.
             ///
             /// `Duration::ZERO` is normalized to "no deadline". The
@@ -868,7 +868,7 @@ macro_rules! parsed_endpoint {
             }
         }
 
-        impl MddsClient {
+        impl HistoricalClient {
             $(#[$meta])*
             pub fn $name(&self, $($req_arg: req_param_type!($req_kind)),*) -> $builder_name<'_> {
                 $builder_name {

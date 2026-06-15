@@ -43,7 +43,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.stock_history_ohlc_range(
+Client.stock_history_ohlc_range(
     symbol, start_date, end_date,
     *,
     interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None,
@@ -94,13 +94,13 @@ std::vector<OhlcTick> stock_history_ohlc_range(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_interval(...)`, `.with_start_time(...)`, `.with_end_time(...)`, `.with_venue(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_interval(...)`, `.with_start_time(...)`, `.with_end_time(...)`, `.with_venue(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.stock_history_ohlc_range("AAPL", "20250303", "20250306",
-    tdx::EndpointRequestOptions{}.with_interval("1m"));
+    thetadatadx::EndpointRequestOptions{}.with_interval("1m"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.open << ' ' << t.high << ' ' << t.low << ' ' << t.close << "\n";
 }

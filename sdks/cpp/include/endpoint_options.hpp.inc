@@ -3,7 +3,7 @@
 ///
 /// `timeout_ms` is the cross-cutting per-call deadline; see `with_timeout_ms`
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
-/// `tdx::Error` carrying "Request deadline exceeded" is thrown.
+/// `thetadatadx::Error` carrying "Request deadline exceeded" is thrown.
 ///
 /// This is one shared options bag passed to every endpoint, so the compiler
 /// cannot reject a setter that does not apply to the endpoint you call: a

@@ -4,7 +4,7 @@
 //! The client issues `GetStockHistoryEod`-shaped RPCs through the
 //! production transport surface (`Channel` / `ChannelPool` +
 //! `bench_support::stock_history_eod`, exactly the dispatch + merge
-//! shape `MddsClient` wires), sends the same prost-encoded request the
+//! shape `HistoricalClient` wires), sends the same prost-encoded request the
 //! SDK sends, receives zstd-compressed `ResponseData` frames, and
 //! performs the production decode work (zstd decompress + prost
 //! `DataTable` decode + row merge + typed `EodTick` build) inline on

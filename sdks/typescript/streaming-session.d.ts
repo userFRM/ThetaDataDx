@@ -7,14 +7,14 @@
  * the C++ RAII destructor in `sdks/cpp/src/thetadx.cpp`.
  *
  * The runtime wrapper proxies every attribute access to the underlying
- * `ThetaDataDxClient`, so the type surface here just extends
- * `ThetaDataDxClient` -- adding a `subscribeX` method to the napi binding
+ * `Client`, so the type surface here just extends
+ * `Client` -- adding a `subscribeX` method to the napi binding
  * flows through to the session type with no drift.
  */
 
 /* eslint-disable */
 
-import type { ThetaDataDxClient, FpssEvent, ContractRef } from './index';
+import type { Client, StreamEvent, ContractRef } from './index';
 
 export * from './index';
 
@@ -75,7 +75,7 @@ export class ConfigError extends ThetaDataError {}
 
 /** Callback signature mirrored from the napi-generated
  * `startStreaming(callback)` declaration in `index.d.ts`. */
-export type FpssEventCallback = (event: FpssEvent) => void;
+export type StreamEventCallback = (event: StreamEvent) => void;
 
 /**
  * Context object returned by `tdx.streaming(callback)`. Implements
@@ -86,10 +86,10 @@ export type FpssEventCallback = (event: FpssEvent) => void;
  * registered callback before the JS closure can be released.
  *
  * The runtime forwarding is `Proxy`-based, so the type surface here
- * extends `ThetaDataDxClient` directly -- every method on the underlying
+ * extends `Client` directly -- every method on the underlying
  * client is reachable on the session with zero hand-listed mirror.
  */
-export interface StreamingSession extends ThetaDataDxClient {
+export interface StreamingSession extends Client {
   /**
    * Invoked by `await using session = ...` on scope exit. Stops the
    * streaming connection and awaits the drain barrier so the consumer
@@ -101,12 +101,12 @@ export interface StreamingSession extends ThetaDataDxClient {
 }
 
 export declare const StreamingSession: {
-  new (tdx: ThetaDataDxClient): StreamingSession;
+  new (tdx: Client): StreamingSession;
   prototype: StreamingSession;
 };
 
 declare module './index' {
-  interface ThetaDataDxClient {
+  interface Client {
     /**
      * Open a context-managed streaming session.
      *
@@ -117,6 +117,6 @@ declare module './index' {
      * times out, `console.warn` fires but the `using` scope exits
      * normally so any error from the body is not masked.
      */
-    streaming(callback: FpssEventCallback): Promise<StreamingSession>;
+    streaming(callback: StreamEventCallback): Promise<StreamingSession>;
   }
 }

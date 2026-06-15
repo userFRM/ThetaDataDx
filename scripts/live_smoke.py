@@ -202,11 +202,11 @@ def _smoke_cli(creds: pathlib.Path) -> None:
 
 def _smoke_python_sdk(creds: pathlib.Path) -> None:
     try:
-        from thetadatadx import Config, Credentials, ThetaDataDx  # type: ignore
+        from thetadatadx import Config, Credentials, Client  # type: ignore
     except ImportError as exc:  # pragma: no cover - workflow installs this explicitly
         raise RuntimeError("python SDK is not installed for live smoke") from exc
 
-    client = ThetaDataDx(Credentials.from_file(str(creds)), Config.production())
+    client = Client(Credentials.from_file(str(creds)), Config.production())
     try:
         calendar = client.calendar_open_today()
         if _columnar_len(calendar) == 0:

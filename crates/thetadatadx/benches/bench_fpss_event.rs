@@ -1,4 +1,4 @@
-//! Microbenchmarks for `FpssEvent` hot-path operations.
+//! Microbenchmarks for `StreamEvent` hot-path operations.
 //!
 //! These measure the per-event cost the SDK pays on the streaming hot path
 //! independent of I/O, server pacing, or user consumer code. Pairs with
@@ -16,11 +16,11 @@ use std::hint::black_box;
 use std::sync::{Arc, LazyLock};
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
 
 /// Single process-lifetime `Arc<Contract>`. Every sample event below
 /// clones THIS Arc — the benchmark measures pure refcount-bump cost on
-/// `FpssEvent::clone`, not allocator noise from per-call `Arc::new` +
+/// `StreamEvent::clone`, not allocator noise from per-call `Arc::new` +
 /// `String::clone("SPY")` inside each `sample_*` helper.
 static SAMPLE_CONTRACT: LazyLock<Arc<Contract>> =
     LazyLock::new(|| Arc::new(Contract::stock("SPY")));
@@ -29,8 +29,8 @@ fn sample_contract() -> Arc<Contract> {
     Arc::clone(&SAMPLE_CONTRACT)
 }
 
-fn sample_quote() -> FpssEvent {
-    FpssEvent::Data(FpssData::Quote {
+fn sample_quote() -> StreamEvent {
+    StreamEvent::Data(StreamData::Quote {
         contract: sample_contract(),
         ms_of_day: 34_200_000,
         bid_size: 100,
@@ -46,8 +46,8 @@ fn sample_quote() -> FpssEvent {
     })
 }
 
-fn sample_trade() -> FpssEvent {
-    FpssEvent::Data(FpssData::Trade {
+fn sample_trade() -> StreamEvent {
+    StreamEvent::Data(StreamData::Trade {
         contract: sample_contract(),
         ms_of_day: 34_200_001,
         sequence: 42,
@@ -68,8 +68,8 @@ fn sample_trade() -> FpssEvent {
     })
 }
 
-fn sample_ohlcvc() -> FpssEvent {
-    FpssEvent::Data(FpssData::Ohlcvc {
+fn sample_ohlcvc() -> StreamEvent {
+    StreamEvent::Data(StreamData::Ohlcvc {
         contract: sample_contract(),
         ms_of_day: 34_200_000,
         open: 449.5,
@@ -83,12 +83,12 @@ fn sample_ohlcvc() -> FpssEvent {
     })
 }
 
-/// FpssEvent::clone cost per variant. `FpssData` variants carry
+/// StreamEvent::clone cost per variant. `StreamData` variants carry
 /// `Arc<Contract>` for the parsed contract, so cloning a Data event is a
 /// field copy plus a single refcount bump — no heap allocation on the
 /// hot path.
 fn bench_event_clone(c: &mut Criterion) {
-    let mut group = c.benchmark_group("FpssEvent::clone");
+    let mut group = c.benchmark_group("StreamEvent::clone");
     for (label, ev) in [
         ("Quote", sample_quote()),
         ("Trade", sample_trade()),
@@ -105,7 +105,7 @@ fn bench_event_clone(c: &mut Criterion) {
 /// per-event consumer (numpy drain, PyDict builder, WS bridge, CLI) pays
 /// on the dispatch side.
 fn bench_event_match(c: &mut Criterion) {
-    let mut group = c.benchmark_group("FpssEvent::match");
+    let mut group = c.benchmark_group("StreamEvent::match");
     for (label, ev) in [
         ("Quote", sample_quote()),
         ("Trade", sample_trade()),
@@ -114,11 +114,11 @@ fn bench_event_match(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(label), &ev, |b, ev| {
             b.iter(|| {
                 let score: i64 = match black_box(ev) {
-                    FpssEvent::Data(FpssData::Quote {
+                    StreamEvent::Data(StreamData::Quote {
                         bid_size, ask_size, ..
                     }) => i64::from(*bid_size) + i64::from(*ask_size),
-                    FpssEvent::Data(FpssData::Trade { size, .. }) => i64::from(*size),
-                    FpssEvent::Data(FpssData::Ohlcvc { volume, .. }) => *volume,
+                    StreamEvent::Data(StreamData::Trade { size, .. }) => i64::from(*size),
+                    StreamEvent::Data(StreamData::Ohlcvc { volume, .. }) => *volume,
                     _ => 0,
                 };
                 black_box(score)

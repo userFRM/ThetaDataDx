@@ -9,10 +9,10 @@
 //
 //     npx tsx fluent_streaming_quote.ts
 
-import { Contract, SecType, ThetaDataDxClient } from "thetadatadx";
+import { Contract, SecType, Client } from "thetadatadx";
 
 async function main(): Promise<void> {
-  const client = ThetaDataDxClient.connectFromFile("creds.txt");
+  const client = Client.connectFromFile("creds.txt");
 
   // Fluent contract-first construction.
   const stock = Contract.stock("AAPL");

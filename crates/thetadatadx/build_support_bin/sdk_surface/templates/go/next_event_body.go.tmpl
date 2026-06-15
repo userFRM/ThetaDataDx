@@ -1,10 +1,10 @@
     if raw == nil {
         return nil, nil
     }
-    defer C.tdx_fpss_event_free(raw)
+    defer C.tdx_streaming_event_free(raw)
 
-    event := &FpssEvent{
-        Kind: FpssEventKind(raw.kind),
+    event := &StreamEvent{
+        Kind: StreamEventKind(raw.kind),
     }
 
     // contractFromC converts a C TdxContract into the Go-idiomatic *Contract.
@@ -34,9 +34,9 @@
     }
 
     switch event.Kind {
-    case FpssQuoteEvent:
+    case StreamQuoteEvent:
         q := raw.quote
-        event.Quote = &FpssQuote{
+        event.Quote = &StreamQuote{
             ContractID:   int32(q.contract_id),
             Contract:     contractFromC(q.contract),
             MsOfDay:      int32(q.ms_of_day),
@@ -51,9 +51,9 @@
             Date:         int32(q.date),
             ReceivedAtNs: uint64(q.received_at_ns),
         }
-    case FpssTradeEvent:
+    case StreamTradeEvent:
         t := raw.trade
-        event.Trade = &FpssTrade{
+        event.Trade = &StreamTrade{
             ContractID:     int32(t.contract_id),
             Contract:       contractFromC(t.contract),
             MsOfDay:        int32(t.ms_of_day),
@@ -73,9 +73,9 @@
             Date:           int32(t.date),
             ReceivedAtNs:   uint64(t.received_at_ns),
         }
-    case FpssOpenInterestEvent:
+    case StreamOpenInterestEvent:
         oi := raw.open_interest
-        event.OpenInterest = &FpssOpenInterest{
+        event.OpenInterest = &StreamOpenInterest{
             ContractID:   int32(oi.contract_id),
             Contract:     contractFromC(oi.contract),
             MsOfDay:      int32(oi.ms_of_day),
@@ -83,9 +83,9 @@
             Date:         int32(oi.date),
             ReceivedAtNs: uint64(oi.received_at_ns),
         }
-    case FpssOhlcvcEvent:
+    case StreamOhlcvcEvent:
         o := raw.ohlcvc
-        event.Ohlcvc = &FpssOhlcvc{
+        event.Ohlcvc = &StreamOhlcvc{
             ContractID:   int32(o.contract_id),
             Contract:     contractFromC(o.contract),
             MsOfDay:      int32(o.ms_of_day),
@@ -98,20 +98,20 @@
             Date:         int32(o.date),
             ReceivedAtNs: uint64(o.received_at_ns),
         }
-    case FpssControlEvent:
+    case StreamControlEvent:
         ctrl := raw.control
         detail := ""
         if ctrl.detail != nil {
             detail = C.GoString(ctrl.detail)
         }
-        event.Control = &FpssControl{
+        event.Control = &StreamControl{
             Kind:   int32(ctrl.kind),
             ID:     int32(ctrl.id),
             Detail: detail,
         }
-    case FpssRawDataEvent:
+    case StreamRawDataEvent:
         rd := raw.raw_data
-        event.RawData = &FpssRawData{
+        event.RawData = &StreamRawData{
             Code: uint8(rd.code),
         }
         if rd.payload != nil && rd.payload_len > 0 {

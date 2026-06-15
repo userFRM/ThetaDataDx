@@ -1,4 +1,4 @@
-// FlatFilesConfig setters on tdx::Config — C++ binding parity
+// FlatFilesConfig setters on thetadatadx::Config — C++ binding parity
 // with Python / TypeScript / FFI.
 //
 // Pins the C++ surface contract for `set_flatfiles_max_attempts`,
@@ -20,7 +20,7 @@
 
 TEST_CASE("Config exposes FlatFilesConfig production defaults",
           "[config][flatfiles][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     REQUIRE(cfg.get_flatfiles_max_attempts() == 10u);
     REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 1u);
     REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 30u);
@@ -28,7 +28,7 @@ TEST_CASE("Config exposes FlatFilesConfig production defaults",
 
 TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
           "[config][flatfiles][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     for (std::uint32_t n : {0u, 1u, 3u, 5u, 10u, 100u, 1000u}) {
         REQUIRE_NOTHROW(cfg.set_flatfiles_max_attempts(n));
         REQUIRE(cfg.get_flatfiles_max_attempts() == n);
@@ -37,7 +37,7 @@ TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
 
 TEST_CASE("Config::set_flatfiles_initial_backoff_secs round-trips via getter",
           "[config][flatfiles][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     for (std::uint64_t secs : {std::uint64_t{0}, std::uint64_t{1},
                                std::uint64_t{2}, std::uint64_t{4},
                                std::uint64_t{60}, std::uint64_t{3600},
@@ -49,7 +49,7 @@ TEST_CASE("Config::set_flatfiles_initial_backoff_secs round-trips via getter",
 
 TEST_CASE("Config::set_flatfiles_max_backoff_secs round-trips via getter",
           "[config][flatfiles][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     for (std::uint64_t secs : {std::uint64_t{0}, std::uint64_t{1},
                                std::uint64_t{4}, std::uint64_t{60},
                                std::uint64_t{3600}, std::uint64_t{86'400}}) {
@@ -61,8 +61,8 @@ TEST_CASE("Config::set_flatfiles_max_backoff_secs round-trips via getter",
 TEST_CASE("FlatFiles setters compose with pool-sizing setters",
           "[config][flatfiles][offline]") {
     // Interleaved flatfiles setter and pool-sizing setter calls on
-    // the same `tdx::Config` must not interfere with each other.
-    auto cfg = tdx::Config::production();
+    // the same `thetadatadx::Config` must not interfere with each other.
+    auto cfg = thetadatadx::Config::production();
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_attempts(7));
     REQUIRE_NOTHROW(cfg.set_flatfiles_initial_backoff_secs(3));
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(12));

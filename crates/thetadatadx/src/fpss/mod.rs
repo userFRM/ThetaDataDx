@@ -3,25 +3,25 @@
 //! Synchronous blocking I/O on `std::thread` (no tokio). A TLS reader
 //! publishes events to a lock-free event ring; the consumer
 //! thread invokes the user callback inside `std::panic::catch_unwind`
-//! so panics are counted on [`FpssClient::panic_count`] rather than
+//! so panics are counted on [`StreamingClient::panic_count`] rather than
 //! tearing down the pipeline. See `docs-site/docs/streaming/index.md`
 //! for the architectural overview.
 //!
 //! # Examples
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssEvent};
+//! # use thetadatadx::fpss::{StreamingClient, StreamEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # use thetadatadx::fpss::protocol::Contract;
 //! # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
 //!
-//! let client = FpssClient::builder(&creds, &hosts).build()?;
+//! let client = StreamingClient::builder(&creds, &hosts).build()?;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
 //!
 //! for event in &client {
-//!     let _event: FpssEvent = event?;
+//!     let _event: StreamEvent = event?;
 //!     // ...
 //! }
 //! # Ok(())
@@ -43,14 +43,14 @@ pub mod wake;
 
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{FpssControl, FpssData, FpssEvent};
+pub use self::events::{StreamControl, StreamData, StreamEvent};
 pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::{reconnect_delay, reconnect_delay_for};
 
 // Lock-free event ring buffer plumbing. The third-party ring-buffer
 // crate's `EventPoller` / `Polling` / `SingleProducerBarrier` types are
-// stored inside `FpssClient::poller_state` and never reach the public
+// stored inside `StreamingClient::poller_state` and never reach the public
 // signature surface; these imports are crate-internal only.
 use self::ring::{RingCursors, RingEvent};
 use disruptor::wait_strategies::WaitStrategy; // VOCAB-OK: internal crate name, not user-facing
@@ -61,7 +61,7 @@ use disruptor::{EventPoller, Polling, SingleProducerBarrier}; // VOCAB-OK: inter
 ///
 /// Re-exports the otherwise crate-private `decode_frame` dispatcher and
 /// `DeltaState` so integration tests can drive the full
-/// `read_frame_into → decode_frame → FpssEvent` pipeline against
+/// `read_frame_into → decode_frame → StreamEvent` pipeline against
 /// synthetic fixture bytes (capture+replay, mid-frame disconnect,
 /// reconnect storm, schema drift, frame-decoder fuzz).
 ///
@@ -335,10 +335,10 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// FpssClientBuilder — fluent constructor for `FpssClient`
+// StreamingClientBuilder — fluent constructor for `StreamingClient`
 // ---------------------------------------------------------------------------
 
-/// Fluent builder for an [`FpssClient`].
+/// Fluent builder for an [`StreamingClient`].
 ///
 /// Holds the connection-side knobs (credentials, hosts, ring size,
 /// flush mode, reconnect policy, OHLCVC derivation, timeouts) and
@@ -348,13 +348,13 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// # Example
 ///
 /// ```rust,no_run
-/// # use thetadatadx::fpss::{FpssClient, FpssEvent};
+/// # use thetadatadx::fpss::{StreamingClient, StreamEvent};
 /// # use thetadatadx::auth::Credentials;
 /// # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
 /// let creds = Credentials::new("user@example.com", "pw");
 /// let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
 ///
-/// let client = FpssClient::builder(&creds, &hosts)
+/// let client = StreamingClient::builder(&creds, &hosts)
 ///     .ring_size(8192)
 ///     .read_timeout_ms(15_000)
 ///     .build()?;
@@ -363,7 +363,7 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// # }
 /// ```
 #[derive(Clone, Debug)]
-pub struct FpssClientBuilder<'a> {
+pub struct StreamingClientBuilder<'a> {
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
     ring_size: usize,
@@ -389,7 +389,7 @@ pub struct FpssClientBuilder<'a> {
     host_shuffle_seed: Option<u64>,
 }
 
-impl<'a> FpssClientBuilder<'a> {
+impl<'a> StreamingClientBuilder<'a> {
     /// Construct a builder with the two required arguments and SDK
     /// defaults for the rest.
     #[must_use]
@@ -506,7 +506,7 @@ impl<'a> FpssClientBuilder<'a> {
         self
     }
 
-    /// When `false`, suppresses locally-derived `FpssData::Ohlcvc`
+    /// When `false`, suppresses locally-derived `StreamData::Ohlcvc`
     /// events. Server-sent OHLCVC frames still pass through.
     #[must_use]
     pub fn derive_ohlcvc(mut self, on: bool) -> Self {
@@ -591,7 +591,7 @@ impl<'a> FpssClientBuilder<'a> {
     }
 
     /// Connect, authenticate, and start the background I/O and ping
-    /// threads. Returns a ready-to-use [`FpssClient`].
+    /// threads. Returns a ready-to-use [`StreamingClient`].
     ///
     /// # Errors
     ///
@@ -599,8 +599,8 @@ impl<'a> FpssClientBuilder<'a> {
     /// TLS handshake, [`FpssError::AuthenticationFailed`] on login
     /// failure, and other variants on protocol violations or
     /// configuration validation errors.
-    pub fn build(self) -> Result<FpssClient, FpssError> {
-        FpssClient::connect(self.into_args()).map_err(FpssError::from)
+    pub fn build(self) -> Result<StreamingClient, FpssError> {
+        StreamingClient::connect(self.into_args()).map_err(FpssError::from)
     }
 
     pub(crate) fn into_args(self) -> FpssConnectArgs<'a> {
@@ -638,7 +638,7 @@ impl<'a> FpssClientBuilder<'a> {
 
 /// Internal parameter bundle for the crate-private connect path.
 ///
-/// Built from [`FpssClientBuilder::build`] and threaded into the I/O
+/// Built from [`StreamingClientBuilder::build`] and threaded into the I/O
 /// loop. Not part of the public surface — callers use the builder.
 #[derive(Clone, Debug)]
 pub(crate) struct FpssConnectArgs<'a> {
@@ -668,17 +668,17 @@ pub(crate) struct FpssConnectArgs<'a> {
 }
 
 /// Outcome of a single non-blocking poll inside
-/// [`FpssClient::try_next_event_internal`]. The internal blocking
+/// [`StreamingClient::try_next_event_internal`]. The internal blocking
 /// loop (`next_event`) distinguishes "empty right now, retry" from
 /// "ring shut down, stop" before mapping back to the public
-/// `Option<FpssEvent>` shape.
+/// `Option<StreamEvent>` shape.
 enum TryNext {
-    Event(FpssEvent),
+    Event(StreamEvent),
     Empty,
     Shutdown,
 }
 
-/// Internal state for [`FpssClient::poller_state`].
+/// Internal state for [`StreamingClient::poller_state`].
 ///
 /// Pairs the event ring's `EventPoller` with a small staging queue so the
 /// event-at-a-time API (`next_event`, the `Iterator` impl) can buffer a
@@ -689,19 +689,19 @@ enum TryNext {
 /// short-circuit to `Ok(None)`.
 struct PollerState {
     poller: EventPoller<RingEvent, SingleProducerBarrier>,
-    pending: VecDeque<FpssEvent>,
+    pending: VecDeque<StreamEvent>,
     /// Ring sequence of the last slot a drained batch released
     /// (`-1` = nothing consumed yet). Plain `i64` — only the consumer
     /// thread (serialised by the `poller_state` mutex) advances it,
     /// by the drained batch's length per `poll()`. Mirrored into the
     /// shared [`RingCursors`] with one `Relaxed` store per batch so
-    /// [`FpssClient::ring_occupancy`] can sample in-flight depth.
+    /// [`StreamingClient::ring_occupancy`] can sample in-flight depth.
     /// Deliveries from `pending` do not advance it: those events left
     /// the ring on the `poll()` that staged them.
     consumed_seq: i64,
 }
 
-/// Selector for the test-only [`FpssClient::for_self_join_test`]
+/// Selector for the test-only [`StreamingClient::for_self_join_test`]
 /// constructor's pre-burst path. Lets soak tests pick between
 /// blocking `publish` (matches handshake-time control-frame emission)
 /// and non-blocking `try_publish` (matches the live data path that
@@ -719,11 +719,11 @@ pub enum HarnessPublishMode {
     TryPublishBurst,
 }
 
-/// Argument bundle for [`FpssClient::spawn_io_and_assemble`].
+/// Argument bundle for [`StreamingClient::spawn_io_and_assemble`].
 ///
 /// Carries the already-built ring `producer` plus every shared `Arc`,
 /// channel end, and tuning value the I/O + ping threads and the
-/// assembled [`FpssClient`] need. Bundled into one struct so the shared
+/// assembled [`StreamingClient`] need. Bundled into one struct so the shared
 /// spawn helper reads linearly rather than as a long positional list,
 /// matching the [`FpssConnectArgs`] convention.
 struct SpawnArgs<'a, P> {
@@ -735,7 +735,7 @@ struct SpawnArgs<'a, P> {
     ping_cmd_tx: std_mpsc::Sender<IoCommand>,
     ring_size: usize,
     permissions: String,
-    pending_control: Vec<FpssControl>,
+    pending_control: Vec<StreamControl>,
     server_addr: String,
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
@@ -773,33 +773,33 @@ struct SpawnArgs<'a, P> {
 }
 
 // ---------------------------------------------------------------------------
-// FpssClient
+// StreamingClient
 // ---------------------------------------------------------------------------
 
 /// Real-time streaming client for `ThetaData`'s FPSS servers.
 ///
 /// # Lifecycle
 ///
-/// 1. [`FpssClient::builder`] -- configure (`ring_size`, `flush_mode`,
+/// 1. [`StreamingClient::builder`] -- configure (`ring_size`, `flush_mode`,
 ///    timeouts, reconnect policy), then `build()?` to TLS-connect,
 ///    authenticate, and start the background I/O thread
 /// 2. `subscribe(...)` / `unsubscribe(...)` -- subscribe to market data
 /// 3. Drain events on the caller's thread via [`Self::next_event`]
 ///    (blocking), [`Self::try_next_event`] (non-blocking),
 ///    [`Self::poll_batch`] / [`Self::for_each`] (callback adapters), or
-///    the `Iterator` impl on `&FpssClient`
+///    the `Iterator` impl on `&StreamingClient`
 /// 4. `shutdown()` -- clean disconnect
 ///
 /// # Thread safety
 ///
-/// `FpssClient` is `Send + Sync`. The polymorphic `subscribe(spec)` /
+/// `StreamingClient` is `Send + Sync`. The polymorphic `subscribe(spec)` /
 /// `unsubscribe(spec)` methods send commands through a lock-free channel to
 /// the I/O thread; they never touch the TLS stream directly.
-pub struct FpssClient {
+pub struct StreamingClient {
     /// Channel to send write commands to the I/O thread.
     ///
     /// `std::sync::mpsc::Sender` is `Send` but explicitly not `Sync` -- concurrent
-    /// `&self.send()` calls are UB. The `Mutex` makes `FpssClient: Sync` sound
+    /// `&self.send()` calls are UB. The `Mutex` makes `StreamingClient: Sync` sound
     /// under stdlib's own contract.
     cmd_tx: Mutex<std_mpsc::Sender<IoCommand>>,
     /// Handle to the I/O thread (blocking TLS read + write drain).
@@ -808,7 +808,7 @@ pub struct FpssClient {
     ping_handle: Option<JoinHandle<()>>,
     /// Ring poller drained by [`Self::next_event`],
     /// [`Self::poll_batch`], [`Self::for_each`], and the
-    /// `Iterator for &FpssClient` impl. Wrapped in a `Mutex` so the
+    /// `Iterator for &StreamingClient` impl. Wrapped in a `Mutex` so the
     /// client is `Sync` and can be cloned into an embedding thread for
     /// control operations while another thread drives the polling loop;
     /// in practice only one thread polls so the lock is uncontended.
@@ -842,8 +842,8 @@ pub struct FpssClient {
     server_addr: String,
     /// UNIX-nanosecond receive timestamp of the most recent inbound
     /// frame of any kind (`0` = never). Written by the I/O thread,
-    /// read by [`FpssClient::millis_since_last_event`] /
-    /// [`FpssClient::last_event_received_at_unix_nanos`].
+    /// read by [`StreamingClient::millis_since_last_event`] /
+    /// [`StreamingClient::last_event_received_at_unix_nanos`].
     last_event_at_ns: Arc<AtomicI64>,
     /// Address of the live session's server. Updated by the I/O
     /// thread after every successful reconnect.
@@ -854,24 +854,24 @@ pub struct FpssClient {
     replay_pace_ms: u64,
     /// Cumulative count of publish failures: events the TLS reader could
     /// not enqueue because the consumer fell behind and the ring buffer
-    /// was full. Snapshot via [`FpssClient::dropped_count`]; this is the
+    /// was full. Snapshot via [`StreamingClient::dropped_count`]; this is the
     /// user-facing "ring-overflow" metric.
     dropped: Arc<AtomicU64>,
     /// Producer / consumer progress cursors for the event ring,
-    /// sampled by [`FpssClient::ring_occupancy`]. The I/O thread
+    /// sampled by [`StreamingClient::ring_occupancy`]. The I/O thread
     /// stores the published sequence on every successful publish; the
     /// drain paths store the consumed sequence once per drained
     /// batch. Cache-padded so the two write streams never share a
     /// line.
     ring_cursors: Arc<RingCursors>,
     /// Configured event-ring capacity in slots (validated power of
-    /// two). Snapshot via [`FpssClient::ring_capacity`] so operators
-    /// can scale [`FpssClient::ring_occupancy`] samples without
+    /// two). Snapshot via [`StreamingClient::ring_capacity`] so operators
+    /// can scale [`StreamingClient::ring_occupancy`] samples without
     /// re-reading their own configuration.
     ring_size: usize,
     /// Cumulative count of user-callback panics caught by the
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
-    /// [`FpssClient::panic_count`].
+    /// [`StreamingClient::panic_count`].
     panics: Arc<AtomicU64>,
     /// Captured `ThreadId` of a per-binding dispatcher / consumer
     /// thread that the binding wants the core's `Drop` self-join
@@ -886,10 +886,10 @@ pub struct FpssClient {
     /// the event-dispatch consumer have both joined and the user callback
     /// is guaranteed to have stopped firing. Set inside [`Drop`] for both
     /// the inline-join path and the detached-helper path. Outer holders
-    /// (e.g. [`crate::ThetaDataDxClient::stop_streaming`]) may capture an
+    /// (e.g. [`crate::Client::stop_streaming`]) may capture an
     /// [`Arc::clone`] of this flag before releasing their last
-    /// `Arc<FpssClient>` so that
-    /// [`crate::ThetaDataDxClient::await_drain`] can poll for full
+    /// `Arc<StreamingClient>` so that
+    /// [`crate::Client::await_drain`] can poll for full
     /// quiescence after stop / reconnect.
     drained: Arc<AtomicBool>,
     /// Slow-callback observability surface (Resilience).
@@ -911,22 +911,22 @@ pub struct FpssClient {
     slow_callback_count: Arc<AtomicU64>,
 }
 
-impl FpssClient {
-    /// Start a new [`FpssClientBuilder`] with the two required arguments
+impl StreamingClient {
+    /// Start a new [`StreamingClientBuilder`] with the two required arguments
     /// and SDK defaults for the rest. Optional setters chain.
     #[must_use]
     pub fn builder<'a>(
         creds: &'a Credentials,
         hosts: &'a [(String, u16)],
-    ) -> FpssClientBuilder<'a> {
-        FpssClientBuilder::new(creds, hosts)
+    ) -> StreamingClientBuilder<'a> {
+        StreamingClientBuilder::new(creds, hosts)
     }
 
     /// Connect, authenticate, and start the background I/O and ping
     /// threads. Returns the assembled client; the ring poller is held
     /// internally and drained via [`Self::next_event`],
     /// [`Self::poll_batch`], [`Self::for_each`], or the `Iterator for
-    /// &FpssClient` impl.
+    /// &StreamingClient` impl.
     ///
     /// Crate-internal — public callers use [`Self::builder`].
     pub(crate) fn connect(args: FpssConnectArgs<'_>) -> Result<Self, Error> {
@@ -1110,7 +1110,7 @@ impl FpssClient {
         // onto the event bus before `LoginSuccess` so user callbacks see
         // the same sequence the post-METADATA `decode_frame` dispatch
         // emits.
-        let mut pending_control: Vec<FpssControl> = Vec::new();
+        let mut pending_control: Vec<StreamControl> = Vec::new();
         let login_result = wait_for_login(&mut stream, &mut pending_control)?;
 
         let permissions = match login_result {
@@ -1177,12 +1177,12 @@ impl FpssClient {
         let slow_callback_threshold_ns = Arc::new(AtomicU64::new(0));
         let slow_callback_count = Arc::new(AtomicU64::new(0));
         // Captured by the event-dispatch consumer closure on first dispatch
-        // and read by `FpssClient::drop` to break the self-join cycle
-        // (callback -> stop_streaming -> drop FpssClient -> join io
+        // and read by `StreamingClient::drop` to break the self-join cycle
+        // (callback -> stop_streaming -> drop StreamingClient -> join io
         // thread -> drop producer -> join consumer thread = self).
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
 
-        // Shared `next_req_id` counter — the FpssClient public API
+        // Shared `next_req_id` counter — the StreamingClient public API
         // owns one handle for caller-issued subscribes; the io_loop
         // borrows another so re-subscribe frames on auto-reconnect
         // allocate fresh ids correlatable through `ReqResponse`.
@@ -1204,7 +1204,7 @@ impl FpssClient {
         // updated by the I/O thread after every successful reconnect.
         let connected_addr: Arc<Mutex<String>> = Arc::new(Mutex::new(server_addr.clone()));
 
-        // Command channel: FpssClient -> I/O thread
+        // Command channel: StreamingClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
 
         // Ping command channel: ping thread -> I/O thread
@@ -1212,8 +1212,8 @@ impl FpssClient {
 
         // Build the ring producer + poller. The producer is moved into
         // the I/O thread; the poller is bundled into the assembled
-        // `FpssClient` and drained via `next_event` / `poll_batch` /
-        // `for_each` / the `Iterator for &FpssClient` impl. The shared
+        // `StreamingClient` and drained via `next_event` / `poll_batch` /
+        // `for_each` / the `Iterator for &StreamingClient` impl. The shared
         // cursor pair feeds `ring_occupancy()`: the producer records
         // every published sequence, the drain paths record batch
         // completions.
@@ -1222,9 +1222,9 @@ impl FpssClient {
             io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors));
 
         // Build the client with the producer + poller bundled in. The
-        // poller lives inside `FpssClient::poller_state` and is drained
+        // poller lives inside `StreamingClient::poller_state` and is drained
         // via `next_event`, `poll_batch`, `for_each`, or the
-        // `Iterator for &FpssClient` impl.
+        // `Iterator for &StreamingClient` impl.
         Self::spawn_io_and_assemble(SpawnArgs {
             producer,
             poller,
@@ -1273,7 +1273,7 @@ impl FpssClient {
     }
 
     /// Spawn the I/O + ping threads for an already-built ring producer
-    /// and assemble the [`FpssClient`] handle.
+    /// and assemble the [`StreamingClient`] handle.
     fn spawn_io_and_assemble<P>(args: SpawnArgs<'_, P>) -> Result<Self, Error>
     where
         P: ring::RingProducer,
@@ -1404,7 +1404,7 @@ impl FpssClient {
                 message: format!("failed to spawn fpss-ping thread: {e}"),
             })?;
 
-        Ok(FpssClient {
+        Ok(StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
             io_handle: Some(io_handle),
             ping_handle: Some(ping_handle),
@@ -1550,8 +1550,8 @@ impl FpssClient {
     /// the user callback is guaranteed to have stopped firing.
     ///
     /// Returned as an `Arc<AtomicBool>` so a higher-level holder
-    /// (e.g. [`crate::ThetaDataDxClient::stop_streaming`]) can capture a
-    /// clone before releasing its last `Arc<FpssClient>` and use it to
+    /// (e.g. [`crate::Client::stop_streaming`]) can capture a
+    /// clone before releasing its last `Arc<StreamingClient>` and use it to
     /// implement an asynchronous drain barrier.
     ///
     /// Stays `false` if the detached shutdown helper could not spawn
@@ -1585,7 +1585,7 @@ impl FpssClient {
     /// Returns [`FpssError::DispatcherFailed`] if the internal staging
     /// queue's mutex was poisoned by a panicking caller on a previous
     /// invocation.
-    pub fn next_event(&self) -> Result<Option<FpssEvent>, FpssError> {
+    pub fn next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
         let waiter = ring::AdaptiveWaitStrategy::fpss_default();
         loop {
             match self.try_next_event_internal()? {
@@ -1604,7 +1604,7 @@ impl FpssClient {
     ///
     /// Returns [`FpssError::DispatcherFailed`] if the staging mutex was
     /// poisoned.
-    pub fn try_next_event(&self) -> Result<Option<FpssEvent>, FpssError> {
+    pub fn try_next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
         match self.try_next_event_internal()? {
             TryNext::Event(event) => Ok(Some(event)),
             TryNext::Empty | TryNext::Shutdown => Ok(None),
@@ -1673,9 +1673,9 @@ impl FpssClient {
     /// Returns a [`PollOutcome`] so a caller integrating the polling
     /// loop into its own scheduler can tell a drained batch (and how
     /// many events it carried) apart from terminal shutdown. Each
-    /// `&FpssEvent` handed to `on_event` is a zero-copy borrow into the
+    /// `&StreamEvent` handed to `on_event` is a zero-copy borrow into the
     /// ring slot, valid only for that call.
-    pub fn poll_batch(&self, mut on_event: impl FnMut(&FpssEvent)) -> PollOutcome {
+    pub fn poll_batch(&self, mut on_event: impl FnMut(&StreamEvent)) -> PollOutcome {
         let Ok(mut guard) = self.poller_state.lock() else {
             return PollOutcome::Shutdown;
         };
@@ -1761,10 +1761,10 @@ impl FpssClient {
     /// CPU. A consumer that wants to release the core while idle should
     /// drive [`Self::poll_batch`] behind its own parking strategy.
     ///
-    /// Returns once [`Self::shutdown`] (or dropping the [`FpssClient`])
+    /// Returns once [`Self::shutdown`] (or dropping the [`StreamingClient`])
     /// has fired AND every event already published into the ring has
     /// been delivered.
-    pub fn for_each(&self, on_event: impl FnMut(&FpssEvent)) {
+    pub fn for_each(&self, on_event: impl FnMut(&StreamEvent)) {
         // Identity batch scope: each batch drain runs directly, with no
         // wrapping. The inter-batch wait is the same three-phase strategy
         // `for_each_scoped` applies.
@@ -1793,7 +1793,7 @@ impl FpssClient {
     /// and returns its outcome; `scope` must call it exactly once and
     /// return its result. The loop terminates on
     /// [`PollOutcome::Shutdown`], identical to [`Self::for_each`].
-    pub fn for_each_scoped<S>(&self, mut on_event: impl FnMut(&FpssEvent), mut scope: S)
+    pub fn for_each_scoped<S>(&self, mut on_event: impl FnMut(&StreamEvent), mut scope: S)
     where
         S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
     {
@@ -2115,8 +2115,8 @@ impl FpssClient {
 
     /// Re-subscribe a saved subscription snapshot onto this session,
     /// paced per the builder's replay knobs
-    /// ([`FpssClientBuilder::reconnect_replay_burst_size`] /
-    /// [`FpssClientBuilder::reconnect_replay_pace_ms`]).
+    /// ([`StreamingClientBuilder::reconnect_replay_burst_size`] /
+    /// [`StreamingClientBuilder::reconnect_replay_pace_ms`]).
     ///
     /// The single replay engine for caller-driven reconnect flows
     /// (including the embedded bindings): subscriptions are submitted
@@ -2195,7 +2195,7 @@ impl FpssClient {
     /// Test-only constructor that wires up the same event ring +
     /// I/O-thread topology as [`Self::connect_with_stream`] **without**
     /// touching the network. It exists to drive the `Drop` self-join
-    /// guard against the real `FpssClient` instance and the real
+    /// guard against the real `StreamingClient` instance and the real
     /// `consumer_thread_id` plumbing, not a mock of either.
     ///
     /// Topology:
@@ -2210,7 +2210,7 @@ impl FpssClient {
     /// - `Drop` reads `consumer_thread_id` and runs the same
     ///   self-join guard as the production path.
     ///
-    /// `n_burst_events` synthetic `FpssEvent::Control(MarketOpen)`
+    /// `n_burst_events` synthetic `StreamEvent::Control(MarketOpen)`
     /// frames are pushed via [`HarnessPublishMode`].
     ///
     /// The optional `start_signal` lets the test defer the io thread's
@@ -2229,7 +2229,7 @@ impl FpssClient {
         handler: F,
     ) -> Arc<Self>
     where
-        F: FnMut(&FpssEvent) + Send + 'static,
+        F: FnMut(&StreamEvent) + Send + 'static,
     {
         use disruptor::{build_single_producer, BusySpin, Sequence}; // VOCAB-OK: internal crate name
 
@@ -2298,7 +2298,7 @@ impl FpssClient {
         // the burst on the io thread so the calling test thread has
         // a stable handoff point: by the time `for_self_join_test`
         // returns, NO events are in the ring yet, and the test can
-        // stash its `Arc<FpssClient>` reference into the callback's
+        // stash its `Arc<StreamingClient>` reference into the callback's
         // shared cell before any consumer dispatch races it. After
         // the burst, park until shutdown and drop the producer
         // (producer-drop joins the consumer, the exact transitive
@@ -2323,7 +2323,7 @@ impl FpssClient {
                     HarnessPublishMode::BlockingPublish => {
                         for _ in 0..io_burst {
                             producer.publish(|slot| {
-                                slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+                                slot.event = FpssEventInternal::Control(StreamControl::MarketOpen);
                             });
                         }
                     }
@@ -2332,7 +2332,7 @@ impl FpssClient {
                             if producer
                                 .try_publish(|slot| {
                                     slot.event =
-                                        FpssEventInternal::Control(FpssControl::MarketOpen);
+                                        FpssEventInternal::Control(StreamControl::MarketOpen);
                                 })
                                 .is_err()
                             {
@@ -2348,7 +2348,7 @@ impl FpssClient {
             })
             .expect("failed to spawn fpss-io-test thread");
 
-        Arc::new(FpssClient {
+        Arc::new(StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
             io_handle: Some(io_handle),
             ping_handle: None,
@@ -2403,7 +2403,7 @@ impl FpssClient {
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 
-        let client = FpssClient {
+        let client = StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
             io_handle: None,
             ping_handle: None,
@@ -2448,7 +2448,7 @@ impl FpssClient {
     }
 }
 
-/// Outcome of a single non-blocking [`FpssClient::poll_batch`] drain.
+/// Outcome of a single non-blocking [`StreamingClient::poll_batch`] drain.
 ///
 /// Lets a caller integrating the ring drive into its own loop tell
 /// "drained `n` events, more may come" apart from "the session has
@@ -2458,7 +2458,7 @@ impl FpssClient {
 ///   handed to the closure; the wrapped count is how many events were
 ///   delivered this call (`0` when the ring was momentarily empty but
 ///   the session is still live — re-poll later).
-/// * [`PollOutcome::Shutdown`] — the [`FpssClient`] has shut down AND
+/// * [`PollOutcome::Shutdown`] — the [`StreamingClient`] has shut down AND
 ///   every published event has been drained. No further events will
 ///   ever arrive; stop polling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2472,16 +2472,16 @@ pub enum PollOutcome {
     Shutdown,
 }
 
-/// Owning iterator for an [`FpssClient`] reference.
+/// Owning iterator for an [`StreamingClient`] reference.
 ///
-/// Yields one [`FpssEvent`] per call to [`Iterator::next`] by repeatedly
-/// invoking [`FpssClient::next_event`]; surfaces typed errors as
+/// Yields one [`StreamEvent`] per call to [`Iterator::next`] by repeatedly
+/// invoking [`StreamingClient::next_event`]; surfaces typed errors as
 /// `Some(Err(_))` and terminates with `None` on clean shutdown.
-impl Iterator for &FpssClient {
-    type Item = Result<FpssEvent, FpssError>;
+impl Iterator for &StreamingClient {
+    type Item = Result<StreamEvent, FpssError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match FpssClient::next_event(self) {
+        match StreamingClient::next_event(self) {
             Ok(Some(event)) => Some(Ok(event)),
             Ok(None) => None,
             Err(e) => Some(Err(e)),
@@ -2489,7 +2489,7 @@ impl Iterator for &FpssClient {
     }
 }
 
-impl Drop for FpssClient {
+impl Drop for StreamingClient {
     fn drop(&mut self) {
         // Signal shutdown if not already done.
         self.shutdown.store(true, Ordering::Release);
@@ -2510,8 +2510,8 @@ impl Drop for FpssClient {
         // very thread cleanup needs to complete on — a self-join
         // deadlock. The dispatcher-thread case is load-bearing: a
         // user callback that calls
-        // `ThetaDataDxClient::stop_streaming()` swaps the live slot to
-        // `Stopped` and drops the last `Arc<FpssClient>` while running
+        // `Client::stop_streaming()` swaps the live slot to
+        // `Stopped` and drops the last `Arc<StreamingClient>` while running
         // on the consumer thread.
         //
         // Detach the join onto a helper thread in those cases. Cleanup
@@ -2576,7 +2576,7 @@ mod builder_tests {
     use crate::config::DirectConfig;
 
     /// Default builder seeds every timing knob from the production
-    /// sub-config defaults so a bare `FpssClient::builder(..)` behaves
+    /// sub-config defaults so a bare `StreamingClient::builder(..)` behaves
     /// identically to a `DirectConfig::production()` connect.
     /// Regression guard against the fields silently going to `0` or
     /// drifting from the config crate.
@@ -2584,7 +2584,7 @@ mod builder_tests {
     fn builder_seeds_timing_defaults_from_production_config() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
-        let args = FpssClientBuilder::new(&creds, &hosts).into_args();
+        let args = StreamingClientBuilder::new(&creds, &hosts).into_args();
         let fpss = crate::config::FpssConfig::production_defaults();
         let reconnect = crate::config::ReconnectConfig::production_defaults();
         assert_eq!(args.connect_timeout_ms, fpss.connect_timeout_ms);
@@ -2616,7 +2616,7 @@ mod builder_tests {
     fn build_rejects_out_of_range_read_timeout_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let res = FpssClientBuilder::new(&creds, &hosts)
+        let res = StreamingClientBuilder::new(&creds, &hosts)
             .read_timeout_ms(50) // below 100 ms minimum
             .build();
         let err = match res {
@@ -2632,7 +2632,7 @@ mod builder_tests {
     fn build_rejects_out_of_range_connect_timeout_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let res = FpssClientBuilder::new(&creds, &hosts)
+        let res = StreamingClientBuilder::new(&creds, &hosts)
             .connect_timeout_ms(50) // below 1 s minimum
             .build();
         let err = match res {
@@ -2647,7 +2647,7 @@ mod builder_tests {
     fn build_rejects_out_of_range_ping_interval_ms() {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
-        let res = FpssClientBuilder::new(&creds, &hosts)
+        let res = StreamingClientBuilder::new(&creds, &hosts)
             .ping_interval_ms(50) // below 100 ms minimum
             .build();
         let err = match res {
@@ -2664,7 +2664,7 @@ mod builder_tests {
     fn production_config_threads_timing_knobs_through_builder() {
         let cfg = DirectConfig::production();
         let creds = Credentials::new("user", "pw");
-        let args = FpssClientBuilder::new(&creds, &cfg.fpss.hosts)
+        let args = StreamingClientBuilder::new(&creds, &cfg.fpss.hosts)
             .ring_size(cfg.fpss.ring_size)
             .flush_mode(cfg.fpss.flush_mode)
             .reconnect_policy(cfg.reconnect.policy.clone())
@@ -2689,7 +2689,7 @@ mod builder_tests {
 
 #[cfg(test)]
 mod full_stream_guard_tests {
-    use super::{full_stream_sec_type_supported, FpssClient, HarnessPublishMode};
+    use super::{full_stream_sec_type_supported, HarnessPublishMode, StreamingClient};
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::SecTypeExt;
     use crate::tdbe::types::enums::SecType;
@@ -2715,7 +2715,7 @@ mod full_stream_guard_tests {
     /// runs after `check_connected`) is exercised on the real subscribe path.
     #[test]
     fn subscribe_rejects_full_index_and_does_not_track_it() {
-        let client = FpssClient::for_self_join_test(
+        let client = StreamingClient::for_self_join_test(
             0,
             64,
             HarnessPublishMode::BlockingPublish,
@@ -2752,18 +2752,18 @@ mod panic_isolation_tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use super::{FpssClient, HarnessPublishMode};
+    use super::{HarnessPublishMode, StreamingClient};
 
     /// Poll the drained flag until it flips or the deadline passes.
     ///
-    /// The drained flag is set by [`FpssClient::drop`] after it has joined
-    /// the I/O handle. Call this AFTER dropping the last `Arc<FpssClient>`
+    /// The drained flag is set by [`StreamingClient::drop`] after it has joined
+    /// the I/O handle. Call this AFTER dropping the last `Arc<StreamingClient>`
     /// reference; until then the flag stays false.
     fn wait_for_drain(drained: &std::sync::atomic::AtomicBool) {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while !drained.load(Ordering::Acquire) {
             if std::time::Instant::now() > deadline {
-                panic!("FpssClient did not drain within 5 seconds");
+                panic!("StreamingClient did not drain within 5 seconds");
             }
             std::thread::sleep(Duration::from_millis(1));
         }
@@ -2792,10 +2792,10 @@ mod panic_isolation_tests {
     ///
     /// The `for_self_join_test` harness drives events through the ring
     /// consumer closure which has per-invocation `catch_unwind` incrementing
-    /// the shared `panics` counter (the same Arc that `FpssClient::panic_count()`
+    /// the shared `panics` counter (the same Arc that `StreamingClient::panic_count()`
     /// reads).  Once all non-panic events are delivered the consumer has
     /// processed every event, so `panic_count()` is stable and can be read on
-    /// the still-live `Arc<FpssClient>` before dropping.
+    /// the still-live `Arc<StreamingClient>` before dropping.
     ///
     /// Contract: `client.panic_count() == 1` AND `delivered == N_EVENTS - 1`.
     #[test]
@@ -2806,7 +2806,7 @@ mod panic_isolation_tests {
         let delivered_c = Arc::clone(&delivered);
         let mut call_index: u64 = 0;
 
-        let client = FpssClient::for_self_join_test(
+        let client = StreamingClient::for_self_join_test(
             N_EVENTS,
             64,
             HarnessPublishMode::BlockingPublish,
@@ -2827,7 +2827,7 @@ mod panic_isolation_tests {
         wait_for_deliveries(&delivered, (N_EVENTS - 1) as u64);
 
         // Read `panic_count()` on the live client before triggering Drop.
-        // The `panics` Arc is shared between the `FpssClient` struct and the
+        // The `panics` Arc is shared between the `StreamingClient` struct and the
         // consumer closure; the consumer is done, the value is stable.
         let observed_panics = client.panic_count();
         let delivered_count = delivered.load(Ordering::Relaxed);
@@ -2841,7 +2841,7 @@ mod panic_isolation_tests {
 
         assert_eq!(
             observed_panics, 1,
-            "FpssClient::panic_count() must equal 1 after one caught panic; \
+            "StreamingClient::panic_count() must equal 1 after one caught panic; \
              got {observed_panics}"
         );
         assert_eq!(
@@ -2865,7 +2865,7 @@ mod panic_isolation_tests {
         let delivered_c = Arc::clone(&delivered);
         let mut call_index: u64 = 0;
 
-        let client = FpssClient::for_self_join_test(
+        let client = StreamingClient::for_self_join_test(
             N_EVENTS,
             64,
             HarnessPublishMode::BlockingPublish,
@@ -2894,7 +2894,7 @@ mod panic_isolation_tests {
 
         assert_eq!(
             observed_panics, 2,
-            "FpssClient::panic_count() must equal 2 after two caught panics; \
+            "StreamingClient::panic_count() must equal 2 after two caught panics; \
              got {observed_panics}"
         );
         assert_eq!(
@@ -2914,13 +2914,13 @@ mod ring_occupancy_tests {
 
     use super::events::FpssEventInternal;
     use super::ring::RingProducer;
-    use super::{FpssClient, FpssControl, HarnessPublishMode, PollOutcome};
+    use super::{HarnessPublishMode, PollOutcome, StreamControl, StreamingClient};
 
     /// Publish one synthetic control event through the test producer.
     fn publish_one(producer: &mut impl RingProducer) -> bool {
         producer
             .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+                slot.event = FpssEventInternal::Control(StreamControl::MarketOpen);
             })
             .is_ok()
     }
@@ -2930,7 +2930,7 @@ mod ring_occupancy_tests {
     /// configured ring size.
     #[test]
     fn occupancy_tracks_publish_then_drain() {
-        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
 
         assert_eq!(client.ring_capacity(), 64);
         assert_eq!(client.ring_occupancy(), 0, "fresh ring must read empty");
@@ -2956,7 +2956,7 @@ mod ring_occupancy_tests {
     /// published cursor, so occupancy never exceeds capacity.
     #[test]
     fn occupancy_never_exceeds_capacity_under_full_ring_burst() {
-        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
 
         let mut accepted = 0usize;
         for _ in 0..(64 + 16) {
@@ -2982,7 +2982,7 @@ mod ring_occupancy_tests {
     /// events remain in the client-side staging queue.
     #[test]
     fn occupancy_counts_drained_batches_not_delivered_events() {
-        let (client, mut producer) = FpssClient::for_ring_occupancy_test(64);
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
 
         for _ in 0..3 {
             assert!(publish_one(&mut producer));
@@ -3022,7 +3022,7 @@ mod ring_occupancy_tests {
         let delivered = Arc::new(AtomicU64::new(0));
         let delivered_c = Arc::clone(&delivered);
 
-        let client = FpssClient::for_self_join_test(
+        let client = StreamingClient::for_self_join_test(
             N_EVENTS,
             64,
             HarnessPublishMode::TryPublishBurst,

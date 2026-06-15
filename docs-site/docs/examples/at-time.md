@@ -8,10 +8,10 @@ description: Sample the same wall-clock moment across a date range in one reques
 The `at_time` endpoints answer "what was the market at 10:30 every day last quarter?" in a single request — one row per trading day, each the last quote (or trade) at or before the requested moment.
 
 ```python
-from thetadatadx import Config, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 rows = tdx.stock_at_time_quote("AAPL", "20250101", "20250331", "10:30:00.000")
 for t in rows:

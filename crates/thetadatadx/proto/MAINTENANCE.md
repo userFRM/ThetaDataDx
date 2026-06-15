@@ -1,6 +1,6 @@
 # Proto & Schema Maintenance Guide
 
-This directory contains the protobuf definitions that drive the entire ThetaDataDxClient SDK.
+This directory contains the protobuf definitions that drive the entire Client SDK.
 When you update these files, the build system automatically regenerates gRPC stubs, tick
 type structs, and DataTable parsers across all languages.
 
@@ -44,7 +44,7 @@ proto/
 2. **Endpoint surface validation + generation**: the build loads
    `endpoint_surface.toml`, parses `mdds.proto` to extract wire metadata,
    validates the surface spec against the wire contract, and generates the
-   endpoint registry, shared endpoint runtime dispatch, and `MddsClient`
+   endpoint registry, shared endpoint runtime dispatch, and `HistoricalClient`
    endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
    `$OUT_DIR/endpoint_generated.rs`,
    `$OUT_DIR/mdds_list_endpoints_generated.rs`,
@@ -150,7 +150,7 @@ cargo test         # verify nothing broke
 cargo clippy       # zero warnings
 ```
 
-The new endpoint is now available on `ThetaDataDxClient` via `Deref` to `MddsClient`.
+The new endpoint is now available on `Client` via `Deref` to `HistoricalClient`.
 
 ## How to: replace `mdds.proto`
 

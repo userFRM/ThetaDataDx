@@ -5,7 +5,7 @@
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "StockListSymbolsBuilder")]
 pub struct StockListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -61,7 +61,7 @@ impl StockListSymbolsBuilder {
 /// Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "StockListDatesBuilder")]
 pub struct StockListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     timeout_ms: Option<u64>,
@@ -141,7 +141,7 @@ impl StockListDatesBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotOhlcBuilder")]
 pub struct StockSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -236,7 +236,7 @@ impl StockSnapshotOhlcBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotTradeBuilder")]
 pub struct StockSnapshotTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -331,7 +331,7 @@ impl StockSnapshotTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotQuoteBuilder")]
 pub struct StockSnapshotQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -426,7 +426,7 @@ impl StockSnapshotQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotMarketValueBuilder")]
 pub struct StockSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
@@ -516,7 +516,7 @@ impl StockSnapshotMarketValueBuilder {
 /// Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
 #[pyclass(module = "thetadatadx", name = "StockHistoryEodBuilder")]
 pub struct StockHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -694,7 +694,7 @@ impl StockHistoryEodBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcBuilder")]
 pub struct StockHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -997,7 +997,7 @@ impl StockHistoryOhlcBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeBuilder")]
 pub struct StockHistoryTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     start_time: Option<String>,
@@ -1280,7 +1280,7 @@ impl StockHistoryTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryQuoteBuilder")]
 pub struct StockHistoryQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -1584,7 +1584,7 @@ impl StockHistoryQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     start_time: Option<String>,
@@ -1890,7 +1890,7 @@ impl StockHistoryTradeQuoteBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeTradeBuilder")]
 pub struct StockAtTimeTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -2103,7 +2103,7 @@ impl StockAtTimeTradeBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeQuoteBuilder")]
 pub struct StockAtTimeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -2307,7 +2307,7 @@ impl StockAtTimeQuoteBuilder {
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListSymbolsBuilder")]
 pub struct OptionListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -2368,7 +2368,7 @@ impl OptionListSymbolsBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionListDatesBuilder")]
 pub struct OptionListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     expiration: String,
@@ -2452,7 +2452,7 @@ impl OptionListDatesBuilder {
 /// This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListExpirationsBuilder")]
 pub struct OptionListExpirationsBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     timeout_ms: Option<u64>,
 }
@@ -2518,7 +2518,7 @@ impl OptionListExpirationsBuilder {
 /// This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "OptionListStrikesBuilder")]
 pub struct OptionListStrikesBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     timeout_ms: Option<u64>,
@@ -2596,7 +2596,7 @@ impl OptionListStrikesBuilder {
 /// This endpoint is updated real-time.
 #[pyclass(module = "thetadatadx", name = "OptionListContractsBuilder")]
 pub struct OptionListContractsBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
     symbol: String,
     date: String,
@@ -2794,7 +2794,7 @@ impl OptionListContractsBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOhlcBuilder")]
 pub struct OptionSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -2942,7 +2942,7 @@ impl OptionSnapshotOhlcBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotTradeBuilder")]
 pub struct OptionSnapshotTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3075,7 +3075,7 @@ impl OptionSnapshotTradeBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotQuoteBuilder")]
 pub struct OptionSnapshotQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3224,7 +3224,7 @@ impl OptionSnapshotQuoteBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOpenInterestBuilder")]
 pub struct OptionSnapshotOpenInterestBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3370,7 +3370,7 @@ impl OptionSnapshotOpenInterestBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotMarketValueBuilder")]
 pub struct OptionSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3522,7 +3522,7 @@ impl OptionSnapshotMarketValueBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksImpliedVolatilityBuilder")]
 pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -3764,7 +3764,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksAllBuilder")]
 pub struct OptionSnapshotGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4006,7 +4006,7 @@ impl OptionSnapshotGreeksAllBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksFirstOrderBuilder")]
 pub struct OptionSnapshotGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4248,7 +4248,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksSecondOrderBuilder")]
 pub struct OptionSnapshotGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4490,7 +4490,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 /// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksThirdOrderBuilder")]
 pub struct OptionSnapshotGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     strike: Option<String>,
@@ -4729,7 +4729,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryEodBuilder")]
 pub struct OptionHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -5011,7 +5011,7 @@ impl OptionHistoryEodBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOhlcBuilder")]
 pub struct OptionHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -5374,7 +5374,7 @@ impl OptionHistoryOhlcBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeBuilder")]
 pub struct OptionHistoryTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -5737,7 +5737,7 @@ impl OptionHistoryTradeBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryQuoteBuilder")]
 pub struct OptionHistoryQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -6124,7 +6124,7 @@ impl OptionHistoryQuoteBuilder {
 /// - `exclusive`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -6507,7 +6507,7 @@ impl OptionHistoryTradeQuoteBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOpenInterestBuilder")]
 pub struct OptionHistoryOpenInterestBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -6824,7 +6824,7 @@ impl OptionHistoryOpenInterestBuilder {
 /// - `underlyer_use_nbbo`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksEodBuilder")]
 pub struct OptionHistoryGreeksEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -7224,7 +7224,7 @@ impl OptionHistoryGreeksEodBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksAllBuilder")]
 pub struct OptionHistoryGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -7681,7 +7681,7 @@ impl OptionHistoryGreeksAllBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksAllBuilder")]
 pub struct OptionHistoryTradeGreeksAllBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -8139,7 +8139,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksFirstOrderBuilder")]
 pub struct OptionHistoryGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -8596,7 +8596,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksFirstOrderBuilder")]
 pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -9054,7 +9054,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksSecondOrderBuilder")]
 pub struct OptionHistoryGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -9511,7 +9511,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksSecondOrderBuilder")]
 pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -9969,7 +9969,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksThirdOrderBuilder")]
 pub struct OptionHistoryGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -10426,7 +10426,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksThirdOrderBuilder")]
 pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -10883,7 +10883,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -11339,7 +11339,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 /// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     date: String,
@@ -11792,7 +11792,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeTradeBuilder")]
 pub struct OptionAtTimeTradeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -12081,7 +12081,7 @@ impl OptionAtTimeTradeBuilder {
 /// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeQuoteBuilder")]
 pub struct OptionAtTimeQuoteBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
     start_date: String,
@@ -12365,7 +12365,7 @@ impl OptionAtTimeQuoteBuilder {
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "IndexListSymbolsBuilder")]
 pub struct IndexListSymbolsBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -12421,7 +12421,7 @@ impl IndexListSymbolsBuilder {
 /// Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "IndexListDatesBuilder")]
 pub struct IndexListDatesBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     timeout_ms: Option<u64>,
 }
@@ -12487,7 +12487,7 @@ impl IndexListDatesBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotOhlcBuilder")]
 pub struct IndexSnapshotOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12563,7 +12563,7 @@ impl IndexSnapshotOhlcBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotPriceBuilder")]
 pub struct IndexSnapshotPriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12639,7 +12639,7 @@ impl IndexSnapshotPriceBuilder {
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotMarketValueBuilder")]
 pub struct IndexSnapshotMarketValueBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -12714,7 +12714,7 @@ impl IndexSnapshotMarketValueBuilder {
 /// - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
 #[pyclass(module = "thetadatadx", name = "IndexHistoryEodBuilder")]
 pub struct IndexHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -12891,7 +12891,7 @@ impl IndexHistoryEodBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryOhlcBuilder")]
 pub struct IndexHistoryOhlcBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -13138,7 +13138,7 @@ impl IndexHistoryOhlcBuilder {
 /// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryPriceBuilder")]
 pub struct IndexHistoryPriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     date: String,
     interval: Option<String>,
@@ -13413,7 +13413,7 @@ impl IndexHistoryPriceBuilder {
 /// - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
 #[pyclass(module = "thetadatadx", name = "IndexAtTimePriceBuilder")]
 pub struct IndexAtTimePriceBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -13596,7 +13596,7 @@ impl IndexAtTimePriceBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarOpenTodayBuilder")]
 pub struct CalendarOpenTodayBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     timeout_ms: Option<u64>,
 }
 
@@ -13648,7 +13648,7 @@ impl CalendarOpenTodayBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarOnDateBuilder")]
 pub struct CalendarOnDateBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     date: String,
     timeout_ms: Option<u64>,
 }
@@ -13709,7 +13709,7 @@ impl CalendarOnDateBuilder {
 /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
 #[pyclass(module = "thetadatadx", name = "CalendarYearBuilder")]
 pub struct CalendarYearBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     year: String,
     timeout_ms: Option<u64>,
 }
@@ -13771,7 +13771,7 @@ impl CalendarYearBuilder {
 ///   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
 #[pyclass(module = "thetadatadx", name = "InterestRateHistoryEodBuilder")]
 pub struct InterestRateHistoryEodBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -13945,7 +13945,7 @@ impl InterestRateHistoryEodBuilder {
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcRangeBuilder")]
 pub struct StockHistoryOhlcRangeBuilder {
-    tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
+    tdx: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     start_date: String,
     end_date: String,
@@ -14268,7 +14268,7 @@ fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<(
 }
 
 #[pymethods]
-impl ThetaDataDxClient {
+impl Client {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.

@@ -47,7 +47,7 @@ for value in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_list_dates(
+Client.option_list_dates(
     request_type, symbol, expiration,
     *,
     strike=None, right=None, timeout_ms=None,
@@ -98,13 +98,13 @@ std::vector<std::string> option_list_dates(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_list_dates("trade", "SPY", "20250321",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& value : rows) {
     std::cout << value << "\n";
 }

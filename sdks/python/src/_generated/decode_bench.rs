@@ -10,7 +10,7 @@
 /// Merge a list of prost-encoded `proto::ResponseData` frames into the same
 /// single `DataTable` the live gRPC collector would produce.
 ///
-/// Mirrors `MddsClient::collect_stream`: each chunk is prost-decoded, then
+/// Mirrors `HistoricalClient::collect_stream`: each chunk is prost-decoded, then
 /// the zstd payload is decompressed and the rows are concatenated. Headers
 /// are taken from the first chunk that carries them (matches collect_stream
 /// semantics).
@@ -50,7 +50,7 @@ fn decode_chunks_into_table(
 }
 
 /// Decode recorded gRPC response bytes into the same typed pyclass list
-/// the matching `ThetaDataDxClient` endpoint would have returned.
+/// the matching `Client` endpoint would have returned.
 ///
 /// `endpoint` must match an endpoint name from `endpoint_surface.toml` that
 /// exposes a typed decoder (every entry whose `returns` is not `StringList`).

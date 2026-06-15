@@ -21,7 +21,7 @@
 //!   `EVENTS_PER_ITER` events are delivered (no silent drops). The
 //!   delivered count is asserted via `debug_assert_eq!`; the published
 //!   numbers are per-DELIVERED-event by construction.
-//! - Each variant emits a realistic `FpssEvent::Data(FpssData::Trade)`
+//! - Each variant emits a realistic `StreamEvent::Data(StreamData::Trade)`
 //!   carrying an `Arc<Contract>`. The contract is allocated once and
 //!   the publish closure clones the `Arc` (refcount bump, no
 //!   allocation) — this matches the live decode path where the
@@ -40,7 +40,7 @@ use std::time::{Duration, Instant};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
 use thetadatadx::Price;
 
 /// Events shipped per Criterion sample. Sized so per-iteration wall
@@ -54,17 +54,17 @@ const RING_SIZE: usize = 4096;
 
 #[derive(Default)]
 struct RingSlot {
-    event: Option<FpssEvent>,
+    event: Option<StreamEvent>,
 }
 
 // SAFETY: matches `RingEvent` in `crates/thetadatadx/src/fpss/ring.rs`
-// — `FpssEvent: Clone + Send`, the Disruptor's sequencing guarantees
+// — `StreamEvent: Clone + Send`, the Disruptor's sequencing guarantees
 // exclusive write / shared read.
 unsafe impl Sync for RingSlot {}
 
 /// Mutable user-handler cell, shape-compatible with the live `io_loop`
 /// wiring (`Mutex<Box<dyn FnMut>>` — single-locker, no contention).
-type BoxedHandler = Mutex<Box<dyn FnMut(&FpssEvent) + Send>>;
+type BoxedHandler = Mutex<Box<dyn FnMut(&StreamEvent) + Send>>;
 
 // ─── Realistic event factory ──────────────────────────────────────────
 
@@ -74,8 +74,8 @@ type BoxedHandler = Mutex<Box<dyn FnMut(&FpssEvent) + Send>>;
 /// shape as the live FPSS decode path where the contract cache hands
 /// out `Arc::clone(&cached)` for every tick.
 #[inline]
-fn make_event(contract: &Arc<Contract>, idx: u64) -> FpssEvent {
-    FpssEvent::Data(FpssData::Trade {
+fn make_event(contract: &Arc<Contract>, idx: u64) -> StreamEvent {
+    StreamEvent::Data(StreamData::Trade {
         contract: Arc::clone(contract),
         ms_of_day: (idx % 86_400_000) as i32,
         sequence: idx as i32,
@@ -111,7 +111,7 @@ fn make_contract() -> Arc<Contract> {
 /// live SSOT pipeline.
 fn build_pipeline<F>(body: F) -> (impl Producer<RingSlot>, Arc<AtomicU64>)
 where
-    F: FnMut(&FpssEvent) + Send + 'static,
+    F: FnMut(&StreamEvent) + Send + 'static,
 {
     let delivered = Arc::new(AtomicU64::new(0));
     let delivered_consumer = Arc::clone(&delivered);
@@ -162,7 +162,7 @@ fn drive_publish<P: Producer<RingSlot>>(
 }
 
 // NOTE on `make_event` placement vs the timed region: building the
-// `FpssEvent` (one Arc-clone + struct fill) is part of every realistic
+// `StreamEvent` (one Arc-clone + struct fill) is part of every realistic
 // publish path — the live decode loop materializes the event before
 // `try_publish`. We deliberately count it inside the timed region so
 // the bench reflects what an integrator actually pays. The variants
@@ -172,21 +172,21 @@ fn drive_publish<P: Producer<RingSlot>>(
 // ─── Variant 1: Rust no-op closure ────────────────────────────────────
 
 fn run_rust_noop(contract: Arc<Contract>) -> (u64, Duration) {
-    let (producer, delivered) = build_pipeline(|_evt: &FpssEvent| {
+    let (producer, delivered) = build_pipeline(|_evt: &StreamEvent| {
         // No-op — sanity check against `disruptor_consumer_panic_isolated`
         // in `streaming_channels.rs`.
     });
     drive_publish(producer, delivered, contract)
 }
 
-// ─── Variant 2: clone into pre-allocated Vec<FpssEvent> ───────────────
+// ─── Variant 2: clone into pre-allocated Vec<StreamEvent> ───────────────
 
 fn run_rust_vec_push(contract: Arc<Contract>) -> (u64, Duration) {
     // Pre-allocate so Vec growth is excluded from the timed cost.
-    let buf: Arc<Mutex<Vec<FpssEvent>>> =
+    let buf: Arc<Mutex<Vec<StreamEvent>>> =
         Arc::new(Mutex::new(Vec::with_capacity(EVENTS_PER_ITER + 16)));
     let buf_consumer = Arc::clone(&buf);
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
+    let (producer, delivered) = build_pipeline(move |evt: &StreamEvent| {
         let mut v = buf_consumer
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -216,17 +216,17 @@ struct FfiCtx {
 extern "C" fn ffi_trampoline(ctx: *mut c_void, event_ptr: *const c_void) {
     // SAFETY: `ctx` points to an `FfiCtx` that outlives the bench
     // (held inside `run_ffi_simulated` for the duration of the
-    // `drive_publish` call). `event_ptr` is a `*const FpssEvent` cast
+    // `drive_publish` call). `event_ptr` is a `*const StreamEvent` cast
     // to `*const c_void` by the caller.
     let ctx = unsafe { &*(ctx as *const FfiCtx) };
-    // SAFETY: `event_ptr` is a `*const FpssEvent` produced by the bench
+    // SAFETY: `event_ptr` is a `*const StreamEvent` produced by the bench
     // harness one stack frame above; the referent lives until
     // `drive_publish` returns, which is strictly after this callback
     // ends. No aliasing — the consumer is the sole reader.
-    let evt = unsafe { &*(event_ptr as *const FpssEvent) };
+    let evt = unsafe { &*(event_ptr as *const StreamEvent) };
     // Touch the event so the read is not elided. Match-arm chosen for
     // its uniqueness so the optimiser cannot collapse the load.
-    if let FpssEvent::Data(FpssData::Trade { sequence, .. }) = evt {
+    if let StreamEvent::Data(StreamData::Trade { sequence, .. }) = evt {
         ctx.counter
             .fetch_add((*sequence as u64) & 1, Ordering::Relaxed);
     }
@@ -240,9 +240,9 @@ fn run_ffi_simulated(contract: Arc<Contract>) -> (u64, Duration) {
     // `extern "C" fn` coerces to a function pointer — same indirection
     // an FFI binding pays per event.
     let cb: extern "C" fn(*mut c_void, *const c_void) = ffi_trampoline;
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
+    let (producer, delivered) = build_pipeline(move |evt: &StreamEvent| {
         let ctx_ptr = (Arc::as_ptr(&ctx_consumer)) as *mut c_void;
-        let evt_ptr = (evt as *const FpssEvent) as *const c_void;
+        let evt_ptr = (evt as *const StreamEvent) as *const c_void;
         cb(ctx_ptr, evt_ptr);
     });
     let result = drive_publish(producer, delivered, contract);

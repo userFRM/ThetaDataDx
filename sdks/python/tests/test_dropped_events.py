@@ -5,9 +5,9 @@ Pins the contract that ``tdx.dropped_event_count()`` is callable
 across the streaming lifecycle (pre-start / post-start /
 post-reconnect / post-stop) and is non-negative everywhere.
 
-The counter is owned by the live ``FpssClient`` (LMAX Disruptor
+The counter is owned by the live ``StreamingClient`` (LMAX Disruptor
 ring overflow recorded by ``Producer::try_publish`` failures) and
-is forwarded through ``thetadatadx::ThetaDataDxClient::dropped_event_count``
+is forwarded through ``thetadatadx::Client::dropped_event_count``
 and the PyO3 wrapper. Because the counter lives on the live client,
 ``reconnect()`` (which calls ``stop_streaming() + start_streaming()``
 internally) rebuilds the client and resets the count to 0.
@@ -20,7 +20,7 @@ This shape mirrors the TypeScript binding's
 identical across SDKs.
 
 Gated on ``THETADX_TEST_CREDS=path/to/creds.txt`` because
-``ThetaDataDxClient`` needs a live FPSS handshake. Tests skip silently on
+``Client`` needs a live FPSS handshake. Tests skip silently on
 developer machines that haven't wired creds. CI runs this in the
 surfaces job.
 
@@ -44,7 +44,7 @@ import pytest
 
 @pytest.fixture
 def tdx():
-    """Build a real `ThetaDataDxClient` client or skip the test."""
+    """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
@@ -60,7 +60,7 @@ def tdx():
 
     creds = thetadatadx.Credentials.from_file(creds_path)
     config = thetadatadx.Config.production()
-    client = thetadatadx.ThetaDataDxClient(creds, config)
+    client = thetadatadx.Client(creds, config)
     yield client
     # Best-effort teardown; stop_streaming on a client that never
     # started is a noop per the Rust side contract.

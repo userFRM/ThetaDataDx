@@ -4,13 +4,13 @@
 //! on-demand when you first subscribe -- not at startup.
 //!
 //! ```rust,no_run
-//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+//! use thetadatadx::{Client, Credentials, DirectConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     // One connect, one auth. FPSS is NOT connected yet.
 //!     // Or inline: Credentials::new("user@example.com", "your-password")
-//!     let tdx = ThetaDataDxClient::connect(
+//!     let tdx = Client::connect(
 //!         &Credentials::from_file("creds.txt")?,
 //!         DirectConfig::production(),
 //!     ).await?;
@@ -19,10 +19,10 @@
 //!     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming -- FPSS connects lazily on first subscribe
-//!     use thetadatadx::fpss::{FpssData, FpssEvent};
+//!     use thetadatadx::fpss::{StreamData, StreamEvent};
 //!     use thetadatadx::fpss::protocol::Contract;
 //!     tdx.start_streaming(|event| {
-//!         if let FpssEvent::Data(FpssData::Trade { price, size, .. }) = event {
+//!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
 //!         }
 //!     })?;
@@ -42,15 +42,15 @@ use crate::auth::Credentials;
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, FullSubscriptionKind, Subscription, SubscriptionKind};
-use crate::fpss::{FpssClient, FpssEvent};
-use crate::mdds::MddsClient;
+use crate::fpss::{StreamEvent, StreamingClient};
+use crate::mdds::HistoricalClient;
 use crate::tdbe::types::enums::SecType;
 
 /// Snapshot of the streaming side of the unified client.
 ///
 /// One [`ArcSwap`] cell so every read path collapses to a single
 /// atomic load. The user callback runs directly on the event-dispatch
-/// consumer thread inside [`FpssClient`], so the slot only needs to
+/// consumer thread inside [`StreamingClient`], so the slot only needs to
 /// track the live client.
 ///
 /// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming`
@@ -62,10 +62,10 @@ enum StreamingSlot {
     /// `start_streaming()` has not been called yet.
     Idle,
     /// Streaming connection is established. The user callback runs
-    /// inside the [`FpssClient`]'s event-dispatch consumer thread (panic
+    /// inside the [`StreamingClient`]'s event-dispatch consumer thread (panic
     /// isolated via `catch_unwind`); ring-buffer overflow is reported
-    /// through [`FpssClient::dropped_count`].
-    Live { client: Arc<FpssClient> },
+    /// through [`StreamingClient::dropped_count`].
+    Live { client: Arc<StreamingClient> },
     /// `stop_streaming()` ran (or `Drop` did). Distinguishes "was
     /// started, then stopped" from "never started" for
     /// [`ConnectionStatus::Disconnected`] vs
@@ -92,7 +92,7 @@ fn tier_label(tier: Option<crate::mdds::SubscriptionTier>) -> String {
 /// `#[non_exhaustive]` so new tiers (e.g. additional asset classes the
 /// Nexus auth payload starts emitting) can be added without a breaking
 /// API change. Callers should construct it via the SDK's
-/// [`ThetaDataDxClient::subscription_info`] entry point — fields are
+/// [`Client::subscription_info`] entry point — fields are
 /// populated from `AuthResponse.user.{stock,options,indices,interest_rate}_subscription`.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -135,8 +135,8 @@ pub enum ConnectionStatus {
 ///
 /// All historical endpoint methods are available via `Deref`.
 /// Streaming methods are on this struct directly.
-pub struct ThetaDataDxClient {
-    historical: MddsClient,
+pub struct Client {
+    historical: HistoricalClient,
     creds: Credentials,
     /// FLATFILES retry tuning. Snapshot of
     /// [`crate::config::DirectConfig::flatfiles`] taken at connect time
@@ -152,7 +152,7 @@ pub struct ThetaDataDxClient {
     /// Quiescence flags of every superseded streaming session that has
     /// not yet drained, captured during [`Self::stop_streaming`] /
     /// [`Self::reconnect_streaming`] before the `Live → Stopped` swap
-    /// drops the previous `Arc<FpssClient>`. [`Self::await_drain`]
+    /// drops the previous `Arc<StreamingClient>`. [`Self::await_drain`]
     /// waits for **every** entry to flip to `true` before reporting
     /// quiescence; completed flags are GC'd lazily on each poll.
     ///
@@ -172,7 +172,7 @@ pub struct ThetaDataDxClient {
     /// Each `start_streaming*()` snapshots this value at entry and
     /// re-checks it after the FPSS connect completes. If the snapshot
     /// no longer matches, an interleaving `stop_streaming` raised the
-    /// generation, the freshly built [`FpssClient`] is dropped, and
+    /// generation, the freshly built [`StreamingClient`] is dropped, and
     /// the install is rejected. Closes the `Stopped → Live` resurrection
     /// race where an in-flight start could come up AFTER stop returned.
     stop_generation: AtomicU64,
@@ -190,10 +190,10 @@ pub struct ThetaDataDxClient {
     dispatcher: Mutex<DispatcherSession>,
 }
 
-impl ThetaDataDxClient {
+impl Client {
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
-    /// FPSS streaming is NOT connected yet -- call [`ThetaDataDxClient::start_streaming`]
+    /// FPSS streaming is NOT connected yet -- call [`Client::start_streaming`]
     /// when you need real-time data.
     /// # Errors
     ///
@@ -205,7 +205,7 @@ impl ThetaDataDxClient {
         // is `None` (the default).
         crate::observability::try_install_exporter(&config)?;
         let flatfiles_config = config.flatfiles.clone();
-        let historical = MddsClient::connect(creds, config).await?;
+        let historical = HistoricalClient::connect(creds, config).await?;
         Ok(Self {
             historical,
             creds: creds.clone(),
@@ -229,7 +229,7 @@ impl ThetaDataDxClient {
     /// Helper: error returned when an in-flight `start_streaming*()`
     /// raced behind a [`Self::stop_streaming`] and would have resurrected
     /// streaming after the caller observed it stopped. The freshly built
-    /// [`FpssClient`] is dropped before this returns.
+    /// [`StreamingClient`] is dropped before this returns.
     fn stopped_during_start() -> Error {
         Error::Fpss {
             kind: crate::error::FpssErrorKind::Disconnected,
@@ -271,7 +271,7 @@ impl ThetaDataDxClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
-        F: FnMut(&FpssEvent) + Send + 'static,
+        F: FnMut(&StreamEvent) + Send + 'static,
     {
         // Identity batch scope — each batch drain runs directly. The
         // GIL-amortising form lives in [`Self::start_streaming_scoped`].
@@ -284,7 +284,7 @@ impl ThetaDataDxClient {
     /// Identical to [`Self::start_streaming`] in every observable respect
     /// — the same single-flight gate, install/rollback, panic isolation,
     /// and one-call-per-event delivery — except the dispatcher drives
-    /// [`crate::fpss::FpssClient::for_each_scoped`] instead of
+    /// [`crate::fpss::StreamingClient::for_each_scoped`] instead of
     /// `for_each`, so `scope` brackets each batch drain. The inter-batch
     /// wait on an idle ring runs outside `scope`.
     ///
@@ -299,7 +299,7 @@ impl ThetaDataDxClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn start_streaming_scoped<F, S>(&self, mut handler: F, scope: S) -> Result<(), Error>
     where
-        F: FnMut(&FpssEvent) + Send + 'static,
+        F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
         // Single-flight gate: `dispatcher` mutex serialises the entire
@@ -323,7 +323,7 @@ impl ThetaDataDxClient {
         let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
-        let client = FpssClient::builder(&self.creds, &config.fpss.hosts)
+        let client = StreamingClient::builder(&self.creds, &config.fpss.hosts)
             .ring_size(config.fpss.ring_size)
             .flush_mode(config.fpss.flush_mode)
             .reconnect_policy(config.reconnect.policy.clone())
@@ -379,7 +379,7 @@ impl ThetaDataDxClient {
                 if !*gate_for_dispatcher.wait() {
                     return;
                 }
-                // `FpssClient::for_each_scoped` drives `poll_batch`, which
+                // `StreamingClient::for_each_scoped` drives `poll_batch`, which
                 // wraps each callback invocation in its own
                 // `catch_unwind`.  A panic in the handler is caught,
                 // recorded via `panic_count()`, and does not stop event
@@ -474,7 +474,7 @@ impl ThetaDataDxClient {
     ///    its connection installed AFTER stop returned, even though
     ///    the FPSS connect itself succeeded.
     ///
-    /// On either rejection the freshly built [`FpssClient`] (carried
+    /// On either rejection the freshly built [`StreamingClient`] (carried
     /// inside `new`) falls out of scope, which triggers its reader-
     /// thread shutdown and detaches the dispatcher cleanly.
     fn install_live(&self, new_slot: StreamingSlot, gen_at_entry: u64) -> Result<(), Error> {
@@ -794,7 +794,7 @@ impl ThetaDataDxClient {
 
     fn with_streaming<R>(
         &self,
-        f: impl FnOnce(&FpssClient) -> Result<R, Error>,
+        f: impl FnOnce(&StreamingClient) -> Result<R, Error>,
     ) -> Result<R, Error> {
         let snap = self.state.load();
         match &**snap {
@@ -816,10 +816,10 @@ impl ThetaDataDxClient {
     /// (full-stream scope).
     ///
     /// ```rust,no_run
-    /// # use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+    /// # use thetadatadx::{Client, Credentials, DirectConfig};
     /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
     /// # use thetadatadx::SecType;
-    /// # async fn doc(client: &ThetaDataDxClient) -> Result<(), thetadatadx::Error> {
+    /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
     /// let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
     /// client.subscribe(stock.quote())?;
@@ -931,7 +931,7 @@ impl ThetaDataDxClient {
 
         // Drop the FPSS client signal so its reader thread + event ring
         // consumer drain and exit. The actual join happens in
-        // `FpssClient::Drop` when the last `Arc<FpssClient>` is dropped
+        // `StreamingClient::Drop` when the last `Arc<StreamingClient>` is dropped
         // (typically with `prev` going out of scope at end of scope).
         if let StreamingSlot::Live { client } = &*prev {
             // Capture the drain flag BEFORE the shutdown signal and
@@ -1019,7 +1019,7 @@ impl ThetaDataDxClient {
     /// operational visibility.
     pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
-        F: FnMut(&FpssEvent) + Send + 'static,
+        F: FnMut(&StreamEvent) + Send + 'static,
     {
         // Identity batch scope — see [`Self::reconnect_streaming_scoped`].
         self.reconnect_streaming_scoped(handler, |drain| drain())
@@ -1041,7 +1041,7 @@ impl ThetaDataDxClient {
     /// restart itself.
     pub fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
     where
-        F: FnMut(&FpssEvent) + Send + 'static,
+        F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
@@ -1463,13 +1463,13 @@ impl ThetaDataDxClient {
     }
 }
 
-impl Drop for ThetaDataDxClient {
+impl Drop for Client {
     /// Final cleanup: idempotently stops the streaming connection.
     ///
     /// `stop_streaming` swaps the state cell to `Stopped` and only
     /// signals the FPSS client when the previous slot was `Live`.
     /// The actual TLS reader + event-dispatch consumer join happens when
-    /// the last `Arc<FpssClient>` is dropped via `FpssClient::Drop`.
+    /// the last `Arc<StreamingClient>` is dropped via `StreamingClient::Drop`.
     /// Calling once from `Drop` after the user already called
     /// `stop_streaming` is therefore a no-op — the state machine
     /// guarantees the shutdown signal runs exactly once.
@@ -1480,9 +1480,9 @@ impl Drop for ThetaDataDxClient {
 
 // All historical methods available directly via Deref.
 #[doc(hidden)]
-impl std::ops::Deref for ThetaDataDxClient {
-    type Target = MddsClient;
-    fn deref(&self) -> &MddsClient {
+impl std::ops::Deref for Client {
+    type Target = HistoricalClient;
+    fn deref(&self) -> &HistoricalClient {
         &self.historical
     }
 }
@@ -1491,7 +1491,7 @@ impl std::ops::Deref for ThetaDataDxClient {
 /// streaming client and return the list of subscriptions that failed to
 /// restore.
 ///
-/// The two callbacks decouple the loop from the live `ThetaDataDxClient`
+/// The two callbacks decouple the loop from the live `Client`
 /// streaming methods so the resubscription logic is unit-testable with
 /// in-memory fakes — the [`reconnect_streaming`] caller in production
 /// passes through to the polymorphic `subscribe(Subscription)` paths,
@@ -1630,7 +1630,7 @@ mod tests {
     /// shape to walk the state machine transitions without spinning up
     /// a real FPSS connection. The transitions and the `ArcSwap`
     /// install/swap mechanics are what we are validating; the live
-    /// payload (`FpssClient`, `StreamingDispatcher`) is exercised by
+    /// payload (`StreamingClient`, `StreamingDispatcher`) is exercised by
     /// the existing FPSS integration tests.
     enum SlotMarker {
         Idle,
@@ -1961,7 +1961,7 @@ mod tests {
     #[test]
     fn await_drain_waits_for_all_retired_generations() {
         // We exercise the predicate logic directly through a `Vec` to
-        // avoid spinning up FpssClient instances (which require a
+        // avoid spinning up StreamingClient instances (which require a
         // network credential). The production `await_drain` runs the
         // exact same `retain` + `is_empty` cadence on the Mutex'd Vec.
         let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
@@ -1995,14 +1995,14 @@ mod tests {
 
     // -- Fluent Subscription dispatch -------------------------
     //
-    // Spinning up a real `ThetaDataDxClient` requires a network round-trip
+    // Spinning up a real `Client` requires a network round-trip
     // to authenticate, which a unit test can't do. The dispatch shape
     // is therefore validated against a stand-in helper that walks the
     // same `match` arms `subscribe(Subscription)` runs internally.
     // Live-network routing is covered by the streaming integration
     // tests under `crates/thetadatadx/tests/`.
 
-    /// Mirror of [`ThetaDataDxClient::subscribe`]'s `match` shape. Returns
+    /// Mirror of [`Client::subscribe`]'s `match` shape. Returns
     /// the routed (kind, contract-or-sec-type) tuple so the test can
     /// assert the dispatch reached the right arm without a real FPSS
     /// connection.
@@ -2079,10 +2079,10 @@ mod tests {
 
     #[test]
     fn theta_data_client_alias_resolves_to_theta_data_dx() {
-        // `ThetaDataDxClient` is the canonical public client type; this
+        // `Client` is the canonical public client type; this
         // guards that the name continues to resolve to the same type so
         // existing call sites keep compiling.
-        fn _alias_check(c: ThetaDataDxClient) -> ThetaDataDxClient {
+        fn _alias_check(c: Client) -> Client {
             c
         }
     }

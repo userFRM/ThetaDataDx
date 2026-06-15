@@ -30,14 +30,14 @@ set(THETADX_CPP_TEST_SOURCES
     fpss.cpp
     thetadatadx_client.cpp
     error_taxonomy.cpp
-    # MDDS pool-sizing setters on tdx::Config.
+    # MDDS pool-sizing setters on thetadatadx::Config.
     config_pool_sizing.cpp
-    # ReconnectConfig setters on tdx::Config — cross-binding parity
+    # ReconnectConfig setters on thetadatadx::Config — cross-binding parity
     # with Python / TypeScript / FFI.
     config_reconnect.cpp
-    # MDDS two-stage decode pipeline setters on tdx::Config
+    # MDDS two-stage decode pipeline setters on thetadatadx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
-    # FlatFilesConfig setters on tdx::Config — cross-binding parity
+    # FlatFilesConfig setters on thetadatadx::Config — cross-binding parity
     # with Python / TypeScript / FFI (issue #594).
     flatfiles_config.cpp
     # v11 InterestRateTick schema fix — 2-field shape

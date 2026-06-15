@@ -229,14 +229,14 @@ pub(super) fn python_signature(endpoint: &GeneratedEndpoint) -> String {
         format!("{}, ", req.join(", "))
     };
     let one_line = format!(
-        "ThetaDataDxClient.{}({req_prefix}*, {}) -> {ret}",
+        "Client.{}({req_prefix}*, {}) -> {ret}",
         endpoint.name,
         kw.join(", ")
     );
     if one_line.len() <= 88 {
         sig.push_str(&one_line);
     } else {
-        let _ = writeln!(sig, "ThetaDataDxClient.{}(", endpoint.name);
+        let _ = writeln!(sig, "Client.{}(", endpoint.name);
         if !req.is_empty() {
             let _ = writeln!(sig, "    {},", req.join(", "));
         }
@@ -498,14 +498,14 @@ pub(super) fn cpp_signature(endpoint: &GeneratedEndpoint) -> String {
 
     let opts = builder_params(endpoint);
     let prose = if opts.is_empty() {
-        "Throws `tdx::Error` on failure.".to_string()
+        "Throws `thetadatadx::Error` on failure.".to_string()
     } else {
         let setters: Vec<String> = opts
             .iter()
             .map(|p| format!("`.with_{}(...)`", p.name))
             .collect();
         format!(
-            "Optional parameters chain on `EndpointRequestOptions`: {}. Throws `tdx::Error` on failure.",
+            "Optional parameters chain on `EndpointRequestOptions`: {}. Throws `thetadatadx::Error` on failure.",
             setters.join(", ")
         )
     };
@@ -541,7 +541,7 @@ pub(super) fn cpp_example(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect();
         args.push(format!(
-            "\n    tdx::EndpointRequestOptions{{}}{}",
+            "\n    thetadatadx::EndpointRequestOptions{{}}{}",
             setters.join("")
         ));
     }

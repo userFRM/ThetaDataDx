@@ -78,13 +78,13 @@ describe('InterestRateTick (runtime shape)', () => {
     // actual native binding (not the SKIP path) and exports at least
     // one historical-data client class. The exact entry-point name
     // varies across major versions; accept any of the canonical
-    // ThetaDataDx client names.
+    // Client client names.
     assert.ok(
-      typeof mod.ThetaDataDxClient === 'function'
+      typeof mod.Client === 'function'
         || typeof mod.HistoricalClient === 'function'
         || typeof mod.Client === 'function'
-        || typeof mod.MddsClient === 'function',
-      'native addon should expose at least one ThetaDataDx client class',
+        || typeof mod.HistoricalClient === 'function',
+      'native addon should expose at least one Client client class',
     );
   });
 });

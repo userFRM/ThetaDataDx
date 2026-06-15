@@ -7,7 +7,7 @@
 //! use for any file-producing operation.
 //!
 //! Tool naming (matches the Rust `flatfile_*` helper methods on
-//! `ThetaDataDxClient`):
+//! `Client`):
 //!
 //!   tdx_flatfile_request                     (generic)
 //!   tdx_flatfile_option_quote
@@ -28,7 +28,7 @@
 
 use sonic_rs::{json, JsonValueTrait, Value};
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
-use thetadatadx::ThetaDataDxClient;
+use thetadatadx::Client;
 
 use crate::ToolError;
 
@@ -207,10 +207,10 @@ fn convenience_pair(tool_name: &str) -> Option<(SecType, ReqType)> {
 /// # Errors
 /// The inner `Result` is `Err` when a required argument is missing, when an
 /// enum string (`sec_type`, `req_type`, `format`) fails to parse, when no
-/// `ThetaDataDxClient` is connected, or when the underlying flat-file request
+/// `Client` is connected, or when the underlying flat-file request
 /// fails.
 pub(crate) async fn try_execute_flatfile_tool(
-    client: Option<&ThetaDataDxClient>,
+    client: Option<&Client>,
     name: &str,
     args: &Value,
 ) -> Option<Result<Value, ToolError>> {

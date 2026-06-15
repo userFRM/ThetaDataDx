@@ -1,4 +1,4 @@
-# tdx — ThetaDataDxClient CLI
+# tdx — ThetaDataDx CLI
 
 Command-line interface for querying ThetaData market data.
 
@@ -133,7 +133,7 @@ tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 
 ## Endpoint coverage
 
-The 61 ThetaDataDxClient endpoints are organized by category (Stock + Option + Index + Rate + Calendar = 14 + 34 + 9 + 1 + 3 = 61). Two additional offline commands (`greeks`, `iv`) are not ThetaData endpoints — they call the in-process Black-Scholes calculator:
+The 61 ThetaDataDx endpoints are organized by category (Stock + Option + Index + Rate + Calendar = 14 + 34 + 9 + 1 + 3 = 61). Two additional offline commands (`greeks`, `iv`) are not ThetaData endpoints — they call the in-process Black-Scholes calculator:
 
 | Category | Count | Subcommands |
 |----------|-------|-------------|

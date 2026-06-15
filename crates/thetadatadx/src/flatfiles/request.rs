@@ -20,7 +20,7 @@
 //! INDEX walking, FIT decoding, and on-disk / in-memory output paths
 //! live in [`crate::flatfiles`] under the `index`, `decode`, `writer`,
 //! and `decoded` modules. Callers that want decoded vendor-format
-//! output use the higher-level [`crate::ThetaDataDxClient::flatfile_request`]
+//! output use the higher-level [`crate::Client::flatfile_request`]
 //! entry point; callers that want the raw binary stream for a custom
 //! pipeline use this entry point directly.
 

@@ -40,7 +40,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.calendar_on_date(date, *, timeout_ms=None) -> list[CalendarDay]
+Client.calendar_on_date(date, *, timeout_ms=None) -> list[CalendarDay]
 ```
 
 `calendar_on_date_async(...)` awaits the same call shape.
@@ -82,7 +82,7 @@ std::vector<CalendarDay> calendar_on_date(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Throws `tdx::Error` on failure.
+Throws `thetadatadx::Error` on failure.
 
 **Example**
 

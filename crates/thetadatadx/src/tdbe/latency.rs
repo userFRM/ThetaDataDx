@@ -20,7 +20,7 @@ use crate::tdbe::time::{civil_to_epoch_days, eastern_offset_ms};
 ///
 /// * `exchange_ms_of_day` -- milliseconds since midnight ET from the tick
 /// * `event_date` -- YYYYMMDD integer from the tick
-/// * `received_at_ns` -- nanoseconds since UNIX epoch from `FpssData.received_at_ns`
+/// * `received_at_ns` -- nanoseconds since UNIX epoch from `StreamData.received_at_ns`
 ///
 /// # Returns
 ///

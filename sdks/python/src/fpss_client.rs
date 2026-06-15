@@ -1,12 +1,12 @@
-//! Standalone Python `FpssClient` pyclass.
+//! Standalone Python `StreamingClient` pyclass.
 //!
 //! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus
 //! HTTP auth, no Treasury / Calendar / OHLCVC historical surface.
-//! Mirrors the C++ `tdx::FpssClient` (`sdks/cpp/include/thetadx.hpp`)
+//! Mirrors the C++ `tdx::StreamingClient` (`sdks/cpp/include/thetadx.hpp`)
 //! and the standalone C ABI entry points (`tdx_fpss_*` in
 //! `ffi/src/streaming.rs`), letting Python users run an FPSS-only
 //! session alongside an externally-managed MDDS process without the
-//! bundled [`crate::ThetaDataDxClient`] preempting the parallel MDDS
+//! bundled [`crate::Client`] preempting the parallel MDDS
 //! work at the Nexus session layer.
 //!
 //! # Nexus session behaviour
@@ -16,13 +16,13 @@
 //! TLS connection itself; no separate Nexus session UUID is acquired.
 //! The cross-binding contract here matches the standalone C ABI:
 //! `tdx_fpss_connect` accepts a `TdxCredentials` handle without
-//! touching Nexus. Run the bundled [`crate::ThetaDataDxClient`] (which
+//! touching Nexus. Run the bundled [`crate::Client`] (which
 //! does authenticate against Nexus) when you need the MDDS surface and
 //! Nexus session machinery side-by-side.
 //!
 //! # Lifecycle
 //!
-//! 1. `FpssClient(creds, config)` — snapshots the connect parameters.
+//! 1. `StreamingClient(creds, config)` — snapshots the connect parameters.
 //!    The FPSS TLS connection is opened lazily by `start_streaming`
 //!    (matching the FFI's deferred-connect contract).
 //! 2. `start_streaming(callback)` — opens the FPSS TLS connection and
@@ -40,7 +40,7 @@ use std::time::{Duration, Instant};
 use thetadatadx::auth::Credentials as RustCredentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-use thetadatadx::fpss::{self, FpssClient as RustFpssClient};
+use thetadatadx::fpss::{self, StreamingClient as RustStreamingClient};
 use thetadatadx::DispatcherSession as PyFpssDispatcherSession;
 
 use crate::errors::to_py_err;
@@ -87,8 +87,8 @@ impl FpssParams {
         }
     }
 
-    fn builder(&self) -> fpss::FpssClientBuilder<'_> {
-        fpss::FpssClientBuilder::new(&self.creds, &self.hosts)
+    fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
+        fpss::StreamingClientBuilder::new(&self.creds, &self.hosts)
             .ring_size(self.ring_size)
             .flush_mode(self.flush_mode)
             .reconnect_policy(self.policy.clone())
@@ -106,14 +106,14 @@ impl FpssParams {
 /// Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus
 /// HTTP authentication. Use when a parallel MDDS process is already
 /// running in the same environment and you need to test FPSS without
-/// the bundled [`crate::ThetaDataDxClient`] taking over the Nexus
+/// the bundled [`crate::Client`] taking over the Nexus
 /// session at construction time.
 ///
 /// ```python
-/// from thetadatadx import FpssClient, Credentials, Config, Contract
+/// from thetadatadx import StreamingClient, Credentials, Config, Contract
 ///
 /// creds = Credentials.from_file("creds.txt")
-/// fpss = FpssClient(creds, Config.production())
+/// fpss = StreamingClient(creds, Config.production())
 ///
 /// def on_event(event):
 ///     print(event.kind, event)
@@ -124,29 +124,29 @@ impl FpssParams {
 /// fpss.stop_streaming()
 /// ```
 // `frozen` — every `#[pymethods]` entry takes `&self` (never
-// `&mut self`). The inner `Arc<Mutex<Option<fpss::FpssClient>>>`
+// `&mut self`). The inner `Arc<Mutex<Option<fpss::StreamingClient>>>`
 // carries its own interior mutability; the pyclass shell is
 // immutable. A future `&mut self` regression surfaces as a
 // `cargo check` failure rather than slipping silently.
-#[pyclass(module = "thetadatadx", name = "FpssClient", frozen)]
-pub(crate) struct FpssClient {
+#[pyclass(module = "thetadatadx", name = "StreamingClient", frozen)]
+pub(crate) struct StreamingClient {
     /// Connect parameters captured at construction time. Reused on
     /// every `start_streaming*` / `reconnect`.
     params: FpssParams,
     /// Currently-open inner FPSS client. `None` between construction
     /// and `start_streaming*`, and after `stop_streaming` / `shutdown`.
-    inner: Mutex<Option<Arc<RustFpssClient>>>,
+    inner: Mutex<Option<Arc<RustStreamingClient>>>,
     /// Most recently registered Python callable. Retained across
     /// `start_streaming` so `reconnect()` can re-register the same
     /// handler without the caller having to pass it again. Cleared on
     /// `stop_streaming` / `shutdown` so a teardown the application has
     /// already observed does not leak the closure's captured
     /// references — same explicit-handoff model as the unified
-    /// [`crate::ThetaDataDxClient`].
+    /// [`crate::Client`].
     callback: Mutex<Option<Py<PyAny>>>,
     /// Quiescence flags of every superseded streaming session that has
     /// not yet drained. Mirrors the `prev_drained` field on the unified
-    /// [`thetadatadx::ThetaDataDxClient`] — stacked stop/start cycles
+    /// [`thetadatadx::Client`] — stacked stop/start cycles
     /// can layer multiple in-flight event-dispatch consumers, and
     /// `await_drain` must wait for all of them before reporting
     /// quiescence.
@@ -158,7 +158,7 @@ pub(crate) struct FpssClient {
     dispatcher: Mutex<thetadatadx::DispatcherSession>,
 }
 
-impl Drop for FpssClient {
+impl Drop for StreamingClient {
     /// Release the GIL across the inner drop and join the dispatcher
     /// thread so a callback in flight does not race destruction.
     ///
@@ -195,8 +195,8 @@ impl Drop for FpssClient {
     }
 }
 
-impl FpssClient {
-    fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustFpssClient>>> {
+impl StreamingClient {
+    fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustStreamingClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -208,7 +208,7 @@ impl FpssClient {
     /// `RuntimeError` when nothing is connected.
     fn with_live<R>(
         &self,
-        f: impl FnOnce(&RustFpssClient) -> Result<R, thetadatadx::Error>,
+        f: impl FnOnce(&RustStreamingClient) -> Result<R, thetadatadx::Error>,
     ) -> PyResult<R> {
         let guard = self.lock_inner();
         let client = guard.as_ref().ok_or_else(|| {
@@ -219,7 +219,7 @@ impl FpssClient {
 }
 
 #[pymethods]
-impl FpssClient {
+impl StreamingClient {
     /// Allocate a standalone FPSS handle.
     ///
     /// Snapshots the connect parameters out of the supplied `Config`
@@ -240,7 +240,7 @@ impl FpssClient {
         };
         if direct.fpss.hosts.is_empty() {
             return Err(PyValueError::new_err(
-                "FpssClient: config.fpss.hosts is empty (set THETADATA_FPSS_HOSTS or use Config::production())",
+                "StreamingClient: config.fpss.hosts is empty (set THETADATA_FPSS_HOSTS or use Config::production())",
             ));
         }
         // Seed the process-global runtime from this client's runtime config
@@ -257,13 +257,13 @@ impl FpssClient {
         })
     }
 
-    /// Convenience constructor: `FpssClient.from_file("creds.txt")`.
+    /// Convenience constructor: `StreamingClient.from_file("creds.txt")`.
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
-    /// Parity with `ThetaDataDxClient.from_file()`,
-    /// `AsyncThetaDataDxClient.from_file()`, and
-    /// `MddsClient.from_file()` — every standalone Python client
+    /// Parity with `Client.from_file()`,
+    /// `AsyncClient.from_file()`, and
+    /// `HistoricalClient.from_file()` — every standalone Python client
     /// surfaces the same one-shot constructor shape.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
@@ -281,7 +281,7 @@ impl FpssClient {
     }
 
     fn __repr__(&self) -> String {
-        // Match the bundled `ThetaDataDxClient.__repr__` key/value vocabulary
+        // Match the bundled `Client.__repr__` key/value vocabulary
         // (`streaming=connected` / `streaming=none`) so cross-class repr
         // strings parse the same way.
         // Derive the `streaming=` label from the failure-aware
@@ -294,7 +294,7 @@ impl FpssClient {
             "none"
         };
         let hosts = self.params.hosts.len();
-        format!("FpssClient(streaming={streaming}, hosts={hosts})")
+        format!("StreamingClient(streaming={streaming}, hosts={hosts})")
     }
 
     /// Open the FPSS TLS connection and register the Python callback
@@ -351,7 +351,7 @@ impl FpssClient {
         let dispatcher = std::thread::Builder::new()
             .name("tdx-py-fpss-dispatcher".into())
             .spawn(move || {
-                // `FpssClient::for_each` drives `poll_batch`, which wraps
+                // `StreamingClient::for_each` drives `poll_batch`, which wraps
                 // each callback invocation in its own `catch_unwind`.  A
                 // Rust panic in the handler is caught, recorded via
                 // `panic_count()`, and does not stop event delivery for
@@ -375,9 +375,9 @@ impl FpssClient {
                 // acquire-from-detached. This holds the no-GIL discipline:
                 // the lock never spans the blocking wait.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let dispatch_one = |event: &fpss::FpssEvent| {
+                    let dispatch_one = |event: &fpss::StreamEvent| {
                         Python::attach(|py| {
-                            // Borrowed `&FpssEvent` → typed pyclass in one
+                            // Borrowed `&StreamEvent` → typed pyclass in one
                             // pass; the contract is stored inline, so the
                             // nested `ContractRef` Python object is built
                             // only when the callback reads `event.contract`.
@@ -402,7 +402,7 @@ impl FpssClient {
                 if outcome.is_err() {
                     tracing::error!(
                         target: "thetadatadx::python",
-                        "tdx-py-fpss-dispatcher panicked in event iteration machinery; FpssClient transitioning to failed state",
+                        "tdx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
                     );
                 }
             });
@@ -449,9 +449,9 @@ impl FpssClient {
 
     /// Whether the FPSS session is currently authenticated.
     ///
-    /// Mirrors the C++ `tdx::FpssClient::is_authenticated()` getter and
+    /// Mirrors the C++ `tdx::StreamingClient::is_authenticated()` getter and
     /// the C ABI `tdx_fpss_is_authenticated`. Distinct from
-    /// `is_streaming()`: the TLS slot can hold an `RustFpssClient` whose
+    /// `is_streaming()`: the TLS slot can hold an `RustStreamingClient` whose
     /// `authenticated` flag has been flipped to `false` after a server
     /// disconnect, before the application has issued `reconnect()`.
     ///
@@ -654,7 +654,7 @@ impl FpssClient {
     /// handle. Pinning the ordering here closes that race
     /// proactively.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
-        // Take the `Arc<RustFpssClient>` out of `inner` and the stored
+        // Take the `Arc<RustStreamingClient>` out of `inner` and the stored
         // Python callable out of `callback` under the binding mutexes,
         // then release both before signalling shutdown so a dispatcher
         // re-entering any pyclass method via the callback never sees a
@@ -698,7 +698,7 @@ impl FpssClient {
                             tracing::error!(
                                 target: "thetadatadx::python",
                                 reason = %reason,
-                                "tdx-py-fpss-dispatcher panicked; FpssClient marked as failed",
+                                "tdx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
                             );
                             *dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner()) =
                                 PyFpssDispatcherSession::Failed { reason };
@@ -720,7 +720,7 @@ impl FpssClient {
     /// installed callback. Requires a prior `start_streaming(callback)`;
     /// raises `RuntimeError` otherwise.
     ///
-    /// Mirrors [`thetadatadx::ThetaDataDxClient::reconnect_streaming`]:
+    /// Mirrors [`thetadatadx::Client::reconnect_streaming`]:
     /// saves the active per-contract and full-stream subscriptions
     /// against the old session, opens a fresh FPSS connection under
     /// the previously installed callback, and re-applies the saved

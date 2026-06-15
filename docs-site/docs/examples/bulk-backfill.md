@@ -12,9 +12,9 @@ Two tools make large pulls civilized: per-day request splitting with your tier's
 ```python
 import asyncio
 
-from thetadatadx import Config, Credentials, ThetaDataDxClient, split_date_range
+from thetadatadx import Config, Credentials, Client, split_date_range
 
-tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+tdx = Client(Credentials.from_file("creds.txt"), Config.production())
 
 def on_chunk(chunk):
     # chunk: list of TradeTick — write to your store, then it is freed.

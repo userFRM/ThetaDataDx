@@ -1,7 +1,7 @@
 //! C++ SDK emitter.
 //!
 //! Generates the EndpointRequestOptions header, per-endpoint method
-//! declarations/definitions on `MddsClient`, and the cgo-facing
+//! declarations/definitions on `HistoricalClient`, and the cgo-facing
 //! `_with_options` extern decl header.
 
 use std::fmt::Write as _;
@@ -87,7 +87,7 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out
 }
 
-/// Renders the `MddsClient` member-function declarations for every
+/// Renders the `HistoricalClient` member-function declarations for every
 /// non-streaming endpoint, including the singular-symbol overloads.
 pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
@@ -167,7 +167,7 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
 }
 
 /// Emit the `<endpoint>_stream(...)` server-stream method *declarations* on the
-/// C++ `ThetaDataDxClient`, included in the class body via
+/// C++ `Client`, included in the class body via
 /// `sdks/cpp/include/historical_stream.hpp.inc`.
 ///
 /// Declarations only — the definitions live out-of-line in
@@ -225,12 +225,12 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
     out
 }
 
-/// Emit the out-of-line `ThetaDataDxClient::<endpoint>_stream(...)`
+/// Emit the out-of-line `Client::<endpoint>_stream(...)`
 /// definitions, included in `thetadx.cpp` via
 /// `sdks/cpp/src/historical_stream.cpp.inc`.
 ///
-/// Each borrows the historical `TdxMddsClient*` from the unified handle
-/// (`tdx_unified_historical`), builds the same `EndpointRequestOptions` the
+/// Each borrows the historical `TdxHistoricalClient*` from the unified handle
+/// (`tdx_client_historical`), builds the same `EndpointRequestOptions` the
 /// buffered methods take, erases the typed `handler` to a
 /// `std::function<void(const void*, size_t)>` that reinterprets each chunk
 /// pointer as the endpoint's tick type, and drives the C-ABI
@@ -254,12 +254,14 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
 
         writeln!(
             out,
-            "void ThetaDataDxClient::{}_stream({}) const {{",
+            "void Client::{}_stream({}) const {{",
             endpoint.name,
             cpp_stream_signature(endpoint, false),
         )
         .unwrap();
-        out.push_str("    const TdxMddsClient* hist = tdx_unified_historical(handle_.get());\n");
+        out.push_str(
+            "    const TdxHistoricalClient* hist = tdx_client_historical(handle_.get());\n",
+        );
         out.push_str("    if (hist == nullptr) {\n");
         out.push_str("        detail::throw_last_ffi_error();\n");
         out.push_str("    }\n");
@@ -278,7 +280,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         for param in &method_params {
             write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
         }
-        out.push_str(", &ThetaDataDxClient::stream_chunk_shim, &erased, &ffi_options.raw);\n");
+        out.push_str(", &Client::stream_chunk_shim, &erased, &ffi_options.raw);\n");
         out.push_str("    if (rc != 0) {\n");
         out.push_str("        detail::throw_last_ffi_error();\n");
         out.push_str("    }\n");
@@ -287,7 +289,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
     out
 }
 
-/// Renders the `MddsClient` member-function definitions for every
+/// Renders the `HistoricalClient` member-function definitions for every
 /// non-streaming endpoint, bridging each into its `_with_options` FFI call.
 pub(super) fn render_cpp_historical_defs(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
@@ -332,7 +334,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
         singular_parts.push("const EndpointRequestOptions& options".into());
         writeln!(
             out,
-            "std::vector<{}> MddsClient::{}({}) const {{",
+            "std::vector<{}> HistoricalClient::{}({}) const {{",
             cpp_value_type(&endpoint.return_type),
             endpoint.name,
             singular_parts.join(", ")
@@ -354,7 +356,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     }
     writeln!(
         out,
-        "std::vector<{}> MddsClient::{}({}) const {{",
+        "std::vector<{}> HistoricalClient::{}({}) const {{",
         cpp_value_type(&endpoint.return_type),
         endpoint.name,
         signature_parts.join(", ")
@@ -447,7 +449,7 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
         let params = method_params(endpoint);
         write!(
             out,
-            "extern {} {}(const TdxMddsClient* client",
+            "extern {} {}(const TdxHistoricalClient* client",
             return_type, ffi_name
         )
         .unwrap();

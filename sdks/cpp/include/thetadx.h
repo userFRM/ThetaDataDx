@@ -5,7 +5,7 @@
  * Used by both the C++ wrapper and any other C-compatible language.
  *
  * Memory model:
- * - Opaque handles (TdxCredentials*, TdxMddsClient*, TdxConfig*) are heap-allocated
+ * - Opaque handles (TdxCredentials*, TdxHistoricalClient*, TdxConfig*) are heap-allocated
  *   by the library and MUST be freed with the corresponding tdx_*_free function.
  * - Tick data is returned as fixed-layout struct arrays. Each array type has a
  *   corresponding tdx_*_array_free function that MUST be called.
@@ -37,10 +37,10 @@ extern "C" {
 
 /* ── Opaque handle types ── */
 typedef struct TdxCredentials TdxCredentials;
-typedef struct TdxMddsClient TdxMddsClient;
+typedef struct TdxHistoricalClient TdxHistoricalClient;
 typedef struct TdxConfig TdxConfig;
-typedef struct TdxFpssHandle TdxFpssHandle;
-typedef struct TdxUnified TdxUnified;
+typedef struct TdxStreamHandle TdxStreamHandle;
+typedef struct TdxClient TdxClient;
 
 /* Generated request-options bridge shared with the FFI surface. */
 #include "endpoint_request_options.h.inc"
@@ -1795,30 +1795,30 @@ void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n
  */
 int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config, size_t* out_n);
 
-/* ── MddsClient ── */
+/* ── HistoricalClient ── */
 
 /** Connect a historical (MDDS) client to ThetaData servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          tdx_mdds_client_free, or NULL on connection/auth failure
+ *          tdx_historical_free, or NULL on connection/auth failure
  *          (check tdx_last_error()). */
-TdxMddsClient* tdx_mdds_client_connect(const TdxCredentials* creds, const TdxConfig* config);
+TdxHistoricalClient* tdx_historical_connect(const TdxCredentials* creds, const TdxConfig* config);
 
 /** Connect a historical (MDDS) client, reading credentials from a file
  *  (line 1 = email, line 2 = password). One-call equivalent of
- *  tdx_credentials_from_file + tdx_mdds_client_connect.
+ *  tdx_credentials_from_file + tdx_historical_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          tdx_mdds_client_free, or NULL on argument or connection/auth
+ *          tdx_historical_free, or NULL on argument or connection/auth
  *          failure (check tdx_last_error()). */
-TdxMddsClient* tdx_mdds_client_connect_from_file(const char* path, const TdxConfig* config);
+TdxHistoricalClient* tdx_historical_connect_from_file(const char* path, const TdxConfig* config);
 
 /** Release a historical (MDDS) client handle.
- *  @param client Handle from a tdx_mdds_client_connect* call; no-op when
+ *  @param client Handle from a tdx_historical_connect* call; no-op when
  *                NULL. Call exactly once. */
-void tdx_mdds_client_free(TdxMddsClient* client);
+void tdx_historical_free(TdxHistoricalClient* client);
 
 /* ── String free ── */
 
@@ -2014,7 +2014,7 @@ int32_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t* out);
 /** Read the option strike of a streaming TdxContract in dollars, folding
  *  the has_strike presence flag into the return value. TdxContract.strike
  *  already carries dollars; this surfaces the presence flag a plain field
- *  read would drop. Mirrors the C++ tdx::strike(const TdxContract&) accessor.
+ *  read would drop. Mirrors the C++ thetadatadx::strike(const TdxContract&) accessor.
  *  @param contract The streaming contract to read.
  *  @param out_dollars Receives the strike in dollars when the contract is an
  *                     option; left untouched otherwise.
@@ -2029,53 +2029,53 @@ bool tdx_contract_strike_dollars(const TdxContract* contract, double* out_dollar
 /** Connect to the real-time streaming servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A streaming handle the caller must release with tdx_fpss_free, or
+ *  @return A streaming handle the caller must release with tdx_streaming_free, or
  *          NULL on failure (check tdx_last_error()). */
-TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
+TdxStreamHandle* tdx_streaming_connect(const TdxCredentials* creds, const TdxConfig* config);
 
 /** Connect to the real-time streaming servers, reading credentials from a
  *  file (line 1 = email, line 2 = password). One-call equivalent of
- *  tdx_credentials_from_file + tdx_fpss_connect.
+ *  tdx_credentials_from_file + tdx_streaming_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A streaming handle the caller must release with tdx_fpss_free, or
+ *  @return A streaming handle the caller must release with tdx_streaming_free, or
  *          NULL on failure (check tdx_last_error()). */
-TdxFpssHandle* tdx_fpss_connect_from_file(const char* path, const TdxConfig* config);
+TdxStreamHandle* tdx_streaming_connect_from_file(const char* path, const TdxConfig* config);
 
 /** Polymorphic subscribe / unsubscribe — see TdxSubscriptionRequest below. */
 
 /** Report whether the streaming session is authenticated.
  *  @param h The streaming handle.
  *  @return 1 when authenticated, 0 otherwise. */
-int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
+int tdx_streaming_is_authenticated(const TdxStreamHandle* h);
 
 /** Read the active subscriptions as a typed array.
  *  @param h The streaming handle.
  *  @return A subscription array the caller MUST free with
  *          tdx_subscription_array_free. */
-TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
+TdxSubscriptionArray* tdx_streaming_active_subscriptions(const TdxStreamHandle* h);
 
 /** User callback signature for tdx_*_set_callback.
  *  `event` is valid only for the duration of the call -- copy any fields the
  *  caller wants to outlive the callback. `ctx` is the opaque pointer the
  *  caller registered alongside the callback; it is passed back unchanged. */
-typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
+typedef void (*TdxStreamCallback)(const TdxStreamEvent* event, void* ctx);
 
 /** Register a streaming callback and open the streaming connection.
  *
  *  Events flow from the streaming reader through a bounded ring to a
  *  dedicated consumer thread, which invokes the callback inside an
  *  isolation boundary. The reader thread NEVER blocks on user code:
- *  on ring overflow events are dropped and counted (tdx_fpss_dropped_events).
+ *  on ring overflow events are dropped and counted (tdx_streaming_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid until ONE of: (a) tdx_fpss_free() returns
+ *  `ctx` MUST remain valid until ONE of: (a) tdx_streaming_free() returns
  *  (which performs shutdown if needed and applies the drain barrier
- *  internally with a 5 s timeout), or (b) tdx_fpss_shutdown() /
- *  tdx_fpss_reconnect() returns AND tdx_fpss_await_drain() has
+ *  internally with a 5 s timeout), or (b) tdx_streaming_shutdown() /
+ *  tdx_streaming_reconnect() returns AND tdx_streaming_await_drain() has
  *  returned 1. The consumer thread accesses ctx on every event and on
- *  every tdx_fpss_reconnect(), serially on a single thread. Freeing ctx
+ *  every tdx_streaming_reconnect(), serially on a single thread. Freeing ctx
  *  without one of these barriers is undefined behavior.
  *
  *  The consumer thread invokes `callback(event, ctx)` serially on
@@ -2084,53 +2084,53 @@ typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
  *
  *  ## Lifecycle contract (one-shot rule)
  *
- *  Must be called exactly ONCE per handle. After tdx_fpss_shutdown() this
+ *  Must be called exactly ONCE per handle. After tdx_streaming_shutdown() this
  *  handle is terminal: a second register, a register-after-shutdown, a
  *  reconnect-after-shutdown, or a double-shutdown all return -1 with a
  *  clear tdx_last_error() string ("streaming callback already installed -- ..."
  *  or "streaming handle has already been shut down -- this is terminal").
  *
- *  This is intentionally stricter than tdx_unified_set_callback(), where
+ *  This is intentionally stricter than tdx_client_set_callback(), where
  *  set-after-stop is supported as a normal user flow.
  *
  *  @param h        The streaming handle.
  *  @param callback The callback invoked once per streaming event.
  *  @param ctx      Opaque user pointer passed to every callback invocation.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
+int tdx_streaming_set_callback(const TdxStreamHandle* h, TdxStreamCallback callback, void* ctx);
 
 /** Reconnect the streaming session using the previously-registered
  *  callback.
  *  @param h The streaming handle.
  *  @return 0 on success, -1 on error; -1 with "streaming handle has already
  *          been shut down -- this is terminal" if the handle is past
- *          tdx_fpss_shutdown. */
-int tdx_fpss_reconnect(const TdxFpssHandle* h);
+ *          tdx_streaming_shutdown. */
+int tdx_streaming_reconnect(const TdxStreamHandle* h);
 
 /** Cumulative count of streaming events that could not be published into
  *  the bounded ring because the consumer fell behind and the ring was full.
  *  @param h The streaming handle.
  *  @return The dropped-event count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
+uint64_t tdx_streaming_dropped_events(const TdxStreamHandle* h);
 
 /** Point-in-time count of streaming events published into the event ring
  *  but not yet drained into the registered callback — the in-flight depth
  *  between the feed and the dispatcher. Rising occupancy that approaches
- *  tdx_fpss_ring_capacity predicts drops before tdx_fpss_dropped_events
+ *  tdx_streaming_ring_capacity predicts drops before tdx_streaming_dropped_events
  *  moves; sampling never blocks the feed and is safe from any thread.
  *  @param h The streaming handle.
  *  @return The current ring occupancy, or 0 if the handle is null or has
  *          been shut down. */
-uint64_t tdx_fpss_ring_occupancy(const TdxFpssHandle* h);
+uint64_t tdx_streaming_ring_occupancy(const TdxStreamHandle* h);
 
 /** Configured capacity of the streaming event ring in slots (the
  *  fpss_ring_size setting, a power of two) — the fixed denominator for
- *  tdx_fpss_ring_occupancy.
+ *  tdx_streaming_ring_occupancy.
  *  @param h The streaming handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or has
  *          been shut down. */
-uint64_t tdx_fpss_ring_capacity(const TdxFpssHandle* h);
+uint64_t tdx_streaming_ring_capacity(const TdxStreamHandle* h);
 
 /** Milliseconds since the most recent inbound streaming frame of any kind
  *  on this streaming handle.
@@ -2138,21 +2138,21 @@ uint64_t tdx_fpss_ring_capacity(const TdxFpssHandle* h);
  *  @param out_ms Receives the elapsed milliseconds on success.
  *  @return 0 on success with the value in *out_ms, 1 when no session is live
  *          or no frame has been received yet, -1 on a null pointer. */
-int32_t tdx_fpss_millis_since_last_event(const TdxFpssHandle* h, uint64_t* out_ms);
+int32_t tdx_streaming_millis_since_last_event(const TdxStreamHandle* h, uint64_t* out_ms);
 
 /** UNIX-nanosecond receive timestamp of the most recent inbound streaming
  *  frame of any kind on this streaming handle.
  *  @param h The streaming handle.
  *  @return The receive timestamp in Unix nanoseconds, or 0 when the handle
  *          is null, no session is live, or no frame has been received yet. */
-int64_t tdx_fpss_last_event_received_at_unix_nanos(const TdxFpssHandle* h);
+int64_t tdx_streaming_last_event_received_at_unix_nanos(const TdxStreamHandle* h);
 
 /** Address (host:port) of the streaming server the current session is
  *  connected to, following the session across auto-reconnects.
  *  @param h The streaming handle.
  *  @return A heap-owned C string the caller must release with
  *          tdx_string_free, or NULL when no session is live. */
-char* tdx_fpss_last_connected_addr(const TdxFpssHandle* h);
+char* tdx_streaming_last_connected_addr(const TdxStreamHandle* h);
 
 
 
@@ -2164,30 +2164,30 @@ char* tdx_fpss_last_connected_addr(const TdxFpssHandle* h);
  *  @param h The streaming handle.
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_fpss_panic_count(const TdxFpssHandle* h);
+uint64_t tdx_streaming_panic_count(const TdxStreamHandle* h);
 
 /** Shut down the streaming client. Terminal: every subsequent
  *  set_callback / reconnect / shutdown call on this handle returns -1
  *  with a clear tdx_last_error() string. The handle remains valid for
- *  tdx_fpss_free() only. Returns asynchronously: in-flight events
+ *  tdx_streaming_free() only. Returns asynchronously: in-flight events
  *  continue draining through the registered callback until the shutdown
  *  signal is observed.
  *  @param h The streaming handle.
- *  @note Pair with tdx_fpss_await_drain() (or use tdx_fpss_free(), which
+ *  @note Pair with tdx_streaming_await_drain() (or use tdx_streaming_free(), which
  *        applies the drain barrier internally) before freeing the callback
  *        ctx. */
-void tdx_fpss_shutdown(const TdxFpssHandle* h);
+void tdx_streaming_shutdown(const TdxStreamHandle* h);
 
 /** Wait for the previously-superseded streaming session to quiesce.
  *  @param h The streaming handle.
  *  @param timeout_ms Maximum time to wait, in milliseconds.
- *  @return 1 once the previous tdx_fpss_reconnect / tdx_fpss_shutdown
+ *  @return 1 once the previous tdx_streaming_reconnect / tdx_streaming_shutdown
  *          session has finished firing the registered callback; 0 on timeout
  *          or when no session has been superseded on this handle.
  *  @note Must be called from a thread other than the streaming consumer;
  *        calling it from inside the user callback would block the very work
  *        it waits on and always time out. */
-int tdx_fpss_await_drain(const TdxFpssHandle* h, uint64_t timeout_ms);
+int tdx_streaming_await_drain(const TdxStreamHandle* h, uint64_t timeout_ms);
 
 /** Free the streaming handle. Accepts the handle in either lifecycle state:
  *  if shutdown has not yet been called, this performs the shutdown sequence
@@ -2198,7 +2198,7 @@ int tdx_fpss_await_drain(const TdxFpssHandle* h, uint64_t timeout_ms);
  *  operation drain completes in low single-digit milliseconds, so ctx is
  *  safe to free immediately on return.
  *  @param h The streaming handle; no-op when NULL. Call exactly once. */
-void tdx_fpss_free(TdxFpssHandle* h);
+void tdx_streaming_free(TdxStreamHandle* h);
 
 /* ======================================================================= */
 /*  Unified client -- historical + streaming through one handle            */
@@ -2207,45 +2207,45 @@ void tdx_fpss_free(TdxFpssHandle* h);
 /** Connect to ThetaData (historical only -- real-time streaming is NOT started).
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A unified handle the caller must release with tdx_unified_free, or
+ *  @return A unified handle the caller must release with tdx_client_free, or
  *          NULL on connection/auth failure (check tdx_last_error()). */
-TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
+TdxClient* tdx_client_connect(const TdxCredentials* creds, const TdxConfig* config);
 
 /** Connect a unified client, reading credentials from a file (line 1 = email,
  *  line 2 = password). One-call equivalent of tdx_credentials_from_file +
- *  tdx_unified_connect.
+ *  tdx_client_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
- *  @return A unified handle the caller must release with tdx_unified_free, or
+ *  @return A unified handle the caller must release with tdx_client_free, or
  *          NULL on argument or connection/auth failure (check
  *          tdx_last_error()). */
-TdxUnified* tdx_unified_connect_from_file(const char* path, const TdxConfig* config);
+TdxClient* tdx_client_connect_from_file(const char* path, const TdxConfig* config);
 
 /** Register a streaming callback and start streaming on the unified client.
  *
  *  Events flow from the streaming reader through a bounded ring to a
  *  dedicated consumer thread, which invokes the callback inside an
  *  isolation boundary. Reader never blocks on user code; ring-overflow
- *  events are dropped (tdx_unified_dropped_events).
+ *  events are dropped (tdx_client_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid until ONE of: (a) tdx_unified_free()
+ *  `ctx` MUST remain valid until ONE of: (a) tdx_client_free()
  *  returns (which calls stop_streaming and applies the drain barrier
- *  internally with a 5 s timeout), (b) tdx_unified_stop_streaming() /
- *  tdx_unified_reconnect() returns AND tdx_unified_await_drain() has
- *  returned 1, or (c) a successful replacement tdx_unified_set_callback
- *  has returned AND tdx_unified_await_drain() has returned 1 for the
+ *  internally with a 5 s timeout), (b) tdx_client_stop_streaming() /
+ *  tdx_client_reconnect() returns AND tdx_client_await_drain() has
+ *  returned 1, or (c) a successful replacement tdx_client_set_callback
+ *  has returned AND tdx_client_await_drain() has returned 1 for the
  *  prior session. The consumer thread accesses ctx on every event and
  *  reconnect, serially on a single thread. Freeing ctx without one of
  *  these barriers is undefined behavior.
  *
  *  ## Lifecycle contract (REPLACEMENT after stop)
  *
- *  Unlike tdx_fpss_set_callback (one-shot), the unified path supports
- *  stop+register as a normal user flow: after tdx_unified_stop_streaming
- *  another tdx_unified_set_callback REPLACES the saved (callback, ctx).
- *  tdx_unified_reconnect is built on top of this. Calling set_callback
+ *  Unlike tdx_streaming_set_callback (one-shot), the unified path supports
+ *  stop+register as a normal user flow: after tdx_client_stop_streaming
+ *  another tdx_client_set_callback REPLACES the saved (callback, ctx).
+ *  tdx_client_reconnect is built on top of this. Calling set_callback
  *  while streaming is already active returns -1 with "streaming already
  *  started".
  *
@@ -2253,7 +2253,7 @@ TdxUnified* tdx_unified_connect_from_file(const char* path, const TdxConfig* con
  *  @param callback The callback invoked once per streaming event.
  *  @param ctx      Opaque user pointer passed to every callback invocation.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
+int tdx_client_set_callback(const TdxClient* handle, TdxStreamCallback callback, void* ctx);
 
 /** Subscription request scope discriminator (TdxSubscriptionRequest.scope). */
 #define TDX_SUB_SCOPE_CONTRACT 0
@@ -2287,41 +2287,41 @@ typedef struct {
  *  @param handle The unified handle.
  *  @param request The subscription request payload.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_unified_subscribe(const TdxUnified* handle, const TdxSubscriptionRequest* request);
+int tdx_client_subscribe(const TdxClient* handle, const TdxSubscriptionRequest* request);
 
 /** Polymorphic unsubscribe on the unified client.
  *  @param handle The unified handle.
  *  @param request The subscription request payload.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_unified_unsubscribe(const TdxUnified* handle, const TdxSubscriptionRequest* request);
+int tdx_client_unsubscribe(const TdxClient* handle, const TdxSubscriptionRequest* request);
 
 /** Polymorphic subscribe on the standalone streaming client.
  *  @param h The streaming handle.
  *  @param request The subscription request payload.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_fpss_subscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
+int tdx_streaming_subscribe(const TdxStreamHandle* h, const TdxSubscriptionRequest* request);
 
 /** Polymorphic unsubscribe on the standalone streaming client.
  *  @param h The streaming handle.
  *  @param request The subscription request payload.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_fpss_unsubscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
+int tdx_streaming_unsubscribe(const TdxStreamHandle* h, const TdxSubscriptionRequest* request);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions.
  *  @param handle The unified handle.
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
-int tdx_unified_reconnect(const TdxUnified* handle);
+int tdx_client_reconnect(const TdxClient* handle);
 
 /** Report whether streaming is active on the unified client.
  *  @param handle The unified handle.
  *  @return 1 when streaming, 0 otherwise. */
-int tdx_unified_is_streaming(const TdxUnified* handle);
+int tdx_client_is_streaming(const TdxClient* handle);
 
 /** Read the active subscriptions as a typed array.
  *  @param handle The unified handle.
  *  @return A subscription array the caller MUST free with
  *          tdx_subscription_array_free. */
-TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
+TdxSubscriptionArray* tdx_client_active_subscriptions(const TdxClient* handle);
 
 /** Read the active full-stream subscriptions as a typed array. Each entry's
  *  `contract` field carries the security-type discriminant
@@ -2332,22 +2332,22 @@ TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle)
  *  @param handle The unified handle.
  *  @return A subscription array the caller MUST free with
  *          tdx_subscription_array_free, or NULL on error. */
-TdxSubscriptionArray* tdx_unified_active_full_subscriptions(const TdxUnified* handle);
+TdxSubscriptionArray* tdx_client_active_full_subscriptions(const TdxClient* handle);
 
 /** Borrow the historical client from a unified handle.
  *  @param handle The unified handle.
  *  @return A borrowed historical client pointer owned by the unified handle;
  *          do NOT free it. */
-const TdxMddsClient* tdx_unified_historical(const TdxUnified* handle);
+const TdxHistoricalClient* tdx_client_historical(const TdxClient* handle);
 
 /** Stop streaming on the unified client. Historical remains available.
  *  Returns asynchronously: in-flight events continue draining through the
  *  registered callback until the shutdown signal is observed.
  *  @param handle The unified handle.
- *  @note Pair with tdx_unified_await_drain() (or use tdx_unified_free(),
+ *  @note Pair with tdx_client_await_drain() (or use tdx_client_free(),
  *        which applies the drain barrier internally) before freeing the
  *        callback ctx. */
-void tdx_unified_stop_streaming(const TdxUnified* handle);
+void tdx_client_stop_streaming(const TdxClient* handle);
 
 /** Wait for the previously-superseded streaming session to quiesce.
  *  @param handle The unified handle.
@@ -2356,32 +2356,32 @@ void tdx_unified_stop_streaming(const TdxUnified* handle);
  *          callback; 0 on timeout or when no stream has ever been started or
  *          stopped on this handle.
  *  @note Must be called from a thread other than the streaming consumer. */
-int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
+int tdx_client_await_drain(const TdxClient* handle, uint64_t timeout_ms);
 
 /** Cumulative count of streaming events that could not be published into
  *  the bounded ring because the consumer fell behind and the ring was full.
  *  @param handle The unified handle.
  *  @return The dropped-event count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
+uint64_t tdx_client_dropped_events(const TdxClient* handle);
 
 /** Point-in-time count of streaming events published into the event ring
  *  but not yet drained into the registered callback — the in-flight depth
  *  between the feed and the dispatcher. Rising occupancy that approaches
- *  tdx_unified_ring_capacity predicts drops before tdx_unified_dropped_events
+ *  tdx_client_ring_capacity predicts drops before tdx_client_dropped_events
  *  moves; sampling never blocks the feed and is safe from any thread.
  *  @param handle The unified handle.
  *  @return The current ring occupancy, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_unified_ring_occupancy(const TdxUnified* handle);
+uint64_t tdx_client_ring_occupancy(const TdxClient* handle);
 
 /** Configured capacity of the streaming event ring in slots (the
  *  fpss_ring_size setting, a power of two) — the fixed denominator for
- *  tdx_unified_ring_occupancy.
+ *  tdx_client_ring_occupancy.
  *  @param handle The unified handle.
  *  @return The ring capacity in slots, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_unified_ring_capacity(const TdxUnified* handle);
+uint64_t tdx_client_ring_capacity(const TdxClient* handle);
 
 /** Milliseconds since the most recent inbound streaming frame of any kind
  *  on this unified handle.
@@ -2389,7 +2389,7 @@ uint64_t tdx_unified_ring_capacity(const TdxUnified* handle);
  *  @param out_ms Receives the elapsed milliseconds on success.
  *  @return 0 on success with the value in *out_ms, 1 when streaming has not
  *          started or no frame has been received yet, -1 on a null pointer. */
-int32_t tdx_unified_millis_since_last_event(const TdxUnified* handle, uint64_t* out_ms);
+int32_t tdx_client_millis_since_last_event(const TdxClient* handle, uint64_t* out_ms);
 
 /** UNIX-nanosecond receive timestamp of the most recent inbound streaming
  *  frame of any kind on this unified handle.
@@ -2397,14 +2397,14 @@ int32_t tdx_unified_millis_since_last_event(const TdxUnified* handle, uint64_t* 
  *  @return The receive timestamp in Unix nanoseconds, or 0 when the handle
  *          is null, streaming has not started, or no frame has been received
  *          yet. */
-int64_t tdx_unified_last_event_received_at_unix_nanos(const TdxUnified* handle);
+int64_t tdx_client_last_event_received_at_unix_nanos(const TdxClient* handle);
 
 /** Address (host:port) of the streaming server the current session is
  *  connected to, following the session across auto-reconnects.
  *  @param handle The unified handle.
  *  @return A heap-owned C string the caller must release with
  *          tdx_string_free, or NULL when streaming has not started. */
-char* tdx_unified_last_connected_addr(const TdxUnified* handle);
+char* tdx_client_last_connected_addr(const TdxClient* handle);
 
 
 
@@ -2416,9 +2416,9 @@ char* tdx_unified_last_connected_addr(const TdxUnified* handle);
  *  @param handle The unified handle.
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
-uint64_t tdx_unified_panic_count(const TdxUnified* handle);
+uint64_t tdx_client_panic_count(const TdxClient* handle);
 
-/** Free a unified client handle. Calls tdx_unified_stop_streaming
+/** Free a unified client handle. Calls tdx_client_stop_streaming
  *  internally, then waits up to 5 seconds for the registered callback to
  *  finish firing before destroying the handle. On drain timeout it logs an
  *  error and proceeds with destruction; in that diagnostic case the callback
@@ -2426,7 +2426,7 @@ uint64_t tdx_unified_panic_count(const TdxUnified* handle);
  *  normal operation drain completes in low single-digit milliseconds, so ctx
  *  is safe to free immediately on return.
  *  @param handle The unified handle; no-op when NULL. Call exactly once. */
-void tdx_unified_free(TdxUnified* handle);
+void tdx_client_free(TdxClient* handle);
 
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
@@ -2460,7 +2460,7 @@ typedef struct TdxFlatFileBytes {
  *          tdx_flatfile_rowlist_free, or NULL on error (check
  *          tdx_last_error()). */
 TdxFlatFileRowList* tdx_flatfile_request_decoded(
-    const TdxUnified* handle,
+    const TdxClient* handle,
     const char* sec_type,
     const char* req_type,
     const char* date);
@@ -2500,7 +2500,7 @@ void tdx_flatfile_rowlist_free(TdxFlatFileRowList* rowlist);
  *  @param format Output format, "csv" or "jsonl".
  *  @return 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_flatfile_request_to_path(
-    const TdxUnified* handle,
+    const TdxClient* handle,
     const char* sec_type,
     const char* req_type,
     const char* date,

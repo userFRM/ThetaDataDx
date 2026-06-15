@@ -9,11 +9,11 @@ Pins the contract that the wrapper:
 * emits a `RuntimeWarning` when the drain barrier times out, without
   swallowing the original exception from the `with` body;
 * exposes every public `subscribe_*` / `unsubscribe_*` method on the
-  underlying `ThetaDataDxClient` via `StreamingSession.__getattr__` proxy --
+  underlying `Client` via `StreamingSession.__getattr__` proxy --
   no hand-listed mirror, single source of truth.
 
 Live tests are gated on ``THETADX_TEST_CREDS=path/to/creds.txt``
-because the underlying `ThetaDataDxClient` needs a real FPSS handshake.
+because the underlying `Client` needs a real FPSS handshake.
 Static surface tests run without credentials.
 """
 
@@ -39,7 +39,7 @@ def _import_module():
 
 @pytest.fixture
 def tdx():
-    """Build a real `ThetaDataDxClient` client or skip the test."""
+    """Build a real `Client` client or skip the test."""
     creds_path = os.environ.get("THETADX_TEST_CREDS")
     if not creds_path:
         pytest.skip(
@@ -48,7 +48,7 @@ def tdx():
     mod = _import_module()
     creds = mod.Credentials.from_file(creds_path)
     config = mod.Config.production()
-    client = mod.ThetaDataDxClient(creds, config)
+    client = mod.Client(creds, config)
     yield client
     try:
         client.stop_streaming()
@@ -66,7 +66,7 @@ def _noop_callback(_event: Any) -> None:
 
 
 def test_streaming_session_class_exported() -> None:
-    """`StreamingSession` is exported alongside `ThetaDataDxClient` so users
+    """`StreamingSession` is exported alongside `Client` so users
     can type-annotate the bound name from `with tdx.streaming(cb) as s`.
     """
     mod = _import_module()
@@ -78,7 +78,7 @@ def test_thetadatadx_has_streaming_factory() -> None:
     the method exists on the class without needing a live connection.
     """
     mod = _import_module()
-    assert hasattr(mod.ThetaDataDxClient, "streaming")
+    assert hasattr(mod.Client, "streaming")
 
 
 def test_context_manager_enter_exit_lifecycle(tdx) -> None:
@@ -89,10 +89,10 @@ def test_context_manager_enter_exit_lifecycle(tdx) -> None:
     assert tdx.is_streaming() is False
     with tdx.streaming(_noop_callback) as session:
         # `session` is the StreamingSession; subscribe methods proxy
-        # through __getattr__ to the underlying ThetaDataDxClient.
+        # through __getattr__ to the underlying Client.
         assert tdx.is_streaming() is True
         # Exercise the proxy SSOT: a method that lives on
-        # `ThetaDataDxClient` is reachable on `session` without a hand-listed
+        # `Client` is reachable on `session` without a hand-listed
         # mirror.
         active = session.active_subscriptions()
         assert isinstance(active, list)
@@ -115,18 +115,18 @@ def test_context_manager_swallows_no_exceptions(tdx) -> None:
 
 
 def test_context_manager_proxies_subscribe_methods(tdx) -> None:
-    """SSOT: every public method on `ThetaDataDxClient` is reachable on the
+    """SSOT: every public method on `Client` is reachable on the
     bound session via `StreamingSession.__getattr__`. There is NO
     hand-listed mirror -- adding a new subscribe method to
-    `ThetaDataDxClient` makes it callable through the session automatically.
+    `Client` makes it callable through the session automatically.
     """
     from thetadatadx import Contract
 
     with tdx.streaming(_noop_callback) as session:
-        # The polymorphic `subscribe(sub)` lives on `ThetaDataDxClient`, not
+        # The polymorphic `subscribe(sub)` lives on `Client`, not
         # on `StreamingSession`. Proxy must forward.
         session.subscribe(Contract.stock("AAPL").quote())
-        # `dropped_event_count` lives on `ThetaDataDxClient`, not on
+        # `dropped_event_count` lives on `Client`, not on
         # `StreamingSession`. Proxy must forward and return an int.
         count = session.dropped_event_count()
         assert isinstance(count, int)

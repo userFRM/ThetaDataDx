@@ -345,11 +345,11 @@ def test_surface_vocab_flags_embedded_impl_token() -> None:
 
 def test_surface_vocab_allows_vendor_protocol_names() -> None:
     """Vendor protocol names (mdds / fpss) are allow-listed; the
-    `MddsClient` class and `mdds_host` / `fpss_ring_size` setters must
+    `HistoricalClient` class and `mdds_host` / `fpss_ring_size` setters must
     NOT trip.
     """
     errors = cbp._check_public_surface_vocab(
-        {"MddsClient", "FpssClient"}, set(), set(),
+        {"HistoricalClient", "StreamingClient"}, set(), set(),
         {"mdds_host", "mdds_port", "fpss_ring_size"}, set(), set(), set(),
         {}, {}, {},
     )
@@ -664,7 +664,7 @@ def test_utility_roster_live_complete() -> None:
 def test_from_file_parity_all_bound_passes() -> None:
     rows = [
         {
-            "name": "MddsClient",
+            "name": "HistoricalClient",
             "python": True,
             "typescript": True,
             "cpp": True,
@@ -672,7 +672,7 @@ def test_from_file_parity_all_bound_passes() -> None:
         }
     ]
     errors = cbp._check_from_file_rows(
-        rows, {"MddsClient"}, {"MddsClient"}, {"MddsClient"}, {"mdds_client"}
+        rows, {"HistoricalClient"}, {"HistoricalClient"}, {"HistoricalClient"}, {"historical"}
     )
     assert errors == [], f"all-bound from_file row must be silent; got {errors!r}"
 
@@ -680,7 +680,7 @@ def test_from_file_parity_all_bound_passes() -> None:
 def test_from_file_missing_on_ffi_trips() -> None:
     rows = [
         {
-            "name": "FpssClient",
+            "name": "StreamingClient",
             "python": True,
             "typescript": True,
             "cpp": True,
@@ -688,7 +688,7 @@ def test_from_file_missing_on_ffi_trips() -> None:
         }
     ]
     errors = cbp._check_from_file_rows(
-        rows, {"FpssClient"}, {"FpssClient"}, {"FpssClient"}, set()
+        rows, {"StreamingClient"}, {"StreamingClient"}, {"StreamingClient"}, set()
     )
     assert any("ffi" in e and "missing" in e for e in errors), (
         f"missing C ABI from_file symbol must trip; got {errors!r}"
@@ -697,17 +697,17 @@ def test_from_file_missing_on_ffi_trips() -> None:
 
 def test_from_file_untracked_client_trips() -> None:
     errors = cbp._check_from_file_rows(
-        [], {"ThetaDataDxClient"}, set(), set(), set()
+        [], {"Client"}, set(), set(), set()
     )
     assert any(
-        "ThetaDataDxClient" in e and "no [[from_file]] row" in e for e in errors
+        "Client" in e and "no [[from_file]] row" in e for e in errors
     ), f"untracked file-construction client must trip; got {errors!r}"
 
 
 def test_from_file_ffi_stem_maps_class_name() -> None:
     rows = [
         {
-            "name": "ThetaDataDxClient",
+            "name": "Client",
             "python": False,
             "typescript": False,
             "cpp": False,
@@ -715,12 +715,12 @@ def test_from_file_ffi_stem_maps_class_name() -> None:
         }
     ]
     # The class name itself must not satisfy the row; only the mapped stem.
-    wrong = cbp._check_from_file_rows(rows, set(), set(), set(), {"theta_data_dx_client"})
+    wrong = cbp._check_from_file_rows(rows, set(), set(), set(), {"theta_data_dx"})
     assert any("ffi" in e for e in wrong), (
         f"class-name stem must not satisfy the row; got {wrong!r}"
     )
-    right = cbp._check_from_file_rows(rows, set(), set(), set(), {"unified"})
-    assert right == [], f"mapped `unified` stem must satisfy the row; got {right!r}"
+    right = cbp._check_from_file_rows(rows, set(), set(), set(), {"client"})
+    assert right == [], f"mapped `client` stem must satisfy the row; got {right!r}"
 
 
 def test_from_file_parity_live_sources_clean() -> None:

@@ -9,17 +9,17 @@
 //! the closure stack the callback closed over can be released without
 //! a use-after-free race against the LMAX Disruptor consumer.
 //!
-//! SSOT: every public method on `ThetaDataDxClient` is reachable on the
+//! SSOT: every public method on `Client` is reachable on the
 //! `StreamingSession` by virtue of `__getattr__` proxying. There is
 //! NO hand-listed mirror of `subscribe_*` / `unsubscribe_*` /
 //! `active_subscriptions` here -- adding a new public method to
-//! `ThetaDataDxClient` automatically makes it callable through the session,
+//! `Client` automatically makes it callable through the session,
 //! with zero drift between the wrapper and the wrapped surface.
 
 use pyo3::exceptions::PyRuntimeWarning;
 use pyo3::prelude::*;
 
-use crate::fpss_client::FpssClient;
+use crate::fpss_client::StreamingClient;
 
 /// Drain timeout applied on `__exit__`. Matches the C++ destructor's
 /// 5 s budget in `sdks/cpp/src/thetadx.cpp` and the FFI free-path
@@ -35,11 +35,11 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// through a closed sum of the two supported pyclasses rather than
 /// duck-typed Python attribute lookup. The fluent `__getattr__` proxy
 /// for non-lifecycle attributes still goes through PyAny — `subscribe`
-/// and the historical surface live on `ThetaDataDxClient` only, so the
+/// and the historical surface live on `Client` only, so the
 /// proxy carries that asymmetry rather than enumerating it here.
 pub(crate) enum StreamableHandle {
-    Tdx(Py<crate::ThetaDataDxClient>),
-    Fpss(Py<FpssClient>),
+    Tdx(Py<crate::Client>),
+    Fpss(Py<StreamingClient>),
 }
 
 impl StreamableHandle {
@@ -80,10 +80,10 @@ impl StreamableHandle {
     }
 }
 
-/// Context manager returned by `ThetaDataDxClient.streaming(callback)`.
+/// Context manager returned by `Client.streaming(callback)`.
 ///
 /// Holds a strong reference to the underlying streaming pyclass (either
-/// `ThetaDataDxClient` or the standalone `FpssClient`) plus the user
+/// `Client` or the standalone `StreamingClient`) plus the user
 /// callback. `__enter__` registers the callback via `start_streaming`,
 /// `__exit__` calls `stop_streaming` + `await_drain`. Every other
 /// method call is forwarded through `__getattr__` to the wrapped
@@ -135,7 +135,7 @@ impl StreamingSession {
 
         self.tdx.stop_streaming(py);
         // `await_drain` releases the GIL internally (see the
-        // generated `streaming_methods.rs` and the FpssClient
+        // generated `streaming_methods.rs` and the StreamingClient
         // hand-written equivalent), so the Disruptor consumer can
         // acquire the GIL to finish firing any in-flight callback
         // before flipping the drain bit.
@@ -191,21 +191,21 @@ impl StreamingSession {
     }
 }
 
-/// Factory method on `ThetaDataDxClient` -- second `#[pymethods]` impl block
+/// Factory method on `Client` -- second `#[pymethods]` impl block
 /// enabled by the `multiple-pymethods` PyO3 feature flag (see
 /// `Cargo.toml`). The generated `streaming_methods.rs` owns the
 /// rest of the streaming surface; the context-manager constructor lives
 /// here because it is hand-written and references the hand-written
 /// `StreamingSession` pyclass.
 #[pymethods]
-impl crate::ThetaDataDxClient {
+impl crate::Client {
     /// Open a context-managed streaming session.
     ///
     /// `with tdx.streaming(callback) as session:` registers `callback`
     /// via `start_streaming` on enter and pairs `stop_streaming()` +
     /// `await_drain(5_000)` on exit, mirroring the C++ RAII destructor
     /// in `sdks/cpp/src/thetadx.cpp`. Subscription methods on the bound
-    /// `session` forward to the underlying `ThetaDataDxClient` via
+    /// `session` forward to the underlying `Client` via
     /// `StreamingSession.__getattr__`, so the public surface stays a
     /// single source of truth rooted in the wrapped class.
     ///
@@ -239,7 +239,7 @@ impl crate::ThetaDataDxClient {
     /// Mirrors the cross-binding contract on the C++
     /// `UnifiedClient::active_full_subscriptions` (see
     /// `sdks/cpp/include/thetadx.hpp`) and the standalone
-    /// [`crate::fpss_client::FpssClient::active_full_subscriptions`].
+    /// [`crate::fpss_client::StreamingClient::active_full_subscriptions`].
     fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;
         use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
@@ -269,8 +269,8 @@ impl crate::ThetaDataDxClient {
     /// Cumulative count of user-callback panics caught by the
     /// Disruptor consumer's `catch_unwind` boundary. Mirrors the
     /// `panic_count()` getter on the standalone
-    /// [`crate::fpss_client::FpssClient`] and the upstream
-    /// [`thetadatadx::ThetaDataDxClient::panic_count`].
+    /// [`crate::fpss_client::StreamingClient`] and the upstream
+    /// [`thetadatadx::Client::panic_count`].
     fn panic_count(&self) -> u64 {
         self.tdx.panic_count()
     }
@@ -278,7 +278,7 @@ impl crate::ThetaDataDxClient {
     /// Current MDDS session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
     ///
-    /// Backs the `session_uuid` entry on `AsyncThetaDataDxClient`'s
+    /// Backs the `session_uuid` entry on `AsyncClient`'s
     /// `__getattr__` allowlist so that proxy resolves to a working call.
     fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
         let inner = self.tdx.clone();
@@ -297,7 +297,7 @@ impl crate::ThetaDataDxClient {
     /// accident has been observably wrong on PyPy in the past.
     ///
     /// Mirrors the upstream
-    /// [`thetadatadx::ThetaDataDxClient::subscription_info`] shape.
+    /// [`thetadatadx::Client::subscription_info`] shape.
     fn subscription_info(&self) -> Vec<(String, String)> {
         let info = self.tdx.subscription_info();
         vec![

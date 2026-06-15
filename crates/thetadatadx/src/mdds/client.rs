@@ -1,8 +1,8 @@
-//! `MddsClient` struct, connection lifecycle, and session/transport state.
+//! `HistoricalClient` struct, connection lifecycle, and session/transport state.
 //!
 //! This module owns the MDDS client type: its fields (session UUID,
 //! channel, config, request semaphore, subscription tiers), its
-//! [`connect`](MddsClient::connect) constructor, and the small read-only
+//! [`connect`](HistoricalClient::connect) constructor, and the small read-only
 //! getters (`session_uuid`, `config`, `stock_tier`, `options_tier`, `channel`)
 //! that expose client state to callers.
 //!
@@ -35,18 +35,18 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # Example
 ///
 /// ```rust,no_run
-/// use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+/// use thetadatadx::{Client, Credentials, DirectConfig};
 ///
 /// # async fn run() -> Result<(), thetadatadx::Error> {
 /// let creds = Credentials::from_file("creds.txt")?;
-/// let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+/// let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 ///
 /// let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }
 /// ```
-pub struct MddsClient {
+pub struct HistoricalClient {
     /// Shared, mutable session token. Every request reads the current
     /// UUID via this handle; `Unauthenticated` responses trigger a
     /// single-shot refresh that swaps the UUID in place. See
@@ -86,7 +86,7 @@ pub struct MddsClient {
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
 
-impl MddsClient {
+impl HistoricalClient {
     /// Connect to `ThetaData` servers directly (no JVM terminal needed).
     ///
     /// 1. Authenticates against the Nexus HTTP API to obtain a session UUID.

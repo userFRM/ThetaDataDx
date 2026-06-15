@@ -14,8 +14,8 @@
 //!     |
 //! thetadatadx-server (this binary)
 //!     |
-//!     |--- MddsClient (MDDS historical) for historical data
-//!     |--- FpssClient (FPSS streaming) for real-time streaming
+//!     |--- HistoricalClient (MDDS historical) for historical data
+//!     |--- StreamingClient (FPSS streaming) for real-time streaming
 //!     |
 //! ThetaData upstream servers
 //! ```
@@ -37,7 +37,7 @@ use clap::Parser;
 use tower_http::cors::CorsLayer;
 use zeroize::Zeroizing;
 
-use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
+use thetadatadx::{Credentials, DirectConfig, Client};
 
 use crate::state::AppState;
 
@@ -217,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Step 3: Connect unified client (gRPC historical).
-    let tdx = ThetaDataDxClient::connect(&creds, config).await?;
+    let tdx = Client::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.

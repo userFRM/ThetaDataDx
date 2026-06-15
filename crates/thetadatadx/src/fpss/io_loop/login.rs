@@ -12,7 +12,7 @@ use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 use crate::error::Error;
 
 use super::super::connection;
-use super::super::events::FpssControl;
+use super::super::events::StreamControl;
 use super::super::framing::read_frame;
 use super::super::protocol::parse_disconnect_reason;
 
@@ -28,7 +28,7 @@ pub(in crate::fpss) enum LoginResult {
 ///
 /// On `Metadata`, the payload is the server's "Bundle" string. We copy it
 /// verbatim into [`LoginResult::Success`]; see
-/// [`FpssControl::LoginSuccess`] for why this string is treated as opaque.
+/// [`StreamControl::LoginSuccess`] for why this string is treated as opaque.
 ///
 /// Typed control frames that arrive BEFORE `METADATA` — code 4
 /// (`Connected`), code 10 (`Ping`), code 13 (`ReconnectedServer`), and
@@ -41,7 +41,7 @@ pub(in crate::fpss) enum LoginResult {
 /// consumes it before the main dispatch can turn it into a typed event.
 pub(in crate::fpss) fn wait_for_login(
     stream: &mut connection::FpssStream,
-    pending_control: &mut Vec<FpssControl>,
+    pending_control: &mut Vec<StreamControl>,
 ) -> Result<LoginResult, Error> {
     wait_for_login_generic(stream, pending_control)
 }
@@ -52,7 +52,7 @@ pub(in crate::fpss) fn wait_for_login(
 /// buffer of pre-canned frames.
 fn wait_for_login_generic<R: std::io::Read>(
     stream: &mut R,
-    pending_control: &mut Vec<FpssControl>,
+    pending_control: &mut Vec<StreamControl>,
 ) -> Result<LoginResult, Error> {
     loop {
         let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
@@ -80,16 +80,16 @@ fn wait_for_login_generic<R: std::io::Read>(
             StreamMsgType::Connected => {
                 // Code 4: transport ack. Mirror the post-login
                 // `decode_frame` dispatch so users subscribed to
-                // `FpssControl::Connected` see this frame whether it
+                // `StreamControl::Connected` see this frame whether it
                 // arrived before or after METADATA.
                 tracing::debug!("FPSS CONNECTED frame received during handshake");
-                pending_control.push(FpssControl::Connected);
+                pending_control.push(StreamControl::Connected);
             }
             StreamMsgType::Ping => {
                 // Code 10: server heartbeat. Preserve the raw payload so
                 // downstream diagnostics match the post-login dispatch
                 // path byte-for-byte.
-                pending_control.push(FpssControl::Ping {
+                pending_control.push(StreamControl::Ping {
                     payload: frame.payload.clone(),
                 });
             }
@@ -99,7 +99,7 @@ fn wait_for_login_generic<R: std::io::Read>(
                 // auto-reconnect state machine produces after a fresh
                 // TLS session authenticates).
                 tracing::debug!("FPSS RECONNECTED frame received during handshake");
-                pending_control.push(FpssControl::ReconnectedServer);
+                pending_control.push(StreamControl::ReconnectedServer);
             }
             StreamMsgType::Restart => {
                 // Code 31: server stream restart. Promoted to a typed
@@ -107,7 +107,7 @@ fn wait_for_login_generic<R: std::io::Read>(
                 // restart don't need to wait for the post-METADATA
                 // dispatch.
                 tracing::debug!("FPSS RESTART frame received during handshake");
-                pending_control.push(FpssControl::Restart);
+                pending_control.push(StreamControl::Restart);
             }
             other => {
                 tracing::trace!(code = ?other, "ignoring frame during login handshake");
@@ -118,7 +118,7 @@ fn wait_for_login_generic<R: std::io::Read>(
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::events::FpssEvent;
+    use super::super::super::events::StreamEvent;
     use super::*;
 
     /// Build a single FPSS wire frame: `[LEN: u8] [CODE: u8] [PAYLOAD...]`.
@@ -137,7 +137,7 @@ mod tests {
 
     /// A CONNECTED frame arriving BEFORE METADATA must be captured in
     /// `pending_control` so the io_loop can forward the buffered
-    /// `FpssControl::Connected` to the event bus. Without this capture
+    /// `StreamControl::Connected` to the event bus. Without this capture
     /// the frame would be lost, since only the post-login `decode_frame`
     /// dispatch knows how to turn it into a typed event.
     #[test]
@@ -147,7 +147,7 @@ mod tests {
         buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"test-perms"));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         match result {
@@ -157,7 +157,7 @@ mod tests {
             }
         }
         assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::Connected));
+        assert!(matches!(pending[0], StreamControl::Connected));
     }
 
     /// Complement to the above: when only METADATA arrives (the common
@@ -169,7 +169,7 @@ mod tests {
         let buf = wire_frame(StreamMsgType::Metadata, b"test-perms");
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
@@ -193,7 +193,7 @@ mod tests {
         ));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("Disconnected frame must produce LoginResult::Disconnected, not Err");
         assert!(matches!(result, LoginResult::Disconnected(_)));
@@ -212,48 +212,48 @@ mod tests {
         // in wire order, THEN publish LoginSuccess. A regression that
         // re-orders or drops events would fail on the `matches!`
         // sequence below.
-        let mut events: Vec<FpssEvent> = Vec::new();
-        let pending_control: Vec<FpssControl> = vec![
-            FpssControl::Connected,
-            FpssControl::Ping {
+        let mut events: Vec<StreamEvent> = Vec::new();
+        let pending_control: Vec<StreamControl> = vec![
+            StreamControl::Connected,
+            StreamControl::Ping {
                 payload: vec![0x00],
             },
-            FpssControl::ReconnectedServer,
-            FpssControl::Restart,
+            StreamControl::ReconnectedServer,
+            StreamControl::Restart,
         ];
         for ctrl in pending_control {
-            events.push(FpssEvent::Control(ctrl));
+            events.push(StreamEvent::Control(ctrl));
         }
-        events.push(FpssEvent::Control(FpssControl::LoginSuccess {
+        events.push(StreamEvent::Control(StreamControl::LoginSuccess {
             permissions: "test".to_string(),
         }));
         assert_eq!(events.len(), 5);
         assert!(matches!(
             events[0],
-            FpssEvent::Control(FpssControl::Connected)
+            StreamEvent::Control(StreamControl::Connected)
         ));
         match &events[1] {
-            FpssEvent::Control(FpssControl::Ping { payload }) => {
+            StreamEvent::Control(StreamControl::Ping { payload }) => {
                 assert_eq!(payload.as_slice(), &[0x00]);
             }
             other => panic!("expected Ping, got {other:?}"),
         }
         assert!(matches!(
             events[2],
-            FpssEvent::Control(FpssControl::ReconnectedServer)
+            StreamEvent::Control(StreamControl::ReconnectedServer)
         ));
         assert!(matches!(
             events[3],
-            FpssEvent::Control(FpssControl::Restart)
+            StreamEvent::Control(StreamControl::Restart)
         ));
         assert!(matches!(
             events[4],
-            FpssEvent::Control(FpssControl::LoginSuccess { .. })
+            StreamEvent::Control(StreamControl::LoginSuccess { .. })
         ));
     }
 
     /// A PING frame arriving BEFORE METADATA must be captured in
-    /// `pending_control` as `FpssControl::Ping` with the exact payload
+    /// `pending_control` as `StreamControl::Ping` with the exact payload
     /// bytes, so the handshake's trace-and-drop branch does not swallow a
     /// heartbeat the server emits between CONNECT and METADATA.
     #[test]
@@ -264,27 +264,27 @@ mod tests {
         buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"test-perms"));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1, "PING must surface as a typed control");
         match &pending[0] {
-            FpssControl::Ping { payload } => {
+            StreamControl::Ping { payload } => {
                 assert_eq!(
                     payload.as_slice(),
                     &[0x00],
                     "Ping payload must match the wire bytes byte-for-byte"
                 );
             }
-            other => panic!("expected FpssControl::Ping, got {other:?}"),
+            other => panic!("expected StreamControl::Ping, got {other:?}"),
         }
     }
 
     /// A RECONNECTED frame (code 13) arriving BEFORE METADATA must be
     /// captured as
-    /// `FpssControl::ReconnectedServer`. The distinction from the
-    /// client-emitted `FpssControl::Reconnected` is preserved.
+    /// `StreamControl::ReconnectedServer`. The distinction from the
+    /// client-emitted `StreamControl::Reconnected` is preserved.
     #[test]
     fn wait_for_login_captures_reconnected_server_frame_before_metadata() {
         let mut buf = Vec::new();
@@ -292,16 +292,16 @@ mod tests {
         buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::ReconnectedServer));
+        assert!(matches!(pending[0], StreamControl::ReconnectedServer));
     }
 
     /// A RESTART frame (code 31) arriving BEFORE METADATA must be
-    /// captured as `FpssControl::Restart`.
+    /// captured as `StreamControl::Restart`.
     #[test]
     fn wait_for_login_captures_restart_frame_before_metadata() {
         let mut buf = Vec::new();
@@ -309,12 +309,12 @@ mod tests {
         buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::Restart));
+        assert!(matches!(pending[0], StreamControl::Restart));
     }
 
     /// Multiple typed control frames arriving BEFORE METADATA must all
@@ -329,14 +329,14 @@ mod tests {
         buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
         let mut cursor = std::io::Cursor::new(buf);
 
-        let mut pending: Vec<FpssControl> = Vec::new();
+        let mut pending: Vec<StreamControl> = Vec::new();
         let result = wait_for_login_generic(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 4);
-        assert!(matches!(pending[0], FpssControl::Connected));
-        assert!(matches!(pending[1], FpssControl::Ping { .. }));
-        assert!(matches!(pending[2], FpssControl::ReconnectedServer));
-        assert!(matches!(pending[3], FpssControl::Restart));
+        assert!(matches!(pending[0], StreamControl::Connected));
+        assert!(matches!(pending[1], StreamControl::Ping { .. }));
+        assert!(matches!(pending[2], StreamControl::ReconnectedServer));
+        assert!(matches!(pending[3], StreamControl::Restart));
     }
 }

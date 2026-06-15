@@ -41,9 +41,9 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 > `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables.
 
 ```python
-from thetadatadx import ThetaDataDxClient, Credentials, Config
+from thetadatadx import Client, Credentials, Config
 
-tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+tdx = Client(Credentials.from_file("creds.txt"), Config.production())
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 greeks = tdx.option_history_greeks_first_order("SPY", "20260619", "20240315")
@@ -220,7 +220,7 @@ Available `flat_files.*` methods: `option_quote`, `option_trade`, `option_trade_
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every endpoint is a method on `ThetaDataDxClient`. The full per-method list with signatures lives in the [API reference](https://userfrm.github.io/ThetaDataDx/reference/); `Config.dev()` and `Config.stage()` target the non-production environments.
+Every endpoint is a method on `Client`. The full per-method list with signatures lives in the [API reference](https://userfrm.github.io/ThetaDataDx/reference/); `Config.dev()` and `Config.stage()` target the non-production environments.
 
 ## Errors
 

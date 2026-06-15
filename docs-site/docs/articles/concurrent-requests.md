@@ -22,9 +22,9 @@ That means the idiomatic pattern is simply to launch your whole batch:
 
 ```python
 import asyncio
-from thetadatadx import AsyncThetaDataDxClient
+from thetadatadx import AsyncClient
 
-tdx = AsyncThetaDataDxClient.from_file("creds.txt")
+tdx = AsyncClient.from_file("creds.txt")
 
 async def pull(day):
     return await tdx.stock_history_trade_async("AAPL", day)

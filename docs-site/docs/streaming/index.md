@@ -17,16 +17,16 @@ Streaming requires a Standard subscription or higher on the matching asset class
 
 ```rust
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssData, FpssEvent};
-use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
+use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::{Credentials, DirectConfig, Client};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+    let tdx = Client::connect(&creds, DirectConfig::production()).await?;
 
-    tdx.start_streaming(|event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+    tdx.start_streaming(|event: &StreamEvent| {
+        if let StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) = event {
             println!("{} bid={bid} ask={ask}", contract.symbol);
         }
     })?;
@@ -48,10 +48,10 @@ The callback runs on a dedicated consumer thread — no async executor between t
 ```python
 import time
 
-from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient
+from thetadatadx import Config, Contract, Credentials, Client
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDxClient(creds, Config.production())
+tdx = Client(creds, Config.production())
 
 def on_event(event):
     if event.kind == "quote":
@@ -69,9 +69,9 @@ Prefer the `with tdx.streaming(...)` context manager; it pairs `stop_streaming()
 <template #typescript>
 
 ```typescript
-import { Contract, ThetaDataDxClient } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx';
 
-const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+const tdx = Client.connectFromFile('creds.txt');
 
 tdx.startStreaming((event) => {
   if (event.kind === 'quote') {
@@ -95,17 +95,17 @@ setTimeout(() => tdx.stopStreaming(), 60_000);
 #include <thread>
 
 int main() {
-    auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::ThetaDataDxClient::connect(creds, tdx::Config::production());
+    auto creds = thetadatadx::Credentials::from_file("creds.txt");
+    auto client = thetadatadx::Client::connect(creds, thetadatadx::Config::production());
 
-    client.set_callback([](const tdx::FpssEvent& event) {
+    client.set_callback([](const thetadatadx::StreamEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {
             auto& q = event.quote;
             std::cout << q.contract.symbol << " bid=" << q.bid << " ask=" << q.ask << "\n";
         }
     });
 
-    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(thetadatadx::Contract::stock("AAPL").quote());
     std::this_thread::sleep_for(std::chrono::seconds(60));
     // RAII: the destructor stops streaming and drains.
 }

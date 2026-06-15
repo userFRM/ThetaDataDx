@@ -57,7 +57,7 @@ creds = Credentials("your-email@example.com", "your-password")
 The entry point. Covers installation, authentication, and a tour of the core API surface:
 
 1. Install `thetadatadx` with pandas support
-2. Create `Credentials` and connect a `ThetaDataDxClient` to production servers
+2. Create `Credentials` and connect a `Client` to production servers
 3. List all available stock symbols
 4. Fetch AAPL end-of-day data and convert to a pandas DataFrame
 5. Fetch 1-minute OHLC bars for a single trading day

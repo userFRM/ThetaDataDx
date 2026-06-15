@@ -1,4 +1,4 @@
-//! Generated endpoint method bodies for [`MddsClient`].
+//! Generated endpoint method bodies for [`HistoricalClient`].
 //!
 //! This module is the `include!` site for three build-time artifacts:
 //!
@@ -28,7 +28,7 @@ use crate::tdbe::types::tick::{
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
-use super::client::MddsClient;
+use super::client::HistoricalClient;
 use super::validate::validate_date_required;
 use super::wire_semantics::{
     normalize_date, normalize_expiration, wire_right_opt, wire_strike_opt,

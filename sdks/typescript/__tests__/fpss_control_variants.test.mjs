@@ -1,9 +1,9 @@
-// Structural test: every `FpssControl::*` Rust variant has a typed
+// Structural test: every `StreamControl::*` Rust variant has a typed
 // `#[napi(object)]` mirror exported from the addon, the discriminated-
-// union `FpssEvent.kind` literal union covers every variant, and
+// union `StreamEvent.kind` literal union covers every variant, and
 // per-variant payload field names line up with the schema.
 //
-// We can't construct an `FpssEvent` without a live FPSS handshake
+// We can't construct an `StreamEvent` without a live FPSS handshake
 // (the typed payloads flow Rust -> JS only via `startStreaming`),
 // so this test asserts the type-surface shape via `index.d.ts` and
 // the JS module's exported class set rather than runtime values.
@@ -40,23 +40,23 @@ const CONTROL_VARIANTS = [
   { name: 'UnknownControl',     kind: 'unknown_control',      payload: 'unknownControl',     fields: [] },
 ];
 
-describe('FpssControl typed variants', () => {
-  it('every control kind is in the FpssEvent.kind literal union', () => {
+describe('StreamControl typed variants', () => {
+  it('every control kind is in the StreamEvent.kind literal union', () => {
     const dts = readFileSync(dtsPath, 'utf8');
-    const fpssEventMatch = dts.match(/export interface FpssEvent\s*\{[^}]+\}/s);
-    assert.ok(fpssEventMatch, 'FpssEvent interface not found in index.d.ts');
+    const fpssEventMatch = dts.match(/export interface StreamEvent\s*\{[^}]+\}/s);
+    assert.ok(fpssEventMatch, 'StreamEvent interface not found in index.d.ts');
     const fpssEventBlock = fpssEventMatch[0];
     for (const { kind } of CONTROL_VARIANTS) {
       assert.ok(
         fpssEventBlock.includes(`'${kind}'`),
-        `FpssEvent.kind literal union missing '${kind}'`
+        `StreamEvent.kind literal union missing '${kind}'`
       );
     }
   });
 
-  it('every control variant has a typed payload field on FpssEvent', () => {
+  it('every control variant has a typed payload field on StreamEvent', () => {
     const dts = readFileSync(dtsPath, 'utf8');
-    const fpssEventMatch = dts.match(/export interface FpssEvent\s*\{[^}]+\}/s);
+    const fpssEventMatch = dts.match(/export interface StreamEvent\s*\{[^}]+\}/s);
     const fpssEventBlock = fpssEventMatch[0];
     for (const { name, payload } of CONTROL_VARIANTS) {
       // Match `payload?: TypeName` -- napi-rs lowers `Option<T>` to
@@ -66,7 +66,7 @@ describe('FpssControl typed variants', () => {
       assert.match(
         fpssEventBlock,
         re,
-        `FpssEvent.${payload}?: ${name} missing from interface`
+        `StreamEvent.${payload}?: ${name} missing from interface`
       );
     }
   });
@@ -104,9 +104,9 @@ describe('FpssControl typed variants', () => {
     );
   });
 
-  it("'simple' kind is gone from the FpssEvent.kind literal union", () => {
+  it("'simple' kind is gone from the StreamEvent.kind literal union", () => {
     const dts = readFileSync(dtsPath, 'utf8');
-    const fpssEventMatch = dts.match(/export interface FpssEvent\s*\{[^}]+\}/s);
+    const fpssEventMatch = dts.match(/export interface StreamEvent\s*\{[^}]+\}/s);
     const fpssEventBlock = fpssEventMatch[0];
     // The new union must not contain bare `'simple'` (use word
     // boundaries because `simple` substrings might still appear in
@@ -114,7 +114,7 @@ describe('FpssControl typed variants', () => {
     assert.equal(
       /\B'simple'\B/.test(fpssEventBlock) || /\b'simple'\b/.test(fpssEventBlock),
       false,
-      `FpssEvent.kind union still contains 'simple'; ${fpssEventBlock}`
+      `StreamEvent.kind union still contains 'simple'; ${fpssEventBlock}`
     );
   });
 });

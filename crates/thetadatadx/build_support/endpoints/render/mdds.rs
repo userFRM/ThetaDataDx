@@ -1,4 +1,4 @@
-//! Rust emitters for the MDDS gRPC `MddsClient` surface.
+//! Rust emitters for the MDDS gRPC `HistoricalClient` surface.
 //!
 //! Emits per-endpoint `list_endpoint!`, `parsed_endpoint!`, and streaming
 //! builder macro invocations into the `OUT_DIR`. Shared naming/type helpers
@@ -217,7 +217,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
 
 /// Emits the hand-shaped streaming builder for a subscription endpoint: the
 /// builder struct, its optional setters, the deadline-and-retry stream method,
-/// and the `MddsClient` constructor that returns it.
+/// and the `HistoricalClient` constructor that returns it.
 pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = endpoint
         .params
@@ -235,12 +235,12 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
 
     writeln!(
         out,
-        "/// Builder for the [`MddsClient::{}`] streaming endpoint.",
+        "/// Builder for the [`HistoricalClient::{}`] streaming endpoint.",
         endpoint.name
     )
     .unwrap();
     writeln!(out, "pub struct {builder_name}<'a> {{").unwrap();
-    out.push_str("    client: &'a MddsClient,\n");
+    out.push_str("    client: &'a HistoricalClient,\n");
     for param in &method_params {
         writeln!(
             out,
@@ -443,7 +443,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str("        }).await\n");
     out.push_str(include_str!("templates/mdds/metrics_result_block.rs.tmpl"));
 
-    writeln!(out, "impl MddsClient {{").unwrap();
+    writeln!(out, "impl HistoricalClient {{").unwrap();
     write!(out, "    pub fn {}(&self", endpoint.name).unwrap();
     for param in &method_params {
         write!(

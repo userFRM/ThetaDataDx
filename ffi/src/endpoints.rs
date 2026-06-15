@@ -18,12 +18,12 @@ use crate::types::{
     insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
     TdxCalendarDayArray, TdxEodTickArray, TdxGreeksAllTickArray, TdxGreeksEodTickArray,
     TdxGreeksFirstOrderTickArray, TdxGreeksSecondOrderTickArray, TdxGreeksThirdOrderTickArray,
-    TdxIndexPriceAtTimeTickArray, TdxInterestRateTickArray, TdxIvTickArray,
-    TdxMarketValueTickArray, TdxMddsClient, TdxOhlcTickArray, TdxOpenInterestTickArray,
-    TdxOptionContractArray, TdxPriceTickArray, TdxQuoteTickArray, TdxStringArray,
-    TdxTradeGreeksAllTickArray, TdxTradeGreeksFirstOrderTickArray,
-    TdxTradeGreeksImpliedVolatilityTickArray, TdxTradeGreeksSecondOrderTickArray,
-    TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray, TdxTradeTickArray,
+    TdxHistoricalClient, TdxIndexPriceAtTimeTickArray, TdxInterestRateTickArray, TdxIvTickArray,
+    TdxMarketValueTickArray, TdxOhlcTickArray, TdxOpenInterestTickArray, TdxOptionContractArray,
+    TdxPriceTickArray, TdxQuoteTickArray, TdxStringArray, TdxTradeGreeksAllTickArray,
+    TdxTradeGreeksFirstOrderTickArray, TdxTradeGreeksImpliedVolatilityTickArray,
+    TdxTradeGreeksSecondOrderTickArray, TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray,
+    TdxTradeTickArray,
 };
 
 // ── Historical server-stream callback C ABI ──
@@ -58,7 +58,7 @@ struct TickChunkSink {
 // SAFETY: `ctx` is the user's opaque context — never dereferenced by Rust,
 // only handed back to the user's `extern "C" fn` exactly as registered.
 // Send-across-threads safety of whatever `ctx` points at is the caller's
-// documented responsibility (same contract as `TdxFpssCallback`).
+// documented responsibility (same contract as `TdxStreamCallback`).
 unsafe impl Send for TickChunkSink {}
 
 impl TickChunkSink {

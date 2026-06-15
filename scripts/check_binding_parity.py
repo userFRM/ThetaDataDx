@@ -112,7 +112,7 @@ def _surface_token_hit(identifier: str) -> str | None:
     `TokioWorkerThreadsSetting`) is caught — exactly the blind spot in a
     word-boundary text rule. Vendor protocol names
     (`mdds`, `fpss`) are intentionally absent from the token list, so a
-    `MddsClient` / `setFpssRingSize` identifier is never flagged.
+    `MddsConfig` / `setFpssRingSize` identifier is never flagged.
     """
     lowered = identifier.lower()
     for token in BANNED_SURFACE_TOKENS:
@@ -196,7 +196,7 @@ CPP_ALIASES: dict[str, str] = {
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
-    "ParseError": "FpssParseError",
+    "ParseError": "StreamParseError",
 }
 
 
@@ -906,8 +906,8 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
     Parses every `#[pymethods] impl <Path>` block (or `impl <Path>`
     block participating in `multiple-pymethods`) and harvests the
     `fn <name>` declarations inside. `<Path>` accepts a bare class
-    name (`impl ThetaDataDxClient`) or a fully-qualified Rust path
-    (`impl crate::ThetaDataDxClient`); the collector normalises both
+    name (`impl Client`) or a fully-qualified Rust path
+    (`impl crate::Client`); the collector normalises both
     to the bare class name so the parity row can refer to it directly.
 
     Filters out the lifecycle dunders (`__new__`, `__repr__`,
@@ -983,7 +983,7 @@ def _collect_typescript_class_methods(ts_src: pathlib.Path) -> dict[str, set[str
     if not ts_src.is_dir():
         return out
     # `impl <Path> {` — handle bare names and qualified paths
-    # (`impl crate::ThetaDataDxClient`) symmetrically with the Python
+    # (`impl crate::Client`) symmetrically with the Python
     # collector. The captured class name is always the last path segment.
     impl_re = re.compile(
         r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
@@ -1028,7 +1028,7 @@ def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
     """Inline every `#include "<name>.inc"` directive against the
     matching file under `include_dir`. The `*.inc` files extend a
     class body with generator-emitted member declarations
-    (`sdks/cpp/include/fpss.hpp.inc` adds `FpssClient` methods that
+    (`sdks/cpp/include/fpss.hpp.inc` adds `StreamingClient` methods that
     live in `crates/thetadatadx/sdk_surface.toml`), and the parity
     gate must see those declarations as part of the surrounding
     class body.
@@ -1213,7 +1213,7 @@ def _check_method_rows(
 #
 # The TypeScript binding groups its lookup utilities as static methods on
 # a `Util` namespace class (`Util.conditionName(...)`), while Python uses
-# a `thetadatadx.util` submodule, C++ a `tdx::util` namespace, and the C
+# a `thetadatadx.util` submodule, C++ a `thetadatadx::util` namespace, and the C
 # ABI bare `tdx_*` symbols. The collectors normalise each surface to the
 # bare snake_case function name so a single `[[utility]]` row matches
 # every binding's idiom.
@@ -1440,7 +1440,7 @@ def _check_utility_rows(
                 "cpp",
                 name,
                 cpp_utils,
-                f"`{name}(` in the `tdx::util` namespace",
+                f"`{name}(` in the `thetadatadx::util` namespace",
             ),
             ("ffi", ffi_name, ffi_utils, f"`tdx_{ffi_name}`"),
         ):
@@ -1505,7 +1505,7 @@ def _check_utility_roster_complete(
     decode-bench / introspection hooks already filtered) and the
     TypeScript utility surface (napi free functions + `Util` namespace
     methods). Every name in those surfaces must be a declared row's
-    canonical `name`. The C++ `tdx::util` / C ABI `tdx_*` surfaces are
+    canonical `name`. The C++ `thetadatadx::util` / C ABI `tdx_*` surfaces are
     pinned forward per row (and the C ABI additionally by
     `check_c_abi_completeness`); they are not enumerable cleanly here
     because the namespace mingles the lookups with dozens of unrelated
@@ -2070,11 +2070,11 @@ def _endpoint_method_to_snake(name: str) -> str:
 #   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
 #     pyclass (generated into
 #     `sdks/python/src/_generated/historical_methods.rs`).
-#   * TypeScript: a `<endpoint>Stream` method on the `ThetaDataDxClient`
+#   * TypeScript: a `<endpoint>Stream` method on the `Client`
 #     napi class (generated into
 #     `sdks/typescript/src/_generated/historical_methods.rs`).
 #   * C ABI: a `tdx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
-#   * C++: an `<endpoint>_stream` member on the `ThetaDataDxClient` wrapper
+#   * C++: an `<endpoint>_stream` member on the `Client` wrapper
 #     (`thetadx.hpp` + its `.inc` fragments).
 #
 # These methods live on per-endpoint builders / as endpoint-named
@@ -2123,7 +2123,7 @@ def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
 def _collect_typescript_streaming_endpoints(
     ts_methods: dict[str, set[str]],
 ) -> set[str]:
-    """Snake_case endpoint names whose `ThetaDataDxClient` napi class
+    """Snake_case endpoint names whose `Client` napi class
     exposes a `<endpoint>Stream` method.
 
     Reuses the already-collected `{class: {method, ...}}` map. A method
@@ -2137,7 +2137,7 @@ def _collect_typescript_streaming_endpoints(
     `[[method]]` rows regardless).
     """
     out: set[str] = set()
-    methods = ts_methods.get("ThetaDataDxClient", set())
+    methods = ts_methods.get("Client", set())
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
     for method in methods:
         if method in lifecycle:
@@ -2152,8 +2152,8 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose `tdx_<endpoint>_stream` extern "C"
     symbol exists in `ffi/src/`.
 
-    The FPSS `tdx_unified_*` / `tdx_fpss_*` callback symbols never match
-    the `tdx_<name>_stream` shape (their stems are `unified` / `fpss`
+    The `tdx_client_*` / `tdx_streaming_*` callback symbols never match
+    the `tdx_<name>_stream` shape (their stems are `client` / `streaming`
     and they end in `set_callback` / `reconnect` / `shutdown`, not
     `_stream`), so they are not mistaken for a historical endpoint.
     """
@@ -2169,17 +2169,17 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `ThetaDataDxClient` wrapper
+    """Snake_case endpoint names whose C++ `Client` wrapper
     exposes an `<endpoint>_stream` member.
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. The
-    historical endpoints live on the `ThetaDataDxClient` class body in
+    historical endpoints live on the `Client` class body in
     `thetadx.hpp`. A member whose snake_case name ends in `_stream` is a
     server-stream terminal; strip the suffix to recover the endpoint
     name.
     """
     out: set[str] = set()
-    methods = cpp_methods.get("ThetaDataDxClient", set())
+    methods = cpp_methods.get(_cpp_class_for("Client"), set())
     for method in methods:
         if method.endswith("_stream") and len(method) > len("_stream"):
             out.add(method[: -len("_stream")])
@@ -2217,8 +2217,8 @@ def _check_historical_streaming_rows(
         pascal = camel[:1].upper() + camel[1:] if camel else camel
         for lang, actual_set, hint in (
             ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
-            ("typescript", ts_stream, f"`{camel}Stream` on the `ThetaDataDxClient` napi class"),
-            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `ThetaDataDxClient` body"),
+            ("typescript", ts_stream, f"`{camel}Stream` on the `Client` napi class"),
+            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `Client` body"),
             ("ffi", ffi_stream, f"`tdx_{name}_stream` extern \"C\" symbol"),
         ):
             declared = row.get(lang, False)
@@ -2263,9 +2263,9 @@ def _check_historical_streaming_rows(
 # `[[from_file]]` rows can pin the cross-binding roster.
 #
 # `name` is the cross-binding client class identifier. The C ABI symbol
-# stem differs from the class name (`tdx_unified_connect_from_file` for
-# `ThetaDataDxClient`, `tdx_mdds_client_connect_from_file` for
-# `MddsClient`, `tdx_fpss_connect_from_file` for `FpssClient`); the stem
+# stem differs from the class name (`tdx_client_connect_from_file` for
+# `Client`, `tdx_historical_connect_from_file` for
+# `HistoricalClient`, `tdx_streaming_connect_from_file` for `StreamingClient`); the stem
 # table below bridges the two.
 #
 # The family governs exactly the standalone clients that connect to the
@@ -2273,8 +2273,8 @@ def _check_historical_streaming_rows(
 # govern `Credentials.from_file` (a credentials factory that returns a
 # `Credentials`, not a connected client, surfaced over the distinct
 # `tdx_credentials_from_file` symbol) nor the Python-only
-# `AsyncThetaDataDxClient.from_file` (no C ABI / managed-binding twin —
-# its presence is tracked by the `AsyncThetaDataDxClient` `[[class]]`
+# `AsyncClient.from_file` (no C ABI / managed-binding twin —
+# its presence is tracked by the `AsyncClient` `[[class]]`
 # row). Scoping the collectors to the governed roster keeps those
 # unrelated `from_file` entry points out of this family while still
 # tripping on a new governed client that forgets a row.
@@ -2285,9 +2285,9 @@ def _check_historical_streaming_rows(
 # governed client roster: every class this family tracks, and the only
 # classes the collectors below consider.
 FROM_FILE_FFI_STEMS: dict[str, str] = {
-    "ThetaDataDxClient": "unified",
-    "MddsClient": "mdds_client",
-    "FpssClient": "fpss",
+    "Client": "client",
+    "HistoricalClient": "historical",
+    "StreamingClient": "streaming",
 }
 
 # The governed client roster (the C++ class spelling of each, so the
@@ -2736,8 +2736,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Method-level mismatches (per-method `[[method]]` rows on the
-    # load-bearing user-facing classes — `ThetaDataDxClient`,
-    # `FpssClient`, `Credentials`, `Config`).
+    # load-bearing user-facing classes — `Client`,
+    # `StreamingClient`, `Credentials`, `Config`).
     method_errors = _check_method_rows(
         method_rows, py_class_methods, ts_class_methods, cpp_class_methods
     )
@@ -3379,16 +3379,16 @@ def _run_selftest() -> int:
         """Method declared on Python + TS + C++ — gate is silent."""
         rows = [
             {
-                "class": "ThetaDataDxClient",
+                "class": "Client",
                 "name": "panicCount",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_methods = {"ThetaDataDxClient": {"panic_count"}}
-        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
+        py_methods = {"Client": {"panic_count"}}
+        ts_methods = {"Client": {"panicCount"}}
+        cpp_methods = {"Client": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], f"method positive case must be silent; got {errors!r}"
 
@@ -3396,16 +3396,16 @@ def _run_selftest() -> int:
         """Declared on Python but not present in source — trips."""
         rows = [
             {
-                "class": "ThetaDataDxClient",
+                "class": "Client",
                 "name": "panicCount",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_methods: dict[str, set[str]] = {"ThetaDataDxClient": set()}
-        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
+        py_methods: dict[str, set[str]] = {"Client": set()}
+        ts_methods = {"Client": {"panicCount"}}
+        cpp_methods = {"Client": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert any("python" in e and "missing" in e for e in errors), (
             f"missing Python method must trip the gate; got {errors!r}"
@@ -3415,16 +3415,16 @@ def _run_selftest() -> int:
         """Declared on TS but no matching `js_name` in source — trips."""
         rows = [
             {
-                "class": "ThetaDataDxClient",
+                "class": "Client",
                 "name": "activeFullSubscriptions",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_methods = {"ThetaDataDxClient": {"active_full_subscriptions"}}
+        py_methods = {"Client": {"active_full_subscriptions"}}
         ts_methods: dict[str, set[str]] = {}
-        cpp_methods = {"ThetaDataDxClient": {"active_full_subscriptions"}}
+        cpp_methods = {"Client": {"active_full_subscriptions"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert any("typescript" in e and "missing" in e for e in errors), (
             f"missing TS method must trip the gate; got {errors!r}"
@@ -3502,16 +3502,16 @@ def _run_selftest() -> int:
         """Declared `false` but method exists on the source — trips."""
         rows = [
             {
-                "class": "ThetaDataDxClient",
+                "class": "Client",
                 "name": "panicCount",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
             }
         ]
-        py_methods = {"ThetaDataDxClient": {"panic_count"}}
-        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
-        cpp_methods = {"ThetaDataDxClient": {"panic_count"}}
+        py_methods = {"Client": {"panic_count"}}
+        ts_methods = {"Client": {"panicCount"}}
+        cpp_methods = {"Client": {"panic_count"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         # All three columns are stale — every binding now exposes the
         # method but the row still says `false`.
@@ -3522,7 +3522,7 @@ def _run_selftest() -> int:
     def _case_method_row_missing_class_or_name() -> None:
         """Malformed row — gate surfaces a clear error."""
         rows = [
-            {"class": "ThetaDataDxClient", "python": True},
+            {"class": "Client", "python": True},
             {"name": "panicCount", "python": True},
         ]
         errors = _check_method_rows(rows, {}, {}, {})
@@ -3537,22 +3537,22 @@ def _run_selftest() -> int:
         every method is scoped to its owning class. This protects
         against false-positive 'unexpected' verdicts when two classes
         coincidentally share a method name (`subscribe` on both
-        `ThetaDataDxClient` and `Subscription` etc.).
+        `Client` and `Subscription` etc.).
         """
         rows = [
             {
-                "class": "FpssClient",  # FpssClient not on TS
+                "class": "StreamingClient",  # StreamingClient not on TS
                 "name": "subscribe",
                 "python": True,
                 "typescript": False,
                 "cpp": True,
             }
         ]
-        # `subscribe` exists on `ThetaDataDxClient` (TS) but NOT on
-        # `FpssClient` (TS). Class-scoped lookup must respect that.
-        py_methods = {"FpssClient": {"subscribe"}}
-        ts_methods = {"ThetaDataDxClient": {"subscribe"}}
-        cpp_methods = {"FpssClient": {"subscribe"}}
+        # `subscribe` exists on `Client` (TS) but NOT on
+        # `StreamingClient` (TS). Class-scoped lookup must respect that.
+        py_methods = {"StreamingClient": {"subscribe"}}
+        ts_methods = {"Client": {"subscribe"}}
+        cpp_methods = {"StreamingClient": {"subscribe"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
             f"class-scoped TS lookup must not leak across classes; got {errors!r}"
@@ -3695,7 +3695,7 @@ def _run_selftest() -> int:
                 "pub fn all_greeks(spot: f64) -> napi::Result<AllGreeks> { todo!() }\n"
                 "\n"
                 "#[napi]\n"
-                "impl ThetaDataDxClient {\n"
+                "impl Client {\n"
                 '    #[napi(js_name = "isStreaming")]\n'
                 "    pub fn is_streaming(&self) -> bool { true }\n"
                 "}\n",
@@ -3822,7 +3822,7 @@ def _run_selftest() -> int:
         (with the idiomatic per-binding spelling) is silent."""
         rows = [
             {
-                "name": "MddsClient",
+                "name": "HistoricalClient",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
@@ -3831,10 +3831,10 @@ def _run_selftest() -> int:
         ]
         errors = _check_from_file_rows(
             rows,
-            {"MddsClient"},
-            {"MddsClient"},
-            {"MddsClient"},
-            {"mdds_client"},
+            {"HistoricalClient"},
+            {"HistoricalClient"},
+            {"HistoricalClient"},
+            {"historical"},
         )
         assert errors == [], f"all-bound row must be silent; got {errors!r}"
 
@@ -3843,7 +3843,7 @@ def _run_selftest() -> int:
         `tdx_<stem>_connect_from_file` symbol is absent — trips."""
         rows = [
             {
-                "name": "FpssClient",
+                "name": "StreamingClient",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
@@ -3852,9 +3852,9 @@ def _run_selftest() -> int:
         ]
         errors = _check_from_file_rows(
             rows,
-            {"FpssClient"},
-            {"FpssClient"},
-            {"FpssClient"},
+            {"StreamingClient"},
+            {"StreamingClient"},
+            {"StreamingClient"},
             set(),
         )
         assert any("ffi" in e and "missing" in e for e in errors), (
@@ -3865,21 +3865,21 @@ def _run_selftest() -> int:
         """A client exposing file construction on a binding with no row
         at all trips the reverse-direction orphan check."""
         errors = _check_from_file_rows(
-            [], {"ThetaDataDxClient"}, set(), set(), set()
+            [], {"Client"}, set(), set(), set()
         )
         assert any(
-            "ThetaDataDxClient" in e and "no [[from_file]] row" in e
+            "Client" in e and "no [[from_file]] row" in e
             for e in errors
         ), f"untracked file-construction client must trip; got {errors!r}"
 
     def _case_from_file_ffi_stem_maps_class_name() -> None:
         """The FFI stem table bridges the class name to its C ABI symbol
-        stem: `ThetaDataDxClient` resolves via `unified`, not its own
+        stem: `Client` resolves via `client`, not its own
         name. A row declaring ffi=true is silent only when the matching
         stem symbol exists."""
         rows = [
             {
-                "name": "ThetaDataDxClient",
+                "name": "Client",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -3887,16 +3887,16 @@ def _run_selftest() -> int:
             }
         ]
         # The class name itself in the stem set must NOT satisfy the row;
-        # only the mapped `unified` stem does.
+        # only the mapped `client` stem does.
         errors_wrong = _check_from_file_rows(
-            rows, set(), set(), set(), {"theta_data_dx_client"}
+            rows, set(), set(), set(), {"theta_data_dx"}
         )
         assert any("ffi" in e for e in errors_wrong), (
             f"class-name stem must not satisfy the row; got {errors_wrong!r}"
         )
-        errors_right = _check_from_file_rows(rows, set(), set(), set(), {"unified"})
+        errors_right = _check_from_file_rows(rows, set(), set(), set(), {"client"})
         assert errors_right == [], (
-            f"mapped `unified` stem must satisfy the row; got {errors_right!r}"
+            f"mapped `client` stem must satisfy the row; got {errors_right!r}"
         )
 
     def _case_from_file_live_sources_clean() -> None:
@@ -3990,18 +3990,18 @@ def _run_selftest() -> int:
 
     def _case_surface_vocab_allows_vendor_protocol_names() -> None:
         """Vendor protocol names (mdds / fpss) are allow-listed and must
-        NEVER trip — `MddsClient`, `mdds_host`, `setFpssRingSize`,
+        NEVER trip — `HistoricalClient`, `mdds_host`, `setFpssRingSize`,
         `fpss_ring_size` are all clean.
         """
         errors = _check_public_surface_vocab(
-            {"MddsClient", "FpssClient", "FpssEvent"},
+            {"HistoricalClient", "StreamingClient", "StreamEvent"},
             set(),
             set(),
             {"mdds_host", "mdds_port", "fpss_ring_size", "fpss_host_selection"},
             {"fpss_ring_size"},
             set(),
             set(),
-            {"FpssClient": {"subscribe"}},
+            {"StreamingClient": {"subscribe"}},
             {},
             {},
         )

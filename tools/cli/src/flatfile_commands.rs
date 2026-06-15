@@ -1,7 +1,7 @@
 //! Hand-written `tdx flatfile` subcommand surface.
 //!
 //! Wires `tdx flatfile {quotes,trades,trade_quote,ohlc,open_interest,eod,request}`
-//! to `thetadatadx::ThetaDataDxClient::flatfile_request`. Output goes to the
+//! to `thetadatadx::Client::flatfile_request`. Output goes to the
 //! path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
 //! are streamed to stdout via `std::io::copy` from the file just written
 //! (the SDK's primary entry point writes to disk; the CLI reroutes on demand).

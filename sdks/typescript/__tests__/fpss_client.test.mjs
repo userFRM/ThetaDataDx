@@ -1,9 +1,9 @@
-// Standalone `FpssClient` structural contract (offline — no connect).
+// Standalone `StreamingClient` structural contract (offline — no connect).
 //
-// `FpssClient` is the streaming-only napi handle over
-// `thetadatadx::fpss::FpssClient`: the FPSS TLS transport with no MDDS /
-// Nexus historical surface. It mirrors the Python `FpssClient`
-// (`sdks/python/src/fpss_client.rs`), the C++ `tdx::FpssClient`, and the
+// `StreamingClient` is the streaming-only napi handle over
+// `thetadatadx::fpss::StreamingClient`: the FPSS TLS transport with no MDDS /
+// Nexus historical surface. It mirrors the Python `StreamingClient`
+// (`sdks/python/src/fpss_client.rs`), the C++ `tdx::StreamingClient`, and the
 // C ABI `tdx_fpss_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a change that
 // drops the streaming surface — or leaks a historical method onto it —
@@ -26,7 +26,7 @@ try {
   process.exit(1);
 }
 
-const fpssBlock = dts.match(/export declare class FpssClient \{[\s\S]*?\n\}/);
+const fpssBlock = dts.match(/export declare class StreamingClient \{[\s\S]*?\n\}/);
 
 function methodNames(block) {
   return new Set(
@@ -38,26 +38,26 @@ function methodNames(block) {
   );
 }
 
-describe('FpssClient native addon surface', () => {
-  it('exports the FpssClient class with the creds-first connect factories', () => {
-    assert.ok(mod.FpssClient, 'FpssClient should be exported');
+describe('StreamingClient native addon surface', () => {
+  it('exports the StreamingClient class with the creds-first connect factories', () => {
+    assert.ok(mod.StreamingClient, 'StreamingClient should be exported');
     for (const factory of ['connect', 'connectFromFile']) {
       assert.equal(
-        typeof mod.FpssClient[factory],
+        typeof mod.StreamingClient[factory],
         'function',
-        `FpssClient.${factory} should be a static factory`
+        `StreamingClient.${factory} should be a static factory`
       );
     }
   });
 
-  it('declares the FpssClient class in index.d.ts', () => {
-    assert.ok(fpssBlock, 'FpssClient class missing from index.d.ts');
+  it('declares the StreamingClient class in index.d.ts', () => {
+    assert.ok(fpssBlock, 'StreamingClient class missing from index.d.ts');
   });
 });
 
-describe('FpssClient carries the full streaming surface', () => {
+describe('StreamingClient carries the full streaming surface', () => {
   // The streaming, subscription, lifecycle, and ring-telemetry surface
-  // that the Python `FpssClient` exposes (the parity rows flipped to
+  // that the Python `StreamingClient` exposes (the parity rows flipped to
   // `typescript = true` in sdks/parity.toml). Pin the whole set so a
   // regression that drops any one of them fails here.
   const STREAMING_SURFACE = [
@@ -88,7 +88,7 @@ describe('FpssClient carries the full streaming surface', () => {
     for (const expected of STREAMING_SURFACE) {
       assert.ok(
         methods.has(expected),
-        `FpssClient must expose ${expected}`
+        `StreamingClient must expose ${expected}`
       );
     }
   });
@@ -102,10 +102,10 @@ describe('FpssClient carries the full streaming surface', () => {
   });
 });
 
-describe('FpssClient never exposes the MDDS / historical surface', () => {
+describe('StreamingClient never exposes the MDDS / historical surface', () => {
   // FPSS-only: no historical / list / snapshot / at-time / calendar
   // method may appear. An FPSS client that surfaced these would imply an
-  // MDDS channel it never opens. This is the inverse of the MddsClient
+  // MDDS channel it never opens. This is the inverse of the HistoricalClient
   // FPSS-free guard — together they pin the two standalone surfaces apart.
   it('declares no historical data-fetch families', () => {
     const familyRe =
@@ -117,7 +117,7 @@ describe('FpssClient never exposes the MDDS / historical surface', () => {
     assert.deepEqual(
       leaked,
       [],
-      `FpssClient must not expose historical methods; found: ${leaked.join(', ')}`
+      `StreamingClient must not expose historical methods; found: ${leaked.join(', ')}`
     );
   });
 });

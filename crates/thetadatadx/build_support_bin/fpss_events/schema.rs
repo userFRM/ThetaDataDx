@@ -19,9 +19,9 @@ pub(crate) struct Schema {
 #[derive(Debug, Deserialize)]
 pub(crate) struct EventDef {
     /// "data" (typed market-data tick) or "control" (typed control /
-    /// lifecycle event mirroring `FpssControl::*` one-for-one). Drives
+    /// lifecycle event mirroring `StreamControl::*` one-for-one). Drives
     /// how the generator places the variant in the `BufferedEvent`
-    /// enum, maps it to the `FpssEvent` source variant, and whether
+    /// enum, maps it to the `StreamEvent` source variant, and whether
     /// its typed struct carries a `kind` discriminator getter.
     #[serde(default = "default_kind")]
     pub(crate) kind: String,
@@ -59,7 +59,7 @@ pub(super) fn sorted_event_names(schema: &Schema) -> Vec<&str> {
 /// market-data tick variants. The TypeScript emitter uses this to
 /// pair the `kind = "data"` per-variant `#[napi(object)]` structs with
 /// the discriminated-union dispatcher that surfaces them on the flat
-/// `FpssEvent` wrapper.
+/// `StreamEvent` wrapper.
 pub(super) fn sorted_data_event_names(schema: &Schema) -> Vec<&str> {
     let mut names: Vec<&str> = schema
         .events
@@ -73,7 +73,7 @@ pub(super) fn sorted_data_event_names(schema: &Schema) -> Vec<&str> {
 
 /// Iterate schema variants in a stable order, yielding only `kind = "data"`
 /// entries. The Rust-FFI, C-header, and Go emitters all share this ordering
-/// so the tagged-struct `TdxFpssEvent` / `FpssEvent` layouts line up across
+/// so the tagged-struct `TdxStreamEvent` / `StreamEvent` layouts line up across
 /// languages without manual coordination.
 pub(super) fn sorted_data_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
     let mut out: Vec<(&str, &EventDef)> = schema
@@ -89,7 +89,7 @@ pub(super) fn sorted_data_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
 /// Iterate schema variants in a stable order, yielding only
 /// `kind = "control"` entries. Used by the Python and TypeScript
 /// emitters to render typed-per-variant control classes that mirror
-/// the core crate's `FpssControl::*` enum one-for-one.
+/// the core crate's `StreamControl::*` enum one-for-one.
 pub(super) fn sorted_control_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
     let mut out: Vec<(&str, &EventDef)> = schema
         .events

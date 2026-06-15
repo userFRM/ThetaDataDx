@@ -10,8 +10,8 @@
 //!
 //! # FPSS Bridge
 //!
-//! `start_fpss_bridge()` connects an `FpssClient` whose callback converts
-//! each `FpssEvent` to JSON and broadcasts it to all WS clients.
+//! `start_fpss_bridge()` connects an `StreamingClient` whose callback converts
+//! each `StreamEvent` to JSON and broadcasts it to all WS clients.
 //!
 //! # Hardening
 //!

@@ -51,7 +51,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_at_time_trade(
+Client.option_at_time_trade(
     symbol, expiration, start_date, end_date, time_of_day,
     *,
     strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None,
@@ -112,13 +112,13 @@ std::vector<TradeTick> option_at_time_trade(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_strike(...)`, `.with_right(...)`, `.with_max_dte(...)`, `.with_strike_range(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 
 ```cpp
 auto rows = client.option_at_time_trade("SPY", "20250321", "20250303", "20250306", "10:30:00.000",
-    tdx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+    thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 for (const auto& t : rows) {
     std::cout << t.date << ' ' << t.ms_of_day << ' ' << t.price << ' ' << t.size << "\n";
 }

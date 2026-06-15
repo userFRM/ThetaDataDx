@@ -72,7 +72,7 @@ impl WakeFd {
     ///
     /// `write(2)` on `O_NONBLOCK` may return `EAGAIN` when the pipe is
     /// full (consumer hung). That case is logged via `tracing::warn!`
-    /// and counted on the [`super::FpssClient::dropped_count`] axis is
+    /// and counted on the [`super::StreamingClient::dropped_count`] axis is
     /// NOT incremented — the missed wake is recoverable on the next
     /// push, and an over-counted drop would mislead operators reading
     /// the metric. The reader's `next_timeout` poll covers the wedged

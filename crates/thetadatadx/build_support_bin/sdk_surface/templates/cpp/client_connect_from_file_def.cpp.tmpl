@@ -1,5 +1,5 @@
-MddsClient MddsClient::from_file(const std::string& path, const Config& config) {
-    auto h = tdx_mdds_client_connect_from_file(path.c_str(), config.get());
+HistoricalClient HistoricalClient::from_file(const std::string& path, const Config& config) {
+    auto h = tdx_historical_connect_from_file(path.c_str(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return MddsClient(h);
+    return HistoricalClient(h);
 }

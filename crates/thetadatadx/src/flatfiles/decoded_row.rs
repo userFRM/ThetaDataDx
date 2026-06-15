@@ -1,7 +1,7 @@
 //! Typed in-memory row for the FLATFILES surface.
 //!
 //! Returned by [`crate::flatfiles::flatfile_request_decoded`] and the
-//! corresponding [`crate::ThetaDataDxClient`] convenience methods. Callers
+//! corresponding [`crate::Client`] convenience methods. Callers
 //! that want to drive an algorithm against the full universe for a
 //! given `(sec, req, date)` tuple use this entry point instead of
 //! writing a CSV / JSONL file and parsing it back in.

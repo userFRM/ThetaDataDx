@@ -5,7 +5,7 @@
 //! Public entry points: [`flatfile_request`] (write to disk),
 //! [`flatfile_request_decoded`] (in-memory `Vec<FlatFileRow>`),
 //! [`flatfile_request_raw`] (raw INDEX + DATA blob). All three are
-//! also reachable via [`crate::ThetaDataDxClient`].
+//! also reachable via [`crate::Client`].
 //!
 //! Server identity is SPKI-pinned via the internal
 //! `mdds_spki::MddsSpkiVerifier`. On-disk blob layout is documented

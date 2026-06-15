@@ -7,7 +7,7 @@
 //! server-side cap.
 //!
 //! This module is the pure date-arithmetic layer — no tokio, no
-//! `MddsClient`. The fan-out orchestrator (concurrent cell dispatch +
+//! `HistoricalClient`. The fan-out orchestrator (concurrent cell dispatch +
 //! concatenation) lives one layer up and coordinates with the Rust SDK's
 //! request semaphore. The math here is exercised by its own unit tests so
 //! a refactor of the orchestrator can never break the chunk boundary
@@ -25,7 +25,7 @@
 //!    validated, but the redundant validation is harmless here.
 
 // The `chunking` module backs the auto-chunk fan-out activated once
-// `DirectConfig::auto_chunk` is threaded through `MddsClient`. The split
+// `DirectConfig::auto_chunk` is threaded through `HistoricalClient`. The split
 // math is correctness-critical and self-contained, so it carries its own
 // tests independent of the orchestrator. The split entry point is
 // exported from `lib.rs` so the symbol participates in the public

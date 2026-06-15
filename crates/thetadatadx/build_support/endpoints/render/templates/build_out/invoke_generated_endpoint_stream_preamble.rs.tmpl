@@ -13,7 +13,7 @@
 /// chunk is freed before the next is fetched, bounding peak memory to a
 /// single chunk regardless of the full result size.
 pub async fn invoke_generated_endpoint_stream(
-    client: &crate::mdds::MddsClient,
+    client: &crate::mdds::HistoricalClient,
     name: &str,
     args: &EndpointArgs,
     mut handler: impl FnMut(*const core::ffi::c_void, usize) + Send,

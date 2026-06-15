@@ -1,7 +1,7 @@
-// MDDS pool-sizing setter + getter on tdx::Config.
+// MDDS pool-sizing setter + getter on thetadatadx::Config.
 //
 // Offline test pinning the contract that `set_concurrent_requests` and
-// the `get_concurrent_requests()` readback getter on the `tdx::Config`
+// the `get_concurrent_requests()` readback getter on the `thetadatadx::Config`
 // C++ wrapper round-trip through the underlying C ABI.
 
 #include <cstdint>
@@ -12,7 +12,7 @@
 #include "thetadx.hpp"
 
 TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][pool_sizing][offline]") {
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
     // The readback getter mirrors the Python `Config.concurrent_requests`
     // and TypeScript `concurrentRequests` surfaces, so a value set
     // through the C++ wrapper reads back through the same wrapper.
@@ -31,7 +31,7 @@ TEST_CASE("Config mdds_host / mdds_port setters + getters round-trip",
     // The MDDS endpoint overrides mirror the Python `Config.mdds_host` /
     // `.mdds_port` advanced knobs, so a value set through the C++ wrapper
     // reads back through the same wrapper.
-    auto cfg = tdx::Config::production();
+    auto cfg = thetadatadx::Config::production();
 
     // A production config has a non-empty default host.
     REQUIRE_FALSE(cfg.get_mdds_host().empty());

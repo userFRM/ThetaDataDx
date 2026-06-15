@@ -6,12 +6,12 @@ use std::fmt::Write as _;
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
-/// Renders the TypeScript streaming methods source: the `#[napi]` block on `ThetaDataDxClient`.
+/// Renders the TypeScript streaming methods source: the `#[napi]` block on `Client`.
 pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("#[napi]\n");
-    out.push_str("impl ThetaDataDxClient {\n");
+    out.push_str("impl Client {\n");
     for method in methods {
         out.push_str(&ts_streaming_method(method));
         out.push('\n');
@@ -61,7 +61,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // typed event.
             writeln!(
                 out,
-                "    pub fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>) -> napi::Result<()> {{",
+                "    pub fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {{",
                 method.name
             )
             .unwrap();
@@ -228,7 +228,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name,
             )
             .unwrap();
-            // Clone the Arc<thetadatadx::ThetaDataDxClient> so the blocking
+            // Clone the Arc<thetadatadx::Client> so the blocking
             // closure can outlive `&self` — `spawn_blocking` requires
             // `'static`. The polling itself is cheap (1 ms sleep loop)
             // and the Arc clone is one atomic bump.

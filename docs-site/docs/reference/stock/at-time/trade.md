@@ -49,7 +49,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.stock_at_time_trade(
+Client.stock_at_time_trade(
     symbol, start_date, end_date, time_of_day,
     *,
     venue=None, timeout_ms=None,
@@ -101,7 +101,7 @@ std::vector<TradeTick> stock_at_time_trade(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_venue(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

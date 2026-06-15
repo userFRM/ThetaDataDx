@@ -85,7 +85,7 @@ pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
     }
 }
 
-/// Returns the total C struct size, in bytes, of the tagged `TdxFpssEvent` wrapper.
+/// Returns the total C struct size, in bytes, of the tagged `TdxStreamEvent` wrapper.
 pub(super) fn fpss_event_size(schema: &Schema) -> usize {
     c_layout(
         fpss_event_fields(schema)
@@ -94,7 +94,7 @@ pub(super) fn fpss_event_size(schema: &Schema) -> usize {
     )
 }
 
-/// Returns the byte offset of each field on the tagged `TdxFpssEvent` wrapper.
+/// Returns the byte offset of each field on the tagged `TdxStreamEvent` wrapper.
 pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size = 0;

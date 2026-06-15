@@ -11,19 +11,19 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 
 | Condition | Rust `Error` variant | Python exception | C++ exception |
 |---|---|---|---|
-| Bad or expired credentials | `Auth` | `AuthenticationError` / `InvalidCredentialsError` | `tdx::AuthenticationError` / `tdx::InvalidCredentialsError` |
-| Endpoint needs a higher tier | `Grpc` (permission) | `SubscriptionError` | `tdx::SubscriptionError` |
-| Too many requests in flight upstream | `Grpc` (resource exhausted) | `RateLimitError` | `tdx::RateLimitError` |
-| Request returned no rows | `NoData` | `NoDataFoundError` | `tdx::Error` with `kind == NoData` |
-| Per-request deadline elapsed | `Timeout` | `TimeoutError` | `tdx::Error` with `kind == Timeout` |
-| Connection / TLS / protocol fault | `Transport` | `NetworkError` | `tdx::NetworkError` |
-| Response shape unexpected | `Decode` | `SchemaMismatchError` | `tdx::SchemaMismatchError` |
-| Streaming session fault | `Fpss` | `StreamError` | `tdx::StreamError` |
-| Invalid parameters / configuration | `Config` | `ThetaDataError` | `tdx::ThetaDataError` |
+| Bad or expired credentials | `Auth` | `AuthenticationError` / `InvalidCredentialsError` | `thetadatadx::AuthenticationError` / `thetadatadx::InvalidCredentialsError` |
+| Endpoint needs a higher tier | `Grpc` (permission) | `SubscriptionError` | `thetadatadx::SubscriptionError` |
+| Too many requests in flight upstream | `Grpc` (resource exhausted) | `RateLimitError` | `thetadatadx::RateLimitError` |
+| Request returned no rows | `NoData` | `NoDataFoundError` | `thetadatadx::Error` with `kind == NoData` |
+| Per-request deadline elapsed | `Timeout` | `TimeoutError` | `thetadatadx::Error` with `kind == Timeout` |
+| Connection / TLS / protocol fault | `Transport` | `NetworkError` | `thetadatadx::NetworkError` |
+| Response shape unexpected | `Decode` | `SchemaMismatchError` | `thetadatadx::SchemaMismatchError` |
+| Streaming session fault | `Fpss` | `StreamError` | `thetadatadx::StreamError` |
+| Invalid parameters / configuration | `Config` | `ThetaDataError` | `thetadatadx::ThetaDataError` |
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.
 - **TypeScript** throws the standard `Error`; the message carries the same stable text as the Rust `Display` output, so the failure category is recognizable without a class tree.
-- **C++** exceptions derive from `tdx::ThetaDataError`; `NoData` and `Timeout` ride the generic `tdx::Error` with a `kind` discriminator.
+- **C++** exceptions derive from `thetadatadx::ThetaDataError`; `NoData` and `Timeout` ride the generic `thetadatadx::Error` with a `kind` discriminator.
 
 ```python
 from thetadatadx import NoDataFoundError, RateLimitError, ThetaDataError

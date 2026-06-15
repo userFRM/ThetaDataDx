@@ -17,7 +17,7 @@
         let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
-            .reconnect_streaming(move |event: &fpss::FpssEvent| {
+            .reconnect_streaming(move |event: &fpss::StreamEvent| {
                 let buffered = fpss_event_to_buffered(event);
                 let typed = buffered_event_to_typed(buffered);
                 dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);

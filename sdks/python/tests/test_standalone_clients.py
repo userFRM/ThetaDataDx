@@ -1,18 +1,18 @@
-"""Standalone `FpssClient` + `MddsClient` pyclass surface tests.
+"""Standalone `StreamingClient` + `HistoricalClient` pyclass surface tests.
 
 Pins the contract that:
 
-* ``FpssClient(creds, config)`` allocates an FPSS-only handle that
+* ``StreamingClient(creds, config)`` allocates an FPSS-only handle that
   opens NEITHER the MDDS gRPC channel NOR a Nexus HTTP session at
   construction time. The FPSS TLS connection itself is deferred to
   the first ``start_streaming*`` call, matching the standalone C ABI
   (``tdx_fpss_connect`` allocates, ``tdx_fpss_set_callback`` opens
   the network).
-* ``MddsClient(creds, config)`` opens ONLY the MDDS gRPC channel
+* ``HistoricalClient(creds, config)`` opens ONLY the MDDS gRPC channel
   plus the Nexus HTTP authentication. It exposes the historical /
   FLATFILES surface but raises ``AttributeError`` on every
   FPSS-touching method (``subscribe`` / ``start_streaming`` / etc.).
-* The bundled ``ThetaDataDxClient`` continues to expose its unified
+* The bundled ``Client`` continues to expose its unified
   surface unchanged.
 
 Live tests are gated on ``THETADX_LIVE_CREDS=path/to/creds.txt`` and
@@ -21,18 +21,18 @@ hit production endpoints; static surface tests run offline.
 # Nexus session behaviour
 
 This file does NOT change Nexus session behaviour. The standalone
-``FpssClient`` never authenticates against Nexus (FPSS speaks its
+``StreamingClient`` never authenticates against Nexus (FPSS speaks its
 own protocol-level ``CREDENTIALS`` handshake on the TLS connection
 itself; see ``crates/thetadatadx/src/fpss/mod.rs`` and
 ``ffi/src/streaming.rs::tdx_fpss_connect``). The standalone
-``MddsClient`` authenticates against Nexus exactly once at
+``HistoricalClient`` authenticates against Nexus exactly once at
 construction time. Running both side-by-side in the same process
 authenticates Nexus once (via the MDDS surface) and never again
 (the FPSS surface bypasses Nexus entirely), so a parallel
 externally-managed MDDS process under the same credentials is
 unaffected by either standalone pyclass beyond the single MDDS-
 side Nexus auth — which is the same single round-trip the bundled
-``ThetaDataDxClient`` already issues today.
+``Client`` already issues today.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ import pytest
 # const plus the compile-time guard against the generator-emitted
 # ``PYTHON_UNIFIED_FPSS_METHODS``. This Python copy lets the offline
 # coverage test enumerate every blocked name without needing a live
-# ``MddsClient`` instance.
+# ``HistoricalClient`` instance.
 BLOCKED_FPSS_METHODS = (
     "start_streaming",
     "stop_streaming",
@@ -95,26 +95,26 @@ def _live_creds_path() -> str | None:
 
 
 def test_standalone_classes_are_exported() -> None:
-    """`FpssClient` / `MddsClient` must be reachable on the package
+    """`StreamingClient` / `HistoricalClient` must be reachable on the package
     import surface so IDEs and type-stub generators can discover them.
     No live connection required."""
     mod = _import_module()
-    assert hasattr(mod, "FpssClient"), (
-        "thetadatadx must export `FpssClient` (standalone FPSS-only pyclass)"
+    assert hasattr(mod, "StreamingClient"), (
+        "thetadatadx must export `StreamingClient` (standalone FPSS-only pyclass)"
     )
-    assert hasattr(mod, "MddsClient"), (
-        "thetadatadx must export `MddsClient` (standalone MDDS-only pyclass)"
+    assert hasattr(mod, "HistoricalClient"), (
+        "thetadatadx must export `HistoricalClient` (standalone MDDS-only pyclass)"
     )
     # The bundled unified entry point must still be exported -- the
     # standalone classes are additive, not a replacement.
-    assert hasattr(mod, "ThetaDataDxClient"), (
-        "thetadatadx must continue to export the bundled `ThetaDataDxClient`"
+    assert hasattr(mod, "Client"), (
+        "thetadatadx must continue to export the bundled `Client`"
     )
 
 
 def test_fpss_client_constructor_signature() -> None:
-    """`FpssClient.__init__` must accept `(creds, config)` positionally
-    so the API matches the bundled `ThetaDataDxClient` and the
+    """`StreamingClient.__init__` must accept `(creds, config)` positionally
+    so the API matches the bundled `Client` and the
     standalone C++ wrapper."""
     mod = _import_module()
     creds = mod.Credentials("user@example.com", "pw")
@@ -123,18 +123,18 @@ def test_fpss_client_constructor_signature() -> None:
     # TLS connection is opened until `start_streaming*`. Validates the
     # contract that pure pyclass construction does NOT touch the
     # network at all.
-    client = mod.FpssClient(creds, config)
+    client = mod.StreamingClient(creds, config)
     assert client is not None
-    # `repr` mirrors the bundled `ThetaDataDxClient` vocabulary
+    # `repr` mirrors the bundled `Client` vocabulary
     # (`streaming=connected` / `streaming=none`) — no Rust-cased
     # `connected=true/false` slip-through.
     rendered = repr(client)
     assert "streaming=none" in rendered, rendered
-    assert "FpssClient(" in rendered, rendered
+    assert "StreamingClient(" in rendered, rendered
 
 
 def test_mdds_client_requires_network_for_construction() -> None:
-    """`MddsClient.__init__` authenticates against Nexus and opens the
+    """`HistoricalClient.__init__` authenticates against Nexus and opens the
     MDDS gRPC channel, so without a live network the construct call
     fails. We assert the *failure mode* here -- the live counterpart
     `test_mdds_history_smoke` confirms the success path."""
@@ -143,13 +143,13 @@ def test_mdds_client_requires_network_for_construction() -> None:
     config = mod.Config.production()
     with pytest.raises(Exception):
         # Either Nexus auth or gRPC handshake will fail; we don't care
-        # which -- the contract is "MddsClient construction touches the
+        # which -- the contract is "HistoricalClient construction touches the
         # network", which is what a parallel FPSS process cares about.
-        mod.MddsClient(creds, config)
+        mod.HistoricalClient(creds, config)
 
 
 def test_fpss_client_blocks_subscribe_before_start() -> None:
-    """Subscribing on an `FpssClient` before `start_streaming*` raises
+    """Subscribing on an `StreamingClient` before `start_streaming*` raises
     `RuntimeError` -- the FPSS TLS connection is not open yet.
 
     The `SecType.OPTION.full_trades()` factory exercises the polymorphic
@@ -161,26 +161,26 @@ def test_fpss_client_blocks_subscribe_before_start() -> None:
     mod = _import_module()
     creds = mod.Credentials("user@example.com", "pw")
     config = mod.Config.production()
-    client = mod.FpssClient(creds, config)
+    client = mod.StreamingClient(creds, config)
     sub = mod.SecType.OPTION.full_trades()
     with pytest.raises(RuntimeError, match="streaming not started"):
         client.subscribe(sub)
 
 
 def test_mdds_client_blocks_fpss_attrs() -> None:
-    """`MddsClient` is the historical-only surface -- every
+    """`HistoricalClient` is the historical-only surface -- every
     FPSS-touching method must raise `AttributeError` so callers
     cannot accidentally open an FPSS connection that would conflict
     with a parallel FPSS process."""
     mod = _import_module()
     if not _live_creds_path():
-        # Live creds gate: constructing `MddsClient` requires the gRPC
+        # Live creds gate: constructing `HistoricalClient` requires the gRPC
         # handshake to succeed, so the attribute-block assertions
         # piggyback on the live test gate.
-        pytest.skip("THETADX_LIVE_CREDS unset -- skip live MddsClient attribute check")
+        pytest.skip("THETADX_LIVE_CREDS unset -- skip live HistoricalClient attribute check")
 
     creds = mod.Credentials.from_file(_live_creds_path())
-    client = mod.MddsClient(creds, mod.Config.production())
+    client = mod.HistoricalClient(creds, mod.Config.production())
     for name in BLOCKED_FPSS_METHODS:
         with pytest.raises(AttributeError, match="standalone historical surface"):
             getattr(client, name)
@@ -217,19 +217,19 @@ def test_mdds_client_block_list_offline() -> None:
     )
 
 
-# ── Test #1: FpssClient never opens an MDDS gRPC channel ──────────────
+# ── Test #1: StreamingClient never opens an MDDS gRPC channel ──────────────
 
 
 def test_fpss_client_no_mdds_channel() -> None:
-    """``FpssClient(creds, config)`` must not attempt any MDDS gRPC
+    """``StreamingClient(creds, config)`` must not attempt any MDDS gRPC
     connect or Nexus HTTP request.
 
     Structural proof rather than circumstantial: point MDDS at a
     known-refused host (``127.0.0.1:1``) and assert that:
 
-    1. ``FpssClient(creds, config)`` constructs cleanly, because the
+    1. ``StreamingClient(creds, config)`` constructs cleanly, because the
        FPSS surface never opens the MDDS channel;
-    2. ``MddsClient(creds, config)`` against the SAME config fails
+    2. ``HistoricalClient(creds, config)`` against the SAME config fails
        fast (some network-level error), because the historical
        surface must open the channel at construction time.
 
@@ -250,47 +250,47 @@ def test_fpss_client_no_mdds_channel() -> None:
 
     creds = mod.Credentials("user@example.com", "pw")
 
-    # FpssClient construction must succeed against the bad MDDS host.
-    fpss = mod.FpssClient(creds, config)
+    # StreamingClient construction must succeed against the bad MDDS host.
+    fpss = mod.StreamingClient(creds, config)
 
     # The pyclass exists and reports a disconnected slot using the
-    # bundled `ThetaDataDxClient` repr vocabulary (`streaming=none`).
+    # bundled `Client` repr vocabulary (`streaming=none`).
     assert "streaming=none" in repr(fpss), (
-        f"FpssClient repr must report streaming=none before start_streaming*; "
+        f"StreamingClient repr must report streaming=none before start_streaming*; "
         f"got {repr(fpss)!r}"
     )
     # No active subscriptions before any start.
     assert fpss.active_subscriptions() == [], (
-        "FpssClient must report empty active_subscriptions before start_streaming*"
+        "StreamingClient must report empty active_subscriptions before start_streaming*"
     )
     assert fpss.active_full_subscriptions() == [], (
-        "FpssClient must report empty active_full_subscriptions before start_streaming*"
+        "StreamingClient must report empty active_full_subscriptions before start_streaming*"
     )
     # No drops, no panics on a never-started session.
     assert fpss.dropped_event_count() == 0
     assert fpss.panic_count() == 0
     assert fpss.is_streaming() is False
     assert fpss.is_authenticated() is False, (
-        "FpssClient must not be authenticated before start_streaming*"
+        "StreamingClient must not be authenticated before start_streaming*"
     )
 
-    # The companion assertion: MddsClient against the same bad config
+    # The companion assertion: HistoricalClient against the same bad config
     # must fail fast. If both succeeded, the test would not actually
     # prove disjoint network paths.
     with pytest.raises(Exception):
-        mod.MddsClient(creds, config)
+        mod.HistoricalClient(creds, config)
 
 
-# ── Test #2: MddsClient never opens an FPSS TLS connection ────────────
+# ── Test #2: HistoricalClient never opens an FPSS TLS connection ────────────
 
 
 def test_mdds_client_no_fpss_connection() -> None:
-    """``MddsClient(creds, config)`` must NEVER expose any path that
+    """``HistoricalClient(creds, config)`` must NEVER expose any path that
     opens the FPSS TLS connection.
 
     We assert the contract via the attribute block-list: every
-    FPSS-touching method on the bundled ``ThetaDataDxClient`` must
-    raise ``AttributeError`` on ``MddsClient``. Live attribute
+    FPSS-touching method on the bundled ``Client`` must
+    raise ``AttributeError`` on ``HistoricalClient``. Live attribute
     coverage is gated on credentials (see
     ``test_mdds_client_blocks_fpss_attrs``); this offline variant
     pins the *static* contract that the block-list exists on the
@@ -299,11 +299,11 @@ def test_mdds_client_no_fpss_connection() -> None:
     attributes is absent.
     """
     mod = _import_module()
-    # Static introspection: the MddsClient pyclass must NOT expose
+    # Static introspection: the HistoricalClient pyclass must NOT expose
     # any of these as bound methods. The block-list is enforced at
     # `__getattr__` runtime, so we verify it via `dir()` -- attribute
     # block-listing intentionally hides them from `dir()` so IDE
-    # autocomplete steers callers to FpssClient / ThetaDataDxClient.
+    # autocomplete steers callers to StreamingClient / Client.
     blocked = {
         "start_streaming",
         "subscribe",
@@ -311,10 +311,10 @@ def test_mdds_client_no_fpss_connection() -> None:
         "reconnect",
         "streaming",
     }
-    public_attrs = {name for name in dir(mod.MddsClient) if not name.startswith("_")}
+    public_attrs = {name for name in dir(mod.HistoricalClient) if not name.startswith("_")}
     leaked = blocked & public_attrs
     assert not leaked, (
-        f"MddsClient must not expose FPSS-touching methods on the pyclass; leaked={leaked}"
+        f"HistoricalClient must not expose FPSS-touching methods on the pyclass; leaked={leaked}"
     )
 
 
@@ -326,7 +326,7 @@ def test_mdds_client_no_fpss_connection() -> None:
     reason="THETADX_LIVE_CREDS unset -- skip live FPSS streaming callback smoke",
 )
 def test_fpss_streaming_callback_smoke() -> None:
-    """Live FPSS smoke: construct `FpssClient`, register a callback
+    """Live FPSS smoke: construct `StreamingClient`, register a callback
     via `start_streaming(callback)`, subscribe, wait until the
     callback fires (up to 10 s), and confirm at least one event
     arrived.
@@ -338,7 +338,7 @@ def test_fpss_streaming_callback_smoke() -> None:
     """
     mod = _import_module()
     creds = mod.Credentials.from_file(_live_creds_path())
-    fpss = mod.FpssClient(creds, mod.Config.production())
+    fpss = mod.StreamingClient(creds, mod.Config.production())
 
     received: list[Any] = []
     first_event = threading.Event()
@@ -366,7 +366,7 @@ def test_fpss_reconnect_restores_subscriptions() -> None:
     subscription captured against the previous session.
 
     Pins the explicit-handoff contract documented on
-    ``FpssClient.reconnect``: snapshot active subscriptions before
+    ``StreamingClient.reconnect``: snapshot active subscriptions before
     stopping, reopen the FPSS TLS connection under the previously
     registered callback, then re-apply each saved subscription.
     Without this regression the per-contract / full-stream restore
@@ -375,7 +375,7 @@ def test_fpss_reconnect_restores_subscriptions() -> None:
     """
     mod = _import_module()
     creds = mod.Credentials.from_file(_live_creds_path())
-    fpss = mod.FpssClient(creds, mod.Config.production())
+    fpss = mod.StreamingClient(creds, mod.Config.production())
 
     received: list[Any] = []
 
@@ -415,13 +415,13 @@ def test_fpss_reconnect_restores_subscriptions() -> None:
     reason="THETADX_LIVE_CREDS unset -- skip live MDDS history smoke",
 )
 def test_mdds_history_smoke() -> None:
-    """Live MDDS smoke: construct `MddsClient` and pull a 2-month
+    """Live MDDS smoke: construct `HistoricalClient` and pull a 2-month
     EOD slice for AAPL. Confirms the gRPC channel is open, the
     Nexus session was acquired, and the typed-list decode path
     is wired through."""
     mod = _import_module()
     creds = mod.Credentials.from_file(_live_creds_path())
-    mdds = mod.MddsClient(creds, mod.Config.production())
+    mdds = mod.HistoricalClient(creds, mod.Config.production())
 
     ticks = mdds.stock_history_eod("AAPL", "20260101", "20260301")
     assert ticks is not None, "stock_history_eod must return a typed list"
@@ -446,7 +446,7 @@ def test_mdds_history_smoke() -> None:
 )
 def test_concurrent_fpss_and_mdds_share_creds() -> None:
     """Hand the same `Credentials` instance to a standalone
-    `FpssClient` AND a standalone `MddsClient` in the same process.
+    `StreamingClient` AND a standalone `HistoricalClient` in the same process.
     Confirm both authenticate without `Error::Auth`.
 
     Nexus session behaviour observation (recorded in PR body): the
@@ -460,10 +460,10 @@ def test_concurrent_fpss_and_mdds_share_creds() -> None:
     config = mod.Config.production()
 
     # MDDS-only construct -- single Nexus auth, gRPC channel up.
-    mdds = mod.MddsClient(creds, config)
+    mdds = mod.HistoricalClient(creds, config)
     # FPSS-only construct -- no Nexus, no gRPC. Construction must
     # succeed even after the MDDS-side Nexus session is live.
-    fpss = mod.FpssClient(creds, config)
+    fpss = mod.StreamingClient(creds, config)
 
     # Use MDDS to confirm the session is functional after the FPSS
     # pyclass is also alive. A regression where FPSS construction
@@ -471,7 +471,7 @@ def test_concurrent_fpss_and_mdds_share_creds() -> None:
     # `RuntimeError` (or `AuthenticationError`) on the next MDDS
     # call.
     ticks = mdds.stock_history_eod("AAPL", "20260201", "20260205")
-    assert ticks.to_list(), "MDDS surface must remain authenticated after FpssClient construction"
+    assert ticks.to_list(), "MDDS surface must remain authenticated after StreamingClient construction"
 
     # Pop the FPSS streaming slot briefly to confirm the FPSS-level
     # handshake also works while the MDDS session is live. The

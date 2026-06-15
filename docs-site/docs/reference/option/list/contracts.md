@@ -46,7 +46,7 @@ for t in &rows {
 <template #python>
 
 ```python
-ThetaDataDxClient.option_list_contracts(
+Client.option_list_contracts(
     request_type, symbol, date,
     *,
     max_dte=None, timeout_ms=None,
@@ -96,7 +96,7 @@ std::vector<OptionContract> option_list_contracts(
     const EndpointRequestOptions& options = {}) const;
 ```
 
-Optional parameters chain on `EndpointRequestOptions`: `.with_max_dte(...)`. Throws `tdx::Error` on failure.
+Optional parameters chain on `EndpointRequestOptions`: `.with_max_dte(...)`. Throws `thetadatadx::Error` on failure.
 
 **Example**
 

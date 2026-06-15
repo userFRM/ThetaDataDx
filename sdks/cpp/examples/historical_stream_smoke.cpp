@@ -24,7 +24,7 @@ namespace {
 // array plus internal padding before its f64 members; those bytes are not
 // part of the row's value, so a `memcmp` of the whole struct could report a
 // spurious mismatch even when every column agrees.
-bool ticks_equal(const tdx::TradeTick& a, const tdx::TradeTick& b) {
+bool ticks_equal(const thetadatadx::TradeTick& a, const thetadatadx::TradeTick& b) {
     return a.ms_of_day == b.ms_of_day && a.sequence == b.sequence &&
            a.ext_condition1 == b.ext_condition1 && a.ext_condition2 == b.ext_condition2 &&
            a.ext_condition3 == b.ext_condition3 && a.ext_condition4 == b.ext_condition4 &&
@@ -44,29 +44,29 @@ int main(int argc, char** argv) {
     const std::string date = (argc > 4) ? argv[4] : "20250303";
 
     try {
-        auto creds = tdx::Credentials::from_file(creds_path);
-        auto config = tdx::Config::production();
-        auto client = tdx::ThetaDataDxClient::connect(creds, config);
+        auto creds = thetadatadx::Credentials::from_file(creds_path);
+        auto config = thetadatadx::Config::production();
+        auto client = thetadatadx::Client::connect(creds, config);
 
         std::cout << "streaming option_history_trade " << symbol << " expiration=" << expiration
                   << " date=" << date << " (all strikes)\n";
 
         // ── Streamed pull ──
-        std::vector<tdx::TradeTick> streamed;
+        std::vector<thetadatadx::TradeTick> streamed;
         std::size_t chunk_count = 0;
         std::size_t peak_chunk_rows = 0;
         const auto t0 = std::chrono::steady_clock::now();
 
         client.option_history_trade_stream(
             symbol, expiration, date,
-            [&](tdx::Span<const tdx::TradeTick> chunk) {
+            [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
                 ++chunk_count;
                 if (chunk.size() > peak_chunk_rows) {
                     peak_chunk_rows = chunk.size();
                 }
                 streamed.insert(streamed.end(), chunk.begin(), chunk.end());
             },
-            tdx::EndpointRequestOptions{}.with_timeout_ms(120000));
+            thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
 
         const auto t1 = std::chrono::steady_clock::now();
         const auto stream_ms =
@@ -74,14 +74,14 @@ int main(int argc, char** argv) {
 
         std::cout << "  streamed: " << streamed.size() << " rows in " << chunk_count
                   << " chunks (peak chunk " << peak_chunk_rows << " rows, "
-                  << (peak_chunk_rows * sizeof(tdx::TradeTick)) << " bytes), " << stream_ms
+                  << (peak_chunk_rows * sizeof(thetadatadx::TradeTick)) << " bytes), " << stream_ms
                   << " ms\n";
 
         // ── Buffered pull (ground truth) ──
         const auto t2 = std::chrono::steady_clock::now();
-        tdx::MddsClient hist = tdx::MddsClient::connect(creds, config);
-        std::vector<tdx::TradeTick> buffered = hist.option_history_trade(
-            symbol, expiration, date, tdx::EndpointRequestOptions{}.with_timeout_ms(120000));
+        thetadatadx::HistoricalClient hist = thetadatadx::HistoricalClient::connect(creds, config);
+        std::vector<thetadatadx::TradeTick> buffered = hist.option_history_trade(
+            symbol, expiration, date, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();
         const auto buffered_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();

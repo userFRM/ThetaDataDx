@@ -46,12 +46,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient  # type: ignore
+    from thetadatadx import Config, Contract, Credentials, Client  # type: ignore
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
     cfg.derive_ohlcvc = False
-    client = ThetaDataDxClient(Credentials.from_file(args.creds), cfg)
+    client = Client(Credentials.from_file(args.creds), cfg)
 
     events: "queue.Queue" = queue.Queue(maxsize=8192)
     stop_consuming = threading.Event()

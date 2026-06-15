@@ -41,8 +41,8 @@ fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<
 /// Build a config via one of the three static factories
 /// (`Config.production` / `Config.dev` / `Config.stage`), tune
 /// it with the setters below, then pass it as the optional second
-/// argument to `ThetaDataDxClient.connect(creds, config)` /
-/// `ThetaDataDxClient.connectFromFile(path, config)`.
+/// argument to `Client.connect(creds, config)` /
+/// `Client.connectFromFile(path, config)`.
 ///
 /// Mutating methods follow JS convention and
 /// return `void` (chain by calling `cfg.method(...)` then passing

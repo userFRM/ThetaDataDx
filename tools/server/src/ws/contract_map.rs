@@ -3,21 +3,21 @@
 use std::sync::Arc;
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::fpss::{StreamData, StreamEvent};
 
 /// Return the parsed contract attached to a data event, if any.
 ///
-/// Every `FpssData::*` variant carries `contract: Arc<Contract>`
+/// Every `StreamData::*` variant carries `contract: Arc<Contract>`
 /// directly — the I/O thread populates it from its internal contract
 /// cache at decode time. The WebSocket bridge keeps no
 /// `contract_id -> Contract` map of its own; cloning the `Arc` is a
 /// refcount bump, not a heap allocation on the contract symbol.
-pub(super) fn lookup_event_contract(event: &FpssEvent) -> Option<Arc<Contract>> {
+pub(super) fn lookup_event_contract(event: &StreamEvent) -> Option<Arc<Contract>> {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract, .. })
-        | FpssEvent::Data(FpssData::Trade { contract, .. })
-        | FpssEvent::Data(FpssData::OpenInterest { contract, .. })
-        | FpssEvent::Data(FpssData::Ohlcvc { contract, .. }) => Some(Arc::clone(contract)),
+        StreamEvent::Data(StreamData::Quote { contract, .. })
+        | StreamEvent::Data(StreamData::Trade { contract, .. })
+        | StreamEvent::Data(StreamData::OpenInterest { contract, .. })
+        | StreamEvent::Data(StreamData::Ohlcvc { contract, .. }) => Some(Arc::clone(contract)),
         _ => None,
     }
 }
@@ -30,8 +30,8 @@ pub(super) fn lookup_event_contract(event: &FpssEvent) -> Option<Arc<Contract>> 
 mod tests {
     use super::*;
 
-    fn make_quote(contract: Arc<Contract>) -> FpssEvent {
-        FpssEvent::Data(FpssData::Quote {
+    fn make_quote(contract: Arc<Contract>) -> StreamEvent {
+        StreamEvent::Data(StreamData::Quote {
             contract,
             ms_of_day: 0,
             bid_size: 0,

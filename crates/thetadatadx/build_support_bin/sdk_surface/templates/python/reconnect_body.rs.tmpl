@@ -24,9 +24,9 @@
         // cheap reentrant fast path.
         self.tdx
             .reconnect_streaming_scoped(
-                move |event: &fpss::FpssEvent| {
+                move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
-                        // Borrowed `&FpssEvent` → typed pyclass in one
+                        // Borrowed `&StreamEvent` → typed pyclass in one
                         // pass; contract stored inline, ContractRef built
                         // only on `event.contract` access. `call1` with a
                         // 1-tuple uses pyo3's vectorcall fast path.

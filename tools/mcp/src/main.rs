@@ -1,4 +1,4 @@
-//! MCP (Model Context Protocol) server for ThetaDataDxClient.
+//! MCP (Model Context Protocol) server for Client.
 //!
 //! Gives any MCP-compatible LLM client instant access to ThetaData market
 //! data via structured tool calls over stdio JSON-RPC 2.0.
@@ -9,12 +9,12 @@
 //!     |  JSON-RPC 2.0 over stdio
 //!     v
 //! thetadatadx-mcp (long-running process)
-//!     |  Single ThetaDataDxClient client, authenticated once
+//!     |  Single Client client, authenticated once
 //!     v
 //! ThetaData servers (MDDS + FPSS)
 //! ```
 //!
-//! The server authenticates ONCE at startup, keeps the ThetaDataDxClient client alive,
+//! The server authenticates ONCE at startup, keeps the Client client alive,
 //! and serves tool calls instantly with no per-request auth overhead.
 //!
 //! Tool definitions and dispatch are driven by the shared endpoint registry
@@ -31,7 +31,7 @@ use tokio::sync::OnceCell;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, ThetaDataDxClient,
+    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, Client,
     ENDPOINTS,
 };
 
@@ -314,7 +314,7 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
-    // Registry-driven: every MddsClient endpoint
+    // Registry-driven: every HistoricalClient endpoint
     for ep in ENDPOINTS {
         let mut props = sonic_rs::Object::new();
         let mut required = Vec::new();
@@ -1033,7 +1033,7 @@ include!("utilities.rs");
 mod flatfile_tools;
 
 async fn execute_tool(
-    client: Option<&ThetaDataDxClient>,
+    client: Option<&Client>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
@@ -1076,7 +1076,7 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Arc<OnceCell<ThetaDataDxClient>>,
+    client: &Arc<OnceCell<Client>>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
     // OnceCell::get is lock-free; no guard is held across the awaits below.
@@ -1144,7 +1144,7 @@ async fn handle_request(
 /// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
 /// receives a successful but empty `tools/call` result. Kept separate from the
 /// `tools/call` arm so a test can exercise the canonicalisation path without
-/// spinning up a live `ThetaDataDxClient` client.
+/// spinning up a live `Client` client.
 fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
     match thetadatadx::json_canon::canonicalize_and_serialize(result) {
         Ok(text) => JsonRpcResponse::success(
@@ -1275,12 +1275,12 @@ async fn main() {
     // on the ThetaData gRPC handshake (~800 ms).  Wrap the client in an
     // Arc<RwLock> so the background task can populate it while the stdin loop
     // is already running.
-    let client: Arc<OnceCell<ThetaDataDxClient>> = Arc::new(OnceCell::new());
+    let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
 
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
         tokio::spawn(async move {
-            match ThetaDataDxClient::connect(&creds, DirectConfig::production()).await {
+            match Client::connect(&creds, DirectConfig::production()).await {
                 Ok(c) => {
                     tracing::info!("connected to ThetaData MDDS");
                     if client_bg.set(c).is_err() {
