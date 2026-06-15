@@ -1326,6 +1326,14 @@ public:
 
 private:
     explicit HistoricalClient(TdxHistoricalClient* h) : handle_(h) {}
+
+    /// Resolve the historical sub-handle the generated buffered query
+    /// definitions call into. On the standalone client this is the owned
+    /// handle directly; the unified client's `Historical` view derives it
+    /// from `tdx_client_historical`. Naming the accessor uniformly lets
+    /// the generator emit one definition body for both classes.
+    const TdxHistoricalClient* historical_handle() const { return handle_.get(); }
+
     std::unique_ptr<TdxHistoricalClient, HistoricalClientDeleter> handle_;
 };
 
@@ -1746,17 +1754,279 @@ struct FullSubscription {
     std::string sec_type;
 };
 
+/// Historical-data sub-namespace returned by `Client::historical()`.
+///
+/// Borrows the unified `TdxClient*` and derives the historical
+/// sub-handle (`tdx_client_historical`) on each call, so constructing it
+/// performs no auth round-trip and opens no second connection. Exposes the
+/// full buffered historical query surface (mixed in from
+/// `historical.hpp.inc`) and the server-stream companions
+/// (`historical_stream.hpp.inc`) generated identically with the standalone
+/// `HistoricalClient`. The view is non-owning: its lifetime is bounded by
+/// the parent `Client`.
+class Historical {
+public:
+    /// Generated buffered historical query declarations
+    /// (`stock_history_eod`, `option_snapshot_quote`, …).
+    #include "historical.hpp.inc"
+
+    /// Generated server-stream historical method declarations
+    /// (`<endpoint>_stream`) plus the shared `stream_chunk_shim`
+    /// trampoline. Each drains a large historical result chunk-by-chunk,
+    /// bounding peak memory to a single chunk.
+    #include "historical_stream.hpp.inc"
+
+private:
+    friend class Client;
+    explicit Historical(const TdxClient* h) : handle_(h) {}
+
+    /// Resolve the historical sub-handle the generated query definitions
+    /// call into. Derives it from the unified handle via
+    /// `tdx_client_historical`; throws on the (unexpected) null result so
+    /// the failure surfaces as a typed error rather than a null deref.
+    const TdxHistoricalClient* historical_handle() const {
+        const TdxHistoricalClient* hist = tdx_client_historical(handle_);
+        if (hist == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        return hist;
+    }
+
+    const TdxClient* handle_;
+};
+
+/// Real-time-streaming sub-namespace returned by `Client::stream()`.
+///
+/// Borrows the unified `TdxClient*` and a pointer to the parent `Client`'s
+/// callback storage slot, so `set_callback` / `stop_streaming` /
+/// `reconnect` observe the same registration the unified client manages.
+/// The view is non-owning and transient: the callback `std::function`
+/// storage lives on the parent `Client` (whose destructor runs the C-ABI
+/// drain barrier), never on the view, so a `Stream` value may be created
+/// and discarded freely without disturbing the streaming session.
+class Stream {
+public:
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
+    Stream(Stream&&) = default;
+    Stream& operator=(Stream&&) = delete;
+
+    /** Register a streaming push callback and open the streaming session.
+     *  `fn` runs on the consumer thread inside an isolation boundary, never
+     *  on the streaming reader. The reader thread cannot be blocked by
+     *  user code: on ring overflow events are dropped and counted via
+     *  `dropped_event_count()`. Throws on registration failure.
+     *
+     *  ## Callback storage + thread affinity
+     *
+     *  The parent `Client` owns a `std::unique_ptr<std::function>` whose
+     *  address is the `void* ctx` registered with the dispatcher. That
+     *  address must outlive every consumer-thread invocation; destruction
+     *  routes through `tdx_client_free` on the parent, which performs the
+     *  shutdown + drain barrier internally, and replacement here calls
+     *  `tdx_client_stop_streaming` followed by
+     *  `tdx_client_await_drain(5000)` before releasing the storage — so no
+     *  thread can observe a dangling ctx.
+     *
+     *  ## Lifecycle contract (unified replace-allowed rule)
+     *
+     *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
+     *  permits stop+register as a normal user flow: after
+     *  `stop_streaming()` another `set_callback` REPLACES the saved
+     *  `(callback, ctx)`. `reconnect()` is built on top of this. Calling
+     *  `set_callback` on a live (running) session also replaces — the
+     *  previous (callback, ctx) is drained out before the new one is wired
+     *  in, with the same `await_drain(5000)` budget. */
+    void set_callback(std::function<void(const StreamEvent&)> fn) {
+        // Drain the existing wiring first so the consumer thread stops
+        // invoking through the old `*callback_` storage before we release
+        // it. Matches the C ABI's replace-allowed contract: a successful
+        // replacement registration leaves the old `ctx` observable only
+        // inside the drain barrier window.
+        if (*callback_) {
+            tdx_client_stop_streaming(handle_);
+            int drained = tdx_client_await_drain(handle_, 5000);
+            if (drained == 0) {
+                // Drain barrier timed out: detach old storage to a helper
+                // thread for a 30 s grace window so destruction happens off
+                // the registration path; the consumer is bounded by its own
+                // ring drain and will quiesce well within that window.
+                std::thread([cb = std::move(*callback_)]() mutable {
+                    std::this_thread::sleep_for(std::chrono::seconds(30));
+                }).detach();
+            } else {
+                callback_->reset();
+            }
+        }
+        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
+        int rc = tdx_client_set_callback(handle_, &Stream::callback_shim, staged.get());
+        if (rc < 0) {
+            detail::throw_last_ffi_error();
+        }
+        *callback_ = std::move(staged);
+    }
+
+    /// Polymorphic subscribe — primary fluent entry point. Defined inline
+    /// below the fluent class declarations.
+    inline void subscribe(const class FluentSubscription& sub) const;
+
+    /// Bulk-subscribe an initializer list of `Subscription` values.
+    /// Stops at the first error and throws.
+    inline void subscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+
+    /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
+    inline void unsubscribe(const class FluentSubscription& sub) const;
+
+    /// Bulk-unsubscribe an initializer list of `Subscription` values.
+    inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+
+    /// Stop streaming. Historical access remains available. Pair with
+    /// `await_drain()` if you need to confirm the consumer thread has
+    /// finished firing the registered callback before dropping any
+    /// captured state.
+    void stop_streaming() {
+        if (handle_) {
+            tdx_client_stop_streaming(handle_);
+        }
+    }
+
+    /// Reconnect streaming and re-apply every previously active
+    /// subscription. Throws on failure — the wrapped C ABI sets the
+    /// last-error slot on `-1` return.
+    void reconnect() {
+        int rc = tdx_client_reconnect(handle_);
+        if (rc < 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Block until the previous consumer thread has finished firing the
+    /// registered callback. Returns true on drain, false on timeout. Pass
+    /// the same 5 s budget the FFI free path uses unless you have a
+    /// specific reason to deviate.
+    bool await_drain(std::chrono::milliseconds timeout) {
+        const uint64_t ms = timeout.count() < 0
+                                ? 0
+                                : static_cast<uint64_t>(timeout.count());
+        return tdx_client_await_drain(handle_, ms) == 1;
+    }
+
+    /// Cumulative count of streaming events the TLS reader could not
+    /// publish into the bounded ring because the consumer fell behind and
+    /// the ring was full. Returns 0 when no callback has been installed
+    /// yet.
+    uint64_t dropped_event_count() const {
+        return handle_ ? tdx_client_dropped_events(handle_) : 0;
+    }
+
+    /// Point-in-time count of streaming events published into the event
+    /// ring but not yet drained into the registered callback — the
+    /// in-flight depth between the I/O thread and the dispatcher. Rising
+    /// occupancy that approaches ring_capacity() predicts drops before
+    /// dropped_event_count() moves; sampling never blocks the feed and is
+    /// safe from any thread. Returns 0 when no callback has been installed
+    /// yet.
+    uint64_t ring_occupancy() const {
+        return handle_ ? tdx_client_ring_occupancy(handle_) : 0;
+    }
+
+    /// Configured capacity of the streaming event ring in slots (the
+    /// fpss_ring_size setting, a power of two) — the fixed denominator for
+    /// ring_occupancy(). Returns 0 when no callback has been installed yet.
+    uint64_t ring_capacity() const {
+        return handle_ ? tdx_client_ring_capacity(handle_) : 0;
+    }
+
+    /** Milliseconds since the most recent inbound streaming frame of any
+     *  kind. Returns 0 on success with the value in *out_ms, 1 when
+     *  streaming has not started or no frame has been received yet, -1 on a
+     *  null handle. */
+    int32_t millis_since_last_event(uint64_t* out_ms) const {
+        return handle_ ? tdx_client_millis_since_last_event(handle_, out_ms) : -1;
+    }
+
+    /** UNIX-nanosecond receive timestamp of the most recent inbound
+     *  streaming frame. 0 when streaming has not started or no frame has
+     *  arrived yet. */
+    int64_t last_event_received_at_unix_nanos() const {
+        return handle_ ? tdx_client_last_event_received_at_unix_nanos(handle_) : 0;
+    }
+
+    /** Address (host:port) of the streaming server the current session is
+     *  connected to, following the session across auto-reconnects. Empty
+     *  when streaming has not started. */
+    std::string last_connected_addr() const {
+        if (!handle_) return {};
+        char* raw = tdx_client_last_connected_addr(handle_);
+        if (!raw) return {};
+        std::string out(raw);
+        tdx_string_free(raw);
+        return out;
+    }
+
+    /// `true` iff the streaming session is currently live (set_callback ran
+    /// and stop_streaming / terminal close has not).
+    bool is_streaming() const {
+        return handle_ && tdx_client_is_streaming(handle_) == 1;
+    }
+
+    /// Snapshot the currently-active per-contract subscriptions. Throws on
+    /// FFI error.
+    std::vector<Subscription> active_subscriptions() const {
+        TdxSubscriptionArray* arr = tdx_client_active_subscriptions(handle_);
+        if (arr == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        std::vector<Subscription> out;
+        if (arr->data != nullptr && arr->len > 0) {
+            out.reserve(arr->len);
+            for (size_t i = 0; i < arr->len; ++i) {
+                const TdxSubscription& s = arr->data[i];
+                out.push_back(Subscription{
+                    s.kind ? std::string(s.kind) : std::string(),
+                    s.contract ? std::string(s.contract) : std::string(),
+                });
+            }
+        }
+        tdx_subscription_array_free(arr);
+        return out;
+    }
+
+private:
+    friend class Client;
+    Stream(const TdxClient* h,
+           std::unique_ptr<std::function<void(const StreamEvent&)>>* callback)
+        : handle_(h), callback_(callback) {}
+
+    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
+    // `std::function*` we registered alongside the callback. The event
+    // pointer is non-null and valid only for the duration of this call.
+    static void callback_shim(const TdxStreamEvent* event, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
+        if (fn == nullptr || event == nullptr) return;
+        try {
+            (*fn)(*event);
+        } catch (...) {
+            // User callbacks must not propagate exceptions across the C ABI
+            // boundary — unwinding across it is undefined behavior. Swallow.
+        }
+    }
+
+    const TdxClient* handle_;
+    // Borrowed pointer to the parent `Client`'s callback storage slot. The
+    // parent outlives every transient `Stream` view, so the pointer is
+    // always valid for the view's lifetime.
+    std::unique_ptr<std::function<void(const StreamEvent&)>>* callback_;
+};
+
 /// RAII wrapper around a unified client handle (`TdxClient*`).
 /// The unified handle owns both the historical (gRPC/MDDS) and
-/// streaming (FPSS) sub-clients; the C++ wrapper exposes the
-/// FLATFILES surface, the polymorphic `subscribe(spec)` /
-/// `unsubscribe(spec)` API, the `set_callback`-driven push delivery
-/// path,
-/// and the lifecycle methods (`stop_streaming`,
-/// `reconnect`, `await_drain`, `dropped_event_count`, `is_streaming`,
-/// `active_subscriptions`, `active_full_subscriptions`). For
-/// pure-historical gRPC use, `HistoricalClient` remains the recommended entry
-/// point.
+/// streaming (FPSS) sub-clients. Historical queries are reached through
+/// `client.historical()` (the `Historical` view) and the real-time
+/// streaming surface through `client.stream()` (the `Stream` view); the
+/// FLATFILES surface stays on the client directly via `flat_files()`. For
+/// pure-historical gRPC use, `HistoricalClient` remains the recommended
+/// entry point.
 class Client {
 public:
     /// Connect a unified client (historical + streaming through one
@@ -1832,219 +2102,42 @@ public:
     /// `FlatFiles` value is bounded by `*this`.
     FlatFiles flat_files() const { return FlatFiles(handle_.get()); }
 
-    // Generated server-stream historical methods (`<endpoint>_stream`). Each
-    // drains a large historical result chunk-by-chunk through a
-    // `std::function<void(Span<const Tick>)>` handler, bounding peak memory to
-    // a single chunk. They borrow the historical client from this unified
-    // handle (`tdx_client_historical`), so they share the authenticated
-    // session — no second connection. Included here so the declarations extend
-    // the `Client` body and count toward the cross-binding parity gate.
-    #include "historical_stream.hpp.inc"
+    /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
+    ///
+    /// Returns a `Historical` view borrowing this client's handle. No auth
+    /// round-trip, no second connection; the view's lifetime is bounded by
+    /// `*this`.
+    Historical historical() const { return Historical(handle_.get()); }
 
-    /// Polymorphic subscribe — primary fluent entry point. Defined
-    /// inline below the fluent class declarations.
-    inline void subscribe(const class FluentSubscription& sub) const;
-
-    /// Bulk-subscribe an initializer list of `Subscription` values.
-    /// Stops at the first error and throws.
-    inline void subscribe_many(std::initializer_list<class FluentSubscription> subs) const;
-
-    /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
-    inline void unsubscribe(const class FluentSubscription& sub) const;
-
-    /// Bulk-unsubscribe an initializer list of `Subscription` values.
-    inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+    /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
+    /// `client.stream().set_callback(cb)`, …
+    ///
+    /// Returns a `Stream` view borrowing this client's handle and a pointer
+    /// to this client's callback storage slot, so the streaming lifecycle
+    /// observed through the view is the one this client owns. The callback
+    /// `std::function` storage lives on `*this` (whose destructor runs the
+    /// C-ABI drain barrier), never on the transient view.
+    Stream stream() { return Stream(handle_.get(), &callback_); }
 
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const TdxClient* get() const noexcept { return handle_.get(); }
 
-    /** Register a streaming push callback and open the streaming session.
-     *  `fn` runs on the consumer thread inside an isolation boundary, never
-     *  on the streaming reader. The reader thread cannot be blocked by
-     *  user code: on ring overflow events are dropped and counted via
-     *  `dropped_event_count()`. Throws on registration failure.
-     *
-     *  ## Callback storage + thread affinity
-     *
-     *  The wrapper owns a `std::unique_ptr<std::function>` whose
-     *  address is the `void* ctx` registered with the dispatcher.
-     *  That address must outlive every consumer-thread invocation;
-     *  destruction routes through `tdx_client_free`, which performs
-     *  the shutdown + drain barrier internally, and move-assign /
-     *  replacement calls `tdx_client_stop_streaming` followed by
-     *  `tdx_client_await_drain(5000)` before releasing the storage
-     *  — so no thread can observe a dangling ctx.
-     *
-     *  ## Lifecycle contract (unified replace-allowed rule)
-     *
-     *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
-     *  permits stop+register as a normal user flow: after
-     *  `stop_streaming()` another `set_callback` REPLACES the saved
-     *  `(callback, ctx)`. `reconnect()` is built on top of this.
-     *  Calling `set_callback` on a live (running) session also
-     *  replaces — the previous (callback, ctx) is drained out before
-     *  the new one is wired in, with the same `await_drain(5000)`
-     *  budget. */
-    void set_callback(std::function<void(const StreamEvent&)> fn) {
-        // Drain the existing wiring first so the consumer thread
-        // stops invoking through the old `callback_` storage before
-        // we release it. Matches the C ABI's replace-allowed contract:
-        // a successful replacement registration leaves the old `ctx`
-        // observable only inside the drain barrier window.
-        if (callback_) {
-            tdx_client_stop_streaming(handle_.get());
-            int drained = tdx_client_await_drain(handle_.get(), 5000);
-            if (drained == 0) {
-                // Drain barrier timed out: detach old storage to a
-                // helper thread for a 30 s grace window so destruction
-                // happens off the registration path; the consumer is
-                // bounded by its own ring drain and will quiesce well
-                // within that window.
-                std::thread([cb = std::move(callback_)]() mutable {
-                    std::this_thread::sleep_for(std::chrono::seconds(30));
-                }).detach();
-            } else {
-                callback_.reset();
-            }
-        }
-        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
-        int rc = tdx_client_set_callback(handle_.get(), &Client::callback_shim, staged.get());
-        if (rc < 0) {
-            detail::throw_last_ffi_error();
-        }
-        callback_ = std::move(staged);
-    }
-
-    /// Stop streaming. Historical access remains available. Pair
-    /// with `await_drain()` if you need to confirm the consumer
-    /// thread has finished firing the registered callback before
-    /// dropping any captured state.
-    void stop_streaming() {
-        if (handle_) {
-            tdx_client_stop_streaming(handle_.get());
-        }
-    }
-
-    /// Reconnect streaming and re-apply every previously active
-    /// subscription. Returns true on full success. Throws on failure
-    /// — the wrapped C ABI sets the last-error slot on `-1` return.
-    void reconnect() {
-        int rc = tdx_client_reconnect(handle_.get());
-        if (rc < 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Block until the previous consumer thread has finished firing
-    /// the registered callback. Returns true on drain, false on
-    /// timeout. Pass the same 5 s budget the FFI free path uses
-    /// unless you have a specific reason to deviate.
-    bool await_drain(std::chrono::milliseconds timeout) {
-        const uint64_t ms = timeout.count() < 0
-                                ? 0
-                                : static_cast<uint64_t>(timeout.count());
-        return tdx_client_await_drain(handle_.get(), ms) == 1;
-    }
-
-    /// Cumulative count of streaming events the TLS reader could not
-    /// publish into the bounded ring because the consumer fell behind
-    /// and the ring was full. Returns 0 when no callback has been
-    /// installed yet. Safe to call on a moved-from client.
-    uint64_t dropped_event_count() const {
-        return handle_ ? tdx_client_dropped_events(handle_.get()) : 0;
-    }
-
-    /// Point-in-time count of streaming events published into the
-    /// event ring but not yet drained into the registered callback —
-    /// the in-flight depth between the I/O thread and the dispatcher.
-    /// Rising occupancy that approaches ring_capacity() predicts
-    /// drops before dropped_event_count() moves; sampling never
-    /// blocks the feed and is safe from any thread. Returns 0 when no
-    /// callback has been installed yet. Safe to call on a moved-from
-    /// client.
-    uint64_t ring_occupancy() const {
-        return handle_ ? tdx_client_ring_occupancy(handle_.get()) : 0;
-    }
-
-    /// Configured capacity of the streaming event ring in slots (the
-    /// fpss_ring_size setting, a power of two) — the fixed
-    /// denominator for ring_occupancy(). Returns 0 when no callback
-    /// has been installed yet. Safe to call on a moved-from client.
-    uint64_t ring_capacity() const {
-        return handle_ ? tdx_client_ring_capacity(handle_.get()) : 0;
-    }
-
     /// Cumulative count of user-callback failures contained by the
-    /// per-invocation isolation boundary since the current stream
-    /// started. If the callback aborts on a given event, the failure is
-    /// contained, recorded here, and does not stop event delivery — the
-    /// next event continues normally. Returns 0 when no callback has been
-    /// installed yet. Safe to call from any thread without blocking.
+    /// per-invocation isolation boundary since the current stream started.
+    /// If the callback aborts on a given event, the failure is contained,
+    /// recorded here, and does not stop event delivery — the next event
+    /// continues normally. Returns 0 when no callback has been installed
+    /// yet. Safe to call from any thread without blocking. Mirrors the
+    /// Python / TypeScript `Client.panic_count` placement.
     uint64_t panic_count() const {
         return handle_ ? tdx_client_panic_count(handle_.get()) : 0;
     }
 
-    /** Milliseconds since the most recent inbound streaming frame of
-     *  any kind. Returns 0 on success with the value in *out_ms, 1
-     *  when streaming has not started or no frame has been received
-     *  yet, -1 on a null handle. */
-    int32_t millis_since_last_event(uint64_t* out_ms) const {
-        return handle_ ? tdx_client_millis_since_last_event(handle_.get(), out_ms) : -1;
-    }
-
-    /** UNIX-nanosecond receive timestamp of the most recent inbound
-     *  streaming frame. 0 when streaming has not started or no frame
-     *  has arrived yet. */
-    int64_t last_event_received_at_unix_nanos() const {
-        return handle_ ? tdx_client_last_event_received_at_unix_nanos(handle_.get()) : 0;
-    }
-
-    /** Address (host:port) of the streaming server the current
-     *  session is connected to, following the session across
-     *  auto-reconnects. Empty when streaming has not started. */
-    std::string last_connected_addr() const {
-        if (!handle_) return {};
-        char* raw = tdx_client_last_connected_addr(handle_.get());
-        if (!raw) return {};
-        std::string out(raw);
-        tdx_string_free(raw);
-        return out;
-    }
-
-
-    /// `true` iff the streaming session is currently live (set_callback
-    /// and stop_streaming /
-    /// terminal close has not).
-    bool is_streaming() const {
-        return handle_ && tdx_client_is_streaming(handle_.get()) == 1;
-    }
-
-    /// Snapshot the currently-active per-contract subscriptions.
-    /// Throws on FFI error.
-    std::vector<Subscription> active_subscriptions() const {
-        TdxSubscriptionArray* arr = tdx_client_active_subscriptions(handle_.get());
-        if (arr == nullptr) {
-            detail::throw_last_ffi_error();
-        }
-        std::vector<Subscription> out;
-        if (arr->data != nullptr && arr->len > 0) {
-            out.reserve(arr->len);
-            for (size_t i = 0; i < arr->len; ++i) {
-                const TdxSubscription& s = arr->data[i];
-                out.push_back(Subscription{
-                    s.kind ? std::string(s.kind) : std::string(),
-                    s.contract ? std::string(s.contract) : std::string(),
-                });
-            }
-        }
-        tdx_subscription_array_free(arr);
-        return out;
-    }
-
-    /// Snapshot the currently-active full-stream subscriptions
-    /// (the entire universe for a given sec_type + kind, not bound
-    /// to a single contract). Throws on FFI error.
+    /// Snapshot the currently-active full-stream subscriptions (the entire
+    /// universe for a given sec_type + kind, not bound to a single
+    /// contract). Throws on FFI error. Mirrors the Python / TypeScript
+    /// `Client.active_full_subscriptions` placement.
     std::vector<FullSubscription> active_full_subscriptions() const {
         TdxSubscriptionArray* arr = tdx_client_active_full_subscriptions(handle_.get());
         if (arr == nullptr) {
@@ -2066,21 +2159,6 @@ public:
     }
 
 private:
-    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
-    // `std::function*` we registered alongside the callback. The event
-    // pointer is non-null and valid only for the duration of this call.
-    static void callback_shim(const TdxStreamEvent* event, void* ctx) noexcept {
-        auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
-        if (fn == nullptr || event == nullptr) return;
-        try {
-            (*fn)(*event);
-        } catch (...) {
-            // User callbacks must not propagate exceptions across the
-            // C ABI boundary — unwinding across it is undefined behavior.
-            // Swallow.
-        }
-    }
-
     explicit Client(TdxClient* h) : handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
@@ -2465,26 +2543,26 @@ inline TdxSubscriptionRequest build_subscription_request(const FluentSubscriptio
 
 } // namespace detail
 
-inline void Client::subscribe(const FluentSubscription& sub) const {
+inline void Stream::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_client_subscribe(handle_.get(), &req) != 0) {
+    if (tdx_client_subscribe(handle_, &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void Client::subscribe_many(
+inline void Stream::subscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) subscribe(s);
 }
 
-inline void Client::unsubscribe(const FluentSubscription& sub) const {
+inline void Stream::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (tdx_client_unsubscribe(handle_.get(), &req) != 0) {
+    if (tdx_client_unsubscribe(handle_, &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-inline void Client::unsubscribe_many(
+inline void Stream::unsubscribe_many(
     std::initializer_list<FluentSubscription> subs) const {
     for (const auto& s : subs) unsubscribe(s);
 }

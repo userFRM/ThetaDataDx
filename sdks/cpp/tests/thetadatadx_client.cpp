@@ -47,43 +47,52 @@ TEST_CASE("Client is move-only with the right type-trait shape",
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::Client>);
 }
 
-TEST_CASE("Client binds the full FPSS surface",
+TEST_CASE("Stream binds the full FPSS surface",
           "[unified][offline]") {
-    // Pin every method introduced by the B2 closure: an accidental
-    // delete or rename here will fire at compile time rather than at
+    // The unified client's streaming surface lives on the
+    // `client.stream()` `Stream` view; pin every method there so an
+    // accidental delete or rename fires at compile time rather than at
     // runtime against a live server.
     using namespace std::chrono_literals;
     using Cb = std::function<void(const thetadatadx::StreamEvent&)>;
-    using UC = thetadatadx::Client;
+    using SV = thetadatadx::Stream;
+
+    // Client exposes the sub-namespace accessors.
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<thetadatadx::Client&>().stream()), SV>);
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const thetadatadx::Client&>().historical()),
+        thetadatadx::Historical>);
 
     // set_callback
-    STATIC_REQUIRE(std::is_invocable_v<decltype(&UC::set_callback), UC&, Cb>);
+    STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::set_callback), SV&, Cb>);
     // stop_streaming
-    STATIC_REQUIRE(std::is_invocable_v<decltype(&UC::stop_streaming), UC&>);
+    STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::stop_streaming), SV&>);
     // reconnect
-    STATIC_REQUIRE(std::is_invocable_v<decltype(&UC::reconnect), UC&>);
+    STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::reconnect), SV&>);
     // await_drain(std::chrono::milliseconds) -> bool
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<UC&>().await_drain(5000ms)), bool>);
+        decltype(std::declval<SV&>().await_drain(5000ms)), bool>);
     // dropped_event_count() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().dropped_event_count()), uint64_t>);
+        decltype(std::declval<const SV&>().dropped_event_count()), uint64_t>);
     // ring_occupancy() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().ring_occupancy()), uint64_t>);
+        decltype(std::declval<const SV&>().ring_occupancy()), uint64_t>);
     // ring_capacity() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().ring_capacity()), uint64_t>);
+        decltype(std::declval<const SV&>().ring_capacity()), uint64_t>);
     // is_streaming() -> bool
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().is_streaming()), bool>);
+        decltype(std::declval<const SV&>().is_streaming()), bool>);
     // active_subscriptions() -> std::vector<Subscription>
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().active_subscriptions()),
+        decltype(std::declval<const SV&>().active_subscriptions()),
         std::vector<thetadatadx::Subscription>>);
-    // active_full_subscriptions() -> std::vector<FullSubscription>
+    // active_full_subscriptions() stays on the unified `Client` (mirrors
+    // the Python / TypeScript placement) -> std::vector<FullSubscription>
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const UC&>().active_full_subscriptions()),
+        decltype(std::declval<const thetadatadx::Client&>().active_full_subscriptions()),
         std::vector<thetadatadx::FullSubscription>>);
 }
 
@@ -96,11 +105,15 @@ TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     auto config = thetadatadx::Config::production();
     auto client = thetadatadx::Client::connect(creds, config);
 
-    REQUIRE_FALSE(client.is_streaming());
-    REQUIRE(client.dropped_event_count() == 0);
+    // The streaming surface is reached through the `client.stream()` view;
+    // every view shares the client's callback slot, so a fresh view per
+    // call observes the same session.
+    auto stream = client.stream();
+    REQUIRE_FALSE(stream.is_streaming());
+    REQUIRE(stream.dropped_event_count() == 0);
 
     std::atomic<uint64_t> events{0};
-    client.set_callback([&](const thetadatadx::StreamEvent& /*event*/) {
+    stream.set_callback([&](const thetadatadx::StreamEvent& /*event*/) {
         events.fetch_add(1, std::memory_order_relaxed);
     });
 
@@ -109,29 +122,30 @@ TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     // this check fires. The C ABI is_streaming flips true on a
     // successful Connected event; we wait briefly so a slow login
     // doesn't race us.
-    client.subscribe(thetadatadx::Contract::stock("SPY").quote());
+    stream.subscribe(thetadatadx::Contract::stock("SPY").quote());
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    REQUIRE(client.is_streaming());
+    REQUIRE(stream.is_streaming());
 
     // active_subscriptions reflects the subscribe call.
-    const auto subs = client.active_subscriptions();
+    const auto subs = stream.active_subscriptions();
     REQUIRE(subs.size() == 1);
     REQUIRE(subs.front().contract == "SPY");
 
     // active_full_subscriptions starts empty (we did not full-subscribe).
+    // It stays on the unified `Client`, mirroring Python / TypeScript.
     REQUIRE(client.active_full_subscriptions().empty());
 
     // Reconnect exercises the C ABI reconnect path + the wrapper's
     // saved-subscription re-registration.
-    REQUIRE_NOTHROW(client.reconnect());
+    REQUIRE_NOTHROW(stream.reconnect());
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    REQUIRE(client.is_streaming());
+    REQUIRE(stream.is_streaming());
 
     // Stop + drain.
-    client.stop_streaming();
-    const bool drained = client.await_drain(std::chrono::seconds(5));
+    stream.stop_streaming();
+    const bool drained = stream.await_drain(std::chrono::seconds(5));
     REQUIRE(drained);
-    REQUIRE_FALSE(client.is_streaming());
+    REQUIRE_FALSE(stream.is_streaming());
 
     // Sanity check: events advanced. Outside market hours we still
     // get Connected / LoginSuccess events, so the lower bound is
