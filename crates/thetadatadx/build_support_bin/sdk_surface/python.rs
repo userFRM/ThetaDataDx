@@ -165,7 +165,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
         }
         MethodKind::IsStreaming => {
             writeln!(out, "    fn {}(&self) -> bool {{", method.name).unwrap();
-            out.push_str("        self.tdx.is_streaming()\n");
+            out.push_str("        self.tdx.stream().is_streaming()\n");
             out.push_str("    }\n");
         }
         MethodKind::StockContractCall => {
@@ -186,7 +186,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             writeln!(
                 out,
-                "        self.tdx.{}(&contract).map_err(to_py_err)",
+                "        self.tdx.stream().{}(&contract).map_err(to_py_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -216,7 +216,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             writeln!(
                 out,
-                "        self.tdx.{}(&contract).map_err(to_py_err)",
+                "        self.tdx.stream().{}(&contract).map_err(to_py_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -235,7 +235,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             writeln!(out, "        let st = parse_sec_type({})?;", param.name).unwrap();
             writeln!(
                 out,
-                "        self.tdx.{}(st).map_err(to_py_err)",
+                "        self.tdx.stream().{}(st).map_err(to_py_err)",
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
@@ -258,6 +258,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             )
             .unwrap();
             out.push_str("        self.tdx\n");
+            out.push_str("            .stream()\n");
             out.push_str("            .active_subscriptions()\n");
             out.push_str("            .map(|subs| {\n");
             out.push_str("                subs.into_iter()\n");
@@ -338,7 +339,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // waiting on).
             out.push_str("        py.detach(|| {\n");
             out.push_str(
-                "            self.tdx.await_drain(std::time::Duration::from_millis(timeout_ms))\n",
+                "            self.tdx.stream().await_drain(std::time::Duration::from_millis(timeout_ms))\n",
             );
             out.push_str("        })\n");
             out.push_str("    }\n");
@@ -366,7 +367,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // the dispatcher thread, which re-acquires the GIL on every
             // event via `Python::attach`. Holding the GIL across the
             // join would deadlock.
-            out.push_str("        py.detach(|| self.tdx.stop_streaming());\n");
+            out.push_str("        py.detach(|| self.tdx.stream().stop_streaming());\n");
             out.push_str(
                 "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );

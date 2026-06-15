@@ -316,7 +316,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         }
         writeln!(
             out,
-            "            let call = tdx.{name}({positional_args});",
+            "            let call = tdx.historical().{name}({positional_args});",
             name = endpoint.name,
         )
         .unwrap();
@@ -363,7 +363,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     }
     writeln!(
         out,
-        "            let mut request = tdx.{}({});",
+        "            let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -553,7 +553,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     }
     writeln!(
         out,
-        "            let mut request = tdx.{}({});",
+        "            let mut request = tdx.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
