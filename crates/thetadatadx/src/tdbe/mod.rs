@@ -30,20 +30,24 @@ pub mod time;
 pub mod types;
 
 // Module-root facade. The data-format layer keeps a complete, flat
-// re-export surface so internal callers reach `crate::tdbe::Price`,
-// `crate::tdbe::Error`, `crate::tdbe::CalendarStatus`, and the tick types
-// without threading the full submodule path, and so the crate root can
-// re-export from one coherent place. The crate's curated public surface
-// (see `lib.rs`) reaches several of these through the longer submodule
-// path, so `unused_imports` is allowed on the facade rather than trimming
-// it to whichever items today's callers happen to reach the short way.
+// re-export surface so internal callers reach `crate::tdbe::Error`,
+// `crate::tdbe::CalendarStatus`, and the tick types without threading the
+// full submodule path, and so the crate root can re-export from one
+// coherent place. The crate's curated public surface (see `lib.rs`) reaches
+// several of these through the longer submodule path, so `unused_imports`
+// is allowed on the facade rather than trimming it to whichever items
+// today's callers happen to reach the short way.
+//
+// The fixed-point price encoding (`types::price::Price` and friends) is
+// deliberately NOT on this facade: it is a wire-internal detail the decode
+// layer reaches through the full `types::price` leaf path, never a short
+// `crate::tdbe::Price` alias, so the encoding cannot drift onto the public
+// surface through the convenience re-export.
 #[allow(unused_imports)]
 pub use error::Error;
 #[allow(unused_imports)]
 pub use types::enums::{
     CalendarStatus, DataType, Interval, RateType, RequestType, Right, SecType, Venue, Version,
 };
-#[allow(unused_imports)]
-pub use types::price::Price;
 #[allow(unused_imports)]
 pub use types::tick::*;

@@ -74,7 +74,7 @@ fn bench_price_new_1000(c: &mut Criterion) {
             let mut sum = 0i32;
             for i in 0..1000i32 {
                 let p = Price::new(black_box(15000 + i), black_box(8));
-                sum += p.value;
+                sum += p.value();
             }
             black_box(sum);
         });
