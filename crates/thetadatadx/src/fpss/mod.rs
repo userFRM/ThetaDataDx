@@ -113,6 +113,23 @@ use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
 };
 
+/// Capacity of the bounded command channel from the public surface and the
+/// ping thread to the I/O thread.
+///
+/// The channel carries control-plane frames only (subscribe / unsubscribe /
+/// ping / shutdown), never market-data ticks. A subscribe burst across a full
+/// 10k-15k option watchlist enqueues one command per contract, so the bound is
+/// sized comfortably above a single large watchlist while still capping
+/// unbounded growth under a pathological control-plane storm. The I/O thread
+/// drains this queue every read-timeout cycle, so steady-state occupancy is
+/// near zero.
+///
+/// The ping thread uses a blocking `send` for natural backpressure; the public
+/// subscribe / unsubscribe methods use a non-blocking `try_send` and surface a
+/// typed [`FpssErrorKind::Disconnected`] backpressure error rather than ever
+/// silently dropping a command.
+pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
+
 // ---------------------------------------------------------------------------
 // FpssError — typed error enum returned by the FPSS public surface
 // ---------------------------------------------------------------------------
@@ -404,7 +421,13 @@ impl<'a> StreamingClientBuilder<'a> {
         Self {
             creds,
             hosts,
-            ring_size: 4096,
+            // Match the production ring size so a direct-builder user gets
+            // production-grade headroom by default. ThetaData streams large
+            // shapes (10k-15k option contracts plus full trade streams); a
+            // small default ring overflows under real market bursts and drops
+            // the newest events. Callers that want a smaller footprint can set
+            // `.ring_size(..)` explicitly.
+            ring_size: fpss.ring_size,
             flush_mode: StreamingFlushMode::default(),
             policy: ReconnectPolicy::default(),
             wait_ms: reconnect.wait_ms,
@@ -793,8 +816,8 @@ struct SpawnArgs<'a, P> {
     poller: EventPoller<RingEvent, SingleProducerBarrier>,
     stream: connection::FpssStream,
     cmd_rx: std_mpsc::Receiver<IoCommand>,
-    cmd_tx: std_mpsc::Sender<IoCommand>,
-    ping_cmd_tx: std_mpsc::Sender<IoCommand>,
+    cmd_tx: std_mpsc::SyncSender<IoCommand>,
+    ping_cmd_tx: std_mpsc::SyncSender<IoCommand>,
     ring_size: usize,
     permissions: String,
     pending_control: Vec<StreamControl>,
@@ -862,10 +885,12 @@ struct SpawnArgs<'a, P> {
 pub struct StreamingClient {
     /// Channel to send write commands to the I/O thread.
     ///
-    /// `std::sync::mpsc::Sender` is `Send` but explicitly not `Sync` -- concurrent
-    /// `&self.send()` calls are UB. The `Mutex` makes `StreamingClient: Sync` sound
-    /// under stdlib's own contract.
-    cmd_tx: Mutex<std_mpsc::Sender<IoCommand>>,
+    /// `std::sync::mpsc::SyncSender` is `Send + Sync`, but the `Mutex` is
+    /// retained so the command-send path stays a single serialized critical
+    /// section: it preserves command ordering under concurrent `&self`
+    /// subscribe / unsubscribe calls and keeps the bounded `try_send`
+    /// backpressure decision race-free.
+    cmd_tx: Mutex<std_mpsc::SyncSender<IoCommand>>,
     /// Handle to the I/O thread (blocking TLS read + write drain).
     io_handle: Option<JoinHandle<()>>,
     /// Handle to the ping heartbeat thread.
@@ -1184,7 +1209,7 @@ impl StreamingClient {
             ping_interval,
         } = args;
         // Send CREDENTIALS (code 0).
-        let cred_payload = build_credentials_payload(&creds.email, &creds.password);
+        let cred_payload = build_credentials_payload(&creds.email, &creds.password)?;
         let frame = Frame::new(StreamMsgType::Credentials, cred_payload);
         write_frame(&mut stream, &frame)?;
         tracing::debug!("sent CREDENTIALS to {server_addr}");
@@ -1291,8 +1316,10 @@ impl StreamingClient {
         // updated by the I/O thread after every successful reconnect.
         let connected_addr: Arc<Mutex<String>> = Arc::new(Mutex::new(server_addr.clone()));
 
-        // Command channel: StreamingClient -> I/O thread
-        let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
+        // Command channel: StreamingClient -> I/O thread. Bounded so a
+        // control-plane burst cannot grow the queue without limit; see
+        // `CMD_CHANNEL_CAPACITY`.
+        let (cmd_tx, cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
 
         // Ping command channel: ping thread -> I/O thread
         let ping_cmd_tx = cmd_tx.clone();
@@ -2088,7 +2115,13 @@ impl StreamingClient {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if unsubscribe {
             subs.retain(|(k, s)| !(*k == kind_for_track && *s == sec_type));
-        } else {
+        } else if !subs
+            .iter()
+            .any(|(k, s)| *k == kind_for_track && *s == sec_type)
+        {
+            // Idempotent by `(kind, sec_type)`: a repeated full-stream subscribe
+            // must not accumulate duplicate tracked entries that would replay
+            // the same subscribe frame multiple times on reconnect.
             subs.push((kind_for_track, sec_type));
         }
         Ok(())
@@ -2111,7 +2144,13 @@ impl StreamingClient {
                 .active_subs
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            subs.push((kind, contract.clone()));
+            // Idempotent by `(kind, contract)`: a repeated per-contract
+            // subscribe must not accumulate duplicate tracked entries that
+            // would replay the same subscribe frame multiple times on
+            // reconnect.
+            if !subs.iter().any(|(k, c)| *k == kind && c == contract) {
+                subs.push((kind, contract.clone()));
+            }
         }
 
         tracing::debug!(
@@ -2412,7 +2451,7 @@ impl StreamingClient {
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
         let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
-        let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
+        let (cmd_tx, cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
 
         let handler_cell = Mutex::new(handler);
         let panics_consumer = Arc::clone(&panics);
@@ -2467,6 +2506,12 @@ impl StreamingClient {
         let io_handle = thread::Builder::new()
             .name("fpss-io-test".to_owned())
             .spawn(move || {
+                // Keep the command receiver alive for the client's lifetime so
+                // `send_cmd` observes a live (bounded) channel rather than an
+                // immediate hang-up. The harness does not act on queued
+                // commands; they accumulate up to `CMD_CHANNEL_CAPACITY`, which
+                // is exactly the backpressure surface under test.
+                let _cmd_rx = cmd_rx;
                 if let Some(signal) = start_signal {
                     while !signal.load(Ordering::Acquire) {
                         if io_shutdown.load(Ordering::Acquire) {
@@ -2564,7 +2609,7 @@ impl StreamingClient {
             ring::AdaptiveWaitStrategy::low_latency(),
         );
 
-        let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
+        let (cmd_tx, _cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
 
         let client = StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
@@ -2600,16 +2645,32 @@ impl StreamingClient {
         (client, producer)
     }
 
-    /// Send a command to the I/O thread. Maps channel-send failure to a
-    /// `Disconnected` FPSS error.
+    /// Send a command to the I/O thread over the bounded control channel.
+    ///
+    /// Uses a non-blocking `try_send` so a public `&self` caller is never
+    /// parked behind a saturated channel while holding the command lock. A
+    /// full channel and a hung-up I/O thread both map to a typed
+    /// [`FpssErrorKind::Disconnected`] error: the command is reported to the
+    /// caller, never silently dropped. A full channel means the application is
+    /// issuing control-plane commands faster than the I/O thread can drain
+    /// them; the caller can retry after the queue clears.
     pub(in crate::fpss) fn send_cmd(&self, cmd: IoCommand) -> Result<(), Error> {
         self.cmd_tx
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .send(cmd)
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
+            .try_send(cmd)
+            .map_err(|e| match e {
+                std_mpsc::TrySendError::Full(_) => Error::Fpss {
+                    kind: crate::error::FpssErrorKind::Disconnected,
+                    message: format!(
+                        "command queue full ({CMD_CHANNEL_CAPACITY} pending); \
+                         the I/O thread is draining slower than commands arrive — retry shortly"
+                    ),
+                },
+                std_mpsc::TrySendError::Disconnected(_) => Error::Fpss {
+                    kind: crate::error::FpssErrorKind::Disconnected,
+                    message: "I/O thread has exited".to_string(),
+                },
             })
     }
 }
@@ -2775,6 +2836,23 @@ mod builder_tests {
         assert_eq!(args.replay_pace_ms, reconnect.replay_pace_ms);
     }
 
+    /// The direct builder default ring size must match the production
+    /// streaming config default so a direct-builder user gets the same
+    /// overflow headroom as a config-driven one. This guards against the
+    /// two defaults drifting apart again (the builder previously hardcoded a
+    /// much smaller ring that overflowed under real market bursts).
+    #[test]
+    fn builder_ring_size_default_matches_production_config() {
+        let creds = Credentials::new("user", "pw");
+        let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
+        let args = StreamingClientBuilder::new(&creds, &hosts).into_args();
+        let fpss = crate::config::StreamingConfig::production_defaults();
+        assert_eq!(
+            args.ring_size, fpss.ring_size,
+            "builder default ring size must track production config default"
+        );
+    }
+
     /// The wait-strategy preset selected on the builder reaches the
     /// connect args, and the default is the low-latency strategy that
     /// preserves the historical fixed behaviour.
@@ -2927,7 +3005,7 @@ mod builder_tests {
 mod full_stream_guard_tests {
     use super::{full_stream_sec_type_supported, HarnessPublishMode, StreamingClient};
     use crate::error::{ConfigErrorKind, Error};
-    use crate::fpss::protocol::SecTypeExt;
+    use crate::fpss::protocol::{Contract, SecTypeExt};
     use crate::tdbe::types::enums::SecType;
 
     /// The full-stream broadcast is only delivered upstream for Stock and
@@ -2979,6 +3057,123 @@ mod full_stream_guard_tests {
         );
 
         client.shutdown();
+    }
+
+    /// A repeated per-contract subscribe must track the contract exactly
+    /// once. Without de-dup the tracked list grows on every duplicate call
+    /// and replays the same subscribe frame multiple times on reconnect.
+    #[test]
+    fn duplicate_contract_subscribe_tracks_once() {
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        let sub = Contract::stock("AAPL").trade();
+        client.subscribe(sub.clone()).expect("first subscribe");
+        client.subscribe(sub.clone()).expect("duplicate subscribe");
+        client.subscribe(sub).expect("third subscribe");
+
+        let tracked = client.active_subscriptions();
+        assert_eq!(
+            tracked.len(),
+            1,
+            "duplicate per-contract subscribes must collapse to one tracked entry, got {tracked:?}"
+        );
+
+        client.shutdown();
+    }
+
+    /// A repeated full-stream subscribe must track the `(kind, sec_type)`
+    /// pair exactly once, for the same reconnect-replay reason.
+    #[test]
+    fn duplicate_full_subscribe_tracks_once() {
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        client
+            .subscribe(SecType::Stock.full_trades())
+            .expect("first full subscribe");
+        client
+            .subscribe(SecType::Stock.full_trades())
+            .expect("duplicate full subscribe");
+
+        let tracked = client.active_full_subscriptions();
+        assert_eq!(
+            tracked.len(),
+            1,
+            "duplicate full-stream subscribes must collapse to one tracked entry, got {tracked:?}"
+        );
+
+        client.shutdown();
+    }
+
+    /// After an unsubscribe the tracked entry is gone, and a later
+    /// subscribe re-adds exactly one — proving de-dup does not break the
+    /// existing remove-once semantics.
+    #[test]
+    fn unsubscribe_then_resubscribe_tracks_once() {
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        let contract = Contract::stock("MSFT");
+        client
+            .subscribe(contract.clone().trade())
+            .expect("subscribe");
+        assert_eq!(client.active_subscriptions().len(), 1);
+
+        client
+            .unsubscribe(contract.clone().trade())
+            .expect("unsubscribe");
+        assert!(
+            client.active_subscriptions().is_empty(),
+            "unsubscribe must remove the tracked entry"
+        );
+
+        client.subscribe(contract.trade()).expect("re-subscribe");
+        assert_eq!(
+            client.active_subscriptions().len(),
+            1,
+            "re-subscribe after unsubscribe must track exactly once"
+        );
+
+        client.shutdown();
+    }
+
+    /// The command channel is bounded: once it is saturated, a further
+    /// `try_send` reports `Full` rather than growing without limit. This
+    /// pins the backpressure contract `send_cmd` relies on to surface a
+    /// typed queue-full error instead of silently dropping a command or
+    /// accumulating unbounded memory. A held receiver keeps the channel
+    /// alive so saturation (not hang-up) is the observed condition.
+    #[test]
+    fn command_channel_is_bounded() {
+        use std::sync::mpsc as std_mpsc;
+        let cap = super::CMD_CHANNEL_CAPACITY;
+        let (tx, _rx) = std_mpsc::sync_channel::<super::events::IoCommand>(cap);
+        // Fill to capacity: every send up to the bound must succeed.
+        for _ in 0..cap {
+            tx.try_send(super::events::IoCommand::Shutdown)
+                .expect("sends up to capacity must succeed");
+        }
+        // The next send must report a full channel — the bound holds.
+        match tx.try_send(super::events::IoCommand::Shutdown) {
+            Err(std_mpsc::TrySendError::Full(_)) => {}
+            other => panic!("expected TrySendError::Full once saturated, got {other:?}"),
+        }
     }
 }
 

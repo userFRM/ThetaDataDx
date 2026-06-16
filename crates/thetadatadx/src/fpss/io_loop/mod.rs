@@ -810,7 +810,16 @@ where
         };
 
         // Re-authenticate on the new stream.
-        let cred_payload = build_credentials_payload(&creds.email, &creds.password);
+        let cred_payload = match build_credentials_payload(&creds.email, &creds.password) {
+            Ok(p) => p,
+            Err(e) => {
+                // Oversized credentials are a fatal configuration error, not a
+                // transient I/O fault: retrying cannot make them fit. Surface
+                // it and abandon the reconnect loop rather than spinning.
+                tracing::error!(error = %e, "credentials payload invalid; aborting reconnect");
+                break 'session;
+            }
+        };
         let frame = Frame::new(StreamMsgType::Credentials, cred_payload);
         if let Err(e) = write_frame(&mut new_stream, &frame) {
             tracing::warn!(error = %e, "failed to send credentials on reconnect");

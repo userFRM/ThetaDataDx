@@ -28,7 +28,7 @@ use super::super::protocol::build_ping_payload;
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value)]
 pub(in crate::fpss) fn ping_loop(
-    cmd_tx: std_mpsc::Sender<IoCommand>,
+    cmd_tx: std_mpsc::SyncSender<IoCommand>,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
     interval: Duration,
@@ -55,6 +55,9 @@ pub(in crate::fpss) fn ping_loop(
             code: StreamMsgType::Ping,
             payload: ping_payload.clone(),
         };
+        // Blocking send on the bounded channel: the heartbeat takes natural
+        // backpressure if the I/O thread is momentarily behind, rather than
+        // dropping a ping. `send` only errors once the receiver hangs up.
         if cmd_tx.send(cmd).is_err() {
             // I/O thread has exited
             break;
@@ -88,7 +91,8 @@ mod tests {
     ///   -> Sleep cadence visible on `cmd_rx`.
     #[test]
     fn ping_loop_honors_configured_interval() {
-        let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
+        let (cmd_tx, cmd_rx) =
+            std_mpsc::sync_channel::<IoCommand>(crate::fpss::CMD_CHANNEL_CAPACITY);
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let interval = Duration::from_millis(30);
@@ -143,7 +147,8 @@ mod tests {
     /// produces noticeably-spaced pings rather than the 100 ms default.
     #[test]
     fn ping_loop_with_longer_interval_paces_slower_than_default() {
-        let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
+        let (cmd_tx, cmd_rx) =
+            std_mpsc::sync_channel::<IoCommand>(crate::fpss::CMD_CHANNEL_CAPACITY);
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let shutdown_clone = Arc::clone(&shutdown);

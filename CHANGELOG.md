@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The `tdbe` time-and-calendar crate is folded into `thetadatadx` as a private internal module, so the workspace builds and publishes a single `thetadatadx` artifact. The curated public surface is unchanged (`TradeTick`, `greeks::all_greeks`, `SecType`, `utils::conditions`, and the calendar types are reached at `thetadatadx::*` paths); items that were previously foreign-public — `PriceError`, `MAX_PRICE_TYPE`, `greeks::Error` — are re-exported at public crate paths, and the data-layer internals (DST epoch math, canonical-JSON helpers, the FIT / FIE codecs) stay behind the existing `__internal` feature.
+- The direct `StreamingClientBuilder` now defaults its streaming buffer to the same size as the production streaming configuration, so a builder-constructed client gets production-grade overflow headroom by default for large streams (10k-15k option contracts plus full trade streams) instead of a much smaller buffer that drops events under market bursts; set `.ring_size(..)` to choose a smaller footprint. The streaming backpressure documentation is also corrected to state that newly arriving events are dropped when the buffer is full, not the oldest buffered events.
 
 ### Fixed
 
@@ -68,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Streaming reconnect prefers the host that was last serving data: once a session survives the stable window the last-known-good address is pinned and tried first on the next reconnect, then the full configured host-selection policy runs.
 - The CLI's raw OHLC output (`--format json-raw` / `csv`) emits the `vwap` value in its own column. The raw value row was one field short of its header set, so `vwap` was dropped and `date`, `expiration`, `strike`, and `right` rendered under the wrong column names. The typed SDK surfaces and the CLI's presentation `json` were unaffected.
 - Python — the standalone `StreamingClient` streaming connect, reconnect, and subscribe / unsubscribe paths release the GIL across their blocking I/O (the TLS connect and handshake, and the per-subscription wire write), so other Python threads keep running while a connect or subscribe is in flight; the typed exception raised on failure is unchanged.
+- Oversized streaming credentials now fail with a typed invalid-parameter configuration error before the connection is opened instead of panicking the caller. The credentials payload is validated against the 255-byte protocol frame limit up front, and the error names both the limit and the actual size so a too-long email or password is reported as a normal recoverable failure.
+- Active streaming subscriptions are de-duplicated by contract and by full-stream security type, so a repeated subscribe no longer accumulates duplicate tracked entries that get replayed multiple times after a reconnect; unsubscribe still removes the tracked entry. The control channel that carries subscribe / unsubscribe / heartbeat commands to the I/O worker is now bounded, so a control-plane burst cannot grow it without limit: the heartbeat takes natural backpressure and the public subscribe / unsubscribe methods return a typed queue-full error rather than dropping a command or accumulating unbounded memory.
 
 ### Security
 

@@ -364,7 +364,7 @@ impl StreamingClient {
     /// panics or throws is isolated and does not interrupt the stream.
     ///
     /// Backpressure: a slow callback causes incoming events to queue and,
-    /// once the buffer is full, the oldest events are dropped, observable
+    /// once the buffer is full, newly arriving events are dropped, observable
     /// via `droppedEventCount()`. The receive path is never blocked by a
     /// slow callback, so the upstream connection stays healthy regardless
     /// of callback speed.

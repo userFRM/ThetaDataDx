@@ -47,7 +47,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  the stream.\n\
                  \n\
                  Backpressure: a slow callback causes incoming events\n\
-                 to queue and, once the buffer is full, the oldest\n\
+                 to queue and, once the buffer is full, newly arriving\n\
                  events are dropped. The dropped count is observable\n\
                  via `droppedEventCount()`. The receive path is never\n\
                  blocked by a slow callback, so the upstream connection\n\
