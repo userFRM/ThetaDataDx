@@ -791,7 +791,17 @@ where
                 .iter()
                 .map(|(host, port)| (host.as_str(), *port))
                 .collect();
-            connection::connect_to_servers(&ordered, connect_timeout, read_timeout, keepalive)
+            // The write timeout shares the read timeout's budget: both
+            // bound a single unacknowledged transport operation during the
+            // reconnect window, so the re-auth write cannot wedge the I/O
+            // thread against a peer that has stopped draining its socket.
+            connection::connect_to_servers(
+                &ordered,
+                connect_timeout,
+                read_timeout,
+                read_timeout,
+                keepalive,
+            )
         };
 
         let (mut new_stream, new_addr) = match new_stream {

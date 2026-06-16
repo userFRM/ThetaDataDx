@@ -43,3 +43,23 @@ def test_concurrent_requests_round_trips():
     for n in (1, 2, 4, 8, 16):
         cfg.concurrent_requests = n
         assert cfg.concurrent_requests == n
+
+
+# ─── request_timeout_secs ───────────────────────────────────────────
+
+
+def test_request_timeout_secs_defaults_to_300():
+    """`request_timeout_secs` defaults to the 300s per-request deadline."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    assert cfg.request_timeout_secs == 300
+
+
+def test_request_timeout_secs_round_trips():
+    """`request_timeout_secs = N` round-trips through the binding;
+    ``0`` disables the default deadline."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    for secs in (0, 1, 45, 120, 600):
+        cfg.request_timeout_secs = secs
+        assert cfg.request_timeout_secs == secs

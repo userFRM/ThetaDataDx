@@ -34,3 +34,18 @@ describe('Config.concurrentRequests', () => {
     }
   });
 });
+
+describe('Config.requestTimeoutSecs', () => {
+  it('defaults to 300n (5-minute per-request deadline)', () => {
+    const cfg = Config.production();
+    assert.equal(cfg.requestTimeoutSecs, 300n);
+  });
+
+  it('round-trips through the setter; 0n disables the default', () => {
+    const cfg = Config.production();
+    for (const secs of [0n, 1n, 45n, 120n, 600n]) {
+      cfg.setRequestTimeoutSecs(secs);
+      assert.equal(cfg.requestTimeoutSecs, secs);
+    }
+  });
+});

@@ -223,7 +223,8 @@ pub(crate) fn order_hosts(
 /// 2. `TCP_NODELAY = true`
 /// 3. `SO_KEEPALIVE` armed per `keepalive`
 /// 4. Read timeout set to `read_timeout`
-/// 5. TLS handshake pinned to the FPSS SPKI
+/// 5. Write timeout set to `write_timeout`
+/// 6. TLS handshake pinned to the FPSS SPKI
 ///
 /// # Errors
 ///
@@ -232,6 +233,7 @@ pub(crate) fn connect_to_servers(
     servers: &[(&str, u16)],
     connect_timeout: Duration,
     read_timeout: Duration,
+    write_timeout: Duration,
     keepalive: TcpKeepaliveSpec,
 ) -> Result<(FpssStream, String), crate::error::Error> {
     ensure_rustls_crypto_provider();
@@ -241,7 +243,14 @@ pub(crate) fn connect_to_servers(
         let addr = format!("{host}:{port}");
         tracing::debug!(server = %addr, "attempting FPSS connection");
 
-        match try_connect(host, port, connect_timeout, read_timeout, keepalive) {
+        match try_connect(
+            host,
+            port,
+            connect_timeout,
+            read_timeout,
+            write_timeout,
+            keepalive,
+        ) {
             Ok(stream) => {
                 tracing::info!(server = %addr, "FPSS connected");
                 return Ok((stream, addr));
@@ -318,12 +327,14 @@ fn arm_keepalive(tcp: &TcpStream, spec: TcpKeepaliveSpec) {
 /// 2. `set_nodelay(true)`
 /// 3. `SO_KEEPALIVE` per the configured schedule
 /// 4. `set_read_timeout`
-/// 5. Blocking TLS handshake via rustls `StreamOwned`
+/// 5. `set_write_timeout`
+/// 6. Blocking TLS handshake via rustls `StreamOwned`
 fn try_connect(
     host: &str,
     port: u16,
     connect_timeout: Duration,
     read_timeout: Duration,
+    write_timeout: Duration,
     keepalive: TcpKeepaliveSpec,
 ) -> Result<FpssStream, crate::error::Error> {
     let addr = format!("{host}:{port}");
@@ -357,6 +368,17 @@ fn try_connect(
 
     // Read timeout.
     tcp.set_read_timeout(Some(read_timeout))?;
+
+    // Write timeout. The first write (CREDENTIALS) drives the lazy TLS
+    // handshake, and steady-state ping/subscribe writes can otherwise
+    // block indefinitely against a peer whose receive window has stalled
+    // (alive enough to ACK at the kernel but not draining the socket).
+    // `connect_timeout` only bounds the SYN/ACK, so an unbounded write
+    // would wedge the I/O thread past that budget. The bound persists for
+    // the life of the socket via `SO_SNDTIMEO`, so a write `TimedOut`
+    // surfaces as a fatal I/O error and the caller reconnects, mirroring
+    // the read-timeout liveness contract.
+    tcp.set_write_timeout(Some(write_timeout))?;
 
     // TLS handshake (blocking) using rustls with webpki root certificates.
     let server_name =
@@ -447,7 +469,14 @@ mod tests {
         let connect_timeout = Duration::from_millis(150);
         let read_timeout = Duration::from_millis(10_000);
         let start = std::time::Instant::now();
-        let res = connect_to_servers(&servers, connect_timeout, read_timeout, test_keepalive());
+        let write_timeout = Duration::from_millis(10_000);
+        let res = connect_to_servers(
+            &servers,
+            connect_timeout,
+            read_timeout,
+            write_timeout,
+            test_keepalive(),
+        );
         let elapsed = start.elapsed();
         assert!(res.is_err(), "unroutable host must fail to connect");
         assert!(
@@ -469,6 +498,39 @@ mod tests {
         assert!(
             sock.keepalive().expect("read SO_KEEPALIVE"),
             "SO_KEEPALIVE must be armed after arm_keepalive"
+        );
+    }
+
+    /// Both the read and write timeouts round-trip onto a real socket.
+    ///
+    /// `try_connect` sets `SO_RCVTIMEO` and `SO_SNDTIMEO` before the TLS
+    /// handshake. The handshake itself needs a live FPSS peer, so this
+    /// asserts the load-bearing socket-option contract directly on a
+    /// loopback socket: an unbounded write would let a stalled-receiver
+    /// peer wedge the I/O thread past `connect_timeout`, so the write
+    /// timeout must actually land on the kernel socket.
+    #[test]
+    fn read_and_write_timeouts_arm_on_loopback_socket() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let addr = listener.local_addr().expect("local addr");
+        let tcp = TcpStream::connect(addr).expect("connect loopback");
+
+        let read_timeout = Duration::from_millis(7_000);
+        let write_timeout = Duration::from_millis(3_000);
+        tcp.set_read_timeout(Some(read_timeout))
+            .expect("set read timeout");
+        tcp.set_write_timeout(Some(write_timeout))
+            .expect("set write timeout");
+
+        assert_eq!(
+            tcp.read_timeout().expect("read SO_RCVTIMEO"),
+            Some(read_timeout),
+            "read timeout must round-trip onto the socket"
+        );
+        assert_eq!(
+            tcp.write_timeout().expect("read SO_SNDTIMEO"),
+            Some(write_timeout),
+            "write timeout must round-trip onto the socket"
         );
     }
 

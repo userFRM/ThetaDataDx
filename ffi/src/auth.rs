@@ -2625,6 +2625,50 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
     })
 }
 
+/// Set the default per-request deadline (seconds) for historical queries
+/// on a config handle.
+///
+/// Bounds every request that did not call `with_deadline(...)`, so a
+/// live-but-silent stream resolves to a timeout instead of blocking
+/// forever (the gRPC keepalive PING only detects a fully dead peer).
+/// `secs = 0` disables the default (no deadline unless the caller sets
+/// one). Default `300`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.historical.request_timeout_secs = secs;
+    })
+}
+
+/// Read the current historical `request_timeout_secs` setting (default
+/// `300`; `0` = no default deadline).
+///
+/// Writes the configured value into `*out`. Returns `0` on success,
+/// `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
+    config: *const ThetaDataDxConfig,
+    out: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = config.inner.historical.request_timeout_secs;
+        }
+        0
+    })
+}
+
 // ── HistoricalClient ──
 
 /// Connect a historical client to `ThetaData` servers
@@ -2835,6 +2879,41 @@ mod pool_sizing_tests {
                     std::ptr::null(),
                     &mut current
                 ),
+                -1
+            );
+            super::thetadatadx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn historical_request_timeout_secs_round_trips() {
+        let cfg = super::thetadatadx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by thetadatadx_config_production.
+        unsafe {
+            // Default seeded at 300s by `HistoricalConfig::default()`.
+            let mut current: u64 = 0;
+            assert_eq!(
+                super::thetadatadx_config_get_request_timeout_secs(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 300);
+            // Override.
+            super::thetadatadx_config_set_request_timeout_secs(cfg, 45);
+            assert_eq!((*cfg).inner.historical.request_timeout_secs, 45);
+            assert_eq!(
+                super::thetadatadx_config_get_request_timeout_secs(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 45);
+            // Disable (no default deadline).
+            super::thetadatadx_config_set_request_timeout_secs(cfg, 0);
+            assert_eq!((*cfg).inner.historical.request_timeout_secs, 0);
+            // Null-pointer guards: setter is a no-op (matches the
+            // ffi_boundary `()` return); getter returns -1.
+            super::thetadatadx_config_set_request_timeout_secs(std::ptr::null_mut(), 4);
+            assert_eq!(
+                super::thetadatadx_config_get_request_timeout_secs(std::ptr::null(), &mut current),
                 -1
             );
             super::thetadatadx_config_free(cfg);

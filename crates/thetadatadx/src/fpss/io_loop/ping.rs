@@ -55,12 +55,27 @@ pub(in crate::fpss) fn ping_loop(
             code: StreamMsgType::Ping,
             payload: ping_payload.clone(),
         };
-        // Blocking send on the bounded channel: the heartbeat takes natural
-        // backpressure if the I/O thread is momentarily behind, rather than
-        // dropping a ping. `send` only errors once the receiver hangs up.
-        if cmd_tx.send(cmd).is_err() {
-            // I/O thread has exited
-            break;
+        // Non-blocking send on the bounded channel, matching the rest of
+        // the control plane (subscribe / unsubscribe / shutdown all use
+        // `try_send`). The heartbeat is an idempotent liveness signal,
+        // not a state-carrying frame: a momentarily full channel means
+        // the I/O thread is already draining a large backlog of outbound
+        // writes, so the connection is demonstrably alive and the next
+        // ping fires one interval later — well inside any server-side
+        // ping deadline. Skipping a ping under that backpressure is
+        // therefore safe, and it keeps a blocking heartbeat from pinning
+        // the consumer/Drop path for up to one interval while the channel
+        // drains. A hung-up receiver (I/O thread exited) still ends the
+        // loop.
+        match cmd_tx.try_send(cmd) {
+            Ok(()) => {}
+            Err(std_mpsc::TrySendError::Full(_)) => {
+                // I/O thread is behind; drop this beat and try the next.
+            }
+            Err(std_mpsc::TrySendError::Disconnected(_)) => {
+                // I/O thread has exited.
+                break;
+            }
         }
 
         thread::sleep(interval);

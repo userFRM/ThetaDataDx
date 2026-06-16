@@ -268,6 +268,46 @@ pub use error::{
 /// the crate root for callers that drive the batch loop directly.
 pub use fpss::PollOutcome;
 
+/// Real-time streaming consumer surface.
+pub mod streaming {
+    /// Consumer wait strategies for the streaming ring.
+    ///
+    /// When the consumer drains the ring faster than events arrive, it
+    /// must decide how to wait on a momentarily empty ring. For most
+    /// callers the [`crate::StreamingWaitStrategy`] preset enum plus the
+    /// `wait_spin_iters` / `wait_yield_iters` / `wait_park_us` numeric
+    /// knobs cover the full latency-versus-CPU spectrum, and that path is
+    /// the one every language binding exposes.
+    ///
+    /// A Rust caller that needs an exotic backoff the presets do not
+    /// model can instead supply any type implementing `WaitStrategy` to
+    /// [`crate::fpss::StreamingClient::for_each_with_wait_strategy`]. The
+    /// strategy is monomorphised into the drain loop, so the per-poll
+    /// cost is the caller's `wait_for` body with no indirection.
+    ///
+    /// `BusySpin` is the lowest-latency preset (a true busy spin);
+    /// `BusySpinWithSpinLoopHint` adds a `spin_loop` hint so the core
+    /// can save power or switch hyper-threads; `Sleep` parks the thread
+    /// for a fixed duration between polls.
+    ///
+    /// ```rust,ignore
+    /// use thetadatadx::streaming::wait::BusySpin;
+    ///
+    /// client.for_each_with_wait_strategy(
+    ///     |event| { /* handle event */ },
+    ///     BusySpin,
+    /// );
+    /// ```
+    pub mod wait {
+        // VOCAB-OK: re-exporting the ring's wait-strategy surface under a
+        // crate-owned path so callers never name the underlying ring
+        // crate in their own `use` statements or trait bounds.
+        pub use disruptor::wait_strategies::{
+            BusySpin, BusySpinWithSpinLoopHint, Sleep, WaitStrategy,
+        };
+    }
+}
+
 // ─── Flat-file bulk pulls ─────────────────────────────────────────────────────
 
 /// Bulk flat-file downloads from ThetaData's flat-file distribution.

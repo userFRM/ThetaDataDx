@@ -1139,8 +1139,18 @@ impl StreamingClient {
             .collect();
         let connect_timeout = Duration::from_millis(connect_timeout_ms);
         let read_timeout = Duration::from_millis(read_timeout_ms);
-        let (stream, server_addr) =
-            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout, keepalive)?;
+        // The write deadline bounds the credentials write that drives the
+        // lazy TLS handshake and every steady-state ping/subscribe write.
+        // It shares the read timeout's budget: both bound a single
+        // unacknowledged transport operation during the connect window.
+        let write_timeout = read_timeout;
+        let (stream, server_addr) = connection::connect_to_servers(
+            &borrowed,
+            connect_timeout,
+            read_timeout,
+            write_timeout,
+            keepalive,
+        )?;
         Self::connect_with_stream(connection::ConnectWithStreamArgs {
             creds,
             stream,
@@ -1693,8 +1703,19 @@ impl StreamingClient {
     /// call this at entry; the one-shot
     /// `AtomicBool` keeps the affinity syscall off the per-event path
     /// when `next_event` is driven one event at a time. A `None`
-    /// `consumer_cpu` short-circuits to nothing.
+    /// `consumer_cpu` short-circuits the affinity pin.
+    ///
+    /// Recording the consumer thread id is the single choke point that
+    /// arms the `Drop` self-join guard in production: every drain path
+    /// routes through here, so the thread that drives the ring is
+    /// captured exactly once. Without it `Drop` could join the I/O
+    /// handle inline on the dispatcher thread a user callback called
+    /// back into — that thread is the one cleanup must complete on, so
+    /// the inline join would self-deadlock. The capture happens before
+    /// the `consumer_cpu` short-circuit so the guard arms regardless of
+    /// whether CPU pinning is configured.
     fn pin_consumer_once(&self) {
+        self.record_consumer_thread();
         if self.consumer_cpu.is_none() {
             return;
         }
@@ -1702,6 +1723,17 @@ impl StreamingClient {
             return;
         }
         affinity::pin_consumer_thread(self.consumer_cpu);
+    }
+
+    /// Capture the draining thread's id exactly once so the `Drop`
+    /// self-join guard can detect a `Drop` running on the consumer
+    /// thread. Idempotent: the first drain wins, later calls are a cheap
+    /// `OnceLock` read. Separated from the CPU pin so the non-blocking
+    /// [`Self::poll_batch`] primitive arms the guard without inheriting
+    /// the affinity pin the blocking drains apply.
+    fn record_consumer_thread(&self) {
+        self.consumer_thread_id
+            .get_or_init(|| thread::current().id());
     }
 
     /// Block the calling thread until the next event is available or
@@ -1818,6 +1850,11 @@ impl StreamingClient {
     /// `&StreamEvent` handed to `on_event` is a zero-copy borrow into the
     /// ring slot, valid only for that call.
     pub fn poll_batch(&self, mut on_event: impl FnMut(&StreamEvent)) -> PollOutcome {
+        // Arm the self-join guard from this drain path too: a caller
+        // driving `poll_batch` in its own loop is the consumer thread,
+        // and a `Drop` reached from inside `on_event` must detach its
+        // join rather than block this thread on its own termination.
+        self.record_consumer_thread();
         let Ok(mut guard) = self.poller_state.lock() else {
             return PollOutcome::Shutdown;
         };
@@ -1959,7 +1996,7 @@ impl StreamingClient {
     }
 
     /// Drain events through `on_event`, applying a caller-supplied
-    /// [`disruptor::wait_strategies::WaitStrategy`] on each momentarily
+    /// [`crate::streaming::wait::WaitStrategy`] on each momentarily
     /// empty ring instead of the configured
     /// [`crate::StreamingWaitStrategy`] preset.
     ///
@@ -1968,7 +2005,10 @@ impl StreamingClient {
     /// `wait_park_us` knobs cover the common latency-vs-CPU points across
     /// every binding, but a Rust caller with an exotic backoff (e.g. an
     /// adaptive PID-controlled park, or a strategy that coordinates with
-    /// another subsystem) can supply any `W: WaitStrategy` here.
+    /// another subsystem) can supply any `W: WaitStrategy` here. Use a
+    /// preset from [`crate::streaming::wait`] (e.g.
+    /// [`crate::streaming::wait::BusySpin`]) or implement the trait on
+    /// your own type.
     ///
     /// `W` is monomorphised into the loop, so the per-poll cost is the
     /// caller's `wait_for` body with no indirection — identical
@@ -1987,7 +2027,7 @@ impl StreamingClient {
     /// numeric spin / yield / park tuning, which every binding exposes.
     pub fn for_each_with_wait_strategy<W, F>(&self, mut on_event: F, strategy: W)
     where
-        W: disruptor::wait_strategies::WaitStrategy,
+        W: crate::streaming::wait::WaitStrategy,
         F: FnMut(&StreamEvent),
     {
         self.pin_consumer_once();
@@ -2645,6 +2685,16 @@ impl StreamingClient {
             slow_callback_count: Arc::new(AtomicU64::new(0)),
         };
         (client, producer)
+    }
+
+    /// The consumer thread id recorded by the drain paths, if any drain
+    /// has run. `None` before the first `next_event` / `for_each*` /
+    /// `poll_batch` call. Exists so a test can assert the `Drop`
+    /// self-join guard is armed by a real drain path rather than only by
+    /// the test-only `for_self_join_test` setter.
+    #[cfg(test)]
+    pub(in crate::fpss) fn recorded_consumer_thread_id(&self) -> Option<ThreadId> {
+        self.consumer_thread_id.get().copied()
     }
 
     /// Send a command to the I/O thread over the bounded control channel.
@@ -3485,5 +3535,94 @@ mod ring_occupancy_tests {
         }
 
         client.shutdown();
+    }
+
+    /// A real drain path arms the `Drop` self-join guard.
+    ///
+    /// In production the only thing that records the consumer thread id
+    /// is the drain entry point (`pin_consumer_once` for the blocking
+    /// drains, `record_consumer_thread` for `poll_batch`). If that
+    /// recording regresses, `Drop` reads a `None` thread id, never
+    /// detects a `Drop` running on the consumer thread, and joins the
+    /// I/O handle inline — a self-join deadlock when a user callback
+    /// drops the last client handle. This pins the recording to a real
+    /// drain call rather than the test-only setter: before any drain the
+    /// id is unset; after `poll_batch` on this thread it equals this
+    /// thread, so the guard's `consumer_id == Some(cur)` branch fires.
+    #[test]
+    fn drain_path_records_consumer_thread_id_for_self_join_guard() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+
+        assert_eq!(
+            client.recorded_consumer_thread_id(),
+            None,
+            "no drain has run yet; the guard must be unarmed"
+        );
+
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+        let mut delivered = 0usize;
+        let _ = client.poll_batch(|_event| delivered += 1);
+
+        assert_eq!(
+            client.recorded_consumer_thread_id(),
+            Some(std::thread::current().id()),
+            "poll_batch must record the draining thread so Drop detects a self-join"
+        );
+    }
+
+    /// The bring-your-own-strategy drain is reachable through the
+    /// crate-owned wait-strategy re-export, so a Rust caller never names
+    /// the underlying ring crate. Dropping the producer terminates the
+    /// drain; `BusySpin`'s `wait_for` is a no-op, so the loop spins only
+    /// until the ring reports shutdown.
+    #[test]
+    fn for_each_with_wait_strategy_accepts_crate_owned_preset() {
+        use crate::streaming::wait::BusySpin;
+
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        for _ in 0..3 {
+            assert!(
+                publish_one(&mut producer),
+                "fresh ring must accept a publish"
+            );
+        }
+        // Drop the producer so the poller observes terminal shutdown once
+        // the three published events drain, and the loop returns.
+        drop(producer);
+
+        let mut delivered = 0usize;
+        client.for_each_with_wait_strategy(|_event| delivered += 1, BusySpin);
+
+        assert_eq!(
+            delivered, 3,
+            "every published event must be delivered before shutdown returns"
+        );
+    }
+
+    /// The blocking `next_event` drain also arms the guard, covering the
+    /// `pin_consumer_once` entry point shared by every blocking drain.
+    #[test]
+    fn next_event_records_consumer_thread_id_for_self_join_guard() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+
+        assert_eq!(client.recorded_consumer_thread_id(), None);
+
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+        let event = client
+            .next_event()
+            .expect("staging mutex must not be poisoned");
+        assert!(event.is_some(), "one event must be delivered");
+
+        assert_eq!(
+            client.recorded_consumer_thread_id(),
+            Some(std::thread::current().id()),
+            "next_event must record the draining thread so Drop detects a self-join"
+        );
     }
 }
