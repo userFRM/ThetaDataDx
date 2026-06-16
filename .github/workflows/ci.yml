@@ -217,6 +217,19 @@ jobs:
       # that references a renamed symbol, say) wouldn't surface until
       # someone manually ran the doc step.
       - run: cargo test --doc --workspace --locked
+      # The DataFrame extension traits (`to_arrow` / `to_polars`) and their
+      # column / order / dtype contract live behind the `arrow` / `polars`
+      # features, which the workspace run above does not enable — so their
+      # tests would otherwise compile to an empty, silently-passing binary.
+      # Run them explicitly so a regression in the columnar surface fails CI.
+      - run: cargo test -p thetadatadx --locked --features "arrow,polars,frames,__test-helpers,config-file"
+      # The FFI unwind-safety guard (`tests/panic_boundary.rs`) is gated
+      # behind `testing-panic-boundary`. It verifies a panic crossing an
+      # `extern "C"` boundary is caught and converted to an error code
+      # instead of aborting the process — the contract every C / C++ / Go /
+      # Python caller relies on. Without this step the guard compiles to
+      # nothing and the boundary is unverified.
+      - run: cargo test -p thetadatadx-ffi --locked --features testing-panic-boundary
 
   rustdoc:
     name: Rustdoc — Gate 13 catches broken intra-doc links
