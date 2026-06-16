@@ -217,11 +217,24 @@ jobs:
       # that references a renamed symbol, say) wouldn't surface until
       # someone manually ran the doc step.
       - run: cargo test --doc --workspace --locked
+
+  # The feature-gated suites compile heavy optional dependencies
+  # (`polars` / `arrow`) and the panic-boundary harness. They run in a
+  # dedicated job rather than piling onto the workspace `Test` job, whose
+  # stacked target artifacts otherwise exhaust the runner's disk.
+  feature-tests:
+    name: Feature-gated tests (columnar + panic boundary)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
       # The DataFrame extension traits (`to_arrow` / `to_polars`) and their
       # column / order / dtype contract live behind the `arrow` / `polars`
-      # features, which the workspace run above does not enable — so their
-      # tests would otherwise compile to an empty, silently-passing binary.
-      # Run them explicitly so a regression in the columnar surface fails CI.
+      # features, which the workspace run does not enable — so their tests
+      # would otherwise compile to an empty, silently-passing binary. Run
+      # them explicitly so a regression in the columnar surface fails CI.
       - run: cargo test -p thetadatadx --locked --features "arrow,polars,frames,__test-helpers,config-file"
       # The FFI unwind-safety guard (`tests/panic_boundary.rs`) is gated
       # behind `testing-panic-boundary`. It verifies a panic crossing an
