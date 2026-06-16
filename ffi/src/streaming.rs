@@ -193,6 +193,13 @@ fn streaming_builder(
     thetadatadx::fpss::StreamingClient::builder(&params.creds, &params.streaming.hosts)
         .ring_size(params.streaming.ring_size)
         .flush_mode(params.streaming.flush_mode)
+        .wait_strategy(params.streaming.wait_strategy)
+        .wait_strategy_tuning(
+            params.streaming.wait_spin_iters,
+            params.streaming.wait_yield_iters,
+            params.streaming.wait_park_us,
+        )
+        .consumer_cpu(params.streaming.consumer_cpu)
         .reconnect_policy(params.reconnect.policy.clone())
         .reconnect_wait_ms(params.reconnect.wait_ms)
         .reconnect_wait_max_ms(params.reconnect.wait_max_ms)
