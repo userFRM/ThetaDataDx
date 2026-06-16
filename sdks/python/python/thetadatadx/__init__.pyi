@@ -230,6 +230,11 @@ class Contract:
         ...
 
     @staticmethod
+    def index(symbol: str) -> Contract:
+        """Construct an index contract for ``symbol``."""
+        ...
+
+    @staticmethod
     def option(
         symbol: str,
         *,
@@ -932,6 +937,15 @@ class StreamView:
 
     def is_streaming(self) -> bool:
         """Return whether the streaming connection is currently active."""
+        ...
+
+    def is_authenticated(self) -> bool:
+        """Return whether the live streaming session is authenticated.
+
+        Distinct from :meth:`is_streaming`: the session can be live yet
+        briefly unauthenticated mid-reconnect. ``False`` before streaming
+        starts and after it stops.
+        """
         ...
 
     def stop_streaming(self) -> None:

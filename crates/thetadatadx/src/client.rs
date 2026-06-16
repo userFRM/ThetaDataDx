@@ -716,6 +716,25 @@ impl Client {
         }
     }
 
+    /// Whether the live streaming session is currently authenticated.
+    ///
+    /// Distinct from [`Self::is_streaming`]: a `Live` slot can hold a
+    /// streaming client whose authenticated flag has been cleared after a
+    /// server disconnect, before the caller has issued a reconnect. A
+    /// panicked dispatcher folds back to `false` here too, so the failed
+    /// state is uniformly visible across every status reader rather than
+    /// reporting "authenticated with no deliveries". Returns `false`
+    /// before streaming starts and after it stops.
+    pub(crate) fn is_authenticated(&self) -> bool {
+        match &**self.state.load() {
+            StreamingSlot::Live { client } => {
+                let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                client.is_authenticated() && !matches!(*session, DispatcherSession::Failed { .. })
+            }
+            StreamingSlot::Idle | StreamingSlot::Stopped => false,
+        }
+    }
+
     /// Whether a prior streaming session has registered its drain flag
     /// for [`Self::await_drain`] to poll on.
     ///
@@ -1634,6 +1653,17 @@ impl StreamSurface<'_> {
     #[must_use]
     pub fn is_streaming(&self) -> bool {
         self.0.is_streaming()
+    }
+
+    /// Whether the live streaming session is currently authenticated.
+    ///
+    /// Distinct from [`Self::is_streaming`]: the session can be live yet
+    /// briefly unauthenticated mid-reconnect (the authenticated flag is
+    /// cleared on disconnect and restored on a successful re-auth).
+    /// Returns `false` before streaming starts and after it stops.
+    #[must_use]
+    pub fn is_authenticated(&self) -> bool {
+        self.0.is_authenticated()
     }
 
     /// Wait for every retired streaming session to drain. Returns `false`

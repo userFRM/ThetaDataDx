@@ -85,6 +85,11 @@ TEST_CASE("Stream binds the full FPSS surface",
     // is_streaming() -> bool
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SV&>().is_streaming()), bool>);
+    // is_authenticated() -> bool (mirrors the standalone
+    // StreamingClient::is_authenticated() and the Python / TypeScript
+    // client.stream.is_authenticated placement)
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SV&>().is_authenticated()), bool>);
     // active_subscriptions() -> std::vector<Subscription>
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SV&>().active_subscriptions()),
@@ -120,6 +125,9 @@ TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     // call observes the same session.
     auto stream = client.stream();
     REQUIRE_FALSE(stream.is_streaming());
+    // Distinct from is_streaming(): the session is not authenticated
+    // before streaming opens.
+    REQUIRE_FALSE(stream.is_authenticated());
     REQUIRE(stream.dropped_event_count() == 0);
     // Slow-callback watchdog: 0 before streaming; the threshold setter
     // round-trips as a no-throw configuration call (microseconds; 0

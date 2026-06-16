@@ -975,6 +975,27 @@ pub unsafe extern "C" fn thetadatadx_client_is_streaming(handle: *const ThetaDat
     })
 }
 
+/// Check if the live streaming session is authenticated on the unified
+/// client.
+///
+/// Distinct from `thetadatadx_client_is_streaming`: the session can be live
+/// yet briefly unauthenticated mid-reconnect. Returns 1 when
+/// authenticated, 0 otherwise (including a null handle, before streaming
+/// starts, and after it stops).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_client_is_authenticated(
+    handle: *const ThetaDataDxClient,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let handle = unsafe { &*handle };
+        i32::from(handle.inner.stream().is_authenticated())
+    })
+}
+
 /// Get active subscriptions as a typed array. Returns null on error.
 ///
 /// Caller must free the result with `thetadatadx_subscription_array_free`.
@@ -1801,6 +1822,43 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
     })
 }
 
+/// Check if the standalone FPSS streaming connection is currently open.
+///
+/// Distinct from `thetadatadx_streaming_is_authenticated`: the connection
+/// can be open yet briefly unauthenticated mid-reconnect. A panicked
+/// dispatcher folds back to `0` so the failed state is uniformly visible
+/// across status readers. Returns 1 when streaming, 0 otherwise
+/// (including a null handle and after shutdown).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
+    handle: *const ThetaDataDxStreamHandle,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let handle = unsafe { &*handle };
+        let inner_guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if inner_guard.as_ref().is_none() {
+            return 0;
+        }
+        let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        if let FfpssDispatcherSession::Failed { reason } = &*session {
+            tracing::debug!(
+                target: "thetadatadx::ffi",
+                reason = %reason,
+                "thetadatadx_streaming_is_streaming: dispatcher failed",
+            );
+            return 0;
+        }
+        1
+    })
+}
+
 /// Check if the FPSS client is currently authenticated.
 ///
 /// Returns 1 if authenticated, 0 if not (or if handle is null).
@@ -1872,6 +1930,47 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
             subs.into_iter()
                 .map(|(kind, contract)| (kind.kind_str().to_string(), format!("{contract}"))),
         )
+    })
+}
+
+/// Get a snapshot of currently active full-stream subscriptions.
+///
+/// Each entry's `contract` field carries the security-type discriminant
+/// (`"Stock"` / `"Option"` / `"Index"`) the full-stream subscription is
+/// bound to. The `kind` field is the snake_case full-stream kind label
+/// (`"full_trades"` / `"full_open_interest"`), matching the unified
+/// `thetadatadx_client_active_full_subscriptions` projection. Per-contract-only
+/// kinds (`Quote` / `MarketValue`) have no full-stream form and are
+/// omitted.
+///
+/// Returns a heap-allocated `ThetaDataDxSubscriptionArray` (null on error).
+/// Caller must free the result with `thetadatadx_subscription_array_free`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
+    handle: *const ThetaDataDxStreamHandle,
+) -> *mut ThetaDataDxSubscriptionArray {
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
+            return ptr::null_mut();
+        };
+        let subs = client.active_full_subscriptions();
+        build_subscription_array(subs.into_iter().filter_map(|(kind, sec_type)| {
+            kind.full_kind_str()
+                .map(|full| (full.to_string(), format!("{sec_type:?}")))
+        }))
     })
 }
 

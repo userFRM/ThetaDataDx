@@ -81,6 +81,33 @@ def test_thetadatadx_has_streaming_factory() -> None:
     assert hasattr(mod.Client, "streaming")
 
 
+def test_unified_stream_view_exposes_is_authenticated() -> None:
+    """`client.stream.is_authenticated()` mirrors the standalone
+    `StreamingClient.is_authenticated()` on the unified surface (cross-
+    binding parity with C++ `Stream::is_authenticated()` and TypeScript
+    `StreamView.isAuthenticated`). Asserted offline on the `StreamView`
+    type alongside `is_streaming` so the cross-binding accessor cannot be
+    dropped without a test failure even when no live credentials are set.
+    """
+    mod = _import_module()
+    assert hasattr(mod, "StreamView"), "thetadatadx must export `StreamView`"
+    assert hasattr(mod.StreamView, "is_streaming"), (
+        "StreamView must expose is_streaming()"
+    )
+    assert hasattr(mod.StreamView, "is_authenticated"), (
+        "StreamView must expose is_authenticated() (cross-binding parity "
+        "with the standalone StreamingClient and the C++ / TypeScript surfaces)"
+    )
+
+
+def test_unified_stream_view_is_authenticated_false_before_start(client) -> None:
+    """Before any `start_streaming` the live slot is empty, so
+    `client.stream.is_authenticated()` reads `False` (live-gated)."""
+    assert client.stream.is_authenticated() is False, (
+        "StreamView.is_authenticated() must read False before streaming starts"
+    )
+
+
 def test_context_manager_enter_exit_lifecycle(client) -> None:
     """`with client.streaming(callback) as session:` enters by calling
     `start_streaming(callback)` and exits by calling
