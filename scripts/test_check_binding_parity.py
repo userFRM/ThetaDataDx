@@ -795,6 +795,217 @@ def test_client_view_accessors_live_sources_enrolled() -> None:
     )
 
 
+# ─── Historical Rust surface + buffered base family ────────────────
+
+
+def test_rust_buffered_endpoints_from_registry() -> None:
+    """The registry of record yields exactly the 61 buffered endpoints —
+    every `[[endpoints]]` entry except the four `*_stream` FPSS subscription
+    endpoints.
+    """
+    rust = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    assert len(rust) == 61, f"registry must yield 61 buffered endpoints; got {len(rust)}"
+    assert not any(n.endswith("_stream") for n in rust), (
+        f"the `*_stream` FPSS endpoints must be excluded; got {sorted(rust)!r}"
+    )
+
+
+def test_rust_streaming_mirror_equals_generated_python() -> None:
+    """The Rust streaming classification (registry-of-record mirror of the
+    build's `endpoint_streams` SSOT) equals the live generated Python
+    `fn stream` surface — both emitted from the same registry, so any desync
+    is a real drift.
+    """
+    rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    py_stream = cbp._collect_python_streaming_endpoints(cbp.PY_SRC)
+    assert rust_stream == py_stream, (
+        f"Rust streaming mirror must equal the generated Python stream "
+        f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
+        f"py-only={sorted(py_stream - rust_stream)!r}"
+    )
+
+
+def test_cabi_base_matches_registry() -> None:
+    """The shipped C-ABI header declares one `_with_options` base symbol per
+    buffered endpoint, matching the Rust registry exactly.
+    """
+    rust = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    cabi = cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC)
+    assert rust == cabi, (
+        f"C-ABI base set must equal the registry buffered set; "
+        f"rust-only={sorted(rust - cabi)!r}, cabi-only={sorted(cabi - rust)!r}"
+    )
+
+
+def test_cabi_header_matches_ffi_source() -> None:
+    """The shipped header and the `ffi/src` source declare / define the same
+    base symbols — a stale regenerated header that drifted from the source of
+    truth is caught.
+    """
+    cabi = cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC)
+    ffi = cbp._collect_ffi_base_endpoints(cbp.FFI_SRC)
+    assert cabi == ffi, (
+        f"shipped header must agree with ffi/src base symbols; "
+        f"header-only={sorted(cabi - ffi)!r}, source-only={sorted(ffi - cabi)!r}"
+    )
+
+
+def test_historical_async_rust_column_missing_trips() -> None:
+    """An async row claiming Rust presence the registry does not back trips —
+    the dropped / renamed Rust endpoint defect class.
+    """
+    rows = [
+        {
+            "name": "stock_history_eod",
+            "rust": True,
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+        }
+    ]
+    bound = {"stock_history_eod"}
+    errors = cbp._check_historical_async_rows(rows, set(), bound, bound, bound)
+    assert any("rust" in e and "missing" in e for e in errors), (
+        f"a dropped Rust async endpoint must trip; got {errors!r}"
+    )
+
+
+def test_historical_streaming_rust_column_missing_trips() -> None:
+    """A streaming row claiming Rust presence the registry does not back
+    trips.
+    """
+    rows = [
+        {
+            "name": "option_history_trade",
+            "rust": True,
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    bound = {"option_history_trade"}
+    errors = cbp._check_historical_streaming_rows(
+        rows, set(), bound, bound, bound, bound
+    )
+    assert any("rust" in e and "missing" in e for e in errors), (
+        f"a dropped Rust streaming endpoint must trip; got {errors!r}"
+    )
+
+
+def test_historical_base_missing_on_cabi_trips() -> None:
+    """A base row claiming the C-ABI `_with_options` symbol the shipped
+    header does not declare trips — the 61-symbol blind spot.
+    """
+    rows = [
+        {
+            "name": "stock_history_eod",
+            "rust": True,
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    s = {"stock_history_eod"}
+    errors = cbp._check_historical_base_rows(rows, s, s, s, s, set(), set())
+    assert any("ffi" in e and "missing" in e for e in errors), (
+        f"missing C-ABI base symbol must trip; got {errors!r}"
+    )
+
+
+def test_historical_base_header_source_divergence_trips() -> None:
+    """A shipped header that dropped a base symbol the `ffi/src` source still
+    defines (a stale regenerated header) trips, independent of any per-row
+    column.
+    """
+    rows = [
+        {
+            "name": "stock_history_eod",
+            "rust": True,
+            "python": True,
+            "typescript": True,
+            "cpp": True,
+            "ffi": True,
+        }
+    ]
+    s = {"stock_history_eod"}
+    cabi = {"stock_history_eod"}
+    ffi = {"stock_history_eod", "option_history_eod"}
+    errors = cbp._check_historical_base_rows(rows, s, s, s, s, cabi, ffi)
+    assert any("option_history_eod" in e and "stale header" in e for e in errors), (
+        f"a header/source divergence must trip; got {errors!r}"
+    )
+
+
+def test_historical_base_untracked_orphan_trips() -> None:
+    """An endpoint present on a surface but with no row at all trips the
+    reverse-direction orphan scan.
+    """
+    errors = cbp._check_historical_base_rows(
+        [], {"stock_history_eod"}, set(), set(), set(), set(), set()
+    )
+    assert any(
+        "stock_history_eod" in e and "no [[historical_base]] row" in e
+        for e in errors
+    ), f"untracked base endpoint must trip; got {errors!r}"
+
+
+def test_historical_base_live_sources_clean() -> None:
+    """The live buffered base surface is symmetric across all five surfaces:
+    every one of the 61 endpoints present on Rust / Python / TypeScript /
+    C++ / the C-ABI base, with the shipped header, the `ffi/src` source, and
+    the Rust registry in agreement.
+    """
+    import tomllib
+
+    data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    rows = data.get("historical_base", [])
+    assert rows, "live parity.toml must declare [[historical_base]] rows"
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
+    errors = cbp._check_historical_base_rows(
+        rows,
+        cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML),
+        cbp._collect_python_buffered_endpoints(cbp.PY_SRC),
+        cbp._collect_typescript_async_endpoints(ts_methods),
+        cpp_methods.get(cbp._cpp_class_for("HistoricalView"), set()),
+        cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC),
+        cbp._collect_ffi_base_endpoints(cbp.FFI_SRC),
+    )
+    assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
+
+
+def test_historical_families_live_rust_column_clean() -> None:
+    """The live `[[historical_async]]` / `[[historical_streaming]]` rows with
+    their new `rust` column resolve clean against the registry of record.
+    """
+    import tomllib
+
+    data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    rust_buffered = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
+    async_errors = cbp._check_historical_async_rows(
+        data.get("historical_async", []),
+        rust_buffered,
+        cbp._collect_python_async_endpoints(cbp.PY_SRC),
+        cbp._collect_typescript_async_endpoints(ts_methods),
+        cbp._collect_cpp_async_endpoints(cpp_methods),
+    )
+    stream_errors = cbp._check_historical_streaming_rows(
+        data.get("historical_streaming", []),
+        rust_stream,
+        cbp._collect_python_streaming_endpoints(cbp.PY_SRC),
+        cbp._collect_typescript_streaming_endpoints(ts_methods),
+        cbp._collect_cpp_streaming_endpoints(cpp_methods),
+        cbp._collect_ffi_streaming_endpoints(cbp.FFI_SRC),
+    )
+    assert async_errors == [], f"live async rust column must be clean; got {async_errors!r}"
+    assert stream_errors == [], f"live streaming rust column must be clean; got {stream_errors!r}"
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -830,6 +1041,17 @@ def main() -> int:
     _check("client view accessors all-enrolled passes", test_client_view_accessors_all_enrolled_passes)
     _check("client view accessor orphan trips", test_client_view_accessor_orphan_trips)
     _check("client view accessors live sources enrolled", test_client_view_accessors_live_sources_enrolled)
+    _check("rust buffered endpoints from registry (61)", test_rust_buffered_endpoints_from_registry)
+    _check("rust streaming mirror equals generated python", test_rust_streaming_mirror_equals_generated_python)
+    _check("c-abi base matches registry", test_cabi_base_matches_registry)
+    _check("c-abi header matches ffi source", test_cabi_header_matches_ffi_source)
+    _check("historical-async rust column missing trips", test_historical_async_rust_column_missing_trips)
+    _check("historical-streaming rust column missing trips", test_historical_streaming_rust_column_missing_trips)
+    _check("historical-base missing on C-ABI trips", test_historical_base_missing_on_cabi_trips)
+    _check("historical-base header/source divergence trips", test_historical_base_header_source_divergence_trips)
+    _check("historical-base untracked orphan trips", test_historical_base_untracked_orphan_trips)
+    _check("historical-base live sources clean", test_historical_base_live_sources_clean)
+    _check("historical families live rust column clean", test_historical_families_live_rust_column_clean)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")

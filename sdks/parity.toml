@@ -1906,6 +1906,7 @@ typescript = "Option<BigInt>"
 
 [[historical_streaming]]
 name = "index_at_time_price"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1913,6 +1914,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "index_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1920,6 +1922,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "index_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1927,6 +1930,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "index_history_price"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1934,6 +1938,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "interest_rate_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1941,6 +1946,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_at_time_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1948,6 +1954,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_at_time_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1955,6 +1962,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1962,6 +1970,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_all"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1969,6 +1978,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1976,6 +1986,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_first_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1983,6 +1994,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_implied_volatility"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1990,6 +2002,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_second_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -1997,6 +2010,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_greeks_third_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2004,6 +2018,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2011,6 +2026,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_open_interest"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2018,6 +2034,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2025,6 +2042,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2032,6 +2050,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_greeks_all"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2039,6 +2058,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_greeks_first_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2046,6 +2066,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_greeks_implied_volatility"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2053,6 +2074,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_greeks_second_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2060,6 +2082,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_greeks_third_order"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2067,6 +2090,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_history_trade_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2074,6 +2098,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "option_list_contracts"
+rust = true
 python = true
 typescript = true
 # The zero-copy chunk callback hands back the same flat #[repr(C)] tick the
@@ -2089,6 +2114,7 @@ ffi = false
 
 [[historical_streaming]]
 name = "stock_at_time_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2096,6 +2122,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_at_time_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2103,6 +2130,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2110,6 +2138,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2117,6 +2146,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_ohlc_range"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2124,6 +2154,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2131,6 +2162,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2138,6 +2170,7 @@ ffi = true
 
 [[historical_streaming]]
 name = "stock_history_trade_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
@@ -2170,369 +2203,945 @@ ffi = true
 
 [[historical_async]]
 name = "calendar_on_date"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "calendar_open_today"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "calendar_year"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_at_time_price"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_history_price"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_list_dates"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_list_symbols"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_snapshot_market_value"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_snapshot_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "index_snapshot_price"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "interest_rate_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_at_time_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_at_time_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_all"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_first_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_implied_volatility"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_second_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_greeks_third_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_open_interest"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_greeks_all"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_greeks_first_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_greeks_implied_volatility"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_greeks_second_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_greeks_third_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_history_trade_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_list_contracts"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_list_dates"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_list_expirations"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_list_strikes"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_list_symbols"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_greeks_all"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_greeks_first_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_greeks_implied_volatility"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_greeks_second_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_greeks_third_order"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_market_value"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_open_interest"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "option_snapshot_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_at_time_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_at_time_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_eod"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_ohlc_range"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_history_trade_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_list_dates"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_list_symbols"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_snapshot_market_value"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_snapshot_ohlc"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_snapshot_quote"
+rust = true
 python = true
 typescript = true
 cpp = true
 
 [[historical_async]]
 name = "stock_snapshot_trade"
+rust = true
 python = true
 typescript = true
 cpp = true
+
+# ─── Historical buffered base surface ([[historical_base]]) ───────────
+#
+# Every buffered historical endpoint exposes a blocking query terminal on
+# ALL FIVE surfaces. This is the core "every endpoint exists everywhere"
+# guarantee — previously asserted only transitively (via the async / stream
+# companions on the managed bindings) and not at all on the C-ABI base.
+#
+#   rust        — `HistoricalClient::<endpoint>` buffered method, generated
+#                 from the registry of record (`endpoint_surface.toml`).
+#   python      — `<Endpoint>Builder.list()` collect terminal.
+#   typescript  — the buffered `<endpoint>` method on `HistoricalView`
+#                 (itself async-returning, so the buffered and async surfaces
+#                 coincide there).
+#   cpp         — `Historical::<endpoint>(...)` blocking member.
+#   ffi         — the `thetadatadx_<endpoint>_with_options` extern "C" base
+#                 symbol, read from the SHIPPED header
+#                 `sdks/cpp/include/endpoint_with_options.h.inc` so a stale
+#                 regenerated header is caught.
+#
+# `name` is the canonical snake_case endpoint name. The Rust column is the
+# source of truth: a dropped or renamed endpoint vanishes from the registry
+# and every downstream surface in lockstep, and this family trips. The
+# shipped header, the `ffi/src` source, and the Rust registry are
+# cross-checked for agreement so a header/source/registry divergence trips
+# without duplicating the broader `.so`-vs-header completeness checker
+# (`scripts/check_c_abi_completeness.py`).
+
+[[historical_base]]
+name = "calendar_on_date"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "calendar_open_today"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "calendar_year"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_at_time_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "interest_rate_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_contracts"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_expirations"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_strikes"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_ohlc_range"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
 
 # ─── Client construction-from-file convenience ([[from_file]]) ────────
 #
