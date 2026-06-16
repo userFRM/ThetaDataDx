@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Configurable streaming latency tuning across every binding: a `StreamingWaitStrategy` event-ring wait-strategy preset (`LowLatency` default, which preserves the previous fixed behaviour, plus `Balanced`, `Efficient`, and `BusySpin`) with independent spin / yield / park tuning, and an optional `consumer_cpu` knob that pins the tick-consumer thread to a CPU core (`None` default leaves it under the OS scheduler); Rust additionally exposes a zero-cost generic `StreamingClient::for_each_with_wait_strategy` override that accepts any user `WaitStrategy` impl, with the preset enum plus numeric tuning as the FFI-safe form on Python (`wait_strategy` / `wait_spin_iters` / `wait_yield_iters` / `wait_park_us` / `consumer_cpu`), TypeScript (`waitStrategy` / `setWaitStrategy` and the matching numeric and `consumerCpu` setters/getters), C++ (`set_wait_strategy` / `get_wait_strategy` and the numeric / `consumer_cpu` forwarders), and the C ABI (`thetadatadx_config_set_wait_strategy` with `THETADATADX_WAIT_*` selectors, the numeric setters/getters, and `thetadatadx_config_set_consumer_cpu` with a negative `THETADATADX_CONSUMER_CPU_UNPINNED` sentinel).
 - Epoch-instant accessors on every row that carries `date` plus a milliseconds-of-day column, computed on read (raw integer fields stay primary): Rust methods and Python properties named `timestamp_ms` for the bare `ms_of_day` column and `<prefix>_timestamp_ms` for prefixed columns (`created_timestamp_ms`, `last_trade_timestamp_ms`, `underlying_timestamp_ms`, `quote_timestamp_ms`), the C function `thetadatadx_timestamp_ms(date, ms_of_day)`, and the C++ `thetadatadx::timestamp_ms` wrapper. All return Unix epoch milliseconds (UTC, DST-aware) and signal absent dates (`None` / `-1`).
 - `thetadatadx::time::date_ms_to_epoch_ms` — the DST-aware inverse of the epoch-to-Eastern split, shared by every accessor above.
 - `thetadatadx::CalendarStatus` — the exported calendar day-type enum with `as_str()` / `from_wire_text()` / `from_code()` / `is_open()`.
@@ -617,8 +618,8 @@ code does not change.
   surfaces as a pre-merge agreement failure rather than going
   unnoticed until a downstream consumer hit the missing / extra
   field.
-- Repo hygiene pass. Root tree trimmed to standard institutional shape
-  (matches the databento-rs layout): moved `ROADMAP.md` → `docs/`,
+- Repo hygiene pass. Root tree trimmed to a standard institutional
+  layout: moved `ROADMAP.md` → `docs/`,
   moved `config.default.toml` into the `thetadatadx` crate, deleted unused
   `cliff.toml`. Architecture ADRs inlined into source-code comments at
   their relevant locations; `docs/architecture/` removed. Generated

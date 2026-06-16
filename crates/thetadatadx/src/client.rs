@@ -332,6 +332,13 @@ impl Client {
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
             .ring_size(config.streaming.ring_size)
             .flush_mode(config.streaming.flush_mode)
+            .wait_strategy(config.streaming.wait_strategy)
+            .wait_strategy_tuning(
+                config.streaming.wait_spin_iters,
+                config.streaming.wait_yield_iters,
+                config.streaming.wait_park_us,
+            )
+            .consumer_cpu(config.streaming.consumer_cpu)
             .reconnect_policy(config.reconnect.policy.clone())
             .reconnect_wait_ms(config.reconnect.wait_ms)
             .reconnect_wait_max_ms(config.reconnect.wait_max_ms)

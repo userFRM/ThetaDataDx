@@ -55,6 +55,36 @@ TEST_CASE("Config flush_mode / derive_ohlcvc getters round-trip", "[lifecycle][o
     REQUIRE(config.get_derive_ohlcvc() == true);
 }
 
+TEST_CASE("Config wait_strategy / tuning / consumer_cpu round-trip", "[lifecycle][offline]") {
+    // Mirrors the Python `Config.wait_strategy` / `.consumer_cpu` and
+    // TypeScript `waitStrategy` / `consumerCpu` surfaces: a value set
+    // through the C++ wrapper reads back through the same wrapper.
+    auto config = thetadatadx::Config::production();
+
+    // Default preset is LowLatency (preserves the historical behaviour).
+    REQUIRE(config.get_wait_strategy() == THETADATADX_WAIT_LOW_LATENCY);
+
+    for (int mode : {THETADATADX_WAIT_LOW_LATENCY, THETADATADX_WAIT_BALANCED,
+                     THETADATADX_WAIT_EFFICIENT, THETADATADX_WAIT_BUSY_SPIN}) {
+        config.set_wait_strategy(mode);
+        REQUIRE(config.get_wait_strategy() == mode);
+    }
+
+    config.set_wait_spin_iters(16);
+    REQUIRE(config.get_wait_spin_iters() == 16);
+    config.set_wait_yield_iters(2);
+    REQUIRE(config.get_wait_yield_iters() == 2);
+    config.set_wait_park_us(200);
+    REQUIRE(config.get_wait_park_us() == 200);
+
+    // Default consumer cpu is unpinned (the negative sentinel).
+    REQUIRE(config.get_consumer_cpu() == THETADATADX_CONSUMER_CPU_UNPINNED);
+    config.set_consumer_cpu(3);
+    REQUIRE(config.get_consumer_cpu() == 3);
+    config.set_consumer_cpu(THETADATADX_CONSUMER_CPU_UNPINNED);
+    REQUIRE(config.get_consumer_cpu() == THETADATADX_CONSUMER_CPU_UNPINNED);
+}
+
 TEST_CASE("HistoricalClient::connect succeeds against the production server", "[lifecycle][live]") {
     const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {

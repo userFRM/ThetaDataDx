@@ -1710,6 +1710,89 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
  */
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
+/* Streaming wait-strategy preset selectors for
+ * thetadatadx_config_set_wait_strategy / _get_wait_strategy. */
+#define THETADATADX_WAIT_LOW_LATENCY 0
+#define THETADATADX_WAIT_BALANCED    1
+#define THETADATADX_WAIT_EFFICIENT   2
+#define THETADATADX_WAIT_BUSY_SPIN   3
+
+/* Sentinel for thetadatadx_config_set_consumer_cpu /
+ * _get_consumer_cpu: a negative core id means "unpinned" (the default,
+ * OS scheduler). */
+#define THETADATADX_CONSUMER_CPU_UNPINNED (-1)
+
+/**
+ * Set the streaming event-ring consumer wait strategy on a config handle.
+ *   mode=0: LowLatency (default) -- never sleeps; lowest latency, highest idle CPU.
+ *   mode=1: Balanced -- brief park; low idle CPU.
+ *   mode=2: Efficient -- longer park; lowest idle CPU.
+ *   mode=3: BusySpin -- pure spin; pins a core.
+ * @param config Config handle to mutate.
+ * @param mode Wait-strategy selector (THETADATADX_WAIT_* above).
+ * @return 0 on success. -1 with thetadatadx_last_error set; code
+ *         THETADATADX_ERR_INVALID_PARAMETER when mode is outside {0, 1, 2, 3},
+ *         THETADATADX_ERR_CONFIG when config is null.
+ */
+int32_t thetadatadx_config_set_wait_strategy(ThetaDataDxConfig* config, int32_t mode);
+
+/**
+ * Read the current streaming wait strategy. Same encoding as
+ * thetadatadx_config_set_wait_strategy.
+ * @param config Config handle to read.
+ * @param out_mode Receives 0/1/2/3 on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_wait_strategy(const ThetaDataDxConfig* config, int32_t* out_mode);
+
+/**
+ * Set the wait-strategy spin iteration count.
+ * @return 0 on success, -1 (THETADATADX_ERR_CONFIG) on a null handle.
+ */
+int32_t thetadatadx_config_set_wait_spin_iters(ThetaDataDxConfig* config, uint32_t iters);
+
+/** Read the wait-strategy spin iteration count. 0 on success, -1 on null pointer. */
+int32_t thetadatadx_config_get_wait_spin_iters(const ThetaDataDxConfig* config, uint32_t* out_iters);
+
+/**
+ * Set the wait-strategy yield iteration count.
+ * @return 0 on success, -1 (THETADATADX_ERR_CONFIG) on a null handle.
+ */
+int32_t thetadatadx_config_set_wait_yield_iters(ThetaDataDxConfig* config, uint32_t iters);
+
+/** Read the wait-strategy yield iteration count. 0 on success, -1 on null pointer. */
+int32_t thetadatadx_config_get_wait_yield_iters(const ThetaDataDxConfig* config, uint32_t* out_iters);
+
+/**
+ * Set the wait-strategy park interval (microseconds), used by the
+ * Balanced / Efficient strategies.
+ * @return 0 on success, -1 (THETADATADX_ERR_CONFIG) on a null handle.
+ */
+int32_t thetadatadx_config_set_wait_park_us(ThetaDataDxConfig* config, uint64_t park_us);
+
+/** Read the wait-strategy park interval in microseconds. 0 on success, -1 on null pointer. */
+int32_t thetadatadx_config_get_wait_park_us(const ThetaDataDxConfig* config, uint64_t* out_park_us);
+
+/**
+ * Pin the streaming consumer thread to a CPU core.
+ *   core >= 0: pin the tick-consumer thread to that core (deterministic,
+ *              low-jitter delivery; out-of-range/offline core is a no-op).
+ *   core <  0: unpinned (THETADATADX_CONSUMER_CPU_UNPINNED, the default).
+ * @param config Config handle to mutate.
+ * @param core Core id, or a negative value for unpinned.
+ * @return 0 on success, -1 (THETADATADX_ERR_CONFIG) on a null handle.
+ */
+int32_t thetadatadx_config_set_consumer_cpu(ThetaDataDxConfig* config, int64_t core);
+
+/**
+ * Read the streaming consumer-thread CPU pin.
+ * @param config Config handle to read.
+ * @param out_core Receives the pinned core, or
+ *        THETADATADX_CONSUMER_CPU_UNPINNED (-1) when unpinned.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_consumer_cpu(const ThetaDataDxConfig* config, int64_t* out_core);
+
 /**
  * Set streaming OHLCVC derivation on a config handle.
  * @param config Config handle to mutate; no-op when NULL.

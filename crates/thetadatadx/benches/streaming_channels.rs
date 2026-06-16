@@ -91,7 +91,7 @@ use thetadatadx::fpss::{StreamControl, StreamEvent};
 // from the crate under test, not user-facing prose.
 #[cfg(feature = "__test-helpers")]
 use thetadatadx::fpss::__test_internals::{
-    build_poller_producer, Polling, RingCursors, RingProducer,
+    build_poller_producer, AdaptiveWaitStrategy, Polling, RingCursors, RingProducer,
 };
 
 /// Number of events shipped through the pipeline per criterion sample.
@@ -320,7 +320,11 @@ fn run_disruptor_production_ctor() -> (u64, u64) {
     // Shared occupancy cursors the production adapter records into — the
     // exact pair `StreamingClient::ring_occupancy` samples in the live client.
     let cursors = Arc::new(RingCursors::new());
-    let (mut producer, mut poller) = build_poller_producer(RING_SIZE, Arc::clone(&cursors));
+    let (mut producer, mut poller) = build_poller_producer(
+        RING_SIZE,
+        Arc::clone(&cursors),
+        AdaptiveWaitStrategy::low_latency(),
+    );
 
     // Producer thread: publish via the instrumented adapter. Each
     // successful `try_publish` records the published sequence into the

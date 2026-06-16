@@ -208,6 +208,280 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
     })
 }
 
+/// Set the streaming event-ring consumer wait strategy on a config
+/// handle.
+///
+/// `mode` selects a preset: `0` = LowLatency (default, never sleeps),
+/// `1` = Balanced (brief park), `2` = Efficient (longer park), `3` =
+/// BusySpin (pure spin, pins a core). Tune the individual spin / yield /
+/// park counts via the `thetadatadx_config_set_wait_*` knobs.
+///
+/// Returns `0` on success. Returns `-1` with `thetadatadx_last_error`
+/// set when `mode` is outside the documented `{0, 1, 2, 3}` set (code
+/// `THETADATADX_ERR_INVALID_PARAMETER`) or when `config` is null (code
+/// `THETADATADX_ERR_CONFIG`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_wait_strategy(
+    config: *mut ThetaDataDxConfig,
+    mode: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_wait_strategy: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        let value = match mode {
+            0 => thetadatadx::StreamingWaitStrategy::LowLatency,
+            1 => thetadatadx::StreamingWaitStrategy::Balanced,
+            2 => thetadatadx::StreamingWaitStrategy::Efficient,
+            3 => thetadatadx::StreamingWaitStrategy::BusySpin,
+            other => {
+                crate::error::set_error_with_code(
+                    &format!(
+                        "thetadatadx_config_set_wait_strategy: invalid mode {other}; expected 0 (LowLatency), 1 (Balanced), 2 (Efficient), or 3 (BusySpin)"
+                    ),
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                );
+                return -1;
+            }
+        };
+        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.wait_strategy = value;
+        0
+    })
+}
+
+/// Read the configured streaming wait strategy. Same encoding as
+/// `thetadatadx_config_set_wait_strategy`: writes `0` (LowLatency), `1`
+/// (Balanced), `2` (Efficient), or `3` (BusySpin) into `*out_mode`.
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_wait_strategy(
+    config: *const ThetaDataDxConfig,
+    out_mode: *mut i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_mode.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        let config = unsafe { &*config };
+        let value = match config.inner.streaming.wait_strategy {
+            thetadatadx::StreamingWaitStrategy::LowLatency => 0,
+            thetadatadx::StreamingWaitStrategy::Balanced => 1,
+            thetadatadx::StreamingWaitStrategy::Efficient => 2,
+            thetadatadx::StreamingWaitStrategy::BusySpin => 3,
+            _ => 0,
+        };
+        // SAFETY: out pointer checked non-null above.
+        unsafe {
+            *out_mode = value;
+        }
+        0
+    })
+}
+
+/// Set the wait-strategy spin iteration count on a config handle.
+/// Returns `0` on success, `-1` (code `THETADATADX_ERR_CONFIG`) on a
+/// null handle.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_wait_spin_iters(
+    config: *mut ThetaDataDxConfig,
+    iters: u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_wait_spin_iters: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.wait_spin_iters = iters;
+        0
+    })
+}
+
+/// Read the wait-strategy spin iteration count. Returns `0` on success,
+/// `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_wait_spin_iters(
+    config: *const ThetaDataDxConfig,
+    out_iters: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_iters.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        let config = unsafe { &*config };
+        let value = config.inner.streaming.wait_spin_iters;
+        // SAFETY: out pointer checked non-null above.
+        unsafe {
+            *out_iters = value;
+        }
+        0
+    })
+}
+
+/// Set the wait-strategy yield iteration count on a config handle.
+/// Returns `0` on success, `-1` (code `THETADATADX_ERR_CONFIG`) on a
+/// null handle.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_wait_yield_iters(
+    config: *mut ThetaDataDxConfig,
+    iters: u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_wait_yield_iters: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.wait_yield_iters = iters;
+        0
+    })
+}
+
+/// Read the wait-strategy yield iteration count. Returns `0` on success,
+/// `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_wait_yield_iters(
+    config: *const ThetaDataDxConfig,
+    out_iters: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_iters.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        let config = unsafe { &*config };
+        let value = config.inner.streaming.wait_yield_iters;
+        // SAFETY: out pointer checked non-null above.
+        unsafe {
+            *out_iters = value;
+        }
+        0
+    })
+}
+
+/// Set the wait-strategy park interval (microseconds) on a config
+/// handle, used by the Balanced / Efficient strategies. Returns `0` on
+/// success, `-1` (code `THETADATADX_ERR_CONFIG`) on a null handle.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_wait_park_us(
+    config: *mut ThetaDataDxConfig,
+    park_us: u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_wait_park_us: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.wait_park_us = park_us;
+        0
+    })
+}
+
+/// Read the wait-strategy park interval in microseconds. Returns `0` on
+/// success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_wait_park_us(
+    config: *const ThetaDataDxConfig,
+    out_park_us: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_park_us.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        let config = unsafe { &*config };
+        let value = config.inner.streaming.wait_park_us;
+        // SAFETY: out pointer checked non-null above.
+        unsafe {
+            *out_park_us = value;
+        }
+        0
+    })
+}
+
+/// Pin the streaming consumer thread to a CPU core, or leave it under
+/// the OS scheduler.
+///
+/// A NEGATIVE `core` (e.g. `-1`, the `THETADATADX_CONSUMER_CPU_UNPINNED`
+/// sentinel) means "unpinned" — the default. A non-negative `core` pins
+/// the tick-consumer thread to that core for deterministic, low-jitter
+/// delivery; an out-of-range or offline core is a best-effort no-op at
+/// the affinity layer rather than an error. Returns `0` on success, `-1`
+/// (code `THETADATADX_ERR_CONFIG`) on a null handle.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_consumer_cpu(
+    config: *mut ThetaDataDxConfig,
+    core: i64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_consumer_cpu: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.consumer_cpu = usize::try_from(core).ok();
+        0
+    })
+}
+
+/// Read the streaming consumer-thread CPU pin. Writes the pinned core
+/// into `*out_core`, or `THETADATADX_CONSUMER_CPU_UNPINNED` (`-1`) when
+/// unpinned. Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_consumer_cpu(
+    config: *const ThetaDataDxConfig,
+    out_core: *mut i64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_core.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        let config = unsafe { &*config };
+        let value = config
+            .inner
+            .streaming
+            .consumer_cpu
+            .and_then(|c| i64::try_from(c).ok())
+            .unwrap_or(-1);
+        // SAFETY: out pointer checked non-null above.
+        unsafe {
+            *out_core = value;
+        }
+        0
+    })
+}
+
 /// Set streaming reconnect policy on a config handle.
 ///
 /// - `policy = 0`: Auto (default) -- auto-reconnect with split per-class

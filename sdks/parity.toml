@@ -662,6 +662,55 @@ python = true
 typescript = true
 cpp = true
 
+# `StreamingConfig.wait_strategy` is exposed on every binding:
+# C ABI (`thetadatadx_config_set_wait_strategy`), C++ (`set_wait_strategy`),
+# Python (`Config.wait_strategy` getter + setter accepting
+# `"low_latency"` / `"balanced"` / `"efficient"` / `"busy_spin"`),
+# TypeScript (`Config.waitStrategy` getter + `setWaitStrategy`).
+[[class]]
+name = "StreamingConfig.wait_strategy"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_spin_iters` numeric tuning knob, exposed on every
+# binding (Python `Config.wait_spin_iters`, TypeScript `waitSpinIters` /
+# `setWaitSpinIters`, C++ `set_wait_spin_iters` / `get_wait_spin_iters`,
+# C ABI `thetadatadx_config_set_wait_spin_iters`).
+[[class]]
+name = "StreamingConfig.wait_spin_iters"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_yield_iters` numeric tuning knob, exposed on
+# every binding.
+[[class]]
+name = "StreamingConfig.wait_yield_iters"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_park_us` numeric tuning knob, exposed on every
+# binding.
+[[class]]
+name = "StreamingConfig.wait_park_us"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.consumer_cpu` optional consumer-thread CPU pin,
+# exposed on every binding (Python `Config.consumer_cpu` `Optional[int]`,
+# TypeScript `consumerCpu` / `setConsumerCpu` `number | null`, C++
+# `set_consumer_cpu` / `get_consumer_cpu`, C ABI
+# `thetadatadx_config_set_consumer_cpu` with a negative sentinel for
+# unpinned).
+[[class]]
+name = "StreamingConfig.consumer_cpu"
+python = true
+typescript = true
+cpp = true
+
 # `StreamingConfig.derive_ohlcvc` is exposed on every binding: the C ABI
 # (`thetadatadx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
 # C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
@@ -1327,6 +1376,76 @@ cpp = true
 [[method]]
 class = "Config"
 name = "flushMode"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setWaitStrategy"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "waitStrategy"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setWaitSpinIters"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "waitSpinIters"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setWaitYieldIters"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "waitYieldIters"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setWaitParkUs"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "waitParkUs"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setConsumerCpu"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "consumerCpu"
 python = true
 typescript = true
 cpp = true

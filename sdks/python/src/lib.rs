@@ -1080,6 +1080,101 @@ impl Config {
         }
     }
 
+    /// Set the streaming event-ring consumer wait strategy — the
+    /// latency-vs-CPU knob applied on each ring-empty poll.
+    ///
+    /// Accepts ``"low_latency"`` (default, never sleeps — lowest
+    /// latency, highest idle CPU), ``"balanced"`` (brief park — low idle
+    /// CPU), ``"efficient"`` (longer park — lowest idle CPU), or
+    /// ``"busy_spin"`` (pure spin — pins a core). Tune the individual
+    /// spin / yield / park counts via ``wait_spin_iters`` /
+    /// ``wait_yield_iters`` / ``wait_park_us``.
+    #[setter]
+    fn set_wait_strategy(&self, strategy: &str) -> pyo3::PyResult<()> {
+        let parsed = config::StreamingWaitStrategy::parse(strategy).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "wait_strategy must be \"low_latency\", \"balanced\", \"efficient\", \
+                 or \"busy_spin\"; got {strategy:?}"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_strategy = parsed;
+        Ok(())
+    }
+
+    /// Current streaming wait strategy (``"low_latency"``,
+    /// ``"balanced"``, ``"efficient"``, or ``"busy_spin"``).
+    #[getter]
+    fn get_wait_strategy(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_strategy.as_str()
+    }
+
+    /// Spin iterations the wait strategy busy-waits before yielding /
+    /// parking. Higher trades idle CPU for lower wake latency.
+    #[setter]
+    fn set_wait_spin_iters(&self, iters: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_spin_iters = iters;
+    }
+
+    /// Current wait-strategy spin iteration count.
+    #[getter]
+    fn get_wait_spin_iters(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_spin_iters
+    }
+
+    /// ``yield_now`` iterations after the spin phase, before any park.
+    #[setter]
+    fn set_wait_yield_iters(&self, iters: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_yield_iters = iters;
+    }
+
+    /// Current wait-strategy yield iteration count.
+    #[getter]
+    fn get_wait_yield_iters(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_yield_iters
+    }
+
+    /// Park interval (microseconds) for the parking wait strategies
+    /// (``"balanced"`` / ``"efficient"``). Inert for the never-sleep
+    /// strategies.
+    #[setter]
+    fn set_wait_park_us(&self, park_us: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_park_us = park_us;
+    }
+
+    /// Current wait-strategy park interval in microseconds.
+    #[getter]
+    fn get_wait_park_us(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_park_us
+    }
+
+    /// Set the CPU core to pin the streaming consumer thread to, or
+    /// ``None`` to leave it under the OS scheduler (default).
+    ///
+    /// Pinning the tick-consumer thread to an isolated core gives
+    /// deterministic, low-jitter delivery. An out-of-range or offline
+    /// core is a best-effort no-op rather than an error.
+    #[setter]
+    fn set_consumer_cpu(&self, core: Option<usize>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.consumer_cpu = core;
+    }
+
+    /// Current streaming consumer-thread CPU pin, or ``None`` if
+    /// unpinned.
+    #[getter]
+    fn get_consumer_cpu(&self) -> Option<usize> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.consumer_cpu
+    }
+
     /// Override the historical gRPC host. Used by structural tests that
     /// need to point the historical channel at a known-refused endpoint
     /// to prove the streaming-only surface never opens it; production

@@ -3392,6 +3392,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "core_affinity",
  "criterion",
  "disruptor",
  "futures",

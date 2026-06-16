@@ -252,6 +252,7 @@ pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
 pub use config::{
     DirectConfig, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
+    StreamingWaitStrategy,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,

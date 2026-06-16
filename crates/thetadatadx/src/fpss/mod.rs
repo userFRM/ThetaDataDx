@@ -29,6 +29,7 @@
 //! ```
 
 mod accumulator;
+pub(crate) mod affinity;
 pub(crate) mod connection;
 mod decode;
 mod delta;
@@ -89,7 +90,7 @@ pub mod __test_internals {
     // shared occupancy cursor pair the adapter writes into; `RingEvent`
     // is the ring slot; `Polling` discriminates the poller drain result.
     pub use super::io_loop::build_poller_producer;
-    pub use super::ring::{RingCursors, RingEvent, RingProducer};
+    pub use super::ring::{AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer};
     pub use disruptor::Polling; // VOCAB-OK: internal crate name, not user-facing
 }
 
@@ -102,7 +103,9 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{HostSelectionPolicy, ReconnectPolicy, StreamingFlushMode};
+use crate::config::{
+    HostSelectionPolicy, ReconnectPolicy, StreamingFlushMode, StreamingWaitStrategy,
+};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -387,6 +390,8 @@ pub struct StreamingClientBuilder<'a> {
     keepalive_retries: u32,
     host_selection: HostSelectionPolicy,
     host_shuffle_seed: Option<u64>,
+    wait_strategy: ring::AdaptiveWaitStrategy,
+    consumer_cpu: Option<usize>,
 }
 
 impl<'a> StreamingClientBuilder<'a> {
@@ -420,6 +425,8 @@ impl<'a> StreamingClientBuilder<'a> {
             keepalive_retries: fpss.keepalive_retries,
             host_selection: fpss.host_selection,
             host_shuffle_seed: fpss.host_shuffle_seed,
+            wait_strategy: fpss.build_wait_strategy(),
+            consumer_cpu: fpss.consumer_cpu,
         }
     }
 
@@ -440,6 +447,52 @@ impl<'a> StreamingClientBuilder<'a> {
     #[must_use]
     pub fn flush_mode(mut self, m: StreamingFlushMode) -> Self {
         self.flush_mode = m;
+        self
+    }
+
+    /// Event-ring consumer wait strategy preset. See
+    /// [`StreamingWaitStrategy`] for the latency-vs-CPU trade-off of each
+    /// preset.
+    ///
+    /// Selecting a preset resets the spin / yield / park tuning to that
+    /// preset's defaults; use [`Self::wait_strategy_tuning`] afterwards to
+    /// override the individual counts. Rust callers that want to supply
+    /// their own [`disruptor::wait_strategies::WaitStrategy`] impl use
+    /// [`StreamingClient::for_each_with_wait_strategy`] instead.
+    #[must_use]
+    pub fn wait_strategy(mut self, strategy: StreamingWaitStrategy) -> Self {
+        self.wait_strategy = match strategy {
+            StreamingWaitStrategy::LowLatency => ring::AdaptiveWaitStrategy::low_latency(),
+            StreamingWaitStrategy::Balanced => ring::AdaptiveWaitStrategy::balanced(),
+            StreamingWaitStrategy::Efficient => ring::AdaptiveWaitStrategy::efficient(),
+            StreamingWaitStrategy::BusySpin => ring::AdaptiveWaitStrategy::busy_spin(),
+        };
+        self
+    }
+
+    /// Override the spin / yield / park counts of the currently-selected
+    /// wait strategy preset. Each value is clamped to a sane upper bound.
+    ///
+    /// `park_us` is inert under [`StreamingWaitStrategy::LowLatency`] /
+    /// [`StreamingWaitStrategy::BusySpin`], which never sleep.
+    #[must_use]
+    pub fn wait_strategy_tuning(mut self, spin_iters: u32, yield_iters: u32, park_us: u64) -> Self {
+        self.wait_strategy = self
+            .wait_strategy
+            .with_tuning(spin_iters, yield_iters, park_us);
+        self
+    }
+
+    /// Pin the event-ring consumer thread to a specific CPU core.
+    ///
+    /// `Some(core_id)` pins the tick-consumer thread to that core for
+    /// deterministic, low-jitter delivery (pair with an isolated core
+    /// for best results); `None` (default) leaves the thread under the
+    /// OS scheduler — the historical behaviour. An out-of-range core id
+    /// is a no-op at the affinity layer rather than a hard error.
+    #[must_use]
+    pub fn consumer_cpu(mut self, core: Option<usize>) -> Self {
+        self.consumer_cpu = core;
         self
     }
 
@@ -628,6 +681,8 @@ impl<'a> StreamingClientBuilder<'a> {
             keepalive_retries: self.keepalive_retries,
             host_selection: self.host_selection,
             host_shuffle_seed: self.host_shuffle_seed,
+            wait_strategy: self.wait_strategy,
+            consumer_cpu: self.consumer_cpu,
         }
     }
 }
@@ -665,6 +720,13 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) keepalive_retries: u32,
     pub(crate) host_selection: HostSelectionPolicy,
     pub(crate) host_shuffle_seed: Option<u64>,
+    /// Resolved event-ring consumer wait strategy. Built from the
+    /// configured [`StreamingWaitStrategy`] preset + tuning.
+    pub(crate) wait_strategy: ring::AdaptiveWaitStrategy,
+    /// Optional CPU core to pin the event-ring consumer thread to;
+    /// `None` (default) leaves it under the OS scheduler. Mirrors
+    /// [`crate::config::StreamingConfig::consumer_cpu`].
+    pub(crate) consumer_cpu: Option<usize>,
 }
 
 /// Outcome of a single non-blocking poll inside
@@ -743,6 +805,8 @@ struct SpawnArgs<'a, P> {
     host_shuffle_seed: u64,
     derive_ohlcvc: bool,
     flush_mode: StreamingFlushMode,
+    wait_strategy: ring::AdaptiveWaitStrategy,
+    consumer_cpu: Option<usize>,
     policy: ReconnectPolicy,
     wait_ms: u64,
     wait_max_ms: u64,
@@ -869,6 +933,21 @@ pub struct StreamingClient {
     /// can scale [`StreamingClient::ring_occupancy`] samples without
     /// re-reading their own configuration.
     ring_size: usize,
+    /// Event-ring consumer wait strategy applied by the blocking poll
+    /// loops ([`Self::next_event`] / [`Self::for_each_scoped`]) when the
+    /// ring is momentarily empty. Resolved once at connect from the
+    /// configured [`StreamingWaitStrategy`] preset + tuning so the
+    /// consumer-side wait matches the ring builder's strategy.
+    wait_strategy: ring::AdaptiveWaitStrategy,
+    /// Optional CPU core to pin the consumer drain thread to; `None`
+    /// (default) leaves it under the OS scheduler. Applied once at
+    /// drain-loop entry in [`Self::for_each_scoped`] / [`Self::next_event`]
+    /// via [`affinity::pin_consumer_thread`].
+    consumer_cpu: Option<usize>,
+    /// One-shot guard so [`Self::pin_consumer_once`] applies the CPU pin
+    /// exactly once across repeated `next_event` / `for_each` drives,
+    /// keeping the affinity syscall off the per-event path.
+    consumer_pinned: std::sync::atomic::AtomicBool,
     /// Cumulative count of user-callback panics caught by the
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`StreamingClient::panic_count`].
@@ -954,6 +1033,8 @@ impl StreamingClient {
             keepalive_retries,
             host_selection,
             host_shuffle_seed,
+            wait_strategy,
+            consumer_cpu,
         } = args;
         let ring_size = ring::check_ring_size(ring_size)
             .map_err(|e| Error::config_invalid("fpss.ring_size", e.to_string()))?;
@@ -1044,6 +1125,8 @@ impl StreamingClient {
             ring_size,
             derive_ohlcvc,
             flush_mode,
+            wait_strategy,
+            consumer_cpu,
             policy,
             wait_ms,
             wait_max_ms,
@@ -1083,6 +1166,8 @@ impl StreamingClient {
             ring_size,
             derive_ohlcvc,
             flush_mode,
+            wait_strategy,
+            consumer_cpu,
             policy,
             wait_ms,
             wait_max_ms,
@@ -1221,7 +1306,7 @@ impl StreamingClient {
         // completions.
         let ring_cursors = Arc::new(RingCursors::new());
         let (producer, poller) =
-            io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors));
+            io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors), wait_strategy);
 
         // Build the client with the producer + poller bundled in. The
         // poller lives inside `StreamingClient::poller_state` and is drained
@@ -1244,6 +1329,8 @@ impl StreamingClient {
             host_shuffle_seed,
             derive_ohlcvc,
             flush_mode,
+            wait_strategy,
+            consumer_cpu,
             policy,
             wait_ms,
             wait_max_ms,
@@ -1297,6 +1384,8 @@ impl StreamingClient {
             host_shuffle_seed,
             derive_ohlcvc,
             flush_mode,
+            wait_strategy,
+            consumer_cpu,
             policy,
             wait_ms,
             wait_max_ms,
@@ -1429,6 +1518,9 @@ impl StreamingClient {
             panics,
             ring_cursors,
             ring_size,
+            wait_strategy,
+            consumer_cpu,
+            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns,
@@ -1565,6 +1657,25 @@ impl StreamingClient {
         Arc::clone(&self.drained)
     }
 
+    /// Apply the configured consumer-core pin to the current thread at
+    /// most once for the life of this client.
+    ///
+    /// The blocking drain paths ([`Self::next_event`] /
+    /// [`Self::for_each_scoped`] / [`Self::for_each_with_wait_strategy`])
+    /// call this at entry; the one-shot
+    /// `AtomicBool` keeps the affinity syscall off the per-event path
+    /// when `next_event` is driven one event at a time. A `None`
+    /// `consumer_cpu` short-circuits to nothing.
+    fn pin_consumer_once(&self) {
+        if self.consumer_cpu.is_none() {
+            return;
+        }
+        if self.consumer_pinned.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        affinity::pin_consumer_thread(self.consumer_cpu);
+    }
+
     /// Block the calling thread until the next event is available or
     /// the ring shuts down.
     ///
@@ -1588,7 +1699,8 @@ impl StreamingClient {
     /// queue's mutex was poisoned by a panicking caller on a previous
     /// invocation.
     pub fn next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
-        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
+        self.pin_consumer_once();
+        let waiter = self.wait_strategy;
         loop {
             match self.try_next_event_internal()? {
                 TryNext::Event(event) => return Ok(Some(event)),
@@ -1799,7 +1911,8 @@ impl StreamingClient {
     where
         S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
     {
-        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
+        self.pin_consumer_once();
+        let waiter = self.wait_strategy;
         loop {
             // Drain one batch inside the caller's scope. `on_event` fires
             // once per event, exactly as in `for_each`; the scope only
@@ -1812,6 +1925,48 @@ impl StreamingClient {
                 PollOutcome::Drained(0) => {
                     waiter.wait_for(0);
                 }
+                PollOutcome::Drained(_) => {}
+            }
+        }
+    }
+
+    /// Drain events through `on_event`, applying a caller-supplied
+    /// [`disruptor::wait_strategies::WaitStrategy`] on each momentarily
+    /// empty ring instead of the configured
+    /// [`crate::StreamingWaitStrategy`] preset.
+    ///
+    /// This is the Rust-native bring-your-own-strategy escape hatch: the
+    /// preset enum plus the `wait_spin_iters` / `wait_yield_iters` /
+    /// `wait_park_us` knobs cover the common latency-vs-CPU points across
+    /// every binding, but a Rust caller with an exotic backoff (e.g. an
+    /// adaptive PID-controlled park, or a strategy that coordinates with
+    /// another subsystem) can supply any `W: WaitStrategy` here.
+    ///
+    /// `W` is monomorphised into the loop, so the per-poll cost is the
+    /// caller's `wait_for` body with no indirection — identical
+    /// codegen to the preset path. Delivery semantics match
+    /// [`Self::for_each`]: `on_event` fires exactly once per event and
+    /// the loop returns on terminal shutdown after the ring drains.
+    ///
+    /// # Why Rust-only
+    ///
+    /// `wait_for` fires on every ring-empty poll on the hot path. Routing
+    /// that per-poll callback across the C ABI, the CPython interpreter
+    /// lock, or the JavaScript event loop would add call-boundary
+    /// overhead to the single tightest loop in the consumer — a latency
+    /// regression, not a tuning knob. The FFI-safe form of this override
+    /// is the [`crate::StreamingWaitStrategy`] preset enum plus the
+    /// numeric spin / yield / park tuning, which every binding exposes.
+    pub fn for_each_with_wait_strategy<W, F>(&self, mut on_event: F, strategy: W)
+    where
+        W: disruptor::wait_strategies::WaitStrategy,
+        F: FnMut(&StreamEvent),
+    {
+        self.pin_consumer_once();
+        loop {
+            match self.poll_batch(&mut on_event) {
+                PollOutcome::Shutdown => return,
+                PollOutcome::Drained(0) => strategy.wait_for(0),
                 PollOutcome::Drained(_) => {}
             }
         }
@@ -2369,6 +2524,9 @@ impl StreamingClient {
             panics,
             ring_cursors,
             ring_size,
+            wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
+            consumer_cpu: None,
+            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
@@ -2400,8 +2558,11 @@ impl StreamingClient {
         );
 
         let ring_cursors = Arc::new(RingCursors::new());
-        let (producer, poller) =
-            io_loop::build_poller_producer(ring_size, Arc::clone(&ring_cursors));
+        let (producer, poller) = io_loop::build_poller_producer(
+            ring_size,
+            Arc::clone(&ring_cursors),
+            ring::AdaptiveWaitStrategy::low_latency(),
+        );
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -2428,6 +2589,9 @@ impl StreamingClient {
             panics: Arc::new(AtomicU64::new(0)),
             ring_cursors,
             ring_size,
+            wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
+            consumer_cpu: None,
+            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
             consumer_thread_id: Arc::new(OnceLock::new()),
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
@@ -2609,6 +2773,76 @@ mod builder_tests {
         assert_eq!(args.jitter, reconnect.jitter);
         assert_eq!(args.replay_burst_size, reconnect.replay_burst_size);
         assert_eq!(args.replay_pace_ms, reconnect.replay_pace_ms);
+    }
+
+    /// The wait-strategy preset selected on the builder reaches the
+    /// connect args, and the default is the low-latency strategy that
+    /// preserves the historical fixed behaviour.
+    #[test]
+    fn builder_threads_wait_strategy_preset() {
+        use crate::config::StreamingWaitStrategy;
+        use disruptor::wait_strategies::WaitStrategy;
+        let creds = Credentials::new("user", "pw");
+        let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
+
+        // Default preset is the low-latency strategy that never sleeps; a
+        // selected Balanced preset with a measurable park actually parks.
+        // Compare the two RELATIVELY: an absolute upper bound on the
+        // never-sleeping path flakes when a loaded host stretches the
+        // yield phase, whereas a real `thread::sleep` has a reliable lower
+        // bound and is always slower than the spin-only path.
+        let default_args = StreamingClientBuilder::new(&creds, &hosts).into_args();
+        let t0 = std::time::Instant::now();
+        default_args.wait_strategy.wait_for(0);
+        let low_latency_elapsed = t0.elapsed();
+
+        let balanced_args = StreamingClientBuilder::new(&creds, &hosts)
+            .wait_strategy(StreamingWaitStrategy::Balanced)
+            .wait_strategy_tuning(0, 0, 2_000)
+            .into_args();
+        let t1 = std::time::Instant::now();
+        balanced_args.wait_strategy.wait_for(0);
+        let balanced_elapsed = t1.elapsed();
+
+        // Balanced parks ~its configured 2 ms (a sleep never returns much
+        // early — reliable lower bound).
+        assert!(
+            balanced_elapsed >= std::time::Duration::from_micros(1_800),
+            "Balanced should park ~2ms, took {balanced_elapsed:?}"
+        );
+        // The never-sleeping low-latency path is faster than the 2 ms park —
+        // a relative bound that holds even on a contended CI host.
+        assert!(
+            low_latency_elapsed < balanced_elapsed,
+            "LowLatency ({low_latency_elapsed:?}) should be faster than Balanced ({balanced_elapsed:?})"
+        );
+    }
+
+    /// Selecting any preset wires into a built ring without changing the
+    /// poller type: `build_poller_producer` returns the same
+    /// `EventPoller<RingEvent, SingleProducerBarrier>` regardless of the
+    /// strategy preset passed in.
+    #[test]
+    fn wait_strategy_preset_does_not_change_poller_type() {
+        use crate::fpss::ring::{AdaptiveWaitStrategy, RingCursors};
+        use std::sync::Arc;
+
+        // Each call returns the identical poller type; if any preset
+        // leaked `W` into the return type this would not compile because
+        // the two bindings could not share a `let` type below.
+        let (_p1, poller1) = io_loop::build_poller_producer(
+            64,
+            Arc::new(RingCursors::new()),
+            AdaptiveWaitStrategy::busy_spin(),
+        );
+        let (_p2, poller2) = io_loop::build_poller_producer(
+            64,
+            Arc::new(RingCursors::new()),
+            AdaptiveWaitStrategy::balanced(),
+        );
+        // Same concrete type — assign through a shared binding type.
+        let pollers: [EventPoller<ring::RingEvent, SingleProducerBarrier>; 2] = [poller1, poller2];
+        assert_eq!(pollers.len(), 2);
     }
 
     /// `build()` rejects a `read_timeout_ms` outside the validated

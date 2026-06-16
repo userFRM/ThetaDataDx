@@ -478,6 +478,48 @@ export declare class Config {
    */
   get flushMode(): string
   /**
+   * Set the streaming event-ring consumer wait strategy — the
+   * latency-vs-CPU knob applied on each ring-empty poll.
+   *
+   * Accepts `"low_latency"` (default — never sleeps, lowest latency,
+   * highest idle CPU), `"balanced"` (brief park — low idle CPU),
+   * `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
+   * (pure spin — pins a core). Tune the spin / yield / park counts via
+   * `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
+   */
+  setWaitStrategy(strategy: string): void
+  /**
+   * Current streaming wait strategy (`"low_latency"`, `"balanced"`,
+   * `"efficient"`, or `"busy_spin"`).
+   */
+  get waitStrategy(): string
+  /** Set the wait-strategy spin iteration count. */
+  setWaitSpinIters(iters: number): void
+  /** Current wait-strategy spin iteration count. */
+  get waitSpinIters(): number
+  /** Set the wait-strategy yield iteration count. */
+  setWaitYieldIters(iters: number): void
+  /** Current wait-strategy yield iteration count. */
+  get waitYieldIters(): number
+  /**
+   * Set the wait-strategy park interval in microseconds (used by the
+   * `"balanced"` / `"efficient"` strategies).
+   */
+  setWaitParkUs(parkUs: number): void
+  /** Current wait-strategy park interval in microseconds. */
+  get waitParkUs(): number
+  /**
+   * Pin the streaming consumer thread to a CPU core, or `null` to
+   * leave it under the OS scheduler (default).
+   *
+   * Pinning the tick-consumer thread to an isolated core gives
+   * deterministic, low-jitter delivery. An out-of-range or offline
+   * core is a best-effort no-op rather than an error.
+   */
+  setConsumerCpu(core?: number | undefined | null): void
+  /** Current streaming consumer-thread CPU pin, or `null` if unpinned. */
+  get consumerCpu(): number | null
+  /**
    * Set whether to derive OHLCVC bars locally from trade events.
    * When `false`, only server-sent OHLCVC frames are emitted,
    * reducing per-trade throughput overhead. Default `true`.

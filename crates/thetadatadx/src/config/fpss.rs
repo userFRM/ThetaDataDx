@@ -62,6 +62,92 @@ impl HostSelectionPolicy {
     }
 }
 
+/// Wait strategy for the streaming event-ring consumer — the
+/// latency-vs-CPU knob applied on every ring-empty poll.
+///
+/// The consumer drains the lock-free event ring; when it momentarily
+/// finds the ring empty it runs this strategy before re-checking. The
+/// preset picks a point on the latency-vs-CPU curve:
+///
+/// - [`StreamingWaitStrategy::LowLatency`] (default): spin then yield
+///   then a `spin_loop` hint, never sleeps. Lowest latency, highest
+///   idle CPU. Reproduces the historical fixed behaviour.
+/// - [`StreamingWaitStrategy::Balanced`]: short spin then a brief park.
+///   Low idle CPU, ~one park interval of added tail latency.
+/// - [`StreamingWaitStrategy::Efficient`]: minimal spin then a longer
+///   park. Lowest idle CPU.
+/// - [`StreamingWaitStrategy::BusySpin`]: pure spin, no yield or sleep.
+///   Absolute minimum latency; pins a core while idle.
+///
+/// The spin / yield / park counts are tuned independently via
+/// [`StreamingConfig::wait_spin_iters`], [`StreamingConfig::wait_yield_iters`],
+/// and [`StreamingConfig::wait_park_us`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StreamingWaitStrategy {
+    /// Spin, yield, then a `spin_loop` hint; never sleeps. Lowest
+    /// latency, highest idle CPU. Default.
+    #[default]
+    LowLatency,
+    /// Short spin then a brief timed park. Low idle CPU, slightly higher
+    /// tail latency.
+    Balanced,
+    /// Minimal spin then a longer timed park. Lowest idle CPU.
+    Efficient,
+    /// Pure spin, no yield or sleep. Absolute minimum latency; pins a
+    /// core while the ring is idle.
+    BusySpin,
+}
+
+impl StreamingWaitStrategy {
+    /// Canonical lowercase string for this strategy, matching the
+    /// cross-binding encoding.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::LowLatency => "low_latency",
+            Self::Balanced => "balanced",
+            Self::Efficient => "efficient",
+            Self::BusySpin => "busy_spin",
+        }
+    }
+
+    /// Parse the cross-binding string encoding (case-insensitive).
+    /// Returns `None` for unrecognised input.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "low_latency" => Some(Self::LowLatency),
+            "balanced" => Some(Self::Balanced),
+            "efficient" => Some(Self::Efficient),
+            "busy_spin" => Some(Self::BusySpin),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for StreamingWaitStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for StreamingWaitStrategy {
+    type Err = crate::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s).ok_or_else(|| {
+            crate::error::Error::config_invalid(
+                "streaming.wait_strategy",
+                format!(
+                    "wait_strategy must be one of \
+                     \"low_latency\", \"balanced\", \"efficient\", \"busy_spin\"; got {s:?}"
+                ),
+            )
+        })
+    }
+}
+
 /// Streaming client tuning.
 ///
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
@@ -197,6 +283,46 @@ pub struct StreamingConfig {
     ///   latency, higher syscall overhead.
     pub flush_mode: StreamingFlushMode,
 
+    /// Wait strategy for the event-ring consumer — the latency-vs-CPU
+    /// knob applied on every ring-empty poll.
+    ///
+    /// - [`StreamingWaitStrategy::LowLatency`] (default): never sleeps,
+    ///   lowest latency, highest idle CPU.
+    /// - [`StreamingWaitStrategy::Balanced`]: brief park, low idle CPU.
+    /// - [`StreamingWaitStrategy::Efficient`]: longer park, lowest idle CPU.
+    /// - [`StreamingWaitStrategy::BusySpin`]: pure spin, pins a core.
+    pub wait_strategy: StreamingWaitStrategy,
+
+    /// Spin iterations the wait strategy busy-waits before yielding /
+    /// parking. Higher values trade idle CPU for lower wake latency.
+    /// Default `100`. Clamped to a sane upper bound when applied.
+    pub wait_spin_iters: u32,
+
+    /// `thread::yield_now()` iterations after the spin phase, before any
+    /// park. Higher values smooth brief inter-burst gaps at slightly
+    /// higher idle CPU. Default `10`. Clamped when applied.
+    pub wait_yield_iters: u32,
+
+    /// Park interval (microseconds) for the parking wait strategies
+    /// ([`StreamingWaitStrategy::Balanced`] /
+    /// [`StreamingWaitStrategy::Efficient`]). Larger values lower idle
+    /// CPU at the cost of added tail latency; inert under
+    /// [`StreamingWaitStrategy::LowLatency`] /
+    /// [`StreamingWaitStrategy::BusySpin`], which never sleep. Default
+    /// `50`. Clamped when applied.
+    pub wait_park_us: u64,
+
+    /// Optional CPU core to pin the streaming event-ring consumer thread
+    /// to.
+    ///
+    /// `None` (default) leaves the consumer under the OS scheduler — the
+    /// historical behaviour. `Some(core_id)` pins the tick-consumer
+    /// thread to that core for deterministic, low-jitter delivery; pair
+    /// with an isolated core (e.g. `isolcpus`) for best results. An
+    /// out-of-range or offline core is a best-effort no-op at the
+    /// affinity layer (a `warn` is logged) rather than a hard error.
+    pub consumer_cpu: Option<usize>,
+
     /// Whether to derive OHLCVC bars locally from trade events.
     ///
     /// When `true` (default), the streaming client emits derived `StreamData::Ohlcvc`
@@ -228,8 +354,38 @@ impl StreamingConfig {
             keepalive_interval_secs: 2,
             keepalive_retries: 2,
             flush_mode: StreamingFlushMode::Batched,
+            wait_strategy: StreamingWaitStrategy::LowLatency,
+            wait_spin_iters: 100,
+            wait_yield_iters: 10,
+            wait_park_us: 50,
+            consumer_cpu: None,
             derive_ohlcvc: true,
         }
+    }
+
+    /// Build the event-ring consumer wait strategy from the configured
+    /// mode and tuning knobs.
+    ///
+    /// The [`StreamingWaitStrategy::LowLatency`] default with the default
+    /// tuning reproduces the historical fixed FPSS strategy byte-for-byte
+    /// (100 spins / 10 yields / trailing `spin_loop` hint, never sleeps).
+    /// Out-of-range tuning is clamped to the wait strategy's documented
+    /// bounds.
+    #[must_use]
+    pub(crate) fn build_wait_strategy(&self) -> crate::fpss::ring::AdaptiveWaitStrategy {
+        use crate::fpss::ring::{AdaptiveWaitStrategy, WaitMode};
+        let mode = match self.wait_strategy {
+            StreamingWaitStrategy::LowLatency => WaitMode::LowLatency,
+            StreamingWaitStrategy::Balanced => WaitMode::Balanced,
+            StreamingWaitStrategy::Efficient => WaitMode::Efficient,
+            StreamingWaitStrategy::BusySpin => WaitMode::BusySpin,
+        };
+        AdaptiveWaitStrategy::from_mode(
+            mode,
+            self.wait_spin_iters,
+            self.wait_yield_iters,
+            self.wait_park_us,
+        )
     }
 }
 
@@ -250,6 +406,19 @@ pub mod bounds {
     pub const KEEPALIVE_INTERVAL_SECS: std::ops::RangeInclusive<u64> = 1..=75;
     /// Allowed range for [`super::StreamingConfig::keepalive_retries`].
     pub const KEEPALIVE_RETRIES: std::ops::RangeInclusive<u32> = 1..=10;
+    /// Allowed range for [`super::StreamingConfig::wait_spin_iters`]. The
+    /// ceiling caps a misconfiguration from turning the spin phase into a
+    /// multi-millisecond busy-wait.
+    pub const WAIT_SPIN_ITERS: std::ops::RangeInclusive<u32> =
+        0..=crate::fpss::ring::AdaptiveWaitStrategy::MAX_SPIN_ITERS;
+    /// Allowed range for [`super::StreamingConfig::wait_yield_iters`].
+    pub const WAIT_YIELD_ITERS: std::ops::RangeInclusive<u32> =
+        0..=crate::fpss::ring::AdaptiveWaitStrategy::MAX_YIELD_ITERS;
+    /// Allowed range for [`super::StreamingConfig::wait_park_us`], in
+    /// microseconds. The ceiling caps a misconfiguration from parking the
+    /// consumer for seconds at a time.
+    pub const WAIT_PARK_US: std::ops::RangeInclusive<u64> =
+        0..=crate::fpss::ring::AdaptiveWaitStrategy::MAX_PARK_US;
 }
 
 impl Default for StreamingConfig {
@@ -274,6 +443,11 @@ mod tests {
         assert_eq!(cfg.keepalive_retries, 2);
         assert_eq!(cfg.host_selection, HostSelectionPolicy::Shuffled);
         assert_eq!(cfg.host_shuffle_seed, None);
+        assert_eq!(cfg.wait_strategy, StreamingWaitStrategy::LowLatency);
+        assert_eq!(cfg.wait_spin_iters, 100);
+        assert_eq!(cfg.wait_yield_iters, 10);
+        assert_eq!(cfg.wait_park_us, 50);
+        assert_eq!(cfg.consumer_cpu, None);
         // Kernel-side half-open detection at the defaults:
         // idle + interval * retries = 5 + 2*2 = 9 seconds.
         let detection = cfg.keepalive_idle_secs
@@ -298,5 +472,59 @@ mod tests {
             HostSelectionPolicy::default(),
             HostSelectionPolicy::Shuffled
         );
+    }
+
+    #[test]
+    fn wait_strategy_string_round_trip() {
+        use std::str::FromStr;
+        for s in [
+            StreamingWaitStrategy::LowLatency,
+            StreamingWaitStrategy::Balanced,
+            StreamingWaitStrategy::Efficient,
+            StreamingWaitStrategy::BusySpin,
+        ] {
+            assert_eq!(StreamingWaitStrategy::parse(s.as_str()), Some(s));
+            assert_eq!(s.to_string(), s.as_str());
+            assert_eq!(StreamingWaitStrategy::from_str(s.as_str()).unwrap(), s);
+        }
+        assert_eq!(
+            StreamingWaitStrategy::parse("BUSY_SPIN"),
+            Some(StreamingWaitStrategy::BusySpin)
+        );
+        assert_eq!(StreamingWaitStrategy::parse("bogus"), None);
+        assert!(StreamingWaitStrategy::from_str("bogus").is_err());
+        assert_eq!(
+            StreamingWaitStrategy::default(),
+            StreamingWaitStrategy::LowLatency
+        );
+    }
+
+    #[test]
+    fn build_wait_strategy_default_is_low_latency() {
+        let cfg = StreamingConfig::production_defaults();
+        // The default config must reproduce the historical fixed strategy.
+        let built = cfg.build_wait_strategy();
+        let expected = crate::fpss::ring::AdaptiveWaitStrategy::low_latency();
+        // Both are LowLatency with the 100/10 tuning; compare the public
+        // preset constructor against the config-built strategy via their
+        // observable `wait_for` (LowLatency never sleeps).
+        use disruptor::wait_strategies::WaitStrategy;
+        let t0 = std::time::Instant::now();
+        built.wait_for(0);
+        expected.wait_for(0);
+        // LowLatency never parks, so two calls stay well under a
+        // millisecond — guards against the default silently parking.
+        assert!(t0.elapsed() < std::time::Duration::from_millis(5));
+    }
+
+    #[test]
+    fn build_wait_strategy_clamps_out_of_range_tuning() {
+        let mut cfg = StreamingConfig::production_defaults();
+        cfg.wait_strategy = StreamingWaitStrategy::Balanced;
+        cfg.wait_spin_iters = u32::MAX;
+        cfg.wait_yield_iters = u32::MAX;
+        cfg.wait_park_us = u64::MAX;
+        // Must not panic; clamping happens inside `from_mode`.
+        let _ = cfg.build_wait_strategy();
     }
 }
