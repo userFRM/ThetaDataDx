@@ -1663,6 +1663,33 @@ impl StreamView {
     fn panic_count(&self) -> u64 {
         self.client.stream().panic_count()
     }
+
+    /// Set the slow-callback wall-clock threshold in microseconds.
+    ///
+    /// When a callback invocation runs longer than ``threshold_us``,
+    /// :meth:`slow_callback_count` increments and a rate-limited warning
+    /// is logged. Pass ``0`` to disable the watchdog (the default).
+    ///
+    /// Observability only: the watchdog never cancels or kills the
+    /// callback. The counter and log let operators detect a callback
+    /// that has outgrown its budget and decide how to respond. No-op
+    /// when streaming has not started.
+    fn set_slow_callback_threshold_us(&self, threshold_us: u64) {
+        self.client
+            .stream()
+            .set_slow_callback_threshold(std::time::Duration::from_micros(threshold_us));
+    }
+
+    /// Cumulative count of user-callback invocations whose wall-clock
+    /// duration exceeded the threshold set by
+    /// :meth:`set_slow_callback_threshold_us`. Returns 0 when the
+    /// watchdog is disabled or streaming has not started. Mirrors the
+    /// `slow_callback_count()` getter on the standalone
+    /// [`crate::fpss_client::StreamingClient`] and the upstream
+    /// [`thetadatadx::Client::slow_callback_count`].
+    fn slow_callback_count(&self) -> u64 {
+        self.client.stream().slow_callback_count()
+    }
 }
 
 // ── Fluent contract-first API on the unified client ──────────────────────
@@ -1786,6 +1813,8 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "panic_count",
     "ring_occupancy",
     "ring_capacity",
+    "slow_callback_count",
+    "set_slow_callback_threshold_us",
     // FLATFILES namespace getter.
     "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
@@ -1821,6 +1850,8 @@ const STREAM_VIEW_PROXY_METHODS: &[&str] = &[
     "panic_count",
     "ring_occupancy",
     "ring_capacity",
+    "slow_callback_count",
+    "set_slow_callback_threshold_us",
 ];
 
 /// Hand-written `#[pymethods]` entries on `Client` outside
@@ -1846,7 +1877,8 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     // `StreamView` surface (lib.rs).
     "active_full_subscriptions",
     // Diagnostic getters — `dropped_event_count`, `panic_count`,
-    // `ring_occupancy`, and `ring_capacity` all live on the
+    // `ring_occupancy`, `ring_capacity`, and `slow_callback_count`, plus
+    // the slow-callback threshold setter, all live on the
     // `client.stream` `StreamView` surface (lib.rs). All forward to the
     // core `thetadatadx::Client` accessors so the counts match every
     // other binding.
@@ -1854,6 +1886,8 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "panic_count",
     "ring_occupancy",
     "ring_capacity",
+    "slow_callback_count",
+    "set_slow_callback_threshold_us",
 ];
 
 /// `const fn` byte-equal helper for the compile-time guard below.

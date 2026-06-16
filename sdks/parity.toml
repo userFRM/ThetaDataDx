@@ -1146,6 +1146,20 @@ cpp = true
 
 [[method]]
 class = "StreamView"
+name = "slowCallbackCount"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamView"
+name = "setSlowCallbackThresholdUs"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamView"
 name = "millisSinceLastEvent"
 python = true
 typescript = true
@@ -1274,13 +1288,6 @@ class = "StreamingClient"
 name = "droppedEventCount"
 python = true
 typescript = true
-cpp = false  # C++ method is `dropped_events`, declared separately below
-
-[[method]]
-class = "StreamingClient"
-name = "droppedEvents"
-python = false
-typescript = false
 cpp = true
 
 [[method]]
@@ -1300,6 +1307,20 @@ cpp = true
 [[method]]
 class = "StreamingClient"
 name = "panicCount"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamingClient"
+name = "slowCallbackCount"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamingClient"
+name = "setSlowCallbackThresholdUs"
 python = true
 typescript = true
 cpp = true

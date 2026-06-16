@@ -86,6 +86,8 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "active_full_subscriptions",
     "dropped_event_count",
     "panic_count",
+    "slow_callback_count",
+    "set_slow_callback_threshold_us",
     // Hand-written `#[pymethods]` entries on `Client` /
     // sibling streaming pyclasses. These factories return a
     // streaming-session pyclass (sync, sync-iter, or asyncio) — the

@@ -97,6 +97,13 @@ TEST_CASE("Stream binds the full FPSS surface",
     // panic_count() lives on the `client.stream()` view -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SV&>().panic_count()), uint64_t>);
+    // slow_callback_count() lives on the `client.stream()` view -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SV&>().slow_callback_count()), uint64_t>);
+    // set_slow_callback_threshold_us(uint64_t) -> void
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SV&>().set_slow_callback_threshold_us(uint64_t{})),
+        void>);
 }
 
 TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
@@ -114,6 +121,11 @@ TEST_CASE("Client end-to-end push-callback cycle", "[unified][live]") {
     auto stream = client.stream();
     REQUIRE_FALSE(stream.is_streaming());
     REQUIRE(stream.dropped_event_count() == 0);
+    // Slow-callback watchdog: 0 before streaming; the threshold setter
+    // round-trips as a no-throw configuration call (microseconds; 0
+    // disables).
+    REQUIRE(stream.slow_callback_count() == 0);
+    REQUIRE_NOTHROW(stream.set_slow_callback_threshold_us(1000));
 
     std::atomic<uint64_t> events{0};
     stream.set_callback([&](const thetadatadx::StreamEvent& /*event*/) {

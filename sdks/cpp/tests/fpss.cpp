@@ -35,6 +35,33 @@ TEST_CASE("StreamingClient is move-constructible", "[fpss][offline]") {
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::StreamingClient>);
 }
 
+TEST_CASE("StreamingClient binds the observability surface",
+          "[fpss][offline]") {
+    // Pin the diagnostic accessors so a delete or rename fires at compile
+    // time. The standalone client uses the same `dropped_event_count()`
+    // spelling as the unified `Stream` view (the counter is identical on
+    // both surfaces), plus the slow-callback watchdog getter/setter.
+    using SC = thetadatadx::StreamingClient;
+    // dropped_event_count() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().dropped_event_count()), uint64_t>);
+    // ring_occupancy() / ring_capacity() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().ring_occupancy()), uint64_t>);
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().ring_capacity()), uint64_t>);
+    // panic_count() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().panic_count()), uint64_t>);
+    // slow_callback_count() -> uint64_t
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().slow_callback_count()), uint64_t>);
+    // set_slow_callback_threshold_us(uint64_t) -> void
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().set_slow_callback_threshold_us(uint64_t{})),
+        void>);
+}
+
 TEST_CASE("StreamingClient registers a callback and receives at least one event",
           "[fpss][live]") {
     const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
