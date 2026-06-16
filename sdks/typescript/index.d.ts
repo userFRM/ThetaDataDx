@@ -4,8 +4,8 @@ export declare class Client {
   /**
    * Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
    *
-   * Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
-   * inner client. No auth round-trip, no streaming-state mutation.
+   * Returns a fresh [`HistoricalView`] that shares the underlying
+   * client connection. No auth round-trip, no streaming-state mutation.
    */
   get historical(): HistoricalView
   /**
@@ -41,7 +41,7 @@ export declare class Client {
    * production-default endpoint.
    */
   static connectFromFile(path: string, config?: Config | undefined | null): Client
-  /** FLATFILES namespace handle. Cheap — clones the inner Arc. */
+  /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
   get flatFiles(): FlatFilesNamespace
   /**
    * Pull a flat-file blob and write the requested format to `path`.
@@ -306,12 +306,17 @@ export declare class Config {
   get streamingKeepaliveRetries(): number
   /**
    * Set the streaming event ring buffer size (slots). Must be a power of
-   * two `>= 64`; invalid values are rejected immediately. Default
-   * `131_072`.
+   * two `>= 64`; invalid values are rejected immediately. The slot count
+   * is a pointer-width value in the core, so it marshals as a `BigInt`
+   * like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
+   * Default `131_072`.
    */
-  setStreamingRingSize(n: number): void
-  /** Current `streaming.ring_size` value (default `131_072`). */
-  get streamingRingSize(): number
+  setStreamingRingSize(n: bigint): void
+  /**
+   * Current `streaming.ring_size` value (returned as a `BigInt`; default
+   * `131_072`).
+   */
+  get streamingRingSize(): bigint
   /**
    * Set the streaming host-selection policy. Accepts `"shuffled"`
    * (default — fault-domain-aware per-client shuffle) or
@@ -1565,11 +1570,11 @@ export declare class HistoricalClient {
  * User-facing historical-data sub-namespace returned by the
  * `client.historical` getter.
  *
- * Holds a cheap `Arc` clone of the inner unified client; constructing it
- * performs no auth round-trip and mutates no streaming state. Every
- * historical endpoint method is generated onto this view from
- * `endpoint_surface.toml`, so the surface stays a single generated
- * source of truth.
+ * A lightweight handle that shares the underlying client connection;
+ * constructing it performs no auth round-trip and mutates no streaming
+ * state. Every historical endpoint method is generated onto this view
+ * from a single declarative surface definition, so the surface stays a
+ * single generated source of truth.
  */
 export declare class HistoricalView {
   /**
@@ -2622,10 +2627,10 @@ export declare class StreamingClient {
  * User-facing real-time-streaming sub-namespace returned by the
  * `client.stream` getter.
  *
- * Shares the parent client's `Arc<thetadatadx::Client>` and its
- * `Arc<Mutex<Option<Arc<TsfnCallback>>>>` callback slot, so
- * `startStreaming`, `stopStreaming`, `reconnect`, and the subscription
- * methods observe the same registration the unified client does.
+ * Shares the parent client's connection and its registered streaming
+ * callback, so `startStreaming`, `stopStreaming`, `reconnect`, and the
+ * subscription methods observe the same registration the unified client
+ * does.
  */
 export declare class StreamView {
   /**

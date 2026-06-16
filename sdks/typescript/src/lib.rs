@@ -469,11 +469,11 @@ pub struct Client {
 /// User-facing historical-data sub-namespace returned by the
 /// `client.historical` getter.
 ///
-/// Holds a cheap `Arc` clone of the inner unified client; constructing it
-/// performs no auth round-trip and mutates no streaming state. Every
-/// historical endpoint method is generated onto this view from
-/// `endpoint_surface.toml`, so the surface stays a single generated
-/// source of truth.
+/// A lightweight handle that shares the underlying client connection;
+/// constructing it performs no auth round-trip and mutates no streaming
+/// state. Every historical endpoint method is generated onto this view
+/// from a single declarative surface definition, so the surface stays a
+/// single generated source of truth.
 #[napi]
 pub struct HistoricalView {
     client: Arc<thetadatadx::Client>,
@@ -482,10 +482,10 @@ pub struct HistoricalView {
 /// User-facing real-time-streaming sub-namespace returned by the
 /// `client.stream` getter.
 ///
-/// Shares the parent client's `Arc<thetadatadx::Client>` and its
-/// `Arc<Mutex<Option<Arc<TsfnCallback>>>>` callback slot, so
-/// `startStreaming`, `stopStreaming`, `reconnect`, and the subscription
-/// methods observe the same registration the unified client does.
+/// Shares the parent client's connection and its registered streaming
+/// callback, so `startStreaming`, `stopStreaming`, `reconnect`, and the
+/// subscription methods observe the same registration the unified client
+/// does.
 #[napi]
 pub struct StreamView {
     client: Arc<thetadatadx::Client>,
@@ -496,8 +496,8 @@ pub struct StreamView {
 impl Client {
     /// Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
     ///
-    /// Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
-    /// inner client. No auth round-trip, no streaming-state mutation.
+    /// Returns a fresh [`HistoricalView`] that shares the underlying
+    /// client connection. No auth round-trip, no streaming-state mutation.
     #[napi(getter)]
     pub fn historical(&self) -> HistoricalView {
         HistoricalView {

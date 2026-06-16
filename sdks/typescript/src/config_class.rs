@@ -910,36 +910,50 @@ impl Config {
     }
 
     /// Set the streaming event ring buffer size (slots). Must be a power of
-    /// two `>= 64`; invalid values are rejected immediately. Default
-    /// `131_072`.
+    /// two `>= 64`; invalid values are rejected immediately. The slot count
+    /// is a pointer-width value in the core, so it marshals as a `BigInt`
+    /// like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
+    /// Default `131_072`.
     #[napi(js_name = "setStreamingRingSize")]
-    pub fn set_streaming_ring_size(&self, n: u32) -> napi::Result<()> {
-        if n == 0 || !n.is_power_of_two() {
+    pub fn set_streaming_ring_size(
+        &self,
+        n: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let value = bigint_to_u64("setStreamingRingSize", &n)?;
+        let value = usize::try_from(value).map_err(|_| {
+            crate::invalid_parameter_err(format!(
+                "streaming_ring_size {value} exceeds the addressable range on this platform"
+            ))
+        })?;
+        if value == 0 || !value.is_power_of_two() {
             return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be a power of two >= 64; got {n}"
+                "streaming_ring_size must be a power of two >= 64; got {value}"
             )));
         }
-        if n < 64 {
+        if value < 64 {
             return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be >= 64; got {n}"
+                "streaming_ring_size must be >= 64; got {value}"
             )));
         }
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.ring_size = n as usize;
+        guard.streaming.ring_size = value;
         Ok(())
     }
 
-    /// Current `streaming.ring_size` value (default `131_072`).
+    /// Current `streaming.ring_size` value (returned as a `BigInt`; default
+    /// `131_072`).
     #[napi(getter, js_name = "streamingRingSize")]
-    pub fn streaming_ring_size(&self) -> napi::Result<u32> {
+    pub fn streaming_ring_size(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.streaming.ring_size).unwrap_or(u32::MAX))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.streaming.ring_size as u64,
+        ))
     }
 
     /// Set the streaming host-selection policy. Accepts `"shuffled"`
