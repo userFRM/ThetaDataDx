@@ -2461,6 +2461,174 @@ def _check_historical_streaming_rows(
     return errors
 
 
+# ─── Historical async query surface ([[historical_async]]) ────────────
+#
+# Every buffered historical endpoint carries a non-blocking query
+# companion so callers can run a request off the calling thread without
+# managing their own threads. The shape is per-binding idiom:
+#
+#   * Python: an `<endpoint>_async` method on the historical surface,
+#     returning an awaitable (generated into
+#     `sdks/python/src/_generated/historical_methods.rs`).
+#   * TypeScript: the buffered `<endpoint>` method is itself `async` and
+#     returns a `Promise`, so there is no separate `_async` name — the
+#     presence of the buffered endpoint method on `HistoricalView` IS the
+#     async surface.
+#   * C++: an inline `<endpoint>_async` member on the `Historical` view
+#     returning `std::future<std::vector<Row>>` over the blocking member.
+#
+# There is no C ABI row: the async surface is a binding-layer concern
+# layered over the existing blocking `thetadatadx_<endpoint>_with_options`
+# symbols. C has no awaitable type and its idiom is callback / poll, so
+# the C ABI stays blocking-only by design and is not tracked here.
+#
+# Like the streaming family, these terminals are endpoint-named methods
+# NOT covered by the `[[method]]` rows, so without this family a binding
+# could ship the async query on some endpoints and silently omit it on
+# others (or on a whole binding) with no checker noticing.
+
+
+def _collect_python_async_endpoints(py_src: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
+    exposes a buffered `list_async` terminal.
+
+    The Python async query surface is the awaitable `list_async()` terminal
+    on each buffered endpoint's `<Endpoint>Builder` — the async twin of the
+    blocking `list()` collect. It rides on the same builder the blocking
+    query returns, so the builder's endpoint name (the CamelCase struct
+    stem, lowered to snake_case) is the async-query presence signal. The
+    server-stream `stream_async` terminal is a different surface (tracked by
+    the `[[historical_streaming]]` family) and is not matched here.
+    """
+    out: set[str] = set()
+    if not py_src.is_dir():
+        return out
+    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            stem = header.group(1)
+            body_start = header.end()
+            depth = 1
+            i = body_start
+            while i < len(text) and depth > 0:
+                c = text[i]
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                i += 1
+            body = text[body_start : i - 1]
+            # The terminal carries a `<'py>` lifetime generic between the
+            # name and the arg list (`fn list_async<'py>(`), so allow an
+            # optional generic-parameter clause before the paren.
+            if re.search(r"\bfn\s+list_async\s*(<[^>]*>)?\s*\(", body):
+                out.add(_endpoint_method_to_snake(stem))
+    return out
+
+
+def _collect_typescript_async_endpoints(
+    ts_methods: dict[str, set[str]],
+) -> set[str]:
+    """Snake_case endpoint names whose `HistoricalView` napi class exposes a
+    buffered `<endpoint>` query method.
+
+    Every buffered TypeScript data method is an `async fn` returning a
+    `Promise`, so the buffered endpoint method IS the async surface — there
+    is no separate `_async` spelling. Reuses the already-collected
+    `{class: {method, ...}}` map: take the `HistoricalView` methods, drop
+    the `<endpoint>Stream` server-stream companions and the FPSS lifecycle
+    methods, and snake-ify the remainder to recover the endpoint names.
+    """
+    out: set[str] = set()
+    methods = ts_methods.get("HistoricalView", set())
+    lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
+    for method in methods:
+        if method in lifecycle:
+            continue
+        if method.endswith("Stream") and len(method) > len("Stream"):
+            continue
+        out.add(_endpoint_method_to_snake(method))
+    return out
+
+
+def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
+    """Snake_case endpoint names whose C++ `Historical` view exposes an
+    `<endpoint>_async` member.
+
+    Reuses the already-collected C++ `{class: {method, ...}}` map. A member
+    whose snake_case name ends in `_async` is a non-blocking query
+    companion; strip the suffix to recover the endpoint name.
+    """
+    out: set[str] = set()
+    methods = cpp_methods.get(_cpp_class_for("HistoricalView"), set())
+    for method in methods:
+        if method.endswith("_async") and len(method) > len("_async"):
+            out.add(method[: -len("_async")])
+    return out
+
+
+def _check_historical_async_rows(
+    rows: list[dict[str, Any]],
+    py_async: set[str],
+    ts_async: set[str],
+    cpp_async: set[str],
+) -> list[str]:
+    """Per-endpoint cross-binding gate for `[[historical_async]]` rows.
+
+    Each row declares a snake_case endpoint `name` plus the expected async
+    query presence in Python / TypeScript / C++. The checker compares the
+    declared state against the actual binding state and returns a list of
+    mismatch strings (empty when every row matches).
+
+    Beyond the per-row check, the collected sets are reconciled against the
+    union of declared row names: an endpoint that exposes an async query on
+    ANY binding but has no row at all trips the gate, so a newly-async
+    endpoint cannot slip in untracked.
+    """
+    errors: list[str] = []
+    declared_names = {row.get("name") for row in rows if row.get("name")}
+    for row in rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[historical_async]] row missing `name`: {row!r}")
+            continue
+        camel = _snake_to_camel(name)
+        pascal = camel[:1].upper() + camel[1:] if camel else camel
+        for lang, actual_set, hint in (
+            ("python", py_async, f"`fn {name}_async` on the historical surface"),
+            ("typescript", ts_async, f"`{camel}` async (Promise) method on `HistoricalView`"),
+            ("cpp", cpp_async, f"`{name}_async(` on the C++ `Historical` view"),
+        ):
+            declared = row.get(lang, False)
+            actual = name in actual_set
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+    # Reverse-direction orphan check: any endpoint with an async query on a
+    # binding but no row is undocumented drift.
+    seen = py_async | ts_async | cpp_async
+    for endpoint in sorted(seen - declared_names):
+        on = sorted(
+            lang
+            for lang, s in (
+                ("python", py_async),
+                ("typescript", ts_async),
+                ("cpp", cpp_async),
+            )
+            if endpoint in s
+        )
+        errors.append(
+            f"  {endpoint}: exposes an async query on {on} but has no "
+            f"[[historical_async]] row. Add one declaring its "
+            f"per-binding presence so the surface stays tracked."
+        )
+    return errors
+
+
 # ─── Client construction-from-file surface ([[from_file]]) ────────────
 #
 # Every standalone client class exposes a one-call file-construction
@@ -2898,6 +3066,9 @@ def main(argv: list[str] | None = None) -> int:
     historical_streaming_rows: list[dict[str, Any]] = data.get(
         "historical_streaming", []
     )
+    historical_async_rows: list[dict[str, Any]] = data.get(
+        "historical_async", []
+    )
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
@@ -3008,6 +3179,18 @@ def main(argv: list[str] | None = None) -> int:
     ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
     historical_streaming_errors = _check_historical_streaming_rows(
         historical_streaming_rows, py_stream, ts_stream, cpp_stream, ffi_stream
+    )
+
+    # Historical async query surface ([[historical_async]] rows) — the
+    # non-blocking `<endpoint>_async` / Promise companion per endpoint.
+    # Python / C++ name an `<endpoint>_async` method; TypeScript's buffered
+    # method is itself async (Promise). No C ABI row: the async surface is
+    # a binding-layer concern over the existing blocking C symbols.
+    py_async = _collect_python_async_endpoints(PY_SRC)
+    ts_async = _collect_typescript_async_endpoints(ts_class_methods)
+    cpp_async = _collect_cpp_async_endpoints(cpp_class_methods)
+    historical_async_errors = _check_historical_async_rows(
+        historical_async_rows, py_async, ts_async, cpp_async
     )
 
     # Client construction-from-file surface ([[from_file]] rows) — the
@@ -3203,6 +3386,17 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if historical_async_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(historical_async_errors)} "
+            f"historical-async mismatch(es) (per-endpoint "
+            f"`[[historical_async]]` granularity):"
+        )
+        for e in historical_async_errors:
+            print(e)
+        print()
+
     if from_file_errors:
         had_errors = True
         print(
@@ -3289,6 +3483,7 @@ def main(argv: list[str] | None = None) -> int:
     n_value_fields = len(value_field_rows)
     n_utilities = len(utility_rows)
     n_hist_stream = len(historical_streaming_rows)
+    n_hist_async = len(historical_async_rows)
     n_from_file = len(from_file_rows)
     print(
         f"check_binding_parity: clean "
@@ -3296,6 +3491,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_methods} method rows + {n_value_fields} value-field rows + "
         f"{n_utilities} utility rows + "
         f"{n_hist_stream} historical-streaming rows + "
+        f"{n_hist_async} historical-async rows + "
         f"{n_from_file} from-file rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
@@ -4158,6 +4354,68 @@ def _run_selftest() -> int:
     _case("hist-stream positive — TS-first ship state is silent", _case_hist_stream_ts_only_state_is_silent)
     _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
     _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
+
+    # ── Historical async query surface selftests ──────────────────
+
+    def _case_hist_async_positive_all_bound() -> None:
+        """An endpoint with an async query on every declared binding is
+        silent."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        s = {"stock_history_eod"}
+        errors = _check_historical_async_rows(rows, s, s, s)
+        assert errors == [], f"all-bound async row must be silent; got {errors!r}"
+
+    def _case_hist_async_missing_on_cpp_trips() -> None:
+        """Row claims C++ exposes the async query but the `_async` member is
+        absent — trips."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        bound = {"stock_history_eod"}
+        errors = _check_historical_async_rows(rows, bound, bound, set())
+        assert any("cpp" in e and "missing" in e for e in errors), (
+            f"missing C++ async member must trip; got {errors!r}"
+        )
+
+    def _case_hist_async_untracked_orphan_trips() -> None:
+        """An endpoint with an async query on a binding but no row at all
+        trips the reverse-direction orphan check."""
+        errors = _check_historical_async_rows(
+            [], set(), {"stock_history_eod"}, set()
+        )
+        assert any(
+            "stock_history_eod" in e and "no [[historical_async]] row" in e
+            for e in errors
+        ), f"untracked async endpoint must trip; got {errors!r}"
+
+    def _case_hist_async_cpp_collector_strips_suffix() -> None:
+        """The C++ collector recovers the endpoint name from an `_async`
+        member and ignores the blocking member of the same name."""
+        cpp_methods = {
+            "Historical": {"stock_history_eod", "stock_history_eod_async"}
+        }
+        found = _collect_cpp_async_endpoints(cpp_methods)
+        assert found == {"stock_history_eod"}, (
+            f"collector must strip `_async` and ignore the blocking twin; "
+            f"got {found!r}"
+        )
+
+    _case("hist-async positive — all three bindings expose async query", _case_hist_async_positive_all_bound)
+    _case("hist-async negative — missing C++ member trips", _case_hist_async_missing_on_cpp_trips)
+    _case("hist-async negative — untracked async endpoint trips", _case_hist_async_untracked_orphan_trips)
+    _case("hist-async — C++ collector strips `_async` suffix", _case_hist_async_cpp_collector_strips_suffix)
 
     # ── Client construction-from-file surface selftests ───────────
 

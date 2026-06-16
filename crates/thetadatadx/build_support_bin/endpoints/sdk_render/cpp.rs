@@ -90,7 +90,10 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
 }
 
 /// Renders the `HistoricalClient` member-function declarations for every
-/// non-streaming endpoint, including the singular-symbol overloads.
+/// non-streaming endpoint, including the singular-symbol overloads. Each
+/// blocking query is paired with an `<endpoint>_async` companion returning
+/// a `std::future<std::vector<Row>>` so callers can run the request off the
+/// calling thread without managing their own threads.
 pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -143,7 +146,113 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
             params.join(", ")
         )
         .unwrap();
+        // The async companions are inline header-only wrappers over the
+        // blocking members declared just above, so they live with the
+        // declarations rather than in the out-of-line `.cpp` fragment.
+        out.push_str(&render_cpp_async_method(endpoint, has_symbols));
     }
+    out
+}
+
+/// Renders the inline `<endpoint>_async` companion(s) for one buffered
+/// endpoint. Each returns a `std::future<std::vector<Row>>` that runs the
+/// matching blocking member on a fresh thread via
+/// `std::async(std::launch::async, ...)` and fulfils the future with its
+/// result; a throw from the blocking call is captured in the shared state
+/// and re-raised on `future::get()`, so typed errors propagate unchanged.
+///
+/// Arguments are taken by value and moved into the task closure so the
+/// future stays valid no matter when the caller invokes `get()` — the
+/// closure owns its inputs rather than borrowing the caller's. The blocking
+/// member borrows the client handle only for the duration of the call. The
+/// underlying handle is not thread-safe for concurrent calls (the C ABI
+/// serialises per handle), so an `_async` request must not run concurrently
+/// with another query on the same client; callers that fan out share one
+/// client per in-flight request or synchronise externally, matching the
+/// blocking surface's contract.
+fn render_cpp_async_method(endpoint: &GeneratedEndpoint, has_symbols: bool) -> String {
+    let mut out = String::new();
+    let row = cpp_value_type(&endpoint.return_type);
+    let async_name = format!("{}_async", endpoint.name);
+
+    // Emit the singular-symbol overload first when the endpoint takes a
+    // symbol list, mirroring the blocking surface's convenience overload.
+    if has_symbols {
+        out.push_str(&render_cpp_async_overload(
+            endpoint,
+            &row,
+            &async_name,
+            true,
+        ));
+    }
+    out.push_str(&render_cpp_async_overload(
+        endpoint,
+        &row,
+        &async_name,
+        false,
+    ));
+    out
+}
+
+/// Renders one `<endpoint>_async` overload. When `singular`, a `Symbols`
+/// parameter is presented as a single `std::string symbol`; otherwise it is
+/// the full `std::vector<std::string> symbols`.
+fn render_cpp_async_overload(
+    endpoint: &GeneratedEndpoint,
+    row: &str,
+    async_name: &str,
+    singular: bool,
+) -> String {
+    let mut out = String::new();
+    // By-value parameter list: the task closure must own its inputs, so the
+    // async surface takes values rather than the blocking surface's
+    // `const T&`.
+    let mut decls = Vec::new();
+    let mut captures = Vec::new();
+    let mut forwards = Vec::new();
+    for param in method_params(endpoint) {
+        let name = sdk_method_arg_name(&param);
+        if param.param_type == "Symbols" {
+            if singular {
+                decls.push("std::string symbol".to_string());
+                captures.push("symbol = std::move(symbol)".to_string());
+                forwards.push("symbol".to_string());
+            } else {
+                decls.push("std::vector<std::string> symbols".to_string());
+                captures.push("symbols = std::move(symbols)".to_string());
+                forwards.push("symbols".to_string());
+            }
+        } else {
+            decls.push(format!("std::string {name}"));
+            captures.push(format!("{name} = std::move({name})"));
+            forwards.push(name);
+        }
+    }
+    decls.push("EndpointRequestOptions options = {}".to_string());
+    captures.push("options = std::move(options)".to_string());
+    forwards.push("options".to_string());
+
+    writeln!(
+        out,
+        "    std::future<std::vector<{row}>> {async_name}({}) const {{",
+        decls.join(", ")
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "        return std::async(std::launch::async, [this, {}]() {{",
+        captures.join(", ")
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "            return this->{}({});",
+        endpoint.name,
+        forwards.join(", ")
+    )
+    .unwrap();
+    out.push_str("        });\n");
+    out.push_str("    }\n\n");
     out
 }
 
