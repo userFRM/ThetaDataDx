@@ -109,7 +109,7 @@ websocat ws://127.0.0.1:25520/v1/events
 {"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "OPEN_INTEREST", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}}
 ```
 
-The WebSocket envelope takes the strike in dollars (`570`), the same as the SDKs.
+The WebSocket envelope takes the strike in dollars (`570` = $570.00), the same as the SDKs.
 
 </template>
 

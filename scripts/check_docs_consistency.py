@@ -185,15 +185,21 @@ def check_static_docs() -> None:
     # sufficient.
     expect_contains(sdk_overview, "**Standalone streaming** | `thetadatadx_streaming_connect`")
 
-    # Strikes are dollars on every public surface; the scaled-integer
-    # vocabulary must never reappear (the WebSocket envelope's
-    # thousandths note on server/websocket.md spells the exception
-    # without the banned phrasing).
+    # Strikes are dollars on every client-facing surface, with no
+    # exception. The WebSocket subscribe envelope takes the strike in
+    # dollars exactly like the SDKs; the scaled-integer wire form never
+    # surfaces in the docs. The thousandths vocabulary (and the literal
+    # 570000 example it travelled with) must never reappear: a client
+    # who copies a thousandths example subscribes to a $570,000 strike.
+    streaming_option_pages = sorted(
+        (DOCS_SITE / "streaming/options").glob("*.md")
+    )
     strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
         ROOT / "tools/cli/README.md",
         DOCS_SITE / "cli.md",
         ROOT / "tools/server/README.md",
         *server_pages,
+        *streaming_option_pages,
         OPENAPI_YAML,
         DOCS_SITE / "examples/option-chain.md",
         DOCS_SITE / ".vitepress/theme/components/QueryBuilder.vue",
@@ -204,6 +210,13 @@ def check_static_docs() -> None:
         # timestamps like `34500000` that embed the digit string.
         if re.search(r"\b500000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
+    # The thousandths strike claim is the exact defect a contributor
+    # caught; ban its vocabulary and literal example from every page
+    # that carries a WS subscribe envelope.
+    for path in [*server_pages, *streaming_option_pages, DOCS_SITE / "articles/symbology.md"]:
+        expect_not_contains(path, "thousandths")
+        if re.search(r"\b570000\b", path.read_text()):
+            fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")
 
     # The interactive query builder generates copy-paste Python and Rust
     # snippets. The emitted client identifier must be the symbol the SDK
