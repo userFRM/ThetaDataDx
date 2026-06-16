@@ -52,7 +52,7 @@ pub enum StreamData {
         /// when the server has not yet sent the matching
         /// `ContractAssigned` frame.
         contract: Arc<Contract>,
-        /// Milliseconds since midnight (exchange-local) when the quote was recorded.
+        /// Milliseconds since midnight Eastern Time when the quote was recorded.
         ms_of_day: i32,
         /// Number of contracts/shares resting at the bid.
         bid_size: i32,
@@ -83,7 +83,7 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Milliseconds since midnight (exchange-local) when the trade printed.
+        /// Milliseconds since midnight Eastern Time when the trade printed.
         ms_of_day: i32,
         /// Exchange sequence number for ordering trades within the day.
         sequence: i32,
@@ -124,7 +124,7 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Milliseconds since midnight (exchange-local) when the open interest was recorded.
+        /// Milliseconds since midnight Eastern Time when the open interest was recorded.
         ms_of_day: i32,
         /// Number of outstanding open contracts.
         open_interest: i32,
@@ -143,7 +143,7 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Milliseconds since midnight (exchange-local) at the bar's open.
+        /// Milliseconds since midnight Eastern Time at the bar's open.
         ms_of_day: i32,
         /// Opening price of the bar.
         open: f64,
@@ -177,7 +177,7 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Milliseconds since midnight (exchange-local) when the market value was computed.
+        /// Milliseconds since midnight Eastern Time when the market value was computed.
         ms_of_day: i32,
         /// Calculated market bid (dollars), nudged from the quote bid.
         market_bid: f64,

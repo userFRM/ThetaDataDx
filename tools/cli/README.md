@@ -119,6 +119,7 @@ thetadatadx iv 450 450 0.05 0.015 0.082 8.5 call
 ```bash
 thetadatadx stock history_eod AAPL 20240101 20240301                  # pretty table (default)
 thetadatadx stock history_eod AAPL 20240101 20240301 --format json     # JSON array
+thetadatadx stock history_eod AAPL 20240101 20240301 --format json-raw # JSON with raw YYYYMMDD integer dates
 thetadatadx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 ```
 
@@ -128,7 +129,7 @@ thetadatadx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 |------|---------|-------------|
 | `--creds <path>` | `creds.txt` | Credentials file |
 | `--config <preset>` | `production` | `production` or `dev` |
-| `--format <fmt>` | `table` | `table`, `json`, or `csv` |
+| `--format <fmt>` | `table` | `table`, `json`, `json-raw`, or `csv`; `json-raw` emits dates as raw `YYYYMMDD` integers instead of the ISO values `json` produces |
 | `--timeout-ms <ms>` | | Per-call deadline in milliseconds; on expiry the in-flight request is cancelled |
 
 ## Endpoint coverage

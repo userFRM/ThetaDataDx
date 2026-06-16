@@ -44,7 +44,7 @@ Commands mirror the endpoint names, and every parameter — required and optiona
 |---|---|---|
 | `--creds <path>` | `creds.txt` | Credentials file. |
 | `--config <preset>` | `production` | `production` or `dev`. |
-| `--format <fmt>` | `table` | `table`, `json`, or `csv`. |
+| `--format <fmt>` | `table` | `table`, `json`, `json-raw`, or `csv`. `json-raw` emits dates as raw `YYYYMMDD` integers (and `ms_of_day` as raw milliseconds) instead of the ISO-formatted values `json` produces. |
 
 ## Scripting
 
