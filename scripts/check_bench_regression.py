@@ -46,6 +46,38 @@ import pathlib
 import sys
 
 
+def effective_threshold(entry: dict, global_threshold: float) -> float:
+    """Resolve the regression tolerance for one baseline entry.
+
+    A per-entry `threshold_pct` replaces the global gate — wider for a
+    known high-variance workload, tighter for a critical hot path. Any
+    non-numeric or absent value falls back to the global threshold.
+    """
+    value = entry.get("threshold_pct")
+    return float(value) if isinstance(value, (int, float)) else global_threshold
+
+
+def _selftest() -> int:
+    cases = [
+        ({}, 25.0, 25.0),
+        ({"threshold_pct": 40}, 25.0, 40.0),
+        ({"threshold_pct": 10}, 25.0, 10.0),
+        ({"threshold_pct": 40.5}, 25.0, 40.5),
+        ({"threshold_pct": None}, 25.0, 25.0),
+        ({"threshold_pct": "nope"}, 25.0, 25.0),
+    ]
+    for entry, global_t, expected in cases:
+        got = effective_threshold(entry, global_t)
+        if got != expected:
+            sys.stderr.write(
+                f"selftest FAIL: effective_threshold({entry}, {global_t}) "
+                f"= {got}, expected {expected}\n"
+            )
+            return 1
+    print(f"check_bench_regression --selftest: {len(cases)} passed, 0 failed")
+    return 0
+
+
 def load_baseline(path: pathlib.Path) -> dict:
     if not path.is_file():
         sys.stderr.write(
@@ -100,7 +132,15 @@ def main() -> int:
             "percentage threshold; filters sub-nanosecond runner jitter"
         ),
     )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="run the threshold-resolution self-test and exit",
+    )
     args = parser.parse_args()
+
+    if args.selftest:
+        return _selftest()
 
     baseline = load_baseline(args.baseline)
     failures: list[tuple[str, float, float, float]] = []
@@ -131,7 +171,14 @@ def main() -> int:
 
         abs_delta = current_p50 - float(baseline_p50)
         delta_pct = abs_delta / float(baseline_p50) * 100.0
-        over_pct = delta_pct > args.threshold
+        # A bench may carry its own `threshold_pct` to set a tolerance that
+        # differs from the global gate — wider for a known high-variance
+        # workload (a multi-thread bench whose p50 swings with runner CPU
+        # contention), or tighter for a critical hot path. It replaces the
+        # global `--threshold` for that entry; the reason is documented on
+        # the entry itself. Absent the field, the global gate applies.
+        eff_threshold = effective_threshold(entry, args.threshold)
+        over_pct = delta_pct > eff_threshold
         regressed = over_pct and abs_delta > args.abs_floor_ns
         # `NOISE` marks a bench that cleared the percentage gate but not the
         # absolute floor — a sub-nanosecond move we refuse to treat as real.
@@ -140,7 +187,7 @@ def main() -> int:
             f"{status:<11} {bench_id:<60} "
             f"baseline {baseline_p50:>12.1f} ns  "
             f"current {current_p50:>12.1f} ns  "
-            f"delta {delta_pct:+.2f}%"
+            f"delta {delta_pct:+.2f}%  limit {eff_threshold:.0f}%"
         )
         if regressed:
             failures.append((bench_id, float(baseline_p50), current_p50, delta_pct))
@@ -156,7 +203,8 @@ def main() -> int:
 
     if failures:
         sys.stderr.write(
-            f"\n{len(failures)} bench(es) regressed beyond the {args.threshold:.1f}% threshold:\n"
+            f"\n{len(failures)} bench(es) regressed beyond their threshold "
+            f"(global {args.threshold:.1f}%, per-entry overrides as noted):\n"
         )
         for bench_id, base, cur, delta in failures:
             sys.stderr.write(
