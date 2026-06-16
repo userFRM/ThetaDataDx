@@ -226,7 +226,7 @@ use crate::Client;
 
 #[napi]
 impl Client {
-    /// FLATFILES namespace handle. Cheap — clones the inner Arc.
+    /// FLATFILES namespace handle. Cheap — shares the underlying client connection.
     #[napi(getter, js_name = "flatFiles")]
     pub fn flat_files(&self) -> FlatFilesNamespace {
         FlatFilesNamespace {

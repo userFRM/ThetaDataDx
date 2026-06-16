@@ -70,7 +70,7 @@ test("streaming transport defaults and round-trip", () => {
   assert.equal(cfg.streamingTimeoutMs, 3_000n);
   assert.equal(cfg.streamingConnectTimeoutMs, 2_000n);
   assert.equal(cfg.streamingPingIntervalMs, 250n);
-  assert.equal(cfg.streamingRingSize, 131_072);
+  assert.equal(cfg.streamingRingSize, 131_072n);
   assert.equal(cfg.streamingIoReadSliceMs, 25n);
   assert.equal(cfg.streamingDataWatchdogMs, 30_000n);
   assert.equal(cfg.streamingKeepaliveIdleSecs, 5n);
@@ -84,12 +84,15 @@ test("streaming transport defaults and round-trip", () => {
   assert.equal(cfg.streamingKeepaliveIdleSecs, 10n);
 });
 
-test("streaming ring size rejects non-power-of-two", () => {
+test("streaming ring size round-trips via BigInt and rejects non-power-of-two", () => {
   const cfg = Config.production();
-  cfg.setStreamingRingSize(8_192);
-  assert.equal(cfg.streamingRingSize, 8_192);
-  assert.throws(() => cfg.setStreamingRingSize(5_000), /power of two/);
-  assert.equal(cfg.streamingRingSize, 8_192, "rejected value leaves config unchanged");
+  cfg.setStreamingRingSize(8_192n);
+  assert.equal(cfg.streamingRingSize, 8_192n);
+  // A slot count beyond the legacy 32-bit width round-trips losslessly.
+  cfg.setStreamingRingSize(4_294_967_296n);
+  assert.equal(cfg.streamingRingSize, 4_294_967_296n);
+  assert.throws(() => cfg.setStreamingRingSize(5_000n), /power of two/);
+  assert.equal(cfg.streamingRingSize, 4_294_967_296n, "rejected value leaves config unchanged");
 });
 
 test("streaming host selection round-trips and rejects unknown", () => {
