@@ -426,7 +426,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
 fn synthetic_payload_helpers_compile_and_run() {
     // Smoke: every builder returns non-empty bytes for a non-empty
     // input and respects MAX_PAYLOAD_LEN.
-    let creds = build_credentials_payload("user@example.com", "pw");
+    let creds = build_credentials_payload("user@example.com", "pw").expect("valid creds");
     assert!(!creds.is_empty() && creds.len() <= MAX_PAYLOAD_LEN);
 
     let sub = build_subscribe_payload(1, &Contract::stock("AAPL")).expect("stock subscribe");

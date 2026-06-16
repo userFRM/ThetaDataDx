@@ -10,6 +10,7 @@ use crate::tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 
 use super::contract::Contract;
 use crate::error::Error;
+use crate::fpss::framing::MAX_PAYLOAD_LEN;
 
 // ---------------------------------------------------------------------------
 // Credentials payload
@@ -27,10 +28,35 @@ use crate::error::Error;
 /// `username_len` is the byte-length of the username (email), as a big-endian u16.
 /// Password bytes follow immediately with no length prefix — the server infers
 /// password length from `payload_len - 3 - username_len`.
-#[must_use]
-pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
+///
+/// # Errors
+///
+/// Returns [`Error::Config`] (`InvalidValue`) if the assembled payload would
+/// exceed the [`MAX_PAYLOAD_LEN`] (255-byte) single-frame limit. The payload
+/// length is `3 + username.len() + password.len()`; oversized credentials are
+/// rejected here so the caller gets a typed configuration error instead of a
+/// frame-construction panic.
+pub fn build_credentials_payload(username: &str, password: &str) -> Result<Vec<u8>, Error> {
     let user_bytes = username.as_bytes();
     let pass_bytes = password.as_bytes();
+
+    // 1 (version) + 2 (user_len) + username + password must fit the single
+    // length byte on the wire. Reject oversized credentials up front so the
+    // connect path returns a typed error rather than panicking inside
+    // `Frame::new`.
+    let payload_len = 3 + user_bytes.len() + pass_bytes.len();
+    if payload_len > MAX_PAYLOAD_LEN {
+        return Err(Error::config_invalid(
+            "auth.credentials",
+            format!(
+                "credentials payload is {payload_len} bytes, exceeding the FPSS \
+                 {MAX_PAYLOAD_LEN}-byte frame limit (username {} bytes + password \
+                 {} bytes + 3-byte header); shorten the email or password",
+                user_bytes.len(),
+                pass_bytes.len()
+            ),
+        ));
+    }
 
     // Match the wire's `putShort((byte)len)` behavior: the length is first
     // narrowed to a byte (i8), then sign-extended to a short (i16). For
@@ -47,7 +73,7 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
     buf.extend_from_slice(&user_len.to_be_bytes());
     buf.extend_from_slice(user_bytes);
     buf.extend_from_slice(pass_bytes);
-    buf
+    Ok(buf)
 }
 
 // ---------------------------------------------------------------------------
@@ -234,12 +260,51 @@ mod tests {
 
     #[test]
     fn credentials_payload_format() {
-        let payload = build_credentials_payload("user@test.com", "pass123");
+        let payload = build_credentials_payload("user@test.com", "pass123").expect("valid creds");
         assert_eq!(payload[0], 0x00); // version byte
         let user_len = u16::from_be_bytes([payload[1], payload[2]]);
         assert_eq!(user_len, 13); // "user@test.com".len()
         assert_eq!(&payload[3..16], b"user@test.com");
         assert_eq!(&payload[16..], b"pass123");
+    }
+
+    #[test]
+    fn credentials_payload_rejects_oversize() {
+        // 3-byte header + username + password must fit 255 bytes. Push the
+        // combined size just over the limit and expect a typed config error,
+        // not a panic in `Frame::new`.
+        let username = "a".repeat(200);
+        let password = "b".repeat(60); // 3 + 200 + 60 = 263 > 255
+        let err = build_credentials_payload(&username, &password)
+            .expect_err("oversized creds must error");
+        match err {
+            Error::Config {
+                kind: crate::error::ConfigErrorKind::InvalidValue { field, .. },
+                message,
+            } => {
+                assert_eq!(field, "auth.credentials");
+                assert!(
+                    message.contains("255"),
+                    "message should name the limit: {message}"
+                );
+                assert!(
+                    message.contains("263"),
+                    "message should name the size: {message}"
+                );
+            }
+            other => panic!("expected Error::Config InvalidValue, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn credentials_payload_accepts_at_limit() {
+        // Exactly 255 bytes total: 3-byte header + 100-byte username + 152-byte
+        // password. A long-but-valid credential near the limit still builds.
+        let username = "u".repeat(100);
+        let password = "p".repeat(MAX_PAYLOAD_LEN - 3 - 100);
+        let payload =
+            build_credentials_payload(&username, &password).expect("at-limit creds must build");
+        assert_eq!(payload.len(), MAX_PAYLOAD_LEN);
     }
 
     #[test]

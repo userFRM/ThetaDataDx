@@ -74,7 +74,7 @@ fn bench_contract_roundtrip(c: &mut Criterion) {
 fn bench_build_credentials_payload(c: &mut Criterion) {
     c.bench_function("build_credentials_payload", |b| {
         b.iter(|| {
-            black_box(build_credentials_payload(
+            let _ = black_box(build_credentials_payload(
                 black_box("trader@example.com"),
                 black_box("s3cret_p4ssw0rd!"),
             ));

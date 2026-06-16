@@ -11,7 +11,7 @@ impl StreamView {
     /// the stream.
     ///
     /// Backpressure: a slow callback causes incoming events
-    /// to queue and, once the buffer is full, the oldest
+    /// to queue and, once the buffer is full, newly arriving
     /// events are dropped. The dropped count is observable
     /// via `droppedEventCount()`. The receive path is never
     /// blocked by a slow callback, so the upstream connection
