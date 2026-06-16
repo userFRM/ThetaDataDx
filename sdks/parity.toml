@@ -227,7 +227,9 @@ cpp = true
 # `thetadatadx::Config::set_flatfiles_*` (which forwards to the FFI
 # `thetadatadx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
 # two `Duration` fields cross the binding boundary as `u64` seconds
-# (`initial_backoff_secs` / `max_backoff_secs`).
+# (`initial_backoff_secs` / `max_backoff_secs`), and the two timeout
+# fields (`connect_timeout_secs` / `read_timeout_secs`) are `u64` seconds
+# directly.
 
 [[class]]
 name = "FlatFilesConfig.max_attempts"
@@ -249,6 +251,18 @@ cpp = true
 
 [[class]]
 name = "FlatFilesConfig.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.connect_timeout_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.read_timeout_secs"
 python = true
 typescript = true
 cpp = true

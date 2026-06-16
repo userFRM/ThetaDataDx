@@ -2,7 +2,8 @@
 TypeScript / C++ / FFI.
 
 Pins the Python surface contract for ``flatfiles_max_attempts``,
-``flatfiles_initial_backoff_secs``, and ``flatfiles_max_backoff_secs``.
+``flatfiles_initial_backoff_secs``, ``flatfiles_max_backoff_secs``,
+``flatfiles_connect_timeout_secs``, and ``flatfiles_read_timeout_secs``.
 The Rust core enforces the ``[1, 10]`` range on ``max_attempts`` and
 the ``max_backoff >= initial_backoff`` invariant at
 ``DirectConfig::validate`` time; this file pins only that the Python
@@ -34,6 +35,8 @@ def test_flatfiles_defaults_mirror_production_defaults() -> None:
     assert cfg.flatfiles_max_attempts == 10
     assert cfg.flatfiles_initial_backoff_secs == 1
     assert cfg.flatfiles_max_backoff_secs == 30
+    assert cfg.flatfiles_connect_timeout_secs == 10
+    assert cfg.flatfiles_read_timeout_secs == 60
 
 
 # ─── Round-trip ─────────────────────────────────────────────────────
@@ -71,6 +74,24 @@ def test_flatfiles_max_backoff_secs_round_trips() -> None:
         assert cfg.flatfiles_max_backoff_secs == secs
 
 
+def test_flatfiles_connect_timeout_secs_round_trips() -> None:
+    """Setter / getter pair round-trips across the documented u64 range."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    for secs in (0, 1, 4, 10, 60, 3_600):
+        cfg.flatfiles_connect_timeout_secs = secs
+        assert cfg.flatfiles_connect_timeout_secs == secs
+
+
+def test_flatfiles_read_timeout_secs_round_trips() -> None:
+    """Setter / getter pair round-trips across the documented u64 range."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    for secs in (0, 1, 4, 10, 60, 3_600, 86_400):
+        cfg.flatfiles_read_timeout_secs = secs
+        assert cfg.flatfiles_read_timeout_secs == secs
+
+
 # ─── Boundary cases ─────────────────────────────────────────────────
 
 
@@ -92,6 +113,10 @@ def test_flatfiles_backoff_secs_rejects_negative() -> None:
         cfg.flatfiles_initial_backoff_secs = -1
     with pytest.raises(OverflowError):
         cfg.flatfiles_max_backoff_secs = -1
+    with pytest.raises(OverflowError):
+        cfg.flatfiles_connect_timeout_secs = -1
+    with pytest.raises(OverflowError):
+        cfg.flatfiles_read_timeout_secs = -1
 
 
 def test_flatfiles_backoff_secs_rejects_above_u64() -> None:
@@ -102,6 +127,10 @@ def test_flatfiles_backoff_secs_rejects_above_u64() -> None:
         cfg.flatfiles_initial_backoff_secs = 1 << 65
     with pytest.raises(OverflowError):
         cfg.flatfiles_max_backoff_secs = 1 << 65
+    with pytest.raises(OverflowError):
+        cfg.flatfiles_connect_timeout_secs = 1 << 65
+    with pytest.raises(OverflowError):
+        cfg.flatfiles_read_timeout_secs = 1 << 65
 
 
 # ─── Composed state ─────────────────────────────────────────────────
@@ -117,9 +146,13 @@ def test_flatfiles_field_setters_compose_into_consistent_config() -> None:
     cfg.flatfiles_max_attempts = 5
     cfg.flatfiles_initial_backoff_secs = 2
     cfg.flatfiles_max_backoff_secs = 30
+    cfg.flatfiles_connect_timeout_secs = 15
+    cfg.flatfiles_read_timeout_secs = 90
     assert cfg.flatfiles_max_attempts == 5
     assert cfg.flatfiles_initial_backoff_secs == 2
     assert cfg.flatfiles_max_backoff_secs == 30
+    assert cfg.flatfiles_connect_timeout_secs == 15
+    assert cfg.flatfiles_read_timeout_secs == 90
 
 
 def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
@@ -131,8 +164,12 @@ def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
     cfg.flatfiles_max_attempts = 7
     cfg.flatfiles_initial_backoff_secs = 3
     cfg.flatfiles_max_backoff_secs = 12
+    cfg.flatfiles_connect_timeout_secs = 20
+    cfg.flatfiles_read_timeout_secs = 45
     cfg.concurrent_requests = 4
     assert cfg.concurrent_requests == 4
     assert cfg.flatfiles_max_attempts == 7
     assert cfg.flatfiles_initial_backoff_secs == 3
     assert cfg.flatfiles_max_backoff_secs == 12
+    assert cfg.flatfiles_connect_timeout_secs == 20
+    assert cfg.flatfiles_read_timeout_secs == 45

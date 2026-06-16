@@ -87,9 +87,10 @@ impl FlatFileRow {
         Ok(Self {
             symbol: symbol.to_string(),
             expiration,
-            // Vendor fixed-point (1/1000 dollar) -> dollars at the
-            // typed boundary.
-            strike: strike.map(|s| f64::from(s) / 1000.0),
+            // Strikes are dollars on every client-facing surface; the
+            // shared conversion keeps CSV / JSONL / Arrow / typed-row in
+            // lockstep on the exact value.
+            strike: crate::flatfiles::index::strike_dollars(strike),
             right,
             fields,
         })

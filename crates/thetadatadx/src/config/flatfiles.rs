@@ -41,6 +41,27 @@ pub struct FlatFilesConfig {
     /// once, and an un-jittered ladder lands those retries in
     /// lockstep. Disable only for tests that assert exact timings.
     pub jitter: bool,
+
+    /// TCP + TLS connect timeout for one legacy-host attempt, in seconds.
+    ///
+    /// Bounds the time spent establishing the connection and running the
+    /// auth handshake against a single host before the attempt is
+    /// abandoned and the next host (or the retry ladder) takes over.
+    /// Without it a host that accepts the TCP connection but never
+    /// completes the TLS handshake would hang the request indefinitely.
+    /// Mirrors the historical (gRPC) channel's `connect_timeout_secs`.
+    pub connect_timeout_secs: u64,
+
+    /// Read timeout for a single FLAT_FILE response frame, in seconds.
+    ///
+    /// Bounds the wait for the next chunk once streaming has begun. A
+    /// server that stalls mid-stream — accepting the request but never
+    /// sending another frame or the FLAT_FILE_END terminator — would
+    /// otherwise block the download forever. On expiry the attempt fails
+    /// as a transient stall so the retry ladder reconnects on a fresh
+    /// session. Sized generously so a slow-but-progressing bulk transfer
+    /// is never cut off mid-chunk.
+    pub read_timeout_secs: u64,
 }
 
 impl FlatFilesConfig {
@@ -57,6 +78,15 @@ impl FlatFilesConfig {
             initial_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(30),
             jitter: true,
+            // Matches the historical (gRPC) channel connect bound; long
+            // enough for a TLS handshake behind NAT / VPN, short enough
+            // that a black-holed host fails over fast.
+            connect_timeout_secs: 10,
+            // A FLAT_FILE stream sends frequent chunks while it is making
+            // progress; 60 s between frames is far beyond any healthy
+            // inter-chunk gap, so a longer silence means the server has
+            // stalled and the attempt should fail over rather than hang.
+            read_timeout_secs: 60,
         }
     }
 

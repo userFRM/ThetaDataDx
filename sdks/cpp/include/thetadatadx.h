@@ -1626,6 +1626,41 @@ void thetadatadx_config_set_flatfiles_max_backoff_secs(ThetaDataDxConfig* config
  */
 int32_t thetadatadx_config_get_flatfiles_max_backoff_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
+/**
+ * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+ * attempt. Bounds the connect/auth handshake before the attempt is
+ * abandoned and the next host (or the retry ladder) takes over.
+ * Default 10.
+ * @param config Config handle to mutate; no-op when NULL.
+ * @param secs Connect timeout in seconds.
+ */
+void thetadatadx_config_set_flatfiles_connect_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
+
+/**
+ * Read the flatfile connect-timeout setting (seconds).
+ * @param config Config handle to read.
+ * @param out_secs Receives the connect timeout in seconds on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_flatfiles_connect_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
+
+/**
+ * Set the read timeout (seconds) for a single flatfile response frame.
+ * Bounds the wait for the next chunk once streaming has begun so a
+ * mid-stream stall fails over instead of blocking forever. Default 60.
+ * @param config Config handle to mutate; no-op when NULL.
+ * @param secs Read timeout in seconds.
+ */
+void thetadatadx_config_set_flatfiles_read_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
+
+/**
+ * Read the flatfile read-timeout setting (seconds).
+ * @param config Config handle to read.
+ * @param out_secs Receives the read timeout in seconds on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_flatfiles_read_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
+
 /* ── AuthConfig field setters/getters ── */
 
 /**

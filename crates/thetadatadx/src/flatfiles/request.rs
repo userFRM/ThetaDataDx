@@ -193,7 +193,7 @@ pub async fn flatfile_request_raw_with_config(
     run_retry_loop(config, move |_attempt| {
         let creds = creds.clone();
         let path = output_for_attempt.clone();
-        async move { run_one_attempt(&creds, sec, req, date, &path).await }
+        async move { run_one_attempt(&creds, sec, req, date, &path, config).await }
     })
     .await
 }
@@ -257,6 +257,7 @@ async fn run_one_attempt(
     req: ReqType,
     date: &str,
     output_path: &Path,
+    config: &FlatFilesConfig,
 ) -> Result<PathBuf, Error> {
     // Build the host candidate list — try every (host, port) in priority
     // order, matching the vendor terminal's `MDDS_NJ_HOSTS` config.
@@ -268,7 +269,9 @@ async fn run_one_attempt(
         }
     }
 
-    let mut session = connect_and_login(&hosts, creds).await?;
+    let connect_timeout = std::time::Duration::from_secs(config.connect_timeout_secs.max(1));
+    let read_timeout = std::time::Duration::from_secs(config.read_timeout_secs.max(1));
+    let mut session = connect_and_login(&hosts, creds, connect_timeout).await?;
     tracing::debug!(target: "flatfiles", "authed against MDDS legacy: bundle={}", session.bundle);
 
     let request_id = next_id();
@@ -292,9 +295,22 @@ async fn run_one_attempt(
     // clean end-of-stream, no bookkeeping flag needed.
 
     loop {
-        let frame = match read_frame(&mut session.stream).await {
-            Ok(f) => f,
-            Err(e) => {
+        // Bound the wait for each frame. A server that stalls mid-stream
+        // — never sending the next chunk nor FLAT_FILE_END — would
+        // otherwise hang the download forever. On expiry, surface a
+        // transient stall so the retry ladder reconnects on a fresh
+        // session rather than blocking indefinitely.
+        let frame = match tokio::time::timeout(read_timeout, read_frame(&mut session.stream)).await
+        {
+            Err(_) => {
+                return Err(Error::FlatFilesUnavailable(
+                    FlatFilesUnavailableReason::StreamTruncated {
+                        bytes_received: total,
+                    },
+                ));
+            }
+            Ok(Ok(f)) => f,
+            Ok(Err(e)) => {
                 // Differentiate between EOF-after-some-data (truncation)
                 // and an outright protocol error.
                 if total > 0
@@ -442,6 +458,7 @@ mod tests {
             initial_backoff: std::time::Duration::from_millis(1),
             max_backoff: std::time::Duration::from_millis(4),
             jitter: false,
+            ..FlatFilesConfig::production_defaults()
         }
     }
 
