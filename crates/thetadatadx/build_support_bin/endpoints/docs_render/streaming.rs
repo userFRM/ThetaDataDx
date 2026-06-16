@@ -200,7 +200,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).quote()",
         ws_req_type: "QUOTE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Quote",
     },
@@ -216,7 +216,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Trade",
     },
@@ -232,7 +232,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).open_interest()",
         ws_req_type: "OPEN_INTEREST",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Open Interest",
     },
@@ -275,7 +275,7 @@ const STREAMS: &[StreamSpec] = &[
         prose: "Streams every index value update. Indices publish price prints through the trade feed, so each update delivers a `Trade` event whose `price` field carries the index value. Indices have no full-stream broadcast; subscribe per index.",
         event: "Trade",
         rust_sub: "Contract::index(\"SPX\").trade()",
-        python_sub: "Contract.stock(\"SPX\").trade()",
+        python_sub: "Contract.index(\"SPX\").trade()",
         ts_sub: "Contract.index('SPX').trade()",
         cpp_sub: "thetadatadx::Contract::index(\"SPX\").trade()",
         ws_req_type: "TRADE",
@@ -417,7 +417,7 @@ fn http_tab(spec: &StreamSpec) -> String {
     );
     if spec.ws_contract.is_some_and(|c| c.contains("strike")) {
         out.push_str(
-            "\nThe WebSocket envelope takes the strike in thousandths of a dollar (`570000` = $570.00); the SDKs take dollars.\n",
+            "\nThe WebSocket envelope takes the strike in dollars (`570` = $570.00), the same as the SDKs.\n",
         );
     }
     out

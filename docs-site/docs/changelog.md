@@ -69,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The CLI's raw OHLC output (`--format json-raw` / `csv`) emits the `vwap` value in its own column. The raw value row was one field short of its header set, so `vwap` was dropped and `date`, `expiration`, `strike`, and `right` rendered under the wrong column names. The typed SDK surfaces and the CLI's presentation `json` were unaffected.
 - Python — the standalone `StreamingClient` streaming connect, reconnect, and subscribe / unsubscribe paths release the GIL across their blocking I/O (the TLS connect and handshake, and the per-subscription wire write), so other Python threads keep running while a connect or subscribe is in flight; the typed exception raised on failure is unchanged.
 - The standalone Python and TypeScript streaming clients now forward the full streaming and reconnect config, so every tuning knob — including the wait strategy and consumer-core affinity, host selection, watchdog and keepalive cadences, and the reconnect backoff and replay pacing — is honored, matching the unified client and the C ABI.
+- The bundled WebSocket server acknowledges stream requests with ThetaData's stream-verification values: a successful subscribe, unsubscribe, or stop now returns `SUBSCRIBED` instead of `OK`, and a subscribe that arrives before streaming has started returns `ERROR` with a descriptive message instead of a false-positive `OK` that claimed success while installing nothing.
 
 ### Security
 

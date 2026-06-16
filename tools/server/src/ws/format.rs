@@ -202,10 +202,15 @@ pub(super) fn fpss_event_to_ws_json(
                 try_serialize(&msg)
             }
             StreamControl::ReqResponse { req_id, result } => {
+                // Publish the stream-verification token, never the Rust
+                // variant identifier: clients match on the documented
+                // vocabulary (`SUBSCRIBED` / `ERROR` / `MAX_STREAMS_REACHED`
+                // / `INVALID_PERMS`), which `as_wire_str` is the single
+                // source of.
                 let msg = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
-                        "response": format!("{result:?}"),
+                        "response": result.as_wire_str(),
                         "req_id": req_id,
                     }
                 });
@@ -231,9 +236,12 @@ pub(super) fn fpss_event_to_ws_json(
                 try_serialize(&msg)
             }
             StreamControl::Disconnected { reason } => {
+                // Surface the stable wire token for the disconnect cause,
+                // never the Rust variant identifier. `as_wire_str` is the
+                // single source of the disconnect-reason vocabulary.
                 let msg = sonic_rs::json!({
                     "header": { "type": "STATUS", "status": "DISCONNECTED" },
-                    "reason": format!("{reason:?}"),
+                    "reason": reason.as_wire_str(),
                 });
                 try_serialize(&msg)
             }
@@ -389,6 +397,74 @@ mod tests {
             "the resolved-contract `id` field is for `ContractAssigned` \
              control frames only: {json}"
         );
+    }
+
+    /// Every stream-request outcome serialises as its documented
+    /// verification token, never the Rust variant identifier. A Debug
+    /// rendering here would leak `Subscribed` / `MaxStreamsReached` /
+    /// `InvalidPerms` onto the wire and break clients matching on the
+    /// `SUBSCRIBED` / `MAX_STREAMS_REACHED` / `INVALID_PERMS` vocabulary.
+    #[test]
+    fn req_response_outcomes_serialize_to_wire_tokens() {
+        use thetadatadx::StreamResponseType;
+
+        for (outcome, token) in [
+            (StreamResponseType::Subscribed, "SUBSCRIBED"),
+            (StreamResponseType::Error, "ERROR"),
+            (StreamResponseType::MaxStreamsReached, "MAX_STREAMS_REACHED"),
+            (StreamResponseType::InvalidPerms, "INVALID_PERMS"),
+        ] {
+            assert_eq!(outcome.as_wire_str(), token, "{outcome:?}");
+
+            let event = StreamEvent::Control(thetadatadx::fpss::StreamControl::ReqResponse {
+                req_id: 7,
+                result: outcome,
+            });
+            let json = fpss_event_to_ws_json(&event, None)
+                .expect("REQ_RESPONSE control frame must serialise");
+            assert!(
+                json.contains(&format!("\"response\":\"{token}\"")),
+                "REQ_RESPONSE must publish the wire token {token}: {json}"
+            );
+            // The Rust variant identifier must never reach the payload.
+            assert!(
+                !json.contains(&format!("{outcome:?}")),
+                "the Rust variant name must not leak onto the wire: {json}"
+            );
+        }
+    }
+
+    /// Disconnect frames publish the stable SCREAMING_SNAKE reason token,
+    /// never the Rust `RemoveReason` variant identifier.
+    #[test]
+    fn disconnect_reason_serializes_to_wire_token() {
+        use thetadatadx::RemoveReason;
+
+        for (reason, token) in [
+            (RemoveReason::Unspecified, "UNSPECIFIED"),
+            (RemoveReason::InvalidCredentials, "INVALID_CREDENTIALS"),
+            (RemoveReason::TooManyRequests, "TOO_MANY_REQUESTS"),
+            (RemoveReason::ServerRestarting, "SERVER_RESTARTING"),
+            (
+                RemoveReason::InvalidCredentialsNullUser,
+                "INVALID_CREDENTIALS_NULL_USER",
+            ),
+        ] {
+            assert_eq!(reason.as_wire_str(), token, "{reason:?}");
+
+            let event =
+                StreamEvent::Control(thetadatadx::fpss::StreamControl::Disconnected { reason });
+            let json = fpss_event_to_ws_json(&event, None)
+                .expect("DISCONNECTED control frame must serialise");
+            assert!(
+                json.contains(&format!("\"reason\":\"{token}\"")),
+                "DISCONNECTED must publish the wire token {token}: {json}"
+            );
+            assert!(
+                !json.contains(&format!("{reason:?}")),
+                "the Rust variant name must not leak onto the wire: {json}"
+            );
+        }
     }
 
     /// A resolved Quote whose `peeked_contract` is the live mapped
