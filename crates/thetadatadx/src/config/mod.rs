@@ -640,19 +640,20 @@ mod config_file {
 
     /// TOML-level representation of the config file.
     ///
-    /// Unknown keys are silently ignored (`#[serde(default)]` on each section).
-    /// Missing sections fall back to production defaults.
+    /// An unknown key or section is rejected (`#[serde(deny_unknown_fields)]`)
+    /// so a misspelled knob surfaces as a load error instead of silently
+    /// running the default. Missing sections fall back to production
+    /// defaults (`#[serde(default)]` on each section).
     #[derive(Debug, Default, Deserialize)]
-    #[serde(default)]
+    #[serde(default, deny_unknown_fields)]
     struct ConfigFile {
         historical: MddsSection,
         streaming: FpssSection,
         grpc: GrpcSection,
-        auth: AuthSection,
     }
 
     #[derive(Debug, Deserialize)]
-    #[serde(default)]
+    #[serde(default, deny_unknown_fields)]
     struct MddsSection {
         host: String,
         port: u16,
@@ -677,7 +678,7 @@ mod config_file {
     }
 
     #[derive(Debug, Deserialize)]
-    #[serde(default)]
+    #[serde(default, deny_unknown_fields)]
     struct FpssSection {
         /// Hosts as `["host:port", ...]` array or `"host:port,host:port"` string.
         hosts: FpssHosts,
@@ -752,11 +753,17 @@ mod config_file {
     }
 
     #[derive(Debug, Deserialize)]
-    #[serde(default)]
+    #[serde(default, deny_unknown_fields)]
     struct GrpcSection {
         window_size_kb: usize,
         connection_window_size_kb: usize,
-        max_message_size_mb: usize,
+        /// Max inbound message size, in MB. `None` (key absent) leaves the
+        /// `[historical].max_message_size` byte value in force; an explicit
+        /// value here — including the default of `4` — overrides it. Kept
+        /// distinguishable from "absent" via `Option` so setting the
+        /// override to the same number as the default is still honoured as
+        /// an explicit choice rather than read as unset.
+        max_message_size_mb: Option<usize>,
         concurrent_requests: usize,
     }
 
@@ -766,17 +773,13 @@ mod config_file {
             Self {
                 window_size_kb: prod.historical.window_size_kb,
                 connection_window_size_kb: prod.historical.connection_window_size_kb,
-                max_message_size_mb: prod.historical.max_message_size / (1024 * 1024),
+                // Absent by default so `[historical].max_message_size`
+                // remains the single source of truth unless the operator
+                // sets this MB-denominated override explicitly.
+                max_message_size_mb: None,
                 concurrent_requests: prod.historical.concurrent_requests,
             }
         }
-    }
-
-    #[derive(Debug, Default, Deserialize)]
-    #[serde(default)]
-    struct AuthSection {
-        #[serde(rename = "creds_file")]
-        _creds_file: Option<String>,
     }
 
     impl FpssHosts {
@@ -817,7 +820,8 @@ mod config_file {
         ///
         /// The file format matches `config.default.toml` shipped with the crate.
         /// Missing sections and keys fall back to [`DirectConfig::production()`] defaults.
-        /// Unknown keys are silently ignored.
+        /// An unknown key or section is rejected so a typo surfaces as a load
+        /// error instead of silently running the default.
         ///
         /// # Example file
         ///
@@ -866,23 +870,41 @@ mod config_file {
             let cf: ConfigFile =
                 toml::from_str(toml_str).map_err(|e| Error::config_toml(e.to_string()))?;
 
-            let flush_mode = match cf.streaming.flush_mode.to_lowercase().as_str() {
+            // An empty / absent value takes the documented default; any
+            // other unrecognized value is a misconfiguration and is
+            // rejected by name rather than silently falling back, so a
+            // typo cannot quietly run a mode the operator did not pick.
+            let flush_mode = match cf.streaming.flush_mode.trim().to_lowercase().as_str() {
+                "" | "batched" => StreamingFlushMode::Batched,
                 "immediate" => StreamingFlushMode::Immediate,
-                _ => StreamingFlushMode::Batched,
+                other => {
+                    return Err(Error::config_invalid(
+                        "streaming.flush_mode",
+                        format!(
+                            "flush_mode must be one of \"batched\", \"immediate\"; got {other:?}"
+                        ),
+                    ));
+                }
             };
 
-            let wait_strategy =
-                StreamingWaitStrategy::parse(&cf.streaming.wait_strategy).unwrap_or_default();
-
-            // If [grpc].max_message_size_mb is set, it overrides
-            // [historical].max_message_size. The grpc section value is in
-            // MB; the historical section value is in bytes.
-            let max_message_size = if cf.grpc.max_message_size_mb
-                != DirectConfig::production().historical.max_message_size / (1024 * 1024)
-            {
-                cf.grpc.max_message_size_mb * 1024 * 1024
+            // Same contract as flush_mode: empty / absent takes the
+            // default; an unrecognized value is reported by name with the
+            // allowed set rather than silently defaulting.
+            let wait_strategy = if cf.streaming.wait_strategy.trim().is_empty() {
+                StreamingWaitStrategy::default()
             } else {
-                cf.historical.max_message_size
+                cf.streaming
+                    .wait_strategy
+                    .parse::<StreamingWaitStrategy>()?
+            };
+
+            // `[historical].max_message_size` (bytes) is the canonical knob.
+            // `[grpc].max_message_size_mb` (MB) is an explicit override that
+            // wins when present — including when set to the same number as
+            // the default — and is inert when absent.
+            let max_message_size = match cf.grpc.max_message_size_mb {
+                Some(mb) => mb * 1024 * 1024,
+                None => cf.historical.max_message_size,
             };
 
             let mut out = DirectConfig::production_defaults();
@@ -1162,19 +1184,97 @@ mod tests {
         }
 
         #[test]
-        fn unknown_keys_are_ignored() {
+        fn unknown_field_is_rejected() {
+            // A misspelled knob (here `ring_size` -> `ringsize`) must
+            // surface as a load error rather than parsing fine and
+            // silently running the default.
             let toml = r#"
-                [historical]
-                host = "mdds-01.thetadata.us"
-                port = 443
-                unknown_key = "should be ignored"
+                [streaming]
+                ringsize = 65536
+            "#;
+            let err =
+                DirectConfig::from_toml_str(toml).expect_err("a misspelled field must be rejected");
+            assert!(err.to_string().contains("ringsize"), "{err}");
+        }
 
+        #[test]
+        fn unknown_section_is_rejected() {
+            let toml = r#"
                 [some_unknown_section]
                 foo = "bar"
             "#;
-            // Should not error
+            let err =
+                DirectConfig::from_toml_str(toml).expect_err("an unknown section must be rejected");
+            assert!(err.to_string().contains("some_unknown_section"), "{err}");
+        }
+
+        #[test]
+        fn dead_auth_section_is_rejected() {
+            // The credential path is not part of this tuning config;
+            // credentials load via the credential API. A `[auth]` block
+            // here is a dead knob and must be rejected, not silently
+            // accepted as a no-op.
+            let toml = r#"
+                [auth]
+                creds_file = "creds.txt"
+            "#;
+            let err = DirectConfig::from_toml_str(toml)
+                .expect_err("the removed [auth] section must be rejected");
+            assert!(err.to_string().contains("auth"), "{err}");
+        }
+
+        #[test]
+        fn bad_flush_mode_is_rejected() {
+            let toml = r#"
+                [streaming]
+                flush_mode = "imediate"
+            "#;
+            let err = DirectConfig::from_toml_str(toml)
+                .expect_err("a misspelled flush_mode must be rejected");
+            let msg = err.to_string();
+            assert!(msg.contains("flush_mode"), "{msg}");
+            assert!(msg.contains("imediate"), "{msg}");
+        }
+
+        #[test]
+        fn bad_wait_strategy_is_rejected() {
+            let toml = r#"
+                [streaming]
+                wait_strategy = "lowlatency"
+            "#;
+            let err = DirectConfig::from_toml_str(toml)
+                .expect_err("a misspelled wait_strategy must be rejected");
+            let msg = err.to_string();
+            assert!(msg.contains("wait_strategy"), "{msg}");
+            assert!(msg.contains("lowlatency"), "{msg}");
+        }
+
+        #[test]
+        fn grpc_max_message_size_mb_default_value_is_honored_when_explicit() {
+            // Explicitly setting the override to the same number as the
+            // production default (4 MB) must still take effect as an
+            // explicit choice — "set to 4" is distinguishable from "absent".
+            let toml = r#"
+                [historical]
+                max_message_size = 8388608
+
+                [grpc]
+                max_message_size_mb = 4
+            "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.port, 443);
+            assert_eq!(config.historical.max_message_size, 4 * 1024 * 1024);
+        }
+
+        #[test]
+        fn grpc_max_message_size_absent_keeps_historical_bytes() {
+            // With no [grpc] override the canonical [historical] byte value
+            // stays in force.
+            let toml = r#"
+                [historical]
+                max_message_size = 8388608
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(config.historical.max_message_size, 8 * 1024 * 1024);
         }
 
         #[test]

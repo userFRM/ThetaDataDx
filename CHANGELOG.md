@@ -610,7 +610,7 @@ code does not change.
   accessor) is removed: the post-SSOT pipeline has exactly one queue
   (the event queue sized by `ring_size`), so a separate
   event-channel-depth knob is dead. TOML configs that set
-  `[fpss] queue_depth = ...` should switch to `ring_size`.
+  `[streaming] queue_depth = ...` should switch to `ring_size`.
 - The cross-language response-shape agreement validator
   (`scripts/validate_agreement.py`) now consumes a TypeScript
   shape manifest alongside the Python / CLI / C++ runtime artifacts.
