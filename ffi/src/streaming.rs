@@ -2892,3 +2892,92 @@ mod null_callback_guard_tests {
         assert!(real_cb.is_some());
     }
 }
+
+#[cfg(test)]
+mod discriminant_conversion_tests {
+    use thetadatadx::fpss::{StreamControl, StreamEvent};
+    use thetadatadx::{RemoveReason, StreamResponseType};
+
+    use super::{fpss_event_to_ffi, ThetaDataDxStreamEventKind};
+
+    // The wire `reason` / `result` fields are `i32` on the C ABI, while the
+    // backing core enums are `#[repr(i16)]` (`RemoveReason`) and
+    // `#[repr(u8)]` (`StreamResponseType`). Both reprs are strictly narrower
+    // than `i32`, so the discriminant widens losslessly and the conversion
+    // is total: every variant maps to its own discriminant with no panic and
+    // no silent wrap. The converter expresses this with the infallible
+    // `i32::from(.. as repr)` rather than a truncating `as i32` cast, so the
+    // moment a future repr no longer fits `i32` the conversion stops
+    // compiling instead of wrapping a defined-but-wrong value onto the wire.
+
+    #[test]
+    fn disconnected_reason_discriminant_survives_unchanged() {
+        // A representative in-range reason and the negative sentinel variant
+        // both round-trip to their exact discriminant value.
+        for reason in [RemoveReason::TooManyRequests, RemoveReason::Unspecified] {
+            let event = StreamEvent::Control(StreamControl::Disconnected { reason });
+            let buffered = fpss_event_to_ffi(&event);
+            assert!(matches!(
+                buffered.event.kind,
+                ThetaDataDxStreamEventKind::Disconnected
+            ));
+            assert_eq!(
+                buffered.event.disconnected.reason,
+                i32::from(reason as i16),
+                "in-range disconnect reason must convert to its discriminant unchanged"
+            );
+        }
+    }
+
+    #[test]
+    fn req_response_result_discriminant_survives_unchanged() {
+        let event = StreamEvent::Control(StreamControl::ReqResponse {
+            req_id: 7,
+            result: StreamResponseType::InvalidPerms,
+        });
+        let buffered = fpss_event_to_ffi(&event);
+        assert!(matches!(
+            buffered.event.kind,
+            ThetaDataDxStreamEventKind::ReqResponse
+        ));
+        assert_eq!(buffered.event.req_response.req_id, 7);
+        assert_eq!(
+            buffered.event.req_response.result,
+            i32::from(StreamResponseType::InvalidPerms as u8),
+            "in-range subscription result must convert to its discriminant unchanged"
+        );
+    }
+
+    #[test]
+    fn every_remove_reason_discriminant_converts_totally() {
+        // Exhaustive over every declared reason: the conversion never panics
+        // and never wraps — each fits `i32` and round-trips exactly. This
+        // pins totality so the converter stays panic-free for any reason the
+        // server can emit.
+        let reasons = [
+            RemoveReason::Unspecified,
+            RemoveReason::InvalidCredentials,
+            RemoveReason::InvalidLoginValues,
+            RemoveReason::InvalidLoginSize,
+            RemoveReason::GeneralValidationError,
+            RemoveReason::TimedOut,
+            RemoveReason::ClientForcedDisconnect,
+            RemoveReason::AccountAlreadyConnected,
+            RemoveReason::SessionTokenExpired,
+            RemoveReason::InvalidSessionToken,
+            RemoveReason::FreeAccount,
+            RemoveReason::TooManyRequests,
+            RemoveReason::NoStartDate,
+            RemoveReason::LoginTimedOut,
+            RemoveReason::ServerRestarting,
+            RemoveReason::SessionTokenNotFound,
+            RemoveReason::ServerUserDoesNotExist,
+            RemoveReason::InvalidCredentialsNullUser,
+        ];
+        for reason in reasons {
+            let event = StreamEvent::Control(StreamControl::Disconnected { reason });
+            let buffered = fpss_event_to_ffi(&event);
+            assert_eq!(buffered.event.disconnected.reason, i32::from(reason as i16));
+        }
+    }
+}

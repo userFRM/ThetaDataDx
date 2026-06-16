@@ -478,19 +478,24 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<String>) {
             "req_id, result",
             vec![
                 "req_id: *req_id".to_string(),
-                "result: *result as i32".to_string(),
+                "result: i32::from(*result as u8)".to_string(),
             ],
         ),
         "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
-        "Disconnected" => ("reason", vec!["reason: *reason as i32".to_string()]),
+        "Disconnected" => (
+            "reason",
+            vec!["reason: i32::from(*reason as i16)".to_string()],
+        ),
         "Reconnecting" => (
             "reason, attempt, delay_ms",
             vec![
-                "reason: *reason as i32".to_string(),
-                // `attempt: u32` truncates silently with `as i32` above
-                // `i32::MAX`. Saturate instead so the diagnostic value
-                // stays non-negative even in the (implausible but
-                // allowed) case of a very long-lived reconnect loop.
+                // `RemoveReason` is `#[repr(i16)]`, so the discriminant
+                // widens losslessly and totally into the wire `i32` — no
+                // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
+                // it saturates instead so the diagnostic value stays
+                // non-negative in a (implausible but allowed) long-lived
+                // reconnect loop.
+                "reason: i32::from(*reason as i16)".to_string(),
                 "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
                 "delay_ms: *delay_ms".to_string(),
             ],
@@ -498,7 +503,7 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<String>) {
         "ReconnectsExhausted" => (
             "reason, attempts",
             vec![
-                "reason: *reason as i32".to_string(),
+                "reason: i32::from(*reason as i16)".to_string(),
                 // Same saturating shape as `Reconnecting.attempt`.
                 "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
             ],

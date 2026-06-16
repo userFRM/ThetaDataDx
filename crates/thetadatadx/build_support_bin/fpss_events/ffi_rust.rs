@@ -454,14 +454,14 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
         ),
         "ReqResponse" => (
             "req_id, result",
-            vec!["req_id: *req_id", "result: *result as i32"],
+            vec!["req_id: *req_id", "result: i32::from(*result as u8)"],
         ),
         "ServerError" => ("message", vec!["message: message_ptr"]),
-        "Disconnected" => ("reason", vec!["reason: *reason as i32"]),
+        "Disconnected" => ("reason", vec!["reason: i32::from(*reason as i16)"]),
         "Reconnecting" => (
             "reason, attempt, delay_ms",
             vec![
-                "reason: *reason as i32",
+                "reason: i32::from(*reason as i16)",
                 "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)",
                 "delay_ms: *delay_ms",
             ],
@@ -469,7 +469,7 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
         "ReconnectsExhausted" => (
             "reason, attempts",
             vec![
-                "reason: *reason as i32",
+                "reason: i32::from(*reason as i16)",
                 "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)",
             ],
         ),

@@ -666,7 +666,7 @@ pub(crate) fn fpss_event_to_typed(
             fpss::StreamControl::Disconnected { reason } => Py::new(
                 py,
                 Disconnected {
-                    reason: *reason as i32,
+                    reason: i32::from(*reason as i16),
                 },
             )
             .map(|p| p.into_any()),
@@ -698,7 +698,7 @@ pub(crate) fn fpss_event_to_typed(
             fpss::StreamControl::Reconnecting { reason, attempt, delay_ms } => Py::new(
                 py,
                 Reconnecting {
-                    reason: *reason as i32,
+                    reason: i32::from(*reason as i16),
                     attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                     delay_ms: *delay_ms,
                 },
@@ -707,7 +707,7 @@ pub(crate) fn fpss_event_to_typed(
             fpss::StreamControl::ReconnectsExhausted { reason, attempts } => Py::new(
                 py,
                 ReconnectsExhausted {
-                    reason: *reason as i32,
+                    reason: i32::from(*reason as i16),
                     attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                 },
             )
@@ -716,7 +716,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 ReqResponse {
                     req_id: *req_id,
-                    result: *result as i32,
+                    result: i32::from(*result as u8),
                 },
             )
             .map(|p| p.into_any()),
