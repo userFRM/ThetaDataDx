@@ -17,22 +17,23 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
 - **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
-- **Header plus one library** — a single `thetadatadx.hpp` over a prebuilt C ABI shared library.
+- **Header plus a thin implementation file** — `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
 
 ## Install
 
-The SDK is a single header (`sdks/cpp/include/thetadatadx.hpp`) over a prebuilt C ABI library. Build the library once, then point your compiler at the header and link the library.
+The SDK is a C++ header (`sdks/cpp/include/thetadatadx.hpp`) plus one small implementation file (`sdks/cpp/src/thetadatadx.cpp`) over a prebuilt C ABI library. Build the library once, then compile your app together with the implementation file and link the library. The CMake target below does this for you.
 
 ```bash
 # Build the FFI library
 cargo build --release -p thetadatadx-ffi
 
-# Compile against the header and link the library
-g++ -std=c++17 -Isdks/cpp/include your_app.cpp \
+# Compile your app together with the implementation file and link the library
+g++ -std=c++17 -Isdks/cpp/include \
+    your_app.cpp sdks/cpp/src/thetadatadx.cpp \
     -Ltarget/release -lthetadatadx_ffi -o your_app
 ```
 
-A CMake build is also provided:
+A CMake build is provided and is the recommended path — it compiles the implementation file and links the library for you:
 
 ```bash
 cmake -S sdks/cpp -B build/cpp

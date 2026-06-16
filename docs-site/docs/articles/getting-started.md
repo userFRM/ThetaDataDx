@@ -61,7 +61,7 @@ cd sdks/cpp
 cmake -B build && cmake --build build
 ```
 
-Include `sdks/cpp/include/thetadatadx.hpp` (header-only over the C ABI) and link the built `thetadatadx_ffi` library. Any other language with C interop can target the same C ABI directly.
+Include `sdks/cpp/include/thetadatadx.hpp`, compile it together with the implementation file `sdks/cpp/src/thetadatadx.cpp`, and link the built `thetadatadx_ffi` library (the provided CMake target wires this up). Any other language with C interop can target the same C ABI directly.
 
 </template>
 
