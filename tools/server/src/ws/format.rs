@@ -275,10 +275,9 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
 
 /// Convert a `Contract` to the JSON format the Java terminal uses.
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
-    let sec_type_str = format!("{:?}", c.sec_type).to_uppercase();
     let mut obj = sonic_rs::Object::new();
     obj.insert("symbol", sonic_rs::Value::from(&*c.symbol));
-    obj.insert("sec_type", sonic_rs::Value::from(sec_type_str.as_str()));
+    obj.insert("sec_type", sonic_rs::Value::from(c.sec_type.as_str()));
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }

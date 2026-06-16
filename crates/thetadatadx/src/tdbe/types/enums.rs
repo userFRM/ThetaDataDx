@@ -844,7 +844,24 @@ include!("generated/enums_endpoint.rs");
 
 #[cfg(test)]
 mod wire_token_tests {
-    use super::{RemoveReason, StreamResponseType};
+    use super::{RemoveReason, SecType, StreamResponseType};
+
+    /// Every security type maps to its exact upper-case symbolic token.
+    /// This is the token the WebSocket contract payload and the Python /
+    /// TypeScript fluent surfaces publish, so a drift here would leak the
+    /// Rust variant identifier onto a client surface.
+    #[test]
+    fn sec_type_wire_tokens_are_exact() {
+        for (sec, token) in [
+            (SecType::Stock, "STOCK"),
+            (SecType::Option, "OPTION"),
+            (SecType::Index, "INDEX"),
+            (SecType::Rate, "RATE"),
+            (SecType::Unknown, "UNKNOWN"),
+        ] {
+            assert_eq!(sec.as_str(), token, "{sec:?}");
+        }
+    }
 
     /// Every stream-response outcome maps to its exact stream-verification
     /// token. This is the single source the WebSocket surface publishes,

@@ -81,7 +81,7 @@ impl SecType {
     /// Symbolic name (`"STOCK"`, `"OPTION"`, `"INDEX"`, `"RATE"`).
     #[napi(getter)]
     pub fn name(&self) -> String {
-        format!("{:?}", self.inner).to_uppercase()
+        self.inner.as_str().to_string()
     }
 
     /// String rendering for `console.log` / template literals. Returns
@@ -90,7 +90,7 @@ impl SecType {
     /// `SecType {}` because its getters do not surface on inspection.
     #[napi(js_name = "toString")]
     pub fn to_string_js(&self) -> String {
-        format!("{:?}", self.inner).to_uppercase()
+        self.inner.as_str().to_string()
     }
 }
 
@@ -211,7 +211,7 @@ impl ContractRef {
     /// `"INDEX"`).
     #[napi(getter, js_name = "secType")]
     pub fn sec_type(&self) -> String {
-        format!("{:?}", self.inner.sec_type).to_uppercase()
+        self.inner.sec_type.as_str().to_string()
     }
 
     /// Expiration date as a `YYYYMMDD` integer; `null` for non-options.

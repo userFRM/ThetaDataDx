@@ -254,7 +254,7 @@ pub(crate) async fn try_execute_flatfile_tool(
             "status": "ok",
             "path": written.to_string_lossy(),
             "sec_type": sec_type.to_string(),
-            "req_type": format!("{:?}", req_type),
+            "req_type": req_type.as_str(),
             "format": format.extension(),
             "date": date,
         })),
