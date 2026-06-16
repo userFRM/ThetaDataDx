@@ -46,10 +46,11 @@ Every field above is available on all four language surfaces under the naming co
 With the `config-file` feature, Rust loads the same fields from TOML — useful for operating the [server binary](/server/) or any deployment where configuration should live outside code:
 
 ```toml
-[retry]
-max_attempts = 5
+[historical]
+host = "mdds-01.thetadata.us"
+port = 443
 
-[fpss]
+[streaming]
 flush_mode = "immediate"
 hosts = ["host-a.example.com:20000", "host-b.example.com:20000"]
 ```

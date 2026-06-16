@@ -822,15 +822,15 @@ mod config_file {
         /// # Example file
         ///
         /// ```toml
-        /// [mdds]
+        /// [historical]
         /// host = "mdds-01.thetadata.us"
         /// port = 443
         /// tls = true
         ///
-        /// [fpss]
+        /// [streaming]
         /// hosts = ["nj-a.thetadata.us:20000", "nj-b.thetadata.us:20000"]
         /// reconnect_wait = 2000
-        /// queue_depth = 1_000_000
+        /// ring_size = 131072
         /// flush_mode = "batched"  # or "immediate"
         ///
         /// [grpc]
@@ -874,8 +874,9 @@ mod config_file {
             let wait_strategy =
                 StreamingWaitStrategy::parse(&cf.streaming.wait_strategy).unwrap_or_default();
 
-            // If [grpc].max_message_size_mb is set, it overrides [mdds].max_message_size.
-            // The grpc section value is in MB; the mdds section value is in bytes.
+            // If [grpc].max_message_size_mb is set, it overrides
+            // [historical].max_message_size. The grpc section value is in
+            // MB; the historical section value is in bytes.
             let max_message_size = if cf.grpc.max_message_size_mb
                 != DirectConfig::production().historical.max_message_size / (1024 * 1024)
             {
@@ -1025,11 +1026,11 @@ mod tests {
         #[test]
         fn partial_toml_overrides_only_specified() {
             let toml = r#"
-                [mdds]
+                [historical]
                 host = "custom.example.com"
                 port = 8443
 
-                [fpss]
+                [streaming]
                 ring_size = 65536
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
@@ -1043,7 +1044,7 @@ mod tests {
         #[test]
         fn streaming_hosts_as_array() {
             let toml = r#"
-                [fpss]
+                [streaming]
                 hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
@@ -1061,7 +1062,7 @@ mod tests {
         #[test]
         fn streaming_hosts_as_csv_string() {
             let toml = r#"
-                [fpss]
+                [streaming]
                 hosts = "host-a.example.com:20000,host-b.example.com:20001"
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
@@ -1072,7 +1073,7 @@ mod tests {
         #[test]
         fn flush_mode_immediate() {
             let toml = r#"
-                [fpss]
+                [streaming]
                 flush_mode = "immediate"
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
@@ -1082,7 +1083,7 @@ mod tests {
         #[test]
         fn flush_mode_batched_by_default() {
             let toml = r#"
-                [fpss]
+                [streaming]
                 flush_mode = "batched"
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
@@ -1163,7 +1164,7 @@ mod tests {
         #[test]
         fn unknown_keys_are_ignored() {
             let toml = r#"
-                [mdds]
+                [historical]
                 host = "mdds-01.thetadata.us"
                 port = 443
                 unknown_key = "should be ignored"
@@ -1184,6 +1185,29 @@ mod tests {
             assert_eq!(config.historical.host, "mdds-01.thetadata.us");
             assert_eq!(config.historical.port, 443);
             assert_eq!(config.streaming.hosts.len(), 4);
+        }
+
+        #[test]
+        fn config_default_toml_uses_canonical_section_names() {
+            // The deserializer binds `[historical]` / `[streaming]`; the
+            // internal vendor names `[mdds]` / `[fpss]` deserialize to
+            // nothing, so a sample shipping them silently discards every
+            // override. Asserting host==443 above can't catch that (those
+            // equal the production defaults), so pin the section names in
+            // the shipped sample directly.
+            let default_toml = include_str!("../../config.default.toml");
+            assert!(
+                default_toml.contains("[historical]"),
+                "config.default.toml must use the canonical [historical] section"
+            );
+            assert!(
+                default_toml.contains("[streaming]"),
+                "config.default.toml must use the canonical [streaming] section"
+            );
+            assert!(
+                !default_toml.contains("[mdds]") && !default_toml.contains("[fpss]"),
+                "config.default.toml must not ship the dead [mdds]/[fpss] section names"
+            );
         }
 
         #[test]

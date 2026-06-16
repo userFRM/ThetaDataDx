@@ -6,7 +6,7 @@
 # ── Historical Data (gRPC) ───────────────────────────────────────────────────
 # Historical data is served via gRPC over TLS (not raw TCP).
 
-[mdds]
+[historical]
 host = "mdds-01.thetadata.us"
 port = 443
 tls = true
@@ -21,7 +21,7 @@ max_message_size = 4194304
 # ── Real-Time Streaming (TLS/TCP) ────────────────────────────────────────────
 # The client tries each host in order until one connects.
 
-[fpss]
+[streaming]
 # Production servers (New Jersey datacenter)
 hosts = [
     "nj-a.thetadata.us:20000",
@@ -51,6 +51,27 @@ reconnect_wait_rate_limited = 130000
 # Increase if stream events are being dropped (see `dropped_event_count`).
 ring_size = 131072
 
+# Outgoing write flushing: "batched" (default, coalesces writes) or
+# "immediate" (flush every frame, lowest send latency, more syscalls).
+flush_mode = "batched"
+
+# Consumer wait strategy when the ring is empty. Presets:
+#   "low_latency" (default) — spin, brief yield, then a short park
+#   "balanced"              — shorter spin, low idle CPU
+#   "efficient"             — minimal spin, longest park, lowest idle CPU
+#   "busy_spin"             — pure spin, no park (pins a core while idle)
+wait_strategy = "low_latency"
+
+# Fine-tune the active strategy. These override the preset's spin/yield/
+# park counts; the values below are the "low_latency" defaults.
+wait_spin_iters = 100
+wait_yield_iters = 10
+wait_park_us = 50
+
+# CPU core to pin the streaming consumer thread to. -1 (default) leaves
+# it unpinned; set a core index to reduce scheduler jitter on a busy box.
+consumer_cpu = -1
+
 # ── Credentials ──────────────────────────────────────────────────────────────
 # Path to credentials file (line 1 = email, line 2 = password).
 # Can also be overridden programmatically via Credentials::new().
@@ -61,7 +82,7 @@ creds_file = "creds.txt"
 # ── Alternate Server Regions ─────────────────────────────────────────────────
 # Uncomment to use staging or dev servers. These are NOT stable.
 
-# [fpss]
+# [streaming]
 # hosts = [
 #     "nj-a.thetadata.us:20100",
 #     "test-server.thetadata.us:20100",
@@ -69,7 +90,7 @@ creds_file = "creds.txt"
 # ]
 
 # Dev servers (frequent reboots, replays historical data):
-# [fpss]
+# [streaming]
 # hosts = [
 #     "nj-a.thetadata.us:20200",
 #     "test-server.thetadata.us:20200",
