@@ -36,6 +36,22 @@ Rust-only rows: a dotted row with `rust_only = true` MUST cite an
 `rust_only` flag with no issue or an `issue` flag with no `rust_only`
 fails the gate.
 
+Historical endpoint families (`[[historical_base]]` /
+`[[historical_async]]` / `[[historical_streaming]]`): the buffered,
+async-query, and server-stream surfaces per endpoint. Each carries a
+`rust` column whose source of truth is the registry of record,
+`crates/thetadatadx/endpoint_surface.toml` — the file the build pipeline
+generates every binding's historical method from. The Rust buffered
+surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
+subscription endpoints (61 endpoints); the Rust streaming subset mirrors
+the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
+get no server-stream terminal). `[[historical_base]]` additionally pins
+the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
+SHIPPED header (`sdks/cpp/include/endpoint_with_options.h.inc`) and
+cross-checks the shipped header, the `ffi/src` source, and the registry
+for agreement so a stale regenerated header is caught. This is the core
+"every endpoint exists on all five surfaces" guarantee.
+
 Exits non-zero on any mismatch. Run from the repo root.
 
 A `--selftest` switch runs an in-process synthetic-source matrix
@@ -70,6 +86,24 @@ CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
 # surface is the `StreamingClient` FPSS client.
 CORE_CLIENT_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "client.rs"
 CORE_FPSS_MOD_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "mod.rs"
+# The canonical endpoint registry of record. The build pipeline generates
+# the Rust historical surface (`HistoricalClient::<endpoint>` methods + the
+# per-endpoint streaming builders) from this file; the parity gate reads it
+# directly so a dropped or renamed Rust historical endpoint trips without a
+# full build. Every `[[endpoints]]` entry not named `*_stream` (the four FPSS
+# real-time subscription endpoints) is one of the buffered historical
+# endpoints (the 61-endpoint base surface).
+ENDPOINT_SURFACE_TOML = (
+    REPO_ROOT / "crates" / "thetadatadx" / "endpoint_surface.toml"
+)
+# The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
+# declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
+# buffered endpoint. Reading the SHIPPED header (not just the `ffi/src`
+# source) catches a stale regenerated header that drifted from the Rust
+# source of truth.
+ENDPOINT_WITH_OPTIONS_INC = (
+    REPO_ROOT / "sdks" / "cpp" / "include" / "endpoint_with_options.h.inc"
+)
 
 
 # ─── Public-surface vocabulary guard ────────────────────────────────
@@ -2398,6 +2432,7 @@ def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[st
 
 def _check_historical_streaming_rows(
     rows: list[dict[str, Any]],
+    rust_stream: set[str],
     py_stream: set[str],
     ts_stream: set[str],
     cpp_stream: set[str],
@@ -2406,14 +2441,17 @@ def _check_historical_streaming_rows(
     """Per-endpoint cross-binding gate for `[[historical_streaming]]` rows.
 
     Each row declares a snake_case endpoint `name` plus the expected
-    server-stream presence in Python / TypeScript / C++ / the C ABI. The
-    checker compares the declared state against the actual binding state
-    and returns a list of mismatch strings (empty when every row
-    matches).
+    server-stream presence on Rust / Python / TypeScript / C++ / the C ABI.
+    The checker compares the declared state against the actual surface state
+    and returns a list of mismatch strings (empty when every row matches).
+    The Rust column is the source of truth — the `<Endpoint>Builder::stream`
+    terminal the registry generates and every binding mirrors; a dropped or
+    renamed Rust streaming endpoint trips here even if a binding still
+    declares it.
 
     Beyond the per-row check, the collected sets are reconciled against
     the union of declared row names: an endpoint that streams on ANY
-    binding but has no row at all trips the gate, so a newly-streamed
+    surface but has no row at all trips the gate, so a newly-streamed
     endpoint cannot slip in untracked.
     """
     errors: list[str] = []
@@ -2426,6 +2464,7 @@ def _check_historical_streaming_rows(
         camel = _snake_to_camel(name)
         pascal = camel[:1].upper() + camel[1:] if camel else camel
         for lang, actual_set, hint in (
+            ("rust", rust_stream, f"`{pascal}Builder::stream` terminal (registry of record)"),
             ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
             ("typescript", ts_stream, f"`{camel}Stream` on the `Client` napi class"),
             ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `Client` body"),
@@ -2440,12 +2479,13 @@ def _check_historical_streaming_rows(
                     f"({verb} -- expected {hint})"
                 )
     # Reverse-direction orphan check: any endpoint that streams on a
-    # binding but has no row is undocumented drift.
-    seen = py_stream | ts_stream | cpp_stream | ffi_stream
+    # surface but has no row is undocumented drift.
+    seen = rust_stream | py_stream | ts_stream | cpp_stream | ffi_stream
     for endpoint in sorted(seen - declared_names):
         on = sorted(
             lang
             for lang, s in (
+                ("rust", rust_stream),
                 ("python", py_stream),
                 ("typescript", ts_stream),
                 ("cpp", cpp_stream),
@@ -2570,6 +2610,7 @@ def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
 
 def _check_historical_async_rows(
     rows: list[dict[str, Any]],
+    rust_async: set[str],
     py_async: set[str],
     ts_async: set[str],
     cpp_async: set[str],
@@ -2577,13 +2618,19 @@ def _check_historical_async_rows(
     """Per-endpoint cross-binding gate for `[[historical_async]]` rows.
 
     Each row declares a snake_case endpoint `name` plus the expected async
-    query presence in Python / TypeScript / C++. The checker compares the
-    declared state against the actual binding state and returns a list of
-    mismatch strings (empty when every row matches).
+    query presence on Rust / Python / TypeScript / C++. The checker compares
+    the declared state against the actual surface state and returns a list of
+    mismatch strings (empty when every row matches). The Rust column is the
+    source of truth: every buffered endpoint in the registry carries a
+    `HistoricalClient::<name>` async query method (the builder-await /
+    `list_async` twin of the blocking collect), so a dropped or renamed Rust
+    endpoint trips here even if a binding still declares it. There is no C
+    ABI column — the async surface is a binding-layer concern over the
+    blocking `_with_options` symbols (C has no awaitable type).
 
     Beyond the per-row check, the collected sets are reconciled against the
     union of declared row names: an endpoint that exposes an async query on
-    ANY binding but has no row at all trips the gate, so a newly-async
+    ANY surface but has no row at all trips the gate, so a newly-async
     endpoint cannot slip in untracked.
     """
     errors: list[str] = []
@@ -2594,8 +2641,8 @@ def _check_historical_async_rows(
             errors.append(f"  [[historical_async]] row missing `name`: {row!r}")
             continue
         camel = _snake_to_camel(name)
-        pascal = camel[:1].upper() + camel[1:] if camel else camel
         for lang, actual_set, hint in (
+            ("rust", rust_async, f"`HistoricalClient::{name}` async query method (registry of record)"),
             ("python", py_async, f"`fn {name}_async` on the historical surface"),
             ("typescript", ts_async, f"`{camel}` async (Promise) method on `HistoricalView`"),
             ("cpp", cpp_async, f"`{name}_async(` on the C++ `Historical` view"),
@@ -2609,12 +2656,13 @@ def _check_historical_async_rows(
                     f"({verb} -- expected {hint})"
                 )
     # Reverse-direction orphan check: any endpoint with an async query on a
-    # binding but no row is undocumented drift.
-    seen = py_async | ts_async | cpp_async
+    # surface but no row is undocumented drift.
+    seen = rust_async | py_async | ts_async | cpp_async
     for endpoint in sorted(seen - declared_names):
         on = sorted(
             lang
             for lang, s in (
+                ("rust", rust_async),
                 ("python", py_async),
                 ("typescript", ts_async),
                 ("cpp", cpp_async),
@@ -2626,6 +2674,319 @@ def _check_historical_async_rows(
             f"[[historical_async]] row. Add one declaring its "
             f"per-binding presence so the surface stays tracked."
         )
+    return errors
+
+
+# ─── Rust historical surface (registry of record) ────────────────────
+#
+# The historical-async / historical-streaming / historical-base families
+# gate the managed bindings (Python / TypeScript / C++) and the C ABI, but
+# the Rust core is the SOURCE OF TRUTH every one of them is generated from:
+# the build pipeline reads `endpoint_surface.toml` and emits the
+# `HistoricalClient::<endpoint>` buffered method, its async / streaming
+# companions, and the `thetadatadx_<endpoint>_with_options` C-ABI base
+# symbol. Without a Rust column + a collector that reads the actual Rust
+# historical surface, a dropped or renamed Rust endpoint reaches none of
+# the bindings yet trips no checker — the registry simply has one fewer
+# entry and every downstream surface shrinks in lockstep, silently.
+#
+# The generated Rust method files live only in `OUT_DIR` (not committed),
+# so the gate reads the registry of record directly — `endpoint_surface.toml`
+# — which is the deterministic, no-build source the build pipeline itself
+# consumes. Every `[[endpoints]]` entry generates a `HistoricalClient`
+# method, so the registry IS the Rust historical surface.
+
+
+def _collect_rust_buffered_endpoints(
+    surface_toml: pathlib.Path,
+) -> set[str]:
+    """Snake_case names of every buffered historical endpoint in the
+    registry of record.
+
+    Parses `endpoint_surface.toml` and returns each `[[endpoints]]` `name`
+    that is NOT a `*_stream` entry. The four `*_stream` entries are the
+    FPSS real-time subscription endpoints (a distinct surface tracked by
+    the streaming-client `[[method]]` rows); the remainder are the buffered
+    historical endpoints (the 61-endpoint base surface). Each generates a
+    `HistoricalClient::<name>` method on the Rust core, so this set is the
+    Rust buffered + async query surface (every buffered endpoint carries an
+    `.await` collect and the `list_async` / builder-await async twin).
+    """
+    if not surface_toml.is_file():
+        return set()
+    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for endpoint in data.get("endpoints", []):
+        name = endpoint.get("name")
+        if not name or name.endswith("_stream"):
+            continue
+        out.add(name)
+    return out
+
+
+def _endpoint_is_simple_list(endpoint: dict[str, Any]) -> bool:
+    """True for a flat-list endpoint (`Vec<String>` return).
+
+    Mirrors the build's `is_simple_list_endpoint` SSOT from the registry
+    surface: a list endpoint declares a `list_column` (the field it
+    projects) and/or returns the `StringList` collection. Flat lists return
+    `Vec<String>`, not a typed row collection, so they get no server-stream
+    terminal.
+    """
+    return "list_column" in endpoint or endpoint.get("returns") == "StringList"
+
+
+def _endpoint_is_snapshot(endpoint: dict[str, Any]) -> bool:
+    """True for a snapshot endpoint (bounded one-row-per-request result).
+
+    Mirrors the build's `is_snapshot_endpoint` SSOT structurally from the
+    registry: the snapshot endpoints carry the `_snapshot_` segment in their
+    canonical name (`stock_snapshot_quote`, `option_snapshot_greeks_all`).
+    A snapshot has nothing to drain incrementally, so it gets no
+    server-stream terminal.
+    """
+    return "_snapshot_" in endpoint.get("name", "")
+
+
+def _endpoint_is_calendar(endpoint: dict[str, Any]) -> bool:
+    """True for a calendar endpoint (bounded handful of rows).
+
+    Mirrors the build's calendar exclusion from the registry: the calendar
+    endpoints are named under the `calendar_` prefix. Like snapshots, they
+    return a bounded result and get no server-stream terminal.
+    """
+    return endpoint.get("name", "").startswith("calendar")
+
+
+def _collect_rust_streaming_endpoints(
+    surface_toml: pathlib.Path,
+) -> set[str]:
+    """Snake_case names of every buffered endpoint that carries a Rust
+    server-stream terminal (`<Endpoint>Builder::stream`).
+
+    Mirrors the build's `endpoint_streams` SSOT predicate from the registry
+    of record: a buffered endpoint streams unless it is a flat list (returns
+    `Vec<String>`, no typed row chunks), a snapshot, or a calendar (both
+    bounded, nothing to drain). The multi-day / full-universe history pulls
+    — the ones whose buffered collect can exhaust memory — are exactly the
+    streamable set.
+
+    This is the Rust streaming surface independent of the managed bindings:
+    a Rust endpoint dropped from the registry vanishes from this set even if
+    a binding still (wrongly) declares it, so the per-row gate trips. The
+    classification is pinned against the live generated Python `fn stream`
+    surface by `_case_hist_stream_rust_mirrors_generated` so a future change
+    to the build SSOT cannot silently desync the gate's mirror.
+    """
+    if not surface_toml.is_file():
+        return set()
+    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for endpoint in data.get("endpoints", []):
+        name = endpoint.get("name")
+        if not name or name.endswith("_stream"):
+            continue
+        if _endpoint_is_simple_list(endpoint):
+            continue
+        if _endpoint_is_snapshot(endpoint):
+            continue
+        if _endpoint_is_calendar(endpoint):
+            continue
+        out.add(name)
+    return out
+
+
+def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
+    base symbol is declared in the SHIPPED C-ABI header fragment.
+
+    Reads `sdks/cpp/include/endpoint_with_options.h.inc` — the header
+    `thetadatadx.h` includes — rather than the `ffi/src` source, so a stale
+    regenerated header that dropped (or renamed) a base symbol relative to
+    the Rust source of truth is caught. The base family cross-checks this
+    set against the Rust registry, so a header/registry divergence in EITHER
+    direction trips.
+    """
+    out: set[str] = set()
+    if not with_options_inc.is_file():
+        return out
+    text = with_options_inc.read_text(encoding="utf-8")
+    for m in re.finditer(r"\bthetadatadx_(\w+)_with_options\s*\(", text):
+        out.add(m.group(1))
+    return out
+
+
+def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
+    base symbol is DEFINED in the `ffi/src` Rust source.
+
+    The companion to `_collect_cabi_base_endpoints`: the shipped header
+    declares the symbol, this source defines it. The base family asserts the
+    two agree, so a header that declares a symbol the source never defines
+    (a link-time failure invisible to a header-only scan), or a source
+    symbol the header forgot to declare (invisible to `cargo build`), trips.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_with_options\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            out.add(m.group(1))
+    return out
+
+
+# ─── Historical buffered base surface ([[historical_base]]) ───────────
+#
+# Every buffered historical endpoint exposes a blocking query terminal on
+# all five surfaces: the Rust `HistoricalClient::<endpoint>` method, the
+# Python `<Endpoint>Builder.list()` collect, the TypeScript buffered
+# `<endpoint>` method (it is itself async-returning, so the buffered and
+# async surfaces coincide there), the C++ `Historical::<endpoint>(...)`
+# member, and the C-ABI `thetadatadx_<endpoint>_with_options` base symbol.
+#
+# This is the core "every endpoint exists everywhere" guarantee. Before
+# this family the base sync presence was asserted only TRANSITIVELY — via
+# the async / stream companions on the managed bindings — and the 61 C-ABI
+# `_with_options` base functions were checked by NO family at all. A
+# `[[historical_base]]` row pins one endpoint's blocking-query presence
+# across all five surfaces directly.
+
+
+def _collect_python_buffered_endpoints(py_src: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
+    exposes a buffered `list` terminal.
+
+    The Python buffered query surface is the `list()` collect on each
+    endpoint's `<Endpoint>Builder` — the blocking twin of the awaitable
+    `list_async()`. Walks every `impl <Name>Builder { ... }` block and
+    records the builder's endpoint name (the CamelCase struct stem, lowered)
+    when the body declares `fn list(`. Mirrors the async / stream collectors
+    on the buffered terminal.
+    """
+    out: set[str] = set()
+    if not py_src.is_dir():
+        return out
+    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            stem = header.group(1)
+            body = _balanced_body(text, header.end())
+            if re.search(r"\bfn\s+list\s*\(", body):
+                out.add(_endpoint_method_to_snake(stem))
+    return out
+
+
+def _check_historical_base_rows(
+    rows: list[dict[str, Any]],
+    rust_buffered: set[str],
+    py_buffered: set[str],
+    ts_buffered: set[str],
+    cpp_buffered: set[str],
+    cabi_base: set[str],
+    ffi_base: set[str],
+) -> list[str]:
+    """Per-endpoint cross-binding gate for `[[historical_base]]` rows.
+
+    Each row declares a snake_case endpoint `name` plus the expected
+    buffered-query presence on all five surfaces: Rust (the registry-of-
+    record buffered method), Python (`<Endpoint>Builder.list()`), TypeScript
+    (the buffered `<endpoint>` method), C++ (`Historical::<endpoint>`), and
+    the C-ABI `thetadatadx_<endpoint>_with_options` base symbol. The checker
+    compares the declared state against the actual surface state and returns
+    a list of mismatch strings (empty when every row matches).
+
+    Two reconciliations beyond the per-row forward check:
+
+    1. Reverse-direction orphan scan: an endpoint present on ANY surface but
+       with no row at all trips, so a new endpoint cannot slip in untracked.
+    2. Header/source/registry agreement: the shipped C-ABI header
+       (`cabi_base`), the `ffi/src` source (`ffi_base`), and the Rust
+       registry (`rust_buffered`) must declare the same base set. A stale
+       header that drifted from the source of truth trips here, without
+       duplicating the broader `.so`↔header completeness checker.
+    """
+    errors: list[str] = []
+    declared_names = {row.get("name") for row in rows if row.get("name")}
+    for row in rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[historical_base]] row missing `name`: {row!r}")
+            continue
+        for lang, actual_set, hint in (
+            ("rust", rust_buffered, f"`HistoricalClient::{name}` buffered method (registry of record)"),
+            ("python", py_buffered, f"`fn list` on the `{name}` builder pyclass"),
+            ("typescript", ts_buffered, f"buffered `{_snake_to_camel(name)}` method on `HistoricalView`"),
+            ("cpp", cpp_buffered, f"`{name}(` on the C++ `Historical` view"),
+            ("ffi", cabi_base, f"`thetadatadx_{name}_with_options` extern \"C\" symbol"),
+        ):
+            declared = row.get(lang, False)
+            actual = name in actual_set
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+
+    # Reverse-direction orphan check: any endpoint present on a surface but
+    # with no row is undocumented drift.
+    seen = (
+        rust_buffered | py_buffered | ts_buffered | cabi_base
+    )
+    # C++ buffered members co-mingle with unrelated wrapper helpers, so the
+    # orphan scan uses the four cleanly-enumerable surfaces; the C++ column
+    # is still pinned forward per row.
+    for endpoint in sorted(seen - declared_names):
+        on = sorted(
+            lang
+            for lang, s in (
+                ("rust", rust_buffered),
+                ("python", py_buffered),
+                ("typescript", ts_buffered),
+                ("ffi", cabi_base),
+            )
+            if endpoint in s
+        )
+        errors.append(
+            f"  {endpoint}: present on {on} but has no [[historical_base]] "
+            f"row. Add one declaring its per-surface presence so the "
+            f"buffered base surface stays tracked."
+        )
+
+    # Header / source / registry agreement on the C-ABI base set. The
+    # shipped header is what downstream C / C++ consumers compile against;
+    # it must declare exactly the base symbols the `ffi/src` source defines
+    # and the Rust registry generates. A divergence in any direction is a
+    # stale-artifact defect that no per-row column would surface on its own.
+    if cabi_base and ffi_base and cabi_base != ffi_base:
+        for ep in sorted(ffi_base - cabi_base):
+            errors.append(
+                f"  {ep}: `thetadatadx_{ep}_with_options` is defined in ffi/src "
+                f"but missing from the shipped header "
+                f"sdks/cpp/include/endpoint_with_options.h.inc (stale header)."
+            )
+        for ep in sorted(cabi_base - ffi_base):
+            errors.append(
+                f"  {ep}: `thetadatadx_{ep}_with_options` is declared in the "
+                f"shipped header but not defined in ffi/src (dangling header "
+                f"declaration)."
+            )
+    if cabi_base and rust_buffered and cabi_base != rust_buffered:
+        for ep in sorted(rust_buffered - cabi_base):
+            errors.append(
+                f"  {ep}: buffered endpoint in the Rust registry has no "
+                f"`thetadatadx_{ep}_with_options` base symbol in the shipped "
+                f"C-ABI header."
+            )
+        for ep in sorted(cabi_base - rust_buffered):
+            errors.append(
+                f"  {ep}: C-ABI base symbol `thetadatadx_{ep}_with_options` "
+                f"has no matching buffered endpoint in the Rust registry "
+                f"(endpoint_surface.toml)."
+            )
     return errors
 
 
@@ -3069,6 +3430,7 @@ def main(argv: list[str] | None = None) -> int:
     historical_async_rows: list[dict[str, Any]] = data.get(
         "historical_async", []
     )
+    historical_base_rows: list[dict[str, Any]] = data.get("historical_base", [])
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
@@ -3173,12 +3535,26 @@ def main(argv: list[str] | None = None) -> int:
     # terminal per endpoint. These live on per-endpoint builders or as
     # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
     # so they would otherwise drift silently across bindings.
+    # The Rust historical surface is the registry of record
+    # (`endpoint_surface.toml`): the build pipeline generates every binding's
+    # historical method from it, so a dropped / renamed Rust endpoint must
+    # trip the gate. The buffered set is the async + base surface; the
+    # streamable subset (mirroring the build's `endpoint_streams` SSOT) is
+    # the streaming surface.
+    rust_buffered = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
+    rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
+
     py_stream = _collect_python_streaming_endpoints(PY_SRC)
     ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
     cpp_stream = _collect_cpp_streaming_endpoints(cpp_class_methods)
     ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
     historical_streaming_errors = _check_historical_streaming_rows(
-        historical_streaming_rows, py_stream, ts_stream, cpp_stream, ffi_stream
+        historical_streaming_rows,
+        rust_stream,
+        py_stream,
+        ts_stream,
+        cpp_stream,
+        ffi_stream,
     )
 
     # Historical async query surface ([[historical_async]] rows) — the
@@ -3190,7 +3566,31 @@ def main(argv: list[str] | None = None) -> int:
     ts_async = _collect_typescript_async_endpoints(ts_class_methods)
     cpp_async = _collect_cpp_async_endpoints(cpp_class_methods)
     historical_async_errors = _check_historical_async_rows(
-        historical_async_rows, py_async, ts_async, cpp_async
+        historical_async_rows, rust_buffered, py_async, ts_async, cpp_async
+    )
+
+    # Historical buffered base surface ([[historical_base]] rows) — the
+    # blocking query terminal per endpoint on ALL FIVE surfaces: the Rust
+    # `HistoricalClient::<endpoint>` method (registry of record), the Python
+    # `<Endpoint>Builder.list()` collect, the buffered TypeScript method, the
+    # C++ `Historical::<endpoint>` member, and the C-ABI
+    # `thetadatadx_<endpoint>_with_options` base symbol read from the SHIPPED
+    # header. This is the core "every endpoint exists everywhere" guarantee,
+    # previously only implicit via the async / stream companions and unchecked
+    # entirely on the C-ABI base.
+    py_buffered = _collect_python_buffered_endpoints(PY_SRC)
+    ts_buffered = _collect_typescript_async_endpoints(ts_class_methods)
+    cpp_buffered = cpp_class_methods.get(_cpp_class_for("HistoricalView"), set())
+    cabi_base = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
+    ffi_base = _collect_ffi_base_endpoints(FFI_SRC)
+    historical_base_errors = _check_historical_base_rows(
+        historical_base_rows,
+        rust_buffered,
+        py_buffered,
+        ts_buffered,
+        cpp_buffered,
+        cabi_base,
+        ffi_base,
     )
 
     # Client construction-from-file surface ([[from_file]] rows) — the
@@ -3397,6 +3797,17 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if historical_base_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(historical_base_errors)} "
+            f"historical-base mismatch(es) (per-endpoint "
+            f"`[[historical_base]]` granularity):"
+        )
+        for e in historical_base_errors:
+            print(e)
+        print()
+
     if from_file_errors:
         had_errors = True
         print(
@@ -3484,6 +3895,7 @@ def main(argv: list[str] | None = None) -> int:
     n_utilities = len(utility_rows)
     n_hist_stream = len(historical_streaming_rows)
     n_hist_async = len(historical_async_rows)
+    n_hist_base = len(historical_base_rows)
     n_from_file = len(from_file_rows)
     print(
         f"check_binding_parity: clean "
@@ -3492,6 +3904,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_utilities} utility rows + "
         f"{n_hist_stream} historical-streaming rows + "
         f"{n_hist_async} historical-async rows + "
+        f"{n_hist_base} historical-base rows + "
         f"{n_from_file} from-file rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
@@ -4271,10 +4684,11 @@ def _run_selftest() -> int:
     # ── Historical server-stream surface selftests ────────────────
 
     def _case_hist_stream_positive_all_bound() -> None:
-        """An endpoint streaming on every declared binding is silent."""
+        """An endpoint streaming on every declared surface is silent."""
         rows = [
             {
                 "name": "option_history_trade",
+                "rust": True,
                 "python": True,
                 "typescript": True,
                 "cpp": True,
@@ -4282,7 +4696,7 @@ def _run_selftest() -> int:
             }
         ]
         s = {"option_history_trade"}
-        errors = _check_historical_streaming_rows(rows, s, s, s, s)
+        errors = _check_historical_streaming_rows(rows, s, s, s, s, s)
         assert errors == [], f"all-bound row must be silent; got {errors!r}"
 
     def _case_hist_stream_missing_on_cpp_trips() -> None:
@@ -4290,6 +4704,7 @@ def _run_selftest() -> int:
         rows = [
             {
                 "name": "option_history_trade",
+                "rust": True,
                 "python": True,
                 "typescript": True,
                 "cpp": True,
@@ -4298,43 +4713,84 @@ def _run_selftest() -> int:
         ]
         bound = {"option_history_trade"}
         errors = _check_historical_streaming_rows(
-            rows, bound, bound, set(), bound
+            rows, bound, bound, bound, set(), bound
         )
         assert any("cpp" in e and "missing" in e for e in errors), (
             f"missing C++ stream member must trip; got {errors!r}"
         )
 
-    def _case_hist_stream_ts_only_state_is_silent() -> None:
-        """The TS-first ship state (py+ts true, cpp+ffi false) is silent
-        when Python + TS stream and C++ + FFI do not — the intended
-        intermediate parity the matrix tracks.
+    def _case_hist_stream_missing_on_rust_trips() -> None:
+        """Row claims Rust streams but the registry has no such builder —
+        the dropped / renamed Rust endpoint defect this column closes.
         """
         rows = [
             {
                 "name": "option_history_trade",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        bound = {"option_history_trade"}
+        # Rust set is empty — the endpoint vanished from the registry of
+        # record while the bindings still declare it.
+        errors = _check_historical_streaming_rows(
+            rows, set(), bound, bound, bound, bound
+        )
+        assert any("rust" in e and "missing" in e for e in errors), (
+            f"a dropped Rust streaming endpoint must trip; got {errors!r}"
+        )
+
+    def _case_hist_stream_ts_only_state_is_silent() -> None:
+        """The managed-only ship state (rust+py+ts true, cpp+ffi false) is
+        silent when Rust + Python + TS stream and C++ + FFI do not — the
+        documented `option_list_contracts` language-only variant the matrix
+        tracks.
+        """
+        rows = [
+            {
+                "name": "option_list_contracts",
+                "rust": True,
                 "python": True,
                 "typescript": True,
                 "cpp": False,
                 "ffi": False,
             }
         ]
-        bound = {"option_history_trade"}
+        bound = {"option_list_contracts"}
         errors = _check_historical_streaming_rows(
-            rows, bound, bound, set(), set()
+            rows, bound, bound, bound, set(), set()
         )
-        assert errors == [], f"TS-first state must be silent; got {errors!r}"
+        assert errors == [], f"managed-only state must be silent; got {errors!r}"
 
     def _case_hist_stream_untracked_orphan_trips() -> None:
-        """An endpoint streaming on a binding with no row at all trips
+        """An endpoint streaming on a surface with no row at all trips
         the reverse-direction orphan check.
         """
         errors = _check_historical_streaming_rows(
-            [], set(), {"option_history_trade"}, set(), set()
+            [], {"option_history_trade"}, set(), set(), set(), set()
         )
         assert any(
             "option_history_trade" in e and "no [[historical_streaming]] row" in e
             for e in errors
         ), f"untracked streaming endpoint must trip; got {errors!r}"
+
+    def _case_hist_stream_rust_mirrors_generated() -> None:
+        """The Rust streaming classification (registry-of-record mirror of
+        the build's `endpoint_streams` SSOT) must equal the live generated
+        Python `fn stream` surface — both are emitted from the same
+        registry, so any desync between the gate's mirror and the build's
+        predicate is a real drift the gate must surface.
+        """
+        rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
+        py_stream = _collect_python_streaming_endpoints(PY_SRC)
+        assert rust_stream == py_stream, (
+            f"Rust streaming mirror must equal the generated Python stream "
+            f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
+            f"py-only={sorted(py_stream - rust_stream)!r}"
+        )
 
     def _case_hist_stream_initialism_inverse() -> None:
         """`stockHistoryEODStream` (TS) and `StockHistoryEod` (Python
@@ -4349,27 +4805,30 @@ def _run_selftest() -> int:
         )
         assert _endpoint_method_to_snake("stockHistoryOHLCRange") == "stock_history_ohlc_range"
 
-    _case("hist-stream positive — all four bindings stream", _case_hist_stream_positive_all_bound)
+    _case("hist-stream positive — all five surfaces stream", _case_hist_stream_positive_all_bound)
     _case("hist-stream negative — missing C++ member trips", _case_hist_stream_missing_on_cpp_trips)
-    _case("hist-stream positive — TS-first ship state is silent", _case_hist_stream_ts_only_state_is_silent)
+    _case("hist-stream negative — dropped Rust endpoint trips", _case_hist_stream_missing_on_rust_trips)
+    _case("hist-stream positive — managed-only ship state is silent", _case_hist_stream_ts_only_state_is_silent)
     _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
+    _case("hist-stream — Rust mirror equals generated Python stream surface", _case_hist_stream_rust_mirrors_generated)
     _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
 
     # ── Historical async query surface selftests ──────────────────
 
     def _case_hist_async_positive_all_bound() -> None:
-        """An endpoint with an async query on every declared binding is
+        """An endpoint with an async query on every declared surface is
         silent."""
         rows = [
             {
                 "name": "stock_history_eod",
+                "rust": True,
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
         s = {"stock_history_eod"}
-        errors = _check_historical_async_rows(rows, s, s, s)
+        errors = _check_historical_async_rows(rows, s, s, s, s)
         assert errors == [], f"all-bound async row must be silent; got {errors!r}"
 
     def _case_hist_async_missing_on_cpp_trips() -> None:
@@ -4378,22 +4837,42 @@ def _run_selftest() -> int:
         rows = [
             {
                 "name": "stock_history_eod",
+                "rust": True,
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
         bound = {"stock_history_eod"}
-        errors = _check_historical_async_rows(rows, bound, bound, set())
+        errors = _check_historical_async_rows(rows, bound, bound, bound, set())
         assert any("cpp" in e and "missing" in e for e in errors), (
             f"missing C++ async member must trip; got {errors!r}"
         )
 
+    def _case_hist_async_missing_on_rust_trips() -> None:
+        """Row claims Rust exposes the async query but the registry has no
+        such buffered endpoint — the dropped / renamed Rust endpoint defect
+        this column closes."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        bound = {"stock_history_eod"}
+        errors = _check_historical_async_rows(rows, set(), bound, bound, bound)
+        assert any("rust" in e and "missing" in e for e in errors), (
+            f"a dropped Rust async endpoint must trip; got {errors!r}"
+        )
+
     def _case_hist_async_untracked_orphan_trips() -> None:
-        """An endpoint with an async query on a binding but no row at all
+        """An endpoint with an async query on a surface but no row at all
         trips the reverse-direction orphan check."""
         errors = _check_historical_async_rows(
-            [], set(), {"stock_history_eod"}, set()
+            [], {"stock_history_eod"}, set(), set(), set()
         )
         assert any(
             "stock_history_eod" in e and "no [[historical_async]] row" in e
@@ -4412,10 +4891,146 @@ def _run_selftest() -> int:
             f"got {found!r}"
         )
 
-    _case("hist-async positive — all three bindings expose async query", _case_hist_async_positive_all_bound)
+    _case("hist-async positive — all four surfaces expose async query", _case_hist_async_positive_all_bound)
     _case("hist-async negative — missing C++ member trips", _case_hist_async_missing_on_cpp_trips)
+    _case("hist-async negative — dropped Rust endpoint trips", _case_hist_async_missing_on_rust_trips)
     _case("hist-async negative — untracked async endpoint trips", _case_hist_async_untracked_orphan_trips)
     _case("hist-async — C++ collector strips `_async` suffix", _case_hist_async_cpp_collector_strips_suffix)
+
+    # ── Historical buffered base surface selftests ────────────────
+
+    def _case_hist_base_positive_all_five() -> None:
+        """An endpoint present on all five surfaces is silent."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        s = {"stock_history_eod"}
+        errors = _check_historical_base_rows(rows, s, s, s, s, s, s)
+        assert errors == [], f"all-five-surface base row must be silent; got {errors!r}"
+
+    def _case_hist_base_missing_on_cabi_trips() -> None:
+        """Row claims the C-ABI base symbol exists but the shipped header
+        does not declare it — the exact 61-symbol blind spot this family
+        closes."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        s = {"stock_history_eod"}
+        # `cabi_base` AND `ffi_base` empty — the `_with_options` base symbol
+        # is gone everywhere on the C side.
+        errors = _check_historical_base_rows(rows, s, s, s, s, set(), set())
+        assert any("ffi" in e and "missing" in e for e in errors), (
+            f"missing C-ABI base symbol must trip; got {errors!r}"
+        )
+
+    def _case_hist_base_missing_on_rust_trips() -> None:
+        """Row claims the Rust buffered method exists but the registry of
+        record has no such endpoint — the dropped / renamed Rust endpoint
+        defect."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        s = {"stock_history_eod"}
+        errors = _check_historical_base_rows(rows, set(), s, s, s, s, s)
+        assert any("rust" in e and "missing" in e for e in errors), (
+            f"a dropped Rust buffered endpoint must trip; got {errors!r}"
+        )
+
+    def _case_hist_base_header_source_divergence_trips() -> None:
+        """A shipped header that dropped a base symbol the `ffi/src` source
+        still defines (a stale regenerated header) trips, independent of any
+        per-row column."""
+        rows = [
+            {
+                "name": "stock_history_eod",
+                "rust": True,
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        s = {"stock_history_eod"}
+        # Header is missing `option_history_eod` that the source defines.
+        cabi = {"stock_history_eod"}
+        ffi = {"stock_history_eod", "option_history_eod"}
+        errors = _check_historical_base_rows(rows, s, s, s, s, cabi, ffi)
+        assert any(
+            "option_history_eod" in e and "stale header" in e for e in errors
+        ), f"a header/source divergence must trip; got {errors!r}"
+
+    def _case_hist_base_untracked_orphan_trips() -> None:
+        """An endpoint present on a surface but with no row at all trips the
+        reverse-direction orphan scan."""
+        errors = _check_historical_base_rows(
+            [], {"stock_history_eod"}, set(), set(), set(), set(), set()
+        )
+        assert any(
+            "stock_history_eod" in e and "no [[historical_base]] row" in e
+            for e in errors
+        ), f"untracked base endpoint must trip; got {errors!r}"
+
+    def _case_hist_base_live_sources_clean() -> None:
+        """The live buffered base surface is symmetric across all five
+        surfaces: every one of the 61 endpoints present on Rust / Python /
+        TypeScript / C++ / the C-ABI base, and the shipped header agrees with
+        the `ffi/src` source and the Rust registry."""
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        rows = data.get("historical_base", [])
+        assert rows, "live parity.toml must declare [[historical_base]] rows"
+        ts_methods = _collect_typescript_class_methods(TS_SRC)
+        cpp_methods = _collect_cpp_class_methods(CPP_HPP)
+        errors = _check_historical_base_rows(
+            rows,
+            _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML),
+            _collect_python_buffered_endpoints(PY_SRC),
+            _collect_typescript_async_endpoints(ts_methods),
+            cpp_methods.get(_cpp_class_for("HistoricalView"), set()),
+            _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC),
+            _collect_ffi_base_endpoints(FFI_SRC),
+        )
+        assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
+
+    def _case_hist_base_registry_count() -> None:
+        """The registry of record yields exactly the 61 buffered endpoints
+        (the four `*_stream` FPSS subscription endpoints excluded), and the
+        shipped C-ABI header declares the same 61 base symbols."""
+        rust = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
+        cabi = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
+        assert len(rust) == 61, f"registry must yield 61 buffered endpoints; got {len(rust)}"
+        assert rust == cabi, (
+            f"registry buffered set must equal the C-ABI base set; "
+            f"rust-only={sorted(rust - cabi)!r}, cabi-only={sorted(cabi - rust)!r}"
+        )
+
+    _case("hist-base positive — all five surfaces present", _case_hist_base_positive_all_five)
+    _case("hist-base negative — missing C-ABI base symbol trips", _case_hist_base_missing_on_cabi_trips)
+    _case("hist-base negative — dropped Rust endpoint trips", _case_hist_base_missing_on_rust_trips)
+    _case("hist-base negative — header/source divergence trips", _case_hist_base_header_source_divergence_trips)
+    _case("hist-base negative — untracked endpoint trips", _case_hist_base_untracked_orphan_trips)
+    _case("hist-base — live sources clean", _case_hist_base_live_sources_clean)
+    _case("hist-base — registry yields 61 endpoints matching C-ABI base", _case_hist_base_registry_count)
 
     # ── Client construction-from-file surface selftests ───────────
 
