@@ -618,8 +618,8 @@ code does not change.
   surfaces as a pre-merge agreement failure rather than going
   unnoticed until a downstream consumer hit the missing / extra
   field.
-- Repo hygiene pass. Root tree trimmed to standard institutional shape
-  (matches the databento-rs layout): moved `ROADMAP.md` → `docs/`,
+- Repo hygiene pass. Root tree trimmed to a standard institutional
+  layout: moved `ROADMAP.md` → `docs/`,
   moved `config.default.toml` into the `thetadatadx` crate, deleted unused
   `cliff.toml`. Architecture ADRs inlined into source-code comments at
   their relevant locations; `docs/architecture/` removed. Generated
