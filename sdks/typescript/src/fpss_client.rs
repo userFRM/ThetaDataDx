@@ -64,49 +64,65 @@ use crate::{
 /// mutations of the `Config` handle cannot retroactively change reconnect
 /// behaviour for an already-running session — the same snapshot semantics
 /// the Python binding (`FpssParams`) and the FFI
-/// (`ffi/src/streaming.rs::FpssConnectParams`) use.
+/// (`ffi/src/streaming.rs::StreamingConnectParams`) use.
+///
+/// The whole [`StreamingConfig`] and [`ReconnectConfig`] are snapshotted
+/// wholesale rather than copied field by field, so a new tuning knob
+/// added to either config cannot drift out of the standalone connect
+/// path the way a hand-maintained subset did.
+///
+/// [`StreamingConfig`]: thetadatadx::config::StreamingConfig
+/// [`ReconnectConfig`]: thetadatadx::config::ReconnectConfig
 struct FpssParams {
     creds: RustCredentials,
-    hosts: Vec<(String, u16)>,
-    ring_size: usize,
-    flush_mode: thetadatadx::config::StreamingFlushMode,
-    policy: thetadatadx::config::ReconnectPolicy,
-    wait_ms: u64,
-    wait_rate_limited_ms: u64,
-    derive_ohlcvc: bool,
-    connect_timeout_ms: u64,
-    read_timeout_ms: u64,
-    ping_interval_ms: u64,
+    streaming: thetadatadx::config::StreamingConfig,
+    reconnect: thetadatadx::config::ReconnectConfig,
 }
 
 impl FpssParams {
     fn from_config(creds: &RustCredentials, config: &DirectConfig) -> Self {
         Self {
             creds: creds.clone(),
-            hosts: config.streaming.hosts.clone(),
-            ring_size: config.streaming.ring_size,
-            flush_mode: config.streaming.flush_mode,
-            policy: config.reconnect.policy.clone(),
-            wait_ms: config.reconnect.wait_ms,
-            wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
-            derive_ohlcvc: config.streaming.derive_ohlcvc,
-            connect_timeout_ms: config.streaming.connect_timeout_ms,
-            read_timeout_ms: config.streaming.timeout_ms,
-            ping_interval_ms: config.streaming.ping_interval_ms,
+            streaming: config.streaming.clone(),
+            reconnect: config.reconnect.clone(),
         }
     }
 
+    /// Thread every connection-side knob from the snapshot into a
+    /// [`fpss::StreamingClientBuilder`]. Kept in lockstep with the
+    /// unified client's connect path (`crates/thetadatadx/src/client.rs`)
+    /// and the C ABI (`ffi/src/streaming.rs::streaming_builder`) so the
+    /// standalone client honours the full streaming and reconnect surface.
     fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
-        fpss::StreamingClientBuilder::new(&self.creds, &self.hosts)
-            .ring_size(self.ring_size)
-            .flush_mode(self.flush_mode)
-            .reconnect_policy(self.policy.clone())
-            .reconnect_wait_ms(self.wait_ms)
-            .reconnect_wait_rate_limited_ms(self.wait_rate_limited_ms)
-            .derive_ohlcvc(self.derive_ohlcvc)
-            .connect_timeout_ms(self.connect_timeout_ms)
-            .read_timeout_ms(self.read_timeout_ms)
-            .ping_interval_ms(self.ping_interval_ms)
+        fpss::StreamingClientBuilder::new(&self.creds, &self.streaming.hosts)
+            .ring_size(self.streaming.ring_size)
+            .flush_mode(self.streaming.flush_mode)
+            .wait_strategy(self.streaming.wait_strategy)
+            .wait_strategy_tuning(
+                self.streaming.wait_spin_iters,
+                self.streaming.wait_yield_iters,
+                self.streaming.wait_park_us,
+            )
+            .consumer_cpu(self.streaming.consumer_cpu)
+            .reconnect_policy(self.reconnect.policy.clone())
+            .reconnect_wait_ms(self.reconnect.wait_ms)
+            .reconnect_wait_max_ms(self.reconnect.wait_max_ms)
+            .reconnect_wait_rate_limited_ms(self.reconnect.wait_rate_limited_ms)
+            .reconnect_wait_server_restart_ms(self.reconnect.wait_server_restart_ms)
+            .reconnect_jitter(self.reconnect.jitter)
+            .reconnect_replay_burst_size(self.reconnect.replay_burst_size)
+            .reconnect_replay_pace_ms(self.reconnect.replay_pace_ms)
+            .derive_ohlcvc(self.streaming.derive_ohlcvc)
+            .connect_timeout_ms(self.streaming.connect_timeout_ms)
+            .read_timeout_ms(self.streaming.timeout_ms)
+            .ping_interval_ms(self.streaming.ping_interval_ms)
+            .io_read_slice_ms(self.streaming.io_read_slice_ms)
+            .data_watchdog_ms(self.streaming.data_watchdog_ms)
+            .keepalive_idle_secs(self.streaming.keepalive_idle_secs)
+            .keepalive_interval_secs(self.streaming.keepalive_interval_secs)
+            .keepalive_retries(self.streaming.keepalive_retries)
+            .host_selection(self.streaming.host_selection)
+            .host_shuffle_seed(self.streaming.host_shuffle_seed)
     }
 }
 
@@ -723,5 +739,99 @@ impl StreamingClient {
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Mutex::new(DispatcherSession::Idle),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use thetadatadx::config::{
+        HostSelectionPolicy, JitterMode, ReconnectPolicy, StreamingFlushMode, StreamingWaitStrategy,
+    };
+
+    /// Anti-drift guard for the standalone connect path.
+    ///
+    /// `FpssParams` snapshots the whole `StreamingConfig` + `ReconnectConfig`
+    /// and `builder()` threads every field into the `StreamingClientBuilder`,
+    /// so the standalone TypeScript `StreamingClient` honours the same
+    /// streaming and reconnect surface as the unified client and the C ABI.
+    /// This test sets every streaming and reconnect knob to a non-default
+    /// value and asserts each one survives the snapshot. A future field that
+    /// `from_config` forgets to carry makes this fail rather than silently
+    /// dropping a user's tuning.
+    #[test]
+    fn from_config_preserves_every_streaming_and_reconnect_knob() {
+        let creds = RustCredentials::new("user@example.com", "secret");
+        let mut config = DirectConfig::production();
+
+        // Streaming: flip every knob away from its production default.
+        config.streaming.hosts = vec![("stream.example.com".to_owned(), 12345)];
+        config.streaming.host_selection = HostSelectionPolicy::FixedOrder;
+        config.streaming.host_shuffle_seed = Some(0xABCD_1234);
+        config.streaming.timeout_ms = 111_111;
+        config.streaming.ring_size = 1 << 20;
+        config.streaming.ping_interval_ms = 22_222;
+        config.streaming.connect_timeout_ms = 33_333;
+        config.streaming.io_read_slice_ms = 44;
+        config.streaming.data_watchdog_ms = 55_555;
+        config.streaming.keepalive_idle_secs = 66;
+        config.streaming.keepalive_interval_secs = 77;
+        config.streaming.keepalive_retries = 8;
+        config.streaming.flush_mode = StreamingFlushMode::Immediate;
+        config.streaming.wait_strategy = StreamingWaitStrategy::Balanced;
+        config.streaming.wait_spin_iters = 123;
+        config.streaming.wait_yield_iters = 456;
+        config.streaming.wait_park_us = 789;
+        config.streaming.consumer_cpu = Some(3);
+        config.streaming.derive_ohlcvc = false;
+
+        // Reconnect: flip every knob away from its production default.
+        config.reconnect.wait_ms = 1_010;
+        config.reconnect.wait_max_ms = 2_020;
+        config.reconnect.wait_rate_limited_ms = 3_030;
+        config.reconnect.wait_server_restart_ms = 4_040;
+        config.reconnect.jitter = JitterMode::None;
+        config.reconnect.replay_burst_size = 51;
+        config.reconnect.replay_pace_ms = 62;
+        config.reconnect.policy = ReconnectPolicy::Manual;
+
+        let params = FpssParams::from_config(&creds, &config);
+
+        let s = &params.streaming;
+        assert_eq!(s.hosts, config.streaming.hosts);
+        assert_eq!(s.host_selection, HostSelectionPolicy::FixedOrder);
+        assert_eq!(s.host_shuffle_seed, Some(0xABCD_1234));
+        assert_eq!(s.timeout_ms, 111_111);
+        assert_eq!(s.ring_size, 1 << 20);
+        assert_eq!(s.ping_interval_ms, 22_222);
+        assert_eq!(s.connect_timeout_ms, 33_333);
+        assert_eq!(s.io_read_slice_ms, 44);
+        assert_eq!(s.data_watchdog_ms, 55_555);
+        assert_eq!(s.keepalive_idle_secs, 66);
+        assert_eq!(s.keepalive_interval_secs, 77);
+        assert_eq!(s.keepalive_retries, 8);
+        assert_eq!(s.flush_mode, StreamingFlushMode::Immediate);
+        assert_eq!(s.wait_strategy, StreamingWaitStrategy::Balanced);
+        assert_eq!(s.wait_spin_iters, 123);
+        assert_eq!(s.wait_yield_iters, 456);
+        assert_eq!(s.wait_park_us, 789);
+        assert_eq!(s.consumer_cpu, Some(3));
+        assert!(!s.derive_ohlcvc);
+
+        let r = &params.reconnect;
+        assert_eq!(r.wait_ms, 1_010);
+        assert_eq!(r.wait_max_ms, 2_020);
+        assert_eq!(r.wait_rate_limited_ms, 3_030);
+        assert_eq!(r.wait_server_restart_ms, 4_040);
+        assert_eq!(r.jitter, JitterMode::None);
+        assert_eq!(r.replay_burst_size, 51);
+        assert_eq!(r.replay_pace_ms, 62);
+        assert!(
+            matches!(r.policy, ReconnectPolicy::Manual),
+            "reconnect policy must survive the snapshot"
+        );
+
+        // The snapshot must build without panicking with every knob set.
+        let _ = params.builder();
     }
 }
