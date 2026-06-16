@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "comment": "Gate 10 (#553) baseline. Calibrated against the GitHub-hosted runner perf profile (PR #566, 2026-05-21). Threshold stays at 25% so a real regression past this baseline trips CI. The loader in `scripts/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field; only `criterion_path` + `p50_ns` are gated."
+    "comment": "Baseline calibrated against the GitHub-hosted runner perf profile. The global threshold is 25% so a real regression past this baseline trips CI. The loader in `scripts/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field and gates on `criterion_path` + `p50_ns`. An entry may add `threshold_pct` to set its own tolerance: wider for a known high-variance workload, tighter for a critical hot path. It replaces the global gate for that entry, and the `comment` field records why."
   },
   "_captured_on": "2026-05-21",
   "streaming_channels/direct_callback/100k_events": {
@@ -9,11 +9,15 @@
   },
   "streaming_channels/disruptor_consumer_panic_isolated/100k_events": {
     "p50_ns": 2116315.6,
-    "criterion_path": "streaming_channels_disruptor_consumer_panic_isolated/100k_events"
+    "criterion_path": "streaming_channels_disruptor_consumer_panic_isolated/100k_events",
+    "threshold_pct": 40,
+    "comment": "Multi-thread, ~2.1ms workload whose p50 swings with hosted-runner CPU contention; observed clean-PR runs land near +26% under load. The 40% tolerance absorbs that scheduler variance while still catching a genuine ~1.4x regression."
   },
   "streaming_channels/disruptor_cross_thread/100k_events": {
     "p50_ns": 2151760.2,
-    "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events"
+    "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events",
+    "threshold_pct": 40,
+    "comment": "Multi-thread, ~2.2ms cross-thread workload with the same hosted-runner contention variance as its sibling; same 40% tolerance for the same reason."
   },
   "StreamEvent::clone/Quote": {
     "p50_ns": 21.9,

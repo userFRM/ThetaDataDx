@@ -202,7 +202,14 @@ jobs:
       # raw transport layer against synthetic frames. Without this flag
       # those tests silently skip and the endpoint-routing / decoder /
       # pool-bench coverage is lost.
-      - run: cargo test --workspace --locked --features thetadatadx/__test-helpers
+      #
+      # `config-file` is enabled alongside it so the TOML-config test
+      # module (`#[cfg(feature = "config-file")]` in `config/mod.rs`)
+      # actually compiles and runs. Without it those tests are excluded
+      # entirely, so a sample config that silently drops a section — or a
+      # test asserting an override that never applies — passes by never
+      # executing.
+      - run: cargo test --workspace --locked --features thetadatadx/__test-helpers,thetadatadx/config-file
       # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
       # --workspace` above, but invoking `--doc` explicitly verifies
       # the FFI crate's `extern "C"` doc examples compile + run on
@@ -271,6 +278,8 @@ jobs:
           # captured locally and we do not bless a value against the
           # GitHub-hosted runner without one observed sample.
           cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
+      - name: Validate the regression gate's own threshold logic
+        run: python3 scripts/check_bench_regression.py --selftest
       - name: Compare against checked-in baseline
         # Threshold tightened from 100% (a 2x slowdown passed) to 25%.
         # The baseline JSON is recaptured against the GH-hosted runner
