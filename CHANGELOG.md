@@ -654,7 +654,7 @@ code does not change.
   (`sdks/python/src/_generated/`, `sdks/typescript/src/_generated/`)
   so hand-written code leads the public surface listing — the SSOT
   codegen for cross-language parity is preserved unchanged, only the
-  output paths moved. `docs/java-parity-checklist.md` removed
+  output paths moved. The internal parity-tracking checklist removed
   (historical artifact; parity is shipped).
 - Typed `Error` enum: `Error::Decode`, `Error::Decompress`,
   `Error::Config`, and `Error::Grpc` now carry structured `kind`
@@ -1404,8 +1404,6 @@ code does not change.
   constants is genuinely used by `flatfiles::request` and
   `flatfiles::session`; the attribute was a false positive.
 
-  Refs #500.
-
 ## [8.0.36] - 2026-05-07
 
 ### Changed
@@ -1438,15 +1436,13 @@ code does not change.
   test pins 12 known entries against the const arrays for round-trip
   protection.
 
-  Refs #500.
-
 ## [8.0.35] - 2026-05-07
 
 ### Documentation
 
 - **Sweep stale `root` / `exp_date` references across the doc tree.**
   Post-#484 (8.0.28) follow-up: `docs/api-reference.md`, `docs/macro-guide.md`,
-  `docs/architecture.md`, `docs/java-parity-checklist.md`, `docs-site/docs/api-reference.md`,
+  `docs/architecture.md`, `docs-site/docs/api-reference.md`,
   `docs-site/docs/streaming/{connection,events}.md`, `docs-site/docs/historical/option/list/{roots,contracts}.md`,
   `sdks/cpp/README.md` — Rust SDK references rewritten to use the post-#484
   `symbol` / `expiration` vocabulary. Closes #503.
@@ -2490,8 +2486,8 @@ tooling hygiene.
   Changelog vocabulary.
 - `docs/api-reference.md` — two references to the old `tdbe` error
   module repointed to `tdbe::error`.
-- `docs/java-parity-checklist.md` — stale normalization-module path
-  updated to `mdds/endpoints.rs`, the current home of
+- The internal parity-tracking checklist — stale normalization-module
+  path updated to `mdds/endpoints.rs`, the current home of
   `normalize_interval` after the v8.0.7 fold.
 - The `wire_semantics` module — stale normalization-module
   parenthetical removed from the module docstring.
@@ -2729,7 +2725,7 @@ Major release. Three headline groups land in one pass:
 
 - **License switched to Apache-2.0** across every `Cargo.toml`, `package.json`, `pyproject.toml`, and the top-level `LICENSE`. `deny.toml` allowlist cleaned up accordingly.
 - **Top-level `README.md` rewritten** as a professional SDK landing page: tagline, highlights, per-SDK quickstart (Rust / Python / TypeScript / Go / C++), architecture diagram, Java parity note. Neutral technical framing throughout.
-- **`docs/java-parity-checklist.md` added** as the single source of truth for Java terminal parity — feature-by-feature table (parity / deviation / partial) covering wire protocol, authentication, control events, reconnection, FPSS streaming, tick decoding, Greeks, validation, and intentional improvements over the Java terminal. Three earlier stand-alone documents (`docs/jvm-deviations.md`, `docs/java-class-mapping.md`, and a prior protocol-archaeology note) folded in.
+- **A consolidated parity-tracking checklist added** as the single source of truth for terminal parity — feature-by-feature table (parity / deviation / partial) covering wire protocol, authentication, control events, reconnection, FPSS streaming, tick decoding, Greeks, validation, and intentional improvements over the JVM terminal. Three earlier stand-alone parity notes folded in.
 - **Internal `docs/dev/` design notes removed** (no longer load-bearing).
 - **`DirectClient` renamed to `HistoricalClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::HistoricalClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `Client` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
 - **The `direct.rs` module split into the `mdds/` module** (#383) — 732-line monolith broken into six concern-separated files (`client`, `endpoints`, `endpoint_arg_ext`, `normalize`, `validate`, `mod`). Pure move; wire behavior unchanged; all 304 workspace tests pass.
@@ -2738,7 +2734,7 @@ Major release. Three headline groups land in one pass:
 
 ### Added
 
-- **Parsed `Arc<Contract>` on every FPSS data event** (#389) — `StreamData::{Quote,Trade,OpenInterest,Ohlcvc}::contract: Arc<Contract>` replaces the former `symbol: Arc<str>`. Option events now expose `event.contract.exp_date`, `.strike`, `.is_call` without a second lookup; stock events read `event.contract.root`. Refcount-only per-event clone. Mirrors `net.thetadata.fpssclient.Contract` from the Java terminal without the JSON round-trip. `contract_lookup` and `contract_map` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>` on every SDK.
+- **Parsed `Arc<Contract>` on every FPSS data event** (#389) — `StreamData::{Quote,Trade,OpenInterest,Ohlcvc}::contract: Arc<Contract>` replaces the former `symbol: Arc<str>`. Option events now expose `event.contract.exp_date`, `.strike`, `.is_call` without a second lookup; stock events read `event.contract.root`. Refcount-only per-event clone. Carries the resolved contract identity on each event without a second lookup or JSON round-trip. `contract_lookup` and `contract_map` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>` on every SDK.
 - **`impl FromStr for Contract`** (#389) — `"AAPL".parse::<Contract>()?` yields a stock contract (1..=6 ASCII A-Z, `.` permitted); `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char institutional option identifier (6-byte root right-padded with spaces, 6-byte YYMMDD century-adjusted to 2000–2099 YYYYMMDD, single-byte `C`/`P`, 8-byte strike in thousandths of a dollar). 20-byte inputs are tolerated with a trailing-space pad. Parse failures return `Error::Config` naming the offending input and the specific failure (length, root charset, expiration digits, right byte, strike digits).
 - **Historical FPSS subscribe shortcuts** (#389) — per-security subscribe and matching unsubscribe counterparts were added on `StreamingClient` and `Client`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
 - **Typed decoding of FPSS control codes 4 / 10 / 13 / 31** (#389) — `StreamControl::Connected` (4), `StreamControl::Ping { payload }` (10), `StreamControl::ReconnectedServer` (13 — server-side ack, distinct from the client-side auto-reconnect `Reconnected` variant), and `StreamControl::Restart` (31) replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI `ThetaDataDxStreamControl` kind tags grow 13..=16; Go `FpssCtrl*` constants mirror them.
@@ -3270,7 +3266,7 @@ Major release. Three headline groups land in one pass:
 
 ### Changed
 
-- Price type per-row variation as known limitation in jvm-deviations.md (#37)
+- Price type per-row variation documented as a known limitation (#37)
 - FPSS event-queue capacity monitoring as known limitation
 
 ## [4.4.0] - 2026-04-02
@@ -3286,7 +3282,7 @@ v3 MDDS DataTable parsing (Timestamp cells), DST-aware timezone, gRPC flow contr
 ### Fixed
 
 - Version pins in README and getting-started docs updated to `"4.2"`
-- Default venue `"nqb"` (NASDAQ Best) documented in jvm-deviations.md
+- Default venue `"nqb"` (NASDAQ Best) documented
 
 ## [4.2.0] - 2026-04-01
 
@@ -3320,7 +3316,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - `unsubscribe_full_open_interest(sec_type)` -- full-stream OI unsubscribe (was missing)
 - `reconnect_streaming(handler)` on `Client` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
 - `active_full_subscriptions()` accessor for full-type subscription tracking
-- `docs/java-class-mapping.md` -- complete enumeration of all 588 Java terminal classes with Rust equivalents or justification for exclusion
+- Internal parity coverage notes tracking which terminal behaviors have a Rust equivalent and which are intentionally out of scope
 
 ### Fixed
 
@@ -3328,7 +3324,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Changed
 
-- Greeks operator precedence (veta, speed, zomma, color, dual_gamma) -- Java decompiler may have lost parenthesization, Rust follows textbook Black-Scholes formulas
+- Greeks operator precedence (veta, speed, zomma, color, dual_gamma) -- Rust follows the textbook Black-Scholes formulas
 - FPSS event-queue capacity monitoring -- documented as known limitation (the event-queue implementation exposes no fill-level API)
 
 ## [4.0.0] - 2026-04-01
@@ -3440,7 +3436,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **MCP Server** (`tools/mcp/`) — Model Context Protocol server giving LLMs instant
   access to 64 tools (61 endpoints + ping + greeks + IV) over JSON-RPC stdio.
   Works with Cursor and every other MCP-compatible client.
-- **REST+WS Server** (`tools/server/`) — drop-in replacement for the Java terminal.
+- **REST+WS Server** (`tools/server/`) — a local REST + WebSocket server exposing the same surface as the JVM terminal.
   v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
   guides, SDK docs, wire protocol internals. Deployed to GitHub Pages.
