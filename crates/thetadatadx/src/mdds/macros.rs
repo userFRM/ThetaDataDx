@@ -31,6 +31,23 @@
 ///
 /// Returns `Error::Timeout` when the deadline elapses; otherwise propagates
 /// whatever error the wrapped future resolves to.
+/// Resolve the effective per-request deadline.
+///
+/// An explicit `with_deadline(...)` always wins, including
+/// `with_deadline(Duration::ZERO)` which normalizes to `None` at the
+/// builder and opts the request out of any deadline. When the caller set
+/// nothing (`explicit == None`), fall back to the configured
+/// [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
+/// server holding the stream open without sending chunks cannot hang the
+/// request indefinitely. A configured default of `0` disables the
+/// fallback.
+pub(crate) fn effective_deadline(
+    explicit: Option<std::time::Duration>,
+    default_secs: u64,
+) -> Option<std::time::Duration> {
+    explicit.or_else(|| (default_secs > 0).then(|| std::time::Duration::from_secs(default_secs)))
+}
+
 pub(crate) async fn run_with_optional_deadline<F, T>(
     deadline: Option<std::time::Duration>,
     fut: F,
@@ -689,6 +706,10 @@ macro_rules! parsed_endpoint {
                 } = self;
                 let _ = &client;
                 $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                let deadline = $crate::mdds::macros::effective_deadline(
+                    deadline,
+                    client.config().historical.request_timeout_secs,
+                );
                 $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
                     tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
                     metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
@@ -863,6 +884,10 @@ macro_rules! parsed_endpoint {
                         );
                         Ok(parsed)
                     };
+                    let deadline = $crate::mdds::macros::effective_deadline(
+                        deadline,
+                        client.config().historical.request_timeout_secs,
+                    );
                     $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
                 })
             }
@@ -1071,6 +1096,54 @@ mod classify_error_tests {
                 "TransportErrorKind::{kind:?} must stay terminal"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod effective_deadline_tests {
+    use super::effective_deadline;
+    use std::time::Duration;
+
+    /// With no explicit `with_deadline(...)`, the configured default is
+    /// applied. This is the load-bearing assertion that a request which
+    /// set no deadline still gets one, so a server holding the stream
+    /// open without sending chunks cannot hang the call forever.
+    #[test]
+    fn applies_configured_default_when_caller_set_none() {
+        assert_eq!(
+            effective_deadline(None, 300),
+            Some(Duration::from_secs(300))
+        );
+    }
+
+    /// An explicit deadline always wins over the configured default.
+    #[test]
+    fn explicit_deadline_overrides_default() {
+        assert_eq!(
+            effective_deadline(Some(Duration::from_secs(5)), 300),
+            Some(Duration::from_secs(5))
+        );
+    }
+
+    /// `with_deadline(Duration::ZERO)` normalizes to `None` at the
+    /// builder, opting the request out of any deadline. A configured
+    /// default of `0` must NOT silently re-impose one on that request,
+    /// so a `0` default leaves the explicit opt-out intact.
+    #[test]
+    fn zero_default_disables_the_fallback() {
+        assert_eq!(effective_deadline(None, 0), None);
+    }
+
+    /// The production default seeds a positive per-request deadline, so
+    /// the historical request path is bounded out of the box.
+    #[test]
+    fn production_default_is_positive() {
+        let cfg = crate::config::HistoricalConfig::production_defaults();
+        assert!(cfg.request_timeout_secs > 0);
+        assert_eq!(
+            effective_deadline(None, cfg.request_timeout_secs),
+            Some(Duration::from_secs(cfg.request_timeout_secs))
+        );
     }
 }
 

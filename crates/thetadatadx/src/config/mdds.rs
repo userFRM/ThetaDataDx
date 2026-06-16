@@ -79,6 +79,25 @@ pub struct HistoricalConfig {
     /// cadence.
     pub connect_timeout_secs: u64,
 
+    /// Default per-request deadline for historical (gRPC) queries, in
+    /// seconds. `0` disables the default (no deadline unless the caller
+    /// sets one).
+    ///
+    /// A server that holds the HTTP/2 stream open while sending no
+    /// chunks would otherwise hang `collect_stream` / `stream(...)`
+    /// indefinitely: the gRPC keepalive PING only detects a fully dead
+    /// peer, not a live-but-silent one. This default bounds every
+    /// request that did not call `with_deadline(...)`, so a stalled
+    /// stream resolves to `Error::Timeout` instead of blocking forever.
+    ///
+    /// Per-call control overrides this: `with_deadline(Duration)` sets a
+    /// shorter or longer bound, and `with_deadline(Duration::ZERO)`
+    /// opts a single request out of any deadline.
+    ///
+    /// Default `300s` (5 min) — comfortably above the slowest realistic
+    /// multi-million-row bulk pull while still bounding a wedged stream.
+    pub request_timeout_secs: u64,
+
     /// Estimated-bytes threshold above which the buffered `.await`
     /// path on a `parsed_endpoint!` builder emits a single
     /// `tracing::warn!` event suggesting `.stream(handler)` for the
@@ -138,6 +157,11 @@ impl HistoricalConfig {
             window_size_kb: 64,
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
+            // 5 min — bounds a server that holds the stream open while
+            // sending no chunks (h2 keepalive only catches a fully dead
+            // peer). Sits above the slowest realistic bulk pull;
+            // `with_deadline(Duration::ZERO)` opts a single request out.
+            request_timeout_secs: 300,
             // 100 MiB — empirically catches bulk pulls (multi-million
             // row option-chain or multi-day backfill responses) while
             // staying silent on ad-hoc single-day quote / OHLC pulls
