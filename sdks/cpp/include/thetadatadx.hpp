@@ -1190,6 +1190,88 @@ public:
         return mode;
     }
 
+    /** Set the streaming event-ring consumer wait strategy.
+     *  0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
+     *  (see the @c THETADATADX_WAIT_* constants). Throws
+     *  @c thetadatadx::InvalidParameterError when @p mode is outside the
+     *  documented `{0, 1, 2, 3}` set (and @c thetadatadx::ThetaDataError
+     *  on a null handle). */
+    void set_wait_strategy(int mode) {
+        if (thetadatadx_config_set_wait_strategy(handle_.get(), mode) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Read the current streaming wait strategy. Same encoding as
+     *  @c set_wait_strategy. Returns `0` (LowLatency) on a null handle. */
+    int get_wait_strategy() const {
+        int32_t mode = 0;
+        thetadatadx_config_get_wait_strategy(handle_.get(), &mode);
+        return mode;
+    }
+
+    /** Set the wait-strategy spin iteration count. Throws on a null handle. */
+    void set_wait_spin_iters(uint32_t iters) {
+        if (thetadatadx_config_set_wait_spin_iters(handle_.get(), iters) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Read the wait-strategy spin iteration count. Returns `0` on a null handle. */
+    uint32_t get_wait_spin_iters() const {
+        uint32_t iters = 0;
+        thetadatadx_config_get_wait_spin_iters(handle_.get(), &iters);
+        return iters;
+    }
+
+    /** Set the wait-strategy yield iteration count. Throws on a null handle. */
+    void set_wait_yield_iters(uint32_t iters) {
+        if (thetadatadx_config_set_wait_yield_iters(handle_.get(), iters) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Read the wait-strategy yield iteration count. Returns `0` on a null handle. */
+    uint32_t get_wait_yield_iters() const {
+        uint32_t iters = 0;
+        thetadatadx_config_get_wait_yield_iters(handle_.get(), &iters);
+        return iters;
+    }
+
+    /** Set the wait-strategy park interval (microseconds; Balanced /
+     *  Efficient). Throws on a null handle. */
+    void set_wait_park_us(uint64_t park_us) {
+        if (thetadatadx_config_set_wait_park_us(handle_.get(), park_us) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Read the wait-strategy park interval in microseconds. Returns `0`
+     *  on a null handle. */
+    uint64_t get_wait_park_us() const {
+        uint64_t park_us = 0;
+        thetadatadx_config_get_wait_park_us(handle_.get(), &park_us);
+        return park_us;
+    }
+
+    /** Pin the streaming consumer thread to a CPU core. A negative
+     *  @p core (@c THETADATADX_CONSUMER_CPU_UNPINNED) means unpinned (the
+     *  default). Throws on a null handle. */
+    void set_consumer_cpu(int64_t core) {
+        if (thetadatadx_config_set_consumer_cpu(handle_.get(), core) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /** Read the streaming consumer-thread CPU pin, or
+     *  @c THETADATADX_CONSUMER_CPU_UNPINNED (-1) when unpinned. Returns
+     *  the sentinel on a null handle. */
+    int64_t get_consumer_cpu() const {
+        int64_t core = THETADATADX_CONSUMER_CPU_UNPINNED;
+        thetadatadx_config_get_consumer_cpu(handle_.get(), &core);
+        return core;
+    }
+
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { thetadatadx_config_set_derive_ohlcvc(handle_.get(), enabled); }
 

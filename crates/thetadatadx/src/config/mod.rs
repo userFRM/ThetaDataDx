@@ -56,6 +56,7 @@ pub use env::{
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{
     bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig, StreamingFlushMode,
+    StreamingWaitStrategy,
 };
 pub use mdds::HistoricalConfig;
 pub use metrics::MetricsConfig;
@@ -313,6 +314,30 @@ impl DirectConfig {
                 i64::from(*streaming_bounds::KEEPALIVE_RETRIES.end()),
             ));
         }
+        if !streaming_bounds::WAIT_SPIN_ITERS.contains(&self.streaming.wait_spin_iters) {
+            return Err(Error::config_out_of_range(
+                "streaming.wait_spin_iters",
+                i64::from(self.streaming.wait_spin_iters),
+                i64::from(*streaming_bounds::WAIT_SPIN_ITERS.start()),
+                i64::from(*streaming_bounds::WAIT_SPIN_ITERS.end()),
+            ));
+        }
+        if !streaming_bounds::WAIT_YIELD_ITERS.contains(&self.streaming.wait_yield_iters) {
+            return Err(Error::config_out_of_range(
+                "streaming.wait_yield_iters",
+                i64::from(self.streaming.wait_yield_iters),
+                i64::from(*streaming_bounds::WAIT_YIELD_ITERS.start()),
+                i64::from(*streaming_bounds::WAIT_YIELD_ITERS.end()),
+            ));
+        }
+        if !streaming_bounds::WAIT_PARK_US.contains(&self.streaming.wait_park_us) {
+            return Err(Error::config_out_of_range(
+                "streaming.wait_park_us",
+                to_i64(self.streaming.wait_park_us),
+                to_i64(*streaming_bounds::WAIT_PARK_US.start()),
+                to_i64(*streaming_bounds::WAIT_PARK_US.end()),
+            ));
+        }
         if self.reconnect.replay_burst_size == 0 {
             return Err(Error::config_invalid(
                 "reconnect.replay_burst_size",
@@ -539,6 +564,17 @@ impl DirectConfig {
     pub fn streaming_flush_mode(&self) -> StreamingFlushMode {
         self.streaming.flush_mode
     }
+    /// Streaming event-ring consumer wait strategy.
+    #[must_use]
+    pub fn streaming_wait_strategy(&self) -> StreamingWaitStrategy {
+        self.streaming.wait_strategy
+    }
+    /// Optional CPU core the streaming consumer thread is pinned to;
+    /// `None` leaves it under the OS scheduler.
+    #[must_use]
+    pub fn streaming_consumer_cpu(&self) -> Option<usize> {
+        self.streaming.consumer_cpu
+    }
     /// Whether to derive OHLCVC bars locally from trade events.
     #[must_use]
     pub fn derive_ohlcvc_enabled(&self) -> bool {
@@ -597,6 +633,7 @@ impl DirectConfig {
 mod config_file {
     use super::{
         DirectConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, StreamingFlushMode,
+        StreamingWaitStrategy,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -651,6 +688,15 @@ mod config_file {
         reconnect_wait_rate_limited: u64,
         ring_size: usize,
         flush_mode: String,
+        wait_strategy: String,
+        wait_spin_iters: u32,
+        wait_yield_iters: u32,
+        wait_park_us: u64,
+        /// CPU core to pin the streaming consumer thread to. A negative
+        /// value (the default `-1`) means "unpinned" — the `Option::None`
+        /// form in `[streaming]` TOML, where serde cannot express a bare
+        /// optional cleanly under `#[serde(default)]`.
+        consumer_cpu: i64,
     }
 
     impl Default for FpssSection {
@@ -671,6 +717,15 @@ mod config_file {
                 reconnect_wait_rate_limited: prod.reconnect.wait_rate_limited_ms,
                 ring_size: prod.streaming.ring_size,
                 flush_mode: "batched".to_string(),
+                wait_strategy: prod.streaming.wait_strategy.as_str().to_string(),
+                wait_spin_iters: prod.streaming.wait_spin_iters,
+                wait_yield_iters: prod.streaming.wait_yield_iters,
+                wait_park_us: prod.streaming.wait_park_us,
+                consumer_cpu: prod
+                    .streaming
+                    .consumer_cpu
+                    .and_then(|c| i64::try_from(c).ok())
+                    .unwrap_or(-1),
             }
         }
     }
@@ -816,6 +871,9 @@ mod config_file {
                 _ => StreamingFlushMode::Batched,
             };
 
+            let wait_strategy =
+                StreamingWaitStrategy::parse(&cf.streaming.wait_strategy).unwrap_or_default();
+
             // If [grpc].max_message_size_mb is set, it overrides [mdds].max_message_size.
             // The grpc section value is in MB; the mdds section value is in bytes.
             let max_message_size = if cf.grpc.max_message_size_mb
@@ -844,6 +902,12 @@ mod config_file {
             out.streaming.ping_interval_ms = cf.streaming.ping_interval;
             out.streaming.connect_timeout_ms = cf.streaming.connect_timeout;
             out.streaming.flush_mode = flush_mode;
+            out.streaming.wait_strategy = wait_strategy;
+            out.streaming.wait_spin_iters = cf.streaming.wait_spin_iters;
+            out.streaming.wait_yield_iters = cf.streaming.wait_yield_iters;
+            out.streaming.wait_park_us = cf.streaming.wait_park_us;
+            // A negative TOML `consumer_cpu` (default `-1`) means unpinned.
+            out.streaming.consumer_cpu = usize::try_from(cf.streaming.consumer_cpu).ok();
             // Default: derive OHLCVC from trades (matches production default).
             // Use the builder API to disable programmatically.
             out.streaming.derive_ohlcvc = true;
@@ -946,7 +1010,7 @@ mod tests {
 
     #[cfg(feature = "config-file")]
     mod config_file_tests {
-        use crate::config::{DirectConfig, StreamingFlushMode};
+        use crate::config::{DirectConfig, StreamingFlushMode, StreamingWaitStrategy};
 
         #[test]
         fn empty_toml_gives_production_defaults() {
@@ -1023,6 +1087,53 @@ mod tests {
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.streaming.flush_mode, StreamingFlushMode::Batched);
+        }
+
+        #[test]
+        fn wait_strategy_and_tuning_round_trip() {
+            let toml = r#"
+                [streaming]
+                wait_strategy = "balanced"
+                wait_spin_iters = 16
+                wait_yield_iters = 2
+                wait_park_us = 75
+                consumer_cpu = 3
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(
+                config.streaming.wait_strategy,
+                StreamingWaitStrategy::Balanced
+            );
+            assert_eq!(config.streaming.wait_spin_iters, 16);
+            assert_eq!(config.streaming.wait_yield_iters, 2);
+            assert_eq!(config.streaming.wait_park_us, 75);
+            assert_eq!(config.streaming.consumer_cpu, Some(3));
+        }
+
+        #[test]
+        fn wait_strategy_defaults_low_latency_unpinned() {
+            // An empty streaming section keeps the low-latency default
+            // and leaves the consumer unpinned.
+            let toml = r#"
+                [streaming]
+                ring_size = 4096
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(
+                config.streaming.wait_strategy,
+                StreamingWaitStrategy::LowLatency
+            );
+            assert_eq!(config.streaming.consumer_cpu, None);
+        }
+
+        #[test]
+        fn negative_consumer_cpu_means_unpinned() {
+            let toml = r#"
+                [streaming]
+                consumer_cpu = -1
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(config.streaming.consumer_cpu, None);
         }
 
         #[test]

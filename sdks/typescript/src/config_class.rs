@@ -1467,6 +1467,134 @@ impl Config {
         })
     }
 
+    /// Set the streaming event-ring consumer wait strategy — the
+    /// latency-vs-CPU knob applied on each ring-empty poll.
+    ///
+    /// Accepts `"low_latency"` (default — never sleeps, lowest latency,
+    /// highest idle CPU), `"balanced"` (brief park — low idle CPU),
+    /// `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
+    /// (pure spin — pins a core). Tune the spin / yield / park counts via
+    /// `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
+    #[napi(js_name = "setWaitStrategy")]
+    pub fn set_wait_strategy(&self, strategy: String) -> napi::Result<()> {
+        let parsed = config::StreamingWaitStrategy::parse(&strategy).ok_or_else(|| {
+            crate::invalid_parameter_err(format!(
+                "setWaitStrategy: strategy must be \"low_latency\", \"balanced\", \
+                 \"efficient\", or \"busy_spin\"; got {strategy:?}"
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.wait_strategy = parsed;
+        Ok(())
+    }
+
+    /// Current streaming wait strategy (`"low_latency"`, `"balanced"`,
+    /// `"efficient"`, or `"busy_spin"`).
+    #[napi(getter, js_name = "waitStrategy")]
+    pub fn wait_strategy(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming.wait_strategy.as_str())
+    }
+
+    /// Set the wait-strategy spin iteration count.
+    #[napi(js_name = "setWaitSpinIters")]
+    pub fn set_wait_spin_iters(&self, iters: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.wait_spin_iters = iters;
+        Ok(())
+    }
+
+    /// Current wait-strategy spin iteration count.
+    #[napi(getter, js_name = "waitSpinIters")]
+    pub fn wait_spin_iters(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming.wait_spin_iters)
+    }
+
+    /// Set the wait-strategy yield iteration count.
+    #[napi(js_name = "setWaitYieldIters")]
+    pub fn set_wait_yield_iters(&self, iters: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.wait_yield_iters = iters;
+        Ok(())
+    }
+
+    /// Current wait-strategy yield iteration count.
+    #[napi(getter, js_name = "waitYieldIters")]
+    pub fn wait_yield_iters(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming.wait_yield_iters)
+    }
+
+    /// Set the wait-strategy park interval in microseconds (used by the
+    /// `"balanced"` / `"efficient"` strategies).
+    #[napi(js_name = "setWaitParkUs")]
+    pub fn set_wait_park_us(&self, park_us: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.wait_park_us = u64::from(park_us);
+        Ok(())
+    }
+
+    /// Current wait-strategy park interval in microseconds.
+    #[napi(getter, js_name = "waitParkUs")]
+    pub fn wait_park_us(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::try_from(guard.streaming.wait_park_us).unwrap_or(u32::MAX))
+    }
+
+    /// Pin the streaming consumer thread to a CPU core, or `null` to
+    /// leave it under the OS scheduler (default).
+    ///
+    /// Pinning the tick-consumer thread to an isolated core gives
+    /// deterministic, low-jitter delivery. An out-of-range or offline
+    /// core is a best-effort no-op rather than an error.
+    #[napi(js_name = "setConsumerCpu")]
+    pub fn set_consumer_cpu(&self, core: Option<u32>) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.consumer_cpu = core.map(|c| c as usize);
+        Ok(())
+    }
+
+    /// Current streaming consumer-thread CPU pin, or `null` if unpinned.
+    #[napi(getter, js_name = "consumerCpu")]
+    pub fn consumer_cpu(&self) -> napi::Result<Option<u32>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard
+            .streaming
+            .consumer_cpu
+            .map(|c| u32::try_from(c).unwrap_or(u32::MAX)))
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     /// When `false`, only server-sent OHLCVC frames are emitted,
     /// reducing per-trade throughput overhead. Default `true`.

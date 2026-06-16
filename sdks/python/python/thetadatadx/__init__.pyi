@@ -187,6 +187,16 @@ class Config:
     """Whether OHLCVC bars are derived locally from the trade stream and delivered as :class:`Ohlcvc` events."""
     flush_mode: Literal["batched", "immediate"]
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
+    wait_strategy: Literal["low_latency", "balanced", "efficient", "busy_spin"]
+    """Streaming event-ring consumer wait strategy — the latency-vs-CPU knob applied on each ring-empty poll. ``"low_latency"`` (default) never sleeps; ``"balanced"`` parks briefly; ``"efficient"`` parks longer; ``"busy_spin"`` pure-spins and pins a core. The setter accepts the same strings case-insensitively and raises ``ValueError`` otherwise."""
+    wait_spin_iters: int
+    """Spin iterations the wait strategy busy-waits before yielding / parking."""
+    wait_yield_iters: int
+    """``yield_now`` iterations after the spin phase, before any park."""
+    wait_park_us: int
+    """Park interval (microseconds) for the ``"balanced"`` / ``"efficient"`` strategies; inert for the never-sleep strategies."""
+    consumer_cpu: Optional[int]
+    """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
 
     def __repr__(self) -> str:
         """Return a representation with the host, port, and stream-host count."""

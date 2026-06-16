@@ -1133,12 +1133,25 @@ where
 pub fn build_poller_producer(
     ring_size: usize,
     cursors: Arc<RingCursors>,
+    wait_strategy: AdaptiveWaitStrategy,
 ) -> (
     impl RingProducer,
     EventPoller<RingEvent, SingleProducerBarrier>,
 ) {
     let factory = RingEvent::default;
-    let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+    // The disruptor builder is generic over `W: WaitStrategy` but erases
+    // the concrete strategy type once built — `EventPoller<RingEvent,
+    // SingleProducerBarrier>` does not name `W` — so swapping the
+    // strategy preset never changes the poller or producer return types
+    // and the public ring API stays stable.
+    //
+    // Polling mode (`new_event_poller`) spawns no processor thread: the
+    // consumer IS the caller's own thread driving `next_event` /
+    // `for_each`, so the builder's thread-name / core-affinity settings
+    // would have no thread to apply to. Consumer-core pinning is applied
+    // on the real drain thread instead — see
+    // [`super::super::affinity::pin_consumer_thread`] and its call sites
+    // in `StreamingClient::for_each_scoped` / `next_event`.
     let (poller, builder) =
         build_single_producer(ring_size, factory, wait_strategy).new_event_poller();
     (SequencedProducer::new(builder.build(), cursors), poller)

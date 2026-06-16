@@ -188,6 +188,13 @@ regex = { version = "1.12.3", optional = true }
 # Lock-free ring buffer for FPSS event dispatch # VOCAB-OK: crate name in dep
 disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 
+# CPU core pinning for the streaming event-ring consumer thread
+# (optional `consumer_cpu` tuning knob). Already in the dependency tree
+# via disruptor; named directly so the drain loop can pin the real
+# consumer thread, which the disruptor builder cannot reach in polling
+# mode. # VOCAB-OK: crate name in dep
+core_affinity = "0.8.1" # VOCAB-OK: actual dep crate name
+
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build DataFrame from Series.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels.

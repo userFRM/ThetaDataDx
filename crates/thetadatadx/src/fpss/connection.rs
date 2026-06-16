@@ -74,6 +74,14 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub ring_size: usize,
     pub derive_ohlcvc: bool,
     pub flush_mode: StreamingFlushMode,
+    /// Resolved event-ring consumer wait strategy (preset + tuning, or a
+    /// Rust-supplied raw strategy). Mirrors
+    /// [`crate::config::StreamingConfig::wait_strategy`].
+    pub wait_strategy: super::ring::AdaptiveWaitStrategy,
+    /// Optional CPU core to pin the event-ring consumer thread to;
+    /// `None` leaves it under the OS scheduler. Mirrors
+    /// [`crate::config::StreamingConfig::consumer_cpu`].
+    pub consumer_cpu: Option<usize>,
     pub policy: ReconnectPolicy,
     /// Initial reconnect delay (ms) for generic transient drops;
     /// doubles per attempt up to `wait_max_ms`. Mirrors

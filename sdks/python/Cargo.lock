@@ -2290,6 +2290,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "core_affinity",
  "disruptor",
  "futures-core",
  "h2",
