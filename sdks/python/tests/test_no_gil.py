@@ -257,7 +257,7 @@ def test_historical_releases_gil() -> None:
             # returns the most recent quote regardless of intraday
             # state, so we exercise the network path without
             # depending on a specific session being open.
-            client.stock_snapshot_quote("AAPL")
+            client.historical.stock_snapshot_quote("AAPL")
 
     # Baseline
     t0 = time.perf_counter()
