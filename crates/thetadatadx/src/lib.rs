@@ -299,11 +299,11 @@ pub use crate::tdbe::types::enums::{
     DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
     StreamResponseType, Venue, Version,
 };
-// `Price` plus the `PriceError` its fallible constructor
-// (`Price::with_value_and_type`) returns and the `MAX_PRICE_TYPE` bound
-// that constructor validates against — the public fixed-point price
-// surface.
-pub use crate::tdbe::types::price::{Price, PriceError, MAX_PRICE_TYPE};
+// `Price` plus the validated `PriceType` exponent, the `PriceError` its
+// fallible constructor (`Price::with_value_and_type`) returns, and the
+// `MAX_PRICE_TYPE` bound that constructor validates against — the public
+// fixed-point price surface.
+pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE};
 
 // ─── Offline Black-Scholes (Greeks + implied volatility) ─────────────────────
 
