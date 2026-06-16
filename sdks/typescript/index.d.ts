@@ -2687,8 +2687,9 @@ export declare class StreamView {
    */
   panicCount(): bigint
   /**
-   * Set the slow-callback wall-clock threshold in microseconds. When a
-   * callback invocation runs longer than `thresholdUs`,
+   * Set the slow-callback wall-clock threshold in microseconds.
+   *
+   * When a callback invocation runs longer than `thresholdUs`,
    * `slowCallbackCount()` increments and a rate-limited warning is
    * logged. Pass `0n` to disable the watchdog (the default).
    * Observability only: the watchdog never cancels the callback. No-op
