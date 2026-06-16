@@ -52,6 +52,45 @@ fn is_degenerate(v: f64, t: f64) -> bool {
     t <= 0.0 || v <= 0.0
 }
 
+/// Return true if spot or strike make Black-Scholes degenerate. A
+/// non-positive spot or strike makes `(s / x).ln()` non-finite (and
+/// `x == 0.0` an outright divide-by-zero), so the bundle path treats
+/// these as degenerate to keep every Greek finite.
+#[inline]
+fn is_price_degenerate(s: f64, x: f64) -> bool {
+    !is_positive(s) || !is_positive(x)
+}
+
+/// Return true only for a strictly positive, finite-comparable value.
+/// `NaN` is not positive, so it reports `false` and routes to the
+/// degenerate path instead of poisoning downstream arithmetic.
+#[inline]
+fn is_positive(value: f64) -> bool {
+    value > 0.0
+}
+
+/// Reject a non-positive spot or strike at a fallible public entry point.
+///
+/// Black-Scholes is undefined for `spot <= 0` or `strike <= 0`: the
+/// `(spot / strike).ln()` term goes non-finite and `strike == 0` is an
+/// outright divide-by-zero. Rejecting here keeps every SDK / CLI / MCP
+/// surface from serialising NaN or `null` Greeks.
+// Reason: s, x are the standard Black-Scholes spot/strike parameter names.
+#[allow(clippy::many_single_char_names)]
+fn reject_nonpositive_price(s: f64, x: f64) -> Result<(), crate::tdbe::Error> {
+    if !is_positive(s) {
+        return Err(crate::tdbe::Error::Config(format!(
+            "spot must be strictly positive, got {s}"
+        )));
+    }
+    if !is_positive(x) {
+        return Err(crate::tdbe::Error::Config(format!(
+            "strike must be strictly positive, got {x}"
+        )));
+    }
+    Ok(())
+}
+
 /// Standard normal CDF approximation (Zelen & Severo, 1964).
 ///
 /// Uses Horner's method for polynomial evaluation: 4 fused multiply-adds instead
@@ -451,7 +490,9 @@ pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 /// # Errors
 ///
 /// Returns [`crate::greeks::Error::Config`] if `right` is not one of the accepted
-/// forms or resolves to `both`/`*`. Strict-parse failures from
+/// forms or resolves to `both`/`*`, or if `spot`/`strike` is non-positive
+/// (Black-Scholes requires `spot > 0` and `strike > 0`; `strike == 0` is an
+/// outright divide-by-zero). Strict-parse failures from
 /// [`crate::tdbe::right::parse_right_strict`] surface here directly.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
@@ -471,6 +512,7 @@ pub fn implied_volatility(
                 "option right '{right}' resolves to 'both' but a single side is required"
             ))
         })?;
+    reject_nonpositive_price(s, x)?;
     if t <= 0.0 || option_price <= 0.0 {
         return Ok((0.0, 0.0));
     }
@@ -618,7 +660,9 @@ pub struct GreeksResult {
 /// # Errors
 ///
 /// Returns [`crate::greeks::Error::Config`] if `right` is not one of the accepted
-/// forms or resolves to `both`/`*`. Strict-parse failures from
+/// forms or resolves to `both`/`*`, or if `spot`/`strike` is non-positive
+/// (Black-Scholes requires `spot > 0` and `strike > 0`; `strike == 0` is an
+/// outright divide-by-zero). Strict-parse failures from
 /// [`crate::tdbe::right::parse_right_strict`] surface here directly.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
 // Reason: 23-Greek computation cannot be meaningfully split without duplicating intermediates.
@@ -643,6 +687,7 @@ pub fn all_greeks(
                 "option right '{right}' resolves to 'both' but a single side is required"
             ))
         })?;
+    reject_nonpositive_price(s, x)?;
 
     // Inline the IV solver to keep the `right` parse at this layer (avoids
     // a second parse that `implied_volatility(&str)` would otherwise do).
@@ -694,6 +739,12 @@ pub fn all_greeks(
 /// negative tenor) every Greek field is `0.0` except `value`,
 /// which is the intrinsic value. Mirrors [`all_greeks`]'s
 /// degenerate-branch semantics.
+///
+/// A non-positive (or non-finite) spot or strike is also degenerate:
+/// `(spot / strike).ln()` is non-finite and `strike == 0` divides by
+/// zero, so the whole bundle is returned all-zero rather than emitting
+/// NaN. The fallible [`all_greeks`] / [`implied_volatility`] entry points
+/// reject these inputs up front; this infallible helper clamps them.
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(
     clippy::many_single_char_names,
@@ -711,6 +762,37 @@ pub fn compute_full_bundle_with_iv(
     t: f64,
     is_call: bool,
 ) -> GreeksResult {
+    // Guard: a non-positive/non-finite spot or strike makes the whole
+    // surface non-finite (`(s / x).ln()`, and `x == 0` divides by zero),
+    // so return an all-zero bundle rather than emitting NaN.
+    if is_price_degenerate(s, x) {
+        return GreeksResult {
+            value: 0.0,
+            delta: 0.0,
+            gamma: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            iv: v,
+            iv_error: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            vera: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+        };
+    }
+
     // Guard: if vol or time is degenerate, return all zeros (except value = intrinsic).
     if is_degenerate(v, t) {
         return GreeksResult {
@@ -1246,6 +1328,81 @@ mod tests {
         // Value is the intrinsic at v=0 (deep ITM call: S*exp(-q*T) - X*exp(-r*T)).
         // Just confirm it's finite and roughly intrinsic-ish.
         assert!(bundle.value.is_finite());
+    }
+
+    // -- Non-positive spot / strike rejection --
+
+    #[test]
+    fn all_greeks_errors_on_nonpositive_spot() {
+        for spot in [0.0, -1.0, -100.0] {
+            let err = all_greeks(spot, 100.0, 0.05, 0.01, 0.25, 5.0, "C").unwrap_err();
+            assert!(matches!(err, crate::tdbe::Error::Config(_)), "spot={spot}");
+            assert!(
+                err.to_string().contains("spot must be strictly positive"),
+                "spot={spot}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn all_greeks_errors_on_nonpositive_strike() {
+        for strike in [0.0, -1.0, -100.0] {
+            let err = all_greeks(100.0, strike, 0.05, 0.01, 0.25, 5.0, "C").unwrap_err();
+            assert!(
+                matches!(err, crate::tdbe::Error::Config(_)),
+                "strike={strike}"
+            );
+            assert!(
+                err.to_string().contains("strike must be strictly positive"),
+                "strike={strike}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn implied_volatility_errors_on_nonpositive_spot() {
+        for spot in [0.0, -1.0] {
+            let err = implied_volatility(spot, 100.0, 0.05, 0.01, 0.25, 5.0, "C").unwrap_err();
+            assert!(matches!(err, crate::tdbe::Error::Config(_)), "spot={spot}");
+            assert!(
+                err.to_string().contains("spot must be strictly positive"),
+                "spot={spot}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn implied_volatility_errors_on_nonpositive_strike() {
+        for strike in [0.0, -1.0] {
+            let err = implied_volatility(100.0, strike, 0.05, 0.01, 0.25, 5.0, "C").unwrap_err();
+            assert!(
+                matches!(err, crate::tdbe::Error::Config(_)),
+                "strike={strike}"
+            );
+            assert!(
+                err.to_string().contains("strike must be strictly positive"),
+                "strike={strike}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn compute_full_bundle_zeros_on_nonpositive_spot_or_strike() {
+        // The infallible bundle path must clamp non-positive spot/strike to
+        // an all-zero bundle rather than emitting NaN/Inf in any field.
+        for (s, x) in [(0.0, 100.0), (-1.0, 100.0), (100.0, 0.0), (100.0, -1.0)] {
+            let bundle = compute_full_bundle_with_iv(s, x, 0.20, 0.05, 0.01, 0.25, true);
+            assert_eq!(bundle.value, 0.0, "value s={s} x={x}");
+            assert_eq!(bundle.delta, 0.0, "delta s={s} x={x}");
+            assert_eq!(bundle.gamma, 0.0, "gamma s={s} x={x}");
+            assert_eq!(bundle.theta, 0.0, "theta s={s} x={x}");
+            assert_eq!(bundle.vega, 0.0, "vega s={s} x={x}");
+            assert_eq!(bundle.d1, 0.0, "d1 s={s} x={x}");
+            assert_eq!(bundle.d2, 0.0, "d2 s={s} x={x}");
+            // Every field stays finite (no NaN, no Inf).
+            assert_finite(bundle.dual_gamma, "dual_gamma");
+            assert_finite(bundle.lambda, "lambda");
+        }
     }
 
     // ---------------------------------------------------------------------------
