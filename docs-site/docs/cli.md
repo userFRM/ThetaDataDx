@@ -26,7 +26,7 @@ thetadatadx option list_expirations SPY
 thetadatadx option list_strikes SPY 20250321
 
 # EOD Greeks for one pinned contract
-thetadatadx option history_greeks_eod SPY 20250321 570 C 20250303 20250306
+thetadatadx option history_greeks_eod SPY 20250321 20250303 20250306 570 C
 
 # Snapshot quotes for several symbols
 thetadatadx stock snapshot_quote AAPL,MSFT,GOOGL

@@ -39,7 +39,7 @@ Every endpoint has a `<endpoint>_builder(...)` factory whose `.stream(...)` / `.
 ```rust
 let days = ["20250303", "20250304", "20250305"];
 for day in days {
-    client.historical.stock_history_trade("AAPL", day)
+    client.historical().stock_history_trade("AAPL", day)
         .stream(|chunk| {
             // &[TradeTick] — persist, then the chunk is dropped.
             write_parquet(chunk);

@@ -1288,6 +1288,80 @@ mod tests {
         }
 
         #[test]
+        fn config_default_toml_matches_production_defaults() {
+            // The shipped template fills every tuning knob explicitly, and
+            // `#[serde(default)]` only backfills absent keys — so any value
+            // written here OVERRIDES the code default the moment an operator
+            // copies the file. Pin every parsed value to
+            // `DirectConfig::production()` so the template can never silently
+            // drift from the in-code defaults.
+            let default_toml = include_str!("../../config.default.toml");
+            let config = DirectConfig::from_toml_str(default_toml).unwrap();
+            let prod = DirectConfig::production();
+
+            // Historical (gRPC).
+            assert_eq!(config.historical.host, prod.historical.host);
+            assert_eq!(config.historical.port, prod.historical.port);
+            assert_eq!(config.historical.tls, prod.historical.tls);
+            assert_eq!(
+                config.historical.keepalive_secs,
+                prod.historical.keepalive_secs
+            );
+            assert_eq!(
+                config.historical.keepalive_timeout_secs,
+                prod.historical.keepalive_timeout_secs
+            );
+            assert_eq!(
+                config.historical.max_message_size,
+                prod.historical.max_message_size
+            );
+            assert_eq!(
+                config.historical.window_size_kb,
+                prod.historical.window_size_kb
+            );
+            assert_eq!(
+                config.historical.connection_window_size_kb,
+                prod.historical.connection_window_size_kb
+            );
+            assert_eq!(
+                config.historical.concurrent_requests,
+                prod.historical.concurrent_requests
+            );
+
+            // Streaming (TCP).
+            assert_eq!(config.streaming.hosts, prod.streaming.hosts);
+            assert_eq!(
+                config.streaming.connect_timeout_ms,
+                prod.streaming.connect_timeout_ms
+            );
+            assert_eq!(config.streaming.timeout_ms, prod.streaming.timeout_ms);
+            assert_eq!(
+                config.streaming.ping_interval_ms,
+                prod.streaming.ping_interval_ms
+            );
+            assert_eq!(config.streaming.ring_size, prod.streaming.ring_size);
+            assert_eq!(config.streaming.flush_mode, prod.streaming.flush_mode);
+            assert_eq!(config.streaming.wait_strategy, prod.streaming.wait_strategy);
+            assert_eq!(
+                config.streaming.wait_spin_iters,
+                prod.streaming.wait_spin_iters
+            );
+            assert_eq!(
+                config.streaming.wait_yield_iters,
+                prod.streaming.wait_yield_iters
+            );
+            assert_eq!(config.streaming.wait_park_us, prod.streaming.wait_park_us);
+            assert_eq!(config.streaming.consumer_cpu, prod.streaming.consumer_cpu);
+
+            // Reconnect cadence.
+            assert_eq!(config.reconnect.wait_ms, prod.reconnect.wait_ms);
+            assert_eq!(
+                config.reconnect.wait_rate_limited_ms,
+                prod.reconnect.wait_rate_limited_ms
+            );
+        }
+
+        #[test]
         fn config_default_toml_uses_canonical_section_names() {
             // The deserializer binds `[historical]` / `[streaming]`; the
             // internal vendor names `[mdds]` / `[fpss]` deserialize to

@@ -1,6 +1,6 @@
 # thetadatadx (TypeScript / Node.js)
 
-The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
+The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![npm](https://img.shields.io/npm/v/thetadatadx?logo=npm)](https://www.npmjs.com/package/thetadatadx)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
@@ -13,7 +13,7 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Fully typed** — every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
 - **Greeks on demand** — five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
@@ -52,7 +52,7 @@ Every historical method resolves a `Promise` of typed tick objects off the runti
 const eod = await client.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
 console.log(eod.length, eod[0].close);
 
-const bars = await client.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '60000' });
+const bars = await client.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '1m' });
 const exps = await client.historical.optionListExpirations('SPY');
 
 // Optional parameters — including a per-call timeout — ride in the trailing options object
@@ -188,17 +188,17 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-61 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every endpoint is a camelCase method on `Client`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every endpoint is a camelCase method on `client.historical`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

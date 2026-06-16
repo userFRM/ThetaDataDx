@@ -9,7 +9,7 @@ description: Run the local HTTP REST and WebSocket server speaking the v3 route 
 
 ## Download and run
 
-Prebuilt binaries are attached to each [GitHub Release](https://github.com/userFRM/ThetaDataDx/releases). No Rust toolchain and no Java terminal are required — download the archive for your platform, unpack it, and run the binary.
+Prebuilt binaries are attached to each [GitHub Release](https://github.com/userFRM/ThetaDataDx/releases). No Rust toolchain and nothing else to install locally — download the archive for your platform, unpack it, and run the binary.
 
 The binaries are not code-signed yet, so each operating system asks for a one-time confirmation the first time you launch one.
 

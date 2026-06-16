@@ -1,6 +1,6 @@
 # thetadatadx (Python)
 
-The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
+The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![PyPI](https://img.shields.io/pypi/v/thetadatadx?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
@@ -13,10 +13,10 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
 - **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
 
@@ -60,7 +60,7 @@ for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = client.historical.stock_history_ohlc("AAPL", "20240315", "1m")   # 1-minute bars
+bars = client.historical.stock_history_ohlc("AAPL", "20240315", interval="1m")   # 1-minute bars
 exps = client.historical.option_list_expirations("SPY")
 strikes = client.historical.option_list_strikes("SPY", exps[0])
 ```
@@ -164,6 +164,21 @@ with client.streaming(on_event) as session:
     time.sleep(60)   # the callback runs on the streaming thread — keep it fast
 ```
 
+Watch feed health from the main thread without touching the callback. The session resolves the client's observability getters directly: `millis_since_last_event()` is the staleness clock (a steadily growing value is the earliest sign of a wedged link), `ring_occupancy()` against `ring_capacity()` shows how close the consumer is to falling behind, and `dropped_event_count()` is the cumulative tally of events shed on a full ring:
+
+```python
+with client.streaming(on_event) as session:
+    session.subscribe(SecType.OPTION.full_trades())
+    while True:
+        time.sleep(5)
+        stale_ms = session.millis_since_last_event()   # None until the first frame
+        print(
+            f"stale={stale_ms}ms "
+            f"ring={session.ring_occupancy()}/{session.ring_capacity()} "
+            f"dropped={session.dropped_event_count()}"
+        )
+```
+
 > [!TIP]
 > The `with client.streaming(callback)` block opens the session on entry and drains
 > it cleanly on exit, so the callback has stopped firing by the time the block
@@ -173,7 +188,7 @@ with client.streaming(on_event) as session:
 
 ## Greeks calculator
 
-A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver — runs locally, no request required:
+A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required:
 
 ```python
 from thetadatadx import all_greeks, implied_volatility
@@ -210,7 +225,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-61 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
 
 | Category | Endpoints | Examples |
 |---|---|---|
