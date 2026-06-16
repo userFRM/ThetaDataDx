@@ -140,7 +140,7 @@ fn fpss_column_doc(name: &str) -> String {
         "market_bid" => "Calculated market bid (dollars), nudged from the quote bid.",
         "market_price" => "Integer midpoint of `market_bid` / `market_ask` (dollars).",
         "message" => "Human-readable error text from the server.",
-        "ms_of_day" => "Milliseconds since midnight (exchange-local) when the event was recorded.",
+        "ms_of_day" => "Milliseconds since midnight Eastern Time when the event was recorded.",
         "open" => "Opening price of the bar.",
         "open_interest" => "Number of outstanding open contracts.",
         "payload" => "Raw frame payload bytes, preserved for diagnostics.",
