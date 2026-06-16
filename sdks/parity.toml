@@ -2143,6 +2143,397 @@ typescript = true
 cpp = true
 ffi = true
 
+
+# ─── Historical async query surface ([[historical_async]]) ────────────
+#
+# Every buffered historical endpoint carries a non-blocking query
+# companion so callers can run a request off the calling thread without
+# managing their own threads. The shape is per-binding idiom:
+#
+#   python      — `<Endpoint>Builder.list_async()` awaitable terminal, the
+#                 async twin of the blocking `list()` collect.
+#   typescript  — the buffered `<endpoint>` method is itself `async` and
+#                 returns a `Promise`; there is no separate `_async` name.
+#   cpp         — `<endpoint>_async(...)` on the `Historical` view,
+#                 returning `std::future<std::vector<Row>>` over the
+#                 blocking member via `std::async`.
+#
+# There is no C ABI row: the async surface is a binding-layer concern
+# over the existing blocking `thetadatadx_<endpoint>_with_options`
+# symbols. C has no awaitable type — its idiom is callback / poll — so
+# the C ABI stays blocking-only by design.
+#
+# Like the streaming family, these terminals are endpoint-named methods
+# NOT covered by the `[[method]]` rows, so without this family a binding
+# could ship the async query on some endpoints and silently omit it on
+# others (or on a whole binding) with no checker noticing.
+
+[[historical_async]]
+name = "calendar_on_date"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "calendar_open_today"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "calendar_year"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_at_time_price"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_eod"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_price"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_list_dates"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_list_symbols"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_market_value"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_price"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "interest_rate_history_eod"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_at_time_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_at_time_trade"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_eod"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_all"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_eod"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_first_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_implied_volatility"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_second_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_third_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_open_interest"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_all"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_first_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_implied_volatility"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_second_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_third_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_contracts"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_dates"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_expirations"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_strikes"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_symbols"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_all"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_first_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_implied_volatility"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_second_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_third_order"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_market_value"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_open_interest"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_trade"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_at_time_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_at_time_trade"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_eod"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_ohlc_range"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_trade"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_trade_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_list_dates"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_list_symbols"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_market_value"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_ohlc"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_quote"
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_trade"
+python = true
+typescript = true
+cpp = true
+
 # ─── Client construction-from-file convenience ([[from_file]]) ────────
 #
 # Every standalone client class exposes a one-call file-construction

@@ -27,6 +27,10 @@ FetchContent_MakeAvailable(catch2)
 set(THETADATADX_CPP_TEST_SOURCES
     lifecycle.cpp
     history.cpp
+    # Async historical query surface — the `<endpoint>_async` companions
+    # returning std::future, cross-binding parity with the Python
+    # `<endpoint>_async` / TypeScript Promise data methods.
+    history_async.cpp
     fpss.cpp
     thetadatadx_client.cpp
     error_taxonomy.cpp
