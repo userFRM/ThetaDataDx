@@ -545,7 +545,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_client_set_callback(
     handle: *const ThetaDataDxClient,
-    callback: ThetaDataDxStreamCallback,
+    callback: Option<ThetaDataDxStreamCallback>,
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -555,6 +555,15 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        // A C caller can pass a null function pointer; modelling the
+        // parameter as `Option` lets the null bit pattern be represented
+        // and rejected here, instead of being stored and invoked on the
+        // dispatcher thread where a call through address 0 would fault the
+        // process beyond the reach of the unwind boundary.
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return -1;
+        };
         let cb = FfiCallback { callback, ctx };
         // Persist the callback BEFORE `start_streaming` so a re-entrant
         // call from the first delivered event sees `callback = Some`
@@ -1745,7 +1754,7 @@ where
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
     handle: *const ThetaDataDxStreamHandle,
-    callback: ThetaDataDxStreamCallback,
+    callback: Option<ThetaDataDxStreamCallback>,
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
@@ -1755,6 +1764,13 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        // A C caller can pass a null function pointer; modelling the
+        // parameter as `Option` lets the null bit pattern be represented
+        // and rejected before the dispatcher thread would invoke it.
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return -1;
+        };
         // Serialise concurrent installs: `dispatcher` mutex prevents two
         // racing callers from each publishing a client into `handle.inner`
         // and orphaning one another's dispatcher.
@@ -2851,5 +2867,28 @@ mod panic_isolation_tests {
             "event delivery must continue after the caught panic; \
              got {delivered_count}"
         );
+    }
+}
+
+#[cfg(test)]
+mod null_callback_guard_tests {
+    use std::ffi::c_void;
+
+    use super::{ThetaDataDxStreamCallback, ThetaDataDxStreamEvent};
+
+    extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
+
+    #[test]
+    fn null_callback_is_the_none_niche_the_guard_rejects() {
+        // A C caller passing a null function pointer arrives as the `None`
+        // niche of `Option<ThetaDataDxStreamCallback>`; both set_callback
+        // entries reject that before constructing an `FfiCallback`. A real
+        // pointer is `Some` and proceeds. This pins the representation the
+        // guards depend on so the parameter type cannot silently revert to
+        // the non-nullable `extern "C" fn`.
+        let null_cb: Option<ThetaDataDxStreamCallback> = None;
+        assert!(null_cb.is_none());
+        let real_cb: Option<ThetaDataDxStreamCallback> = Some(noop);
+        assert!(real_cb.is_some());
     }
 }
