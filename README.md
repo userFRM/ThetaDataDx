@@ -40,7 +40,7 @@ npm install thetadatadx        # TypeScript / Node.js
 cargo add thetadatadx          # Rust
 ```
 
-C++ ships as a single header plus a prebuilt library — see the [C++ guide](sdks/cpp/).
+C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up) — see the [C++ guide](sdks/cpp/).
 
 ## Quick start
 
