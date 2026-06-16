@@ -798,6 +798,7 @@ impl std::str::FromStr for Contract {
         // (digits, right byte, strike width) still surface their exact
         // errors with the repaired input in the message.
         const OCC21_SUFFIX_LEN: usize = 15; // YYMMDD(6) + right(1) + strike(8)
+
         // `trimmed.len()` is a byte count, so a non-ASCII input can reach
         // this length with `split` (byte index 5) landing mid-codepoint;
         // slicing there would panic. OCC-21 identifiers are ASCII by spec,
