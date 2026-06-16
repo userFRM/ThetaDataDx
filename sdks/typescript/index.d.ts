@@ -2,7 +2,7 @@
 /* eslint-disable */
 export declare class Client {
   /**
-   * Historical-data sub-namespace: `client.historical.stockHistoryEod(...)`.
+   * Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
    *
    * Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
    * inner client. No auth round-trip, no streaming-state mutation.
@@ -27,7 +27,8 @@ export declare class Client {
    * The config is snapshot at connect time: the `Config` handle may be
    * reused or mutated afterward without affecting this client.
    *
-   * ```js
+   * ```ts
+   * import { Credentials, Client } from "thetadatadx";
    * const creds = Credentials.fromFile("creds.txt");
    * const client = Client.connect(creds);
    * ```
@@ -642,8 +643,8 @@ export declare class ContractRef {
  * line 1 = email, line 2 = password), then pass the handle to a client
  * `connect(creds, config?)`.
  *
- * ```js
- * const { Credentials, Client } = require("@thetadatadx/sdk");
+ * ```ts
+ * import { Credentials, Client } from "thetadatadx";
  * const creds = Credentials.fromFile("creds.txt");
  * const client = Client.connect(creds);
  * ```
@@ -717,17 +718,17 @@ export declare class FlatFilesNamespace {
  * the Nexus session at connect time.
  *
  * The full historical / list / snapshot / at-time / flat-files surface
- * is identical to the unified client, so `historicalClient.stockHistoryEod(...)`
- * behaves exactly like `client.stockHistoryEod(...)`. The streaming and
+ * is identical to the unified client, so `historicalClient.stockHistoryEOD(...)`
+ * behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
  * subscription methods are simply not present: there is no
  * `startStreaming` / `subscribe` on this class, so a historical-only handle
  * cannot open a streaming slot. Use `StreamingClient` for streaming, or the
  * unified `Client` when you need both surfaces.
  *
- * ```js
- * const { HistoricalClient, Config } = require("@thetadatadx/sdk");
+ * ```ts
+ * import { HistoricalClient } from "thetadatadx";
  * const historical = HistoricalClient.connectFromFile("creds.txt");
- * const eod = await historical.stockHistoryEod("AAPL", "20240101", "20240301");
+ * const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
  * ```
  */
 export declare class HistoricalClient {
@@ -2423,8 +2424,8 @@ export declare class SecType {
  * without the bundled `Client` taking over the Nexus session
  * at connect time.
  *
- * ```js
- * const { StreamingClient, Config, Contract } = require("@thetadatadx/sdk");
+ * ```ts
+ * import { StreamingClient, Contract } from "thetadatadx";
  * const fpss = StreamingClient.connectFromFile("creds.txt");
  * fpss.startStreaming((event) => console.log(event.kind, event));
  * fpss.subscribe(Contract.stock("AAPL").quote());
@@ -2466,7 +2467,7 @@ export declare class StreamingClient {
    * slow callback, so the upstream connection stays healthy regardless
    * of callback speed.
    */
-  startStreaming(callback: TsfnCallback): void
+  startStreaming(callback: ((arg: StreamEvent) => void)): void
   /**
    * Whether the FPSS TLS connection is currently open. Returns `false`
    * when the dispatcher thread has panicked — no events are arriving

@@ -55,7 +55,7 @@ use thetadatadx::DispatcherSession;
 use crate::fluent::Subscription;
 use crate::{
     buffered_event_to_typed, config_or_production, fpss_event_to_buffered, runtime, to_napi_err,
-    Config, Credentials, TsfnCallback,
+    Config, Credentials, StreamEvent, TsfnCallback,
 };
 
 /// Snapshot of the parameters required to open an FPSS TLS connection.
@@ -146,8 +146,8 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
 /// without the bundled `Client` taking over the Nexus session
 /// at connect time.
 ///
-/// ```js
-/// const { StreamingClient, Config, Contract } = require("@thetadatadx/sdk");
+/// ```ts
+/// import { StreamingClient, Contract } from "thetadatadx";
 /// const fpss = StreamingClient.connectFromFile("creds.txt");
 /// fpss.startStreaming((event) => console.log(event.kind, event));
 /// fpss.subscribe(Contract.stock("AAPL").quote());
@@ -385,7 +385,22 @@ impl StreamingClient {
     /// slow callback, so the upstream connection stays healthy regardless
     /// of callback speed.
     #[napi(js_name = "startStreaming")]
-    pub fn start_streaming(&self, callback: TsfnCallback) -> napi::Result<()> {
+    pub fn start_streaming(
+        &self,
+        // The callback parameter is spelled with the inline
+        // `ThreadsafeFunction<StreamEvent, …>` rather than the
+        // `TsfnCallback` alias so napi-rs emits a typed
+        // `(event: StreamEvent) => void` signature into `index.d.ts`. A bare
+        // alias name would surface in the published types as an unresolved
+        // identifier, leaving the callback parameter untyped for callers.
+        callback: napi::threadsafe_function::ThreadsafeFunction<
+            StreamEvent,
+            (),
+            StreamEvent,
+            napi::Status,
+            false,
+        >,
+    ) -> napi::Result<()> {
         self.start_with_callback(Arc::new(callback))
     }
 

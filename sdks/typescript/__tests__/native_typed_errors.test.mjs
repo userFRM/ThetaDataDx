@@ -406,3 +406,81 @@ describe('timeoutMs input-validation parity (native)', () => {
     }
   });
 });
+
+describe('non-negative integer query-param input-validation parity (native)', () => {
+  // The bounded integer filters (`maxDte`, `strikeRange` — days-to-expiry and
+  // strike windows that are counts, never negative) ride in the per-endpoint
+  // options object as JS `number`s (IEEE-754 doubles). Typing the napi field
+  // as `i32` would route the value through V8's `ToInt32`, which silently
+  // wraps a hostile or oversized input — `3e9` becomes a negative count,
+  // `NaN`/`Infinity` become `0`, and a fractional value is truncated — each
+  // the opposite of the caller's intent. The field is taken as a `number` and
+  // validated, so a non-finite, negative, fractional, or out-of-range value
+  // rejects as `InvalidParameterError` (the same class the Python binding
+  // raises as `ValueError` for the identical bad input) rather than coercing.
+  // Validation runs synchronously before the request task is spawned, so the
+  // Promise rejects regardless of network state.
+  const badValues = [
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['a negative value', -1],
+    ['a fractional value', 1.5],
+    ['an above-i32-range value', 3e9],
+  ];
+
+  for (const [label, value] of badValues) {
+    it(`optionListContracts rejects ${label} maxDte as InvalidParameterError`, async (t) => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const client = tryConnect(mod);
+      if (!client) {
+        t.skip('no credentials available to build a client for the endpoint surface');
+        return;
+      }
+
+      await assert.rejects(
+        () => client.historical.optionListContracts('quote', 'AAPL', '20240101', { maxDte: value }),
+        (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+        `a ${label} maxDte must reject as InvalidParameterError, not wrap through ToInt32`,
+      );
+    });
+
+    it(`optionSnapshotQuote rejects ${label} strikeRange as InvalidParameterError`, async (t) => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const client = tryConnect(mod);
+      if (!client) {
+        t.skip('no credentials available to build a client for the endpoint surface');
+        return;
+      }
+
+      await assert.rejects(
+        () => client.historical.optionSnapshotQuote('AAPL', '20240119', { strikeRange: value }),
+        (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+        `a ${label} strikeRange must reject as InvalidParameterError, not wrap through ToInt32`,
+      );
+    });
+  }
+
+  it('optionListContracts accepts a valid non-negative whole maxDte', async (t) => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const client = tryConnect(mod);
+    if (!client) {
+      t.skip('no credentials available to build a client for the endpoint surface');
+      return;
+    }
+
+    // A valid whole non-negative filter must pass validation and reach the
+    // core client. The round-trip may surface a data/network error, but it
+    // must never be an InvalidParameterError from the query-param guard.
+    try {
+      await client.historical.optionListContracts('quote', 'AAPL', '20240101', { maxDte: 30 });
+    } catch (err) {
+      assert.ok(
+        !(err instanceof mod.InvalidParameterError),
+        `a valid integer maxDte must not be rejected by validation: ${err.message}`,
+      );
+    }
+  });
+});

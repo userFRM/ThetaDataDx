@@ -312,7 +312,7 @@ pub struct OptionListStrikesOptions {
 #[derive(Default)]
 pub struct OptionListContractsOptions {
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -332,9 +332,9 @@ pub struct OptionSnapshotOHLCOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -356,7 +356,7 @@ pub struct OptionSnapshotTradeOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -378,9 +378,9 @@ pub struct OptionSnapshotQuoteOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -402,9 +402,9 @@ pub struct OptionSnapshotOpenInterestOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -426,9 +426,9 @@ pub struct OptionSnapshotMarketValueOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -460,9 +460,9 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
@@ -496,9 +496,9 @@ pub struct OptionSnapshotGreeksAllOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
@@ -532,9 +532,9 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
@@ -568,9 +568,9 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
@@ -604,9 +604,9 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
@@ -630,9 +630,9 @@ pub struct OptionHistoryEODOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -658,7 +658,7 @@ pub struct OptionHistoryOHLCOptions {
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -686,9 +686,9 @@ pub struct OptionHistoryTradeOptions {
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -718,9 +718,9 @@ pub struct OptionHistoryQuoteOptions {
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -750,9 +750,9 @@ pub struct OptionHistoryTradeQuoteOptions {
     /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     pub exclusive: Option<bool>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -776,9 +776,9 @@ pub struct OptionHistoryOpenInterestOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -812,9 +812,9 @@ pub struct OptionHistoryGreeksEODOptions {
     /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     pub underlyer_use_nbbo: Option<bool>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -848,7 +848,7 @@ pub struct OptionHistoryGreeksAllOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -884,9 +884,9 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -924,7 +924,7 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -960,9 +960,9 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1000,7 +1000,7 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1036,9 +1036,9 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1076,7 +1076,7 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1112,9 +1112,9 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1152,7 +1152,7 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1188,9 +1188,9 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Start date YYYYMMDD
     pub start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End date YYYYMMDD
@@ -1214,9 +1214,9 @@ pub struct OptionAtTimeTradeOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1236,9 +1236,9 @@ pub struct OptionAtTimeQuoteOptions {
     /// Option side. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
-    pub max_dte: Option<i32>,
+    pub max_dte: Option<f64>,
     /// Strike range filter
-    pub strike_range: Option<i32>,
+    pub strike_range: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -2534,7 +2534,7 @@ impl HistoricalView {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
-        let max_dte = options.max_dte;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
@@ -2566,7 +2566,7 @@ impl HistoricalView {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
-        let max_dte = options.max_dte;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
@@ -2610,8 +2610,8 @@ impl HistoricalView {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
@@ -2664,7 +2664,7 @@ impl HistoricalView {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
@@ -2714,8 +2714,8 @@ impl HistoricalView {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
@@ -2769,8 +2769,8 @@ impl HistoricalView {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
@@ -2821,8 +2821,8 @@ impl HistoricalView {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
@@ -2884,8 +2884,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -2966,8 +2966,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -3048,8 +3048,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -3130,8 +3130,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -3212,8 +3212,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -3290,8 +3290,8 @@ impl HistoricalView {
         let end_date = normalize_date(end_date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -3337,8 +3337,8 @@ impl HistoricalView {
         let end_date = normalize_date(end_date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -3400,7 +3400,7 @@ impl HistoricalView {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -3461,7 +3461,7 @@ impl HistoricalView {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -3536,8 +3536,8 @@ impl HistoricalView {
         let right = options.right;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -3597,8 +3597,8 @@ impl HistoricalView {
         let right = options.right;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -3674,8 +3674,8 @@ impl HistoricalView {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -3739,8 +3739,8 @@ impl HistoricalView {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -3820,8 +3820,8 @@ impl HistoricalView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -3885,8 +3885,8 @@ impl HistoricalView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -3959,8 +3959,8 @@ impl HistoricalView {
         let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -4012,8 +4012,8 @@ impl HistoricalView {
         let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -4087,8 +4087,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let version = options.version;
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -4154,8 +4154,8 @@ impl HistoricalView {
         let rate_value = options.rate_value;
         let version = options.version;
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -4239,7 +4239,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -4316,7 +4316,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -4409,8 +4409,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -4486,8 +4486,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -4582,7 +4582,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -4659,7 +4659,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -4752,8 +4752,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -4829,8 +4829,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -4925,7 +4925,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5002,7 +5002,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5095,8 +5095,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5172,8 +5172,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5268,7 +5268,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5345,7 +5345,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5438,8 +5438,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5515,8 +5515,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5610,7 +5610,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5687,7 +5687,7 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5779,8 +5779,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -5856,8 +5856,8 @@ impl HistoricalView {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -5944,8 +5944,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
@@ -5993,8 +5993,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
@@ -6053,8 +6053,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
@@ -6102,8 +6102,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
@@ -7941,7 +7941,7 @@ impl HistoricalClient {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
-        let max_dte = options.max_dte;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
             if let Some(value) = max_dte {
@@ -7973,7 +7973,7 @@ impl HistoricalClient {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
-        let max_dte = options.max_dte;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
@@ -8017,8 +8017,8 @@ impl HistoricalClient {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
@@ -8071,7 +8071,7 @@ impl HistoricalClient {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
@@ -8121,8 +8121,8 @@ impl HistoricalClient {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
@@ -8176,8 +8176,8 @@ impl HistoricalClient {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
@@ -8228,8 +8228,8 @@ impl HistoricalClient {
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
@@ -8291,8 +8291,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -8373,8 +8373,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -8455,8 +8455,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -8537,8 +8537,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -8619,8 +8619,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
@@ -8697,8 +8697,8 @@ impl HistoricalClient {
         let end_date = normalize_date(end_date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -8744,8 +8744,8 @@ impl HistoricalClient {
         let end_date = normalize_date(end_date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -8807,7 +8807,7 @@ impl HistoricalClient {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -8868,7 +8868,7 @@ impl HistoricalClient {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -8943,8 +8943,8 @@ impl HistoricalClient {
         let right = options.right;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9004,8 +9004,8 @@ impl HistoricalClient {
         let right = options.right;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9081,8 +9081,8 @@ impl HistoricalClient {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9146,8 +9146,8 @@ impl HistoricalClient {
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9227,8 +9227,8 @@ impl HistoricalClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9292,8 +9292,8 @@ impl HistoricalClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9366,8 +9366,8 @@ impl HistoricalClient {
         let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9419,8 +9419,8 @@ impl HistoricalClient {
         let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9494,8 +9494,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let version = options.version;
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -9561,8 +9561,8 @@ impl HistoricalClient {
         let rate_value = options.rate_value;
         let version = options.version;
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -9646,7 +9646,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9723,7 +9723,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9816,8 +9816,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -9893,8 +9893,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -9989,7 +9989,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10066,7 +10066,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -10159,8 +10159,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10236,8 +10236,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -10332,7 +10332,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10409,7 +10409,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -10502,8 +10502,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10579,8 +10579,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -10675,7 +10675,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10752,7 +10752,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -10845,8 +10845,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -10922,8 +10922,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -11017,7 +11017,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -11094,7 +11094,7 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let strike_range = options.strike_range;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -11186,8 +11186,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -11263,8 +11263,8 @@ impl HistoricalClient {
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
@@ -11351,8 +11351,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
@@ -11400,8 +11400,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
@@ -11460,8 +11460,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
@@ -11509,8 +11509,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let strike = options.strike;
         let right = options.right;
-        let max_dte = options.max_dte;
-        let strike_range = options.strike_range;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
