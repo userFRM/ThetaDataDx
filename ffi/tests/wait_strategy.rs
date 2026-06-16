@@ -40,22 +40,26 @@ fn wait_strategy_presets_round_trip() {
     assert!(!cfg.is_null());
 
     // Default preset is LowLatency (0), preserving historical behaviour.
-    // SAFETY: see the module-level note.
+    // SAFETY: `cfg` is the non-null live handle from `thetadatadx_config_production`,
+    // not yet freed; `get_wait_strategy` only reads it and returns rc + mode by value.
     let (rc, mode) = unsafe { get_wait_strategy(cfg) };
     assert_eq!(rc, 0);
     assert_eq!(mode, 0);
 
     for want in 0..=3 {
-        // SAFETY: see the module-level note.
+        // SAFETY: `cfg` is the same live, unfreed handle; `set_wait_strategy`
+        // mutates its wait-strategy field in place on this single thread.
         assert_eq!(unsafe { set_wait_strategy(cfg, want) }, 0);
-        // SAFETY: see the module-level note.
+        // SAFETY: `cfg` is the live handle just written; `get_wait_strategy`
+        // reads back the field `set_wait_strategy` set on the line above.
         let (rc, got) = unsafe { get_wait_strategy(cfg) };
         assert_eq!(rc, 0);
         assert_eq!(got, want);
     }
 
     // Out-of-range preset is rejected.
-    // SAFETY: see the module-level note.
+    // SAFETY: `cfg` is the live, unfreed handle; `set_wait_strategy` validates
+    // the `9` argument and returns -1 without mutating `cfg`.
     assert_eq!(unsafe { set_wait_strategy(cfg, 9) }, -1);
 
     // SAFETY: `cfg` is owned here and freed exactly once.
@@ -70,7 +74,9 @@ fn wait_tuning_round_trips() {
     let mut spin = 0;
     let mut yield_ = 0;
     let mut park = 0;
-    // SAFETY: see the module-level note.
+    // SAFETY: `cfg` is the live, unfreed handle; each wait-tuning set/get call
+    // reads or mutates `cfg` in place, and `spin`/`yield_`/`park` are valid
+    // live stack out-params for the duration of the block.
     unsafe {
         assert_eq!(thetadatadx_config_set_wait_spin_iters(cfg, 16), 0);
         assert_eq!(thetadatadx_config_set_wait_yield_iters(cfg, 2), 0);
@@ -95,7 +101,8 @@ fn consumer_cpu_uses_negative_sentinel_for_unpinned() {
     let mut core = 0;
     let mut pinned = -1;
     let mut cleared = 0;
-    // SAFETY: see the module-level note.
+    // SAFETY: `cfg` is the live, unfreed handle; the consumer-cpu get/set calls
+    // read or mutate `cfg` in place, and `core` is a valid live stack out-param.
     unsafe {
         // Default is unpinned: the getter writes the -1 sentinel.
         assert_eq!(thetadatadx_config_get_consumer_cpu(cfg, &mut core), 0);
