@@ -122,16 +122,18 @@ fn synthetic_option_blob() -> Vec<u8> {
 /// Manual derivation:
 /// - header columns (price_type column suppressed by the writer):
 ///   `symbol,expiration,strike,right,ms_of_day,bid,date`.
-/// - row 1: contract prefix `SPY,20240315,580000,C` plus
-///   `34200000,123.45,20240315`. Bid=12345 with price_type=8 →
+/// - row 1: contract prefix `SPY,20240315,580,C` plus
+///   `34200000,123.45,20240315`. The wire strike of 580000 thousandths
+///   renders as 580 dollars, the same unit every other output surface
+///   emits. Bid=12345 with price_type=8 →
 ///   `12345 / 10^(10-8) = 12345 / 100 = 123.45`.
 /// - row 2: contract prefix is the same; ms_of_day delta +100 →
 ///   34200100; bid delta +5 → 12350 → 123.5 (Rust f64 Display drops
 ///   the trailing zero); date carried forward → 20240315.
 const EXPECTED_CSV: &str = "\
 symbol,expiration,strike,right,ms_of_day,bid,date
-SPY,20240315,580000,C,34200000,123.45,20240315
-SPY,20240315,580000,C,34200100,123.5,20240315
+SPY,20240315,580,C,34200000,123.45,20240315
+SPY,20240315,580,C,34200100,123.5,20240315
 ";
 
 #[test]
