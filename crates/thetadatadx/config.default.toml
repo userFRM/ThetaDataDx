@@ -15,7 +15,9 @@ tls = true
 keepalive_time_secs = 30
 keepalive_timeout_secs = 10
 
-# Max inbound gRPC message size (bytes). Default 4MB.
+# Max inbound gRPC message size (bytes). Default 4MB. This is the canonical
+# size knob. The MB-denominated [grpc] max_message_size_mb below, when set,
+# overrides this value; leave it unset to keep this byte value in force.
 max_message_size = 4194304
 
 # ── Real-Time Streaming (TLS/TCP) ────────────────────────────────────────────
@@ -73,11 +75,9 @@ wait_park_us = 50
 consumer_cpu = -1
 
 # ── Credentials ──────────────────────────────────────────────────────────────
-# Path to credentials file (line 1 = email, line 2 = password).
-# Can also be overridden programmatically via Credentials::new().
-
-[auth]
-creds_file = "creds.txt"
+# Credentials are loaded separately from this file, via the credential API
+# (Credentials::from_file("creds.txt") or Credentials::new(email, password))
+# passed to the client constructor. They are not part of this tuning config.
 
 # ── Alternate Server Regions ─────────────────────────────────────────────────
 # Uncomment to use staging or dev servers. These are NOT stable.
