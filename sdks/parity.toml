@@ -286,6 +286,12 @@ python = true
 typescript = true
 cpp = true
 
+[[class]]
+name = "HistoricalConfig.request_timeout_secs"
+python = true
+typescript = true
+cpp = true
+
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #
 # Streaming reconnect policy + per-class attempt budgets + stable-window

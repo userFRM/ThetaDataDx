@@ -280,14 +280,14 @@ pub mod streaming {
     /// the one every language binding exposes.
     ///
     /// A Rust caller that needs an exotic backoff the presets do not
-    /// model can instead supply any type implementing [`WaitStrategy`] to
+    /// model can instead supply any type implementing `WaitStrategy` to
     /// [`crate::fpss::StreamingClient::for_each_with_wait_strategy`]. The
     /// strategy is monomorphised into the drain loop, so the per-poll
     /// cost is the caller's `wait_for` body with no indirection.
     ///
-    /// [`BusySpin`] is the lowest-latency preset (a true busy spin);
-    /// [`BusySpinWithSpinLoopHint`] adds a `spin_loop` hint so the core
-    /// can save power or switch hyper-threads; [`Sleep`] parks the thread
+    /// `BusySpin` is the lowest-latency preset (a true busy spin);
+    /// `BusySpinWithSpinLoopHint` adds a `spin_loop` hint so the core
+    /// can save power or switch hyper-threads; `Sleep` parks the thread
     /// for a fixed duration between polls.
     ///
     /// ```rust,ignore

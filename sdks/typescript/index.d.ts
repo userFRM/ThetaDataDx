@@ -101,6 +101,20 @@ export declare class Config {
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
+   * Set the default per-request deadline (seconds) for historical
+   * queries. Bounds every request that did not set its own deadline,
+   * so a live-but-silent stream resolves to a timeout instead of
+   * blocking forever. `0n` disables the default. Default `300n`
+   * (5 minutes). Seconds are taken as a `BigInt` for parity with the
+   * other `*Secs` knobs.
+   */
+  setRequestTimeoutSecs(secs: bigint): void
+  /**
+   * Current historical `request_timeout_secs` setting in seconds
+   * (default `300n`; `0n` = no default deadline).
+   */
+  get requestTimeoutSecs(): bigint
+  /**
    * Set the streaming reconnect policy.
    *
    * - `"auto"` (default): auto-reconnect with the per-class attempt

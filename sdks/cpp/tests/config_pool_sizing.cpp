@@ -26,6 +26,23 @@ TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][poo
     REQUIRE(cfg.get_concurrent_requests() == 32u);
 }
 
+TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
+          "[config][pool_sizing][offline]") {
+    auto cfg = thetadatadx::Config::production();
+    // The readback getter mirrors the Python `Config.request_timeout_secs`
+    // and TypeScript `requestTimeoutSecs` surfaces, so a value set
+    // through the C++ wrapper reads back through the same wrapper.
+    // Production seeds the 300s default per-request deadline.
+    REQUIRE(cfg.get_request_timeout_secs() == 300u);
+    cfg.set_request_timeout_secs(45);
+    REQUIRE(cfg.get_request_timeout_secs() == 45u);
+    cfg.set_request_timeout_secs(600);
+    REQUIRE(cfg.get_request_timeout_secs() == 600u);
+    // 0 disables the default deadline.
+    cfg.set_request_timeout_secs(0);
+    REQUIRE(cfg.get_request_timeout_secs() == 0u);
+}
+
 TEST_CASE("Config historical_host / historical_port setters + getters round-trip",
           "[config][historical][offline]") {
     // The historical endpoint overrides mirror the Python `Config.historical_host` /
