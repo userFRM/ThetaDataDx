@@ -216,7 +216,7 @@ describe('Config setter input-validation parity (native)', () => {
     // connect-time validation of `streaming.ring_size` is unchanged.
     const cfg = mod.Config.production();
     assert.throws(
-      () => cfg.setStreamingRingSize(100),
+      () => cfg.setStreamingRingSize(100n),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'a non-power-of-two ring size must reclassify to InvalidParameterError',
     );
@@ -228,7 +228,7 @@ describe('Config setter input-validation parity (native)', () => {
 
     const cfg = mod.Config.production();
     assert.doesNotThrow(
-      () => cfg.setStreamingRingSize(65536),
+      () => cfg.setStreamingRingSize(65536n),
       'a valid power-of-two ring size must be accepted',
     );
   });
