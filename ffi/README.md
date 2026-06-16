@@ -39,7 +39,7 @@ Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_op
 
 | Function | Description |
 |----------|-------------|
-| `thetadatadx_client_set_callback` | Register the user callback on the unified handle. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
+| `thetadatadx_client_set_callback` | Register the user callback on the unified handle. The streaming delivery thread invokes it for every typed FPSS event under `catch_unwind`. |
 | `thetadatadx_client_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` (per-contract or full-stream) |
 | `thetadatadx_client_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_client_is_streaming` | Check if FPSS connection is live |
@@ -54,7 +54,7 @@ Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_op
 | Function | Description |
 |----------|-------------|
 | `thetadatadx_streaming_connect` | Connect standalone FPSS client |
-| `thetadatadx_streaming_set_callback` | Register the user callback. The event-dispatch consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
+| `thetadatadx_streaming_set_callback` | Register the user callback. The streaming delivery thread invokes it for every typed FPSS event under `catch_unwind`. |
 | `thetadatadx_streaming_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_streaming_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_streaming_is_authenticated` | Check if FPSS is authenticated |

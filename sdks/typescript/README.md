@@ -32,7 +32,7 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 
 > [!TIP]
 > Credentials can come from a `creds.txt` file (email on line 1, password on
-> line 2) via `connectFromFile`, or inline via `connect(email, password)`.
+> line 2) via `connectFromFile`, or inline via `connect(new Credentials(email, password))`.
 
 ```typescript
 import { Client } from 'thetadatadx';

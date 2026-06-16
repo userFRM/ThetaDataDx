@@ -1227,7 +1227,7 @@ function genRust(): string {
     for d in &early { println!("  {}  closes={}", d.date, d.close_time); }`)
 
     case 'live_quote_monitor': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData};
+use thetadatadx::fpss::{StreamEvent, StreamData};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
@@ -1239,8 +1239,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     println!("{:<8}  {:>8}  {:>8}  {:>8}  {:>8}", "Symbol", "Bid", "Ask", "Spread", "Mid");
     println!("{}", "-".repeat(50));
 
-    client.stream().start_streaming(|event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+    client.stream().start_streaming(|event: &StreamEvent| {
+        if let StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) = event {
             let spread = ask - bid;
             let mid = (bid + ask) / 2.0;
             println!("{:<8}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",
@@ -1258,7 +1258,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'trade_tape': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData};
+use thetadatadx::fpss::{StreamEvent, StreamData};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
@@ -1270,8 +1270,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     println!("{:>12}  {:<8}  {:>8}  {:>8}", "Time", "Symbol", "Price", "Size");
     println!("{}", "-".repeat(45));
 
-    client.stream().start_streaming(|event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Trade {
+    client.stream().start_streaming(|event: &StreamEvent| {
+        if let StreamEvent::Data(StreamData::Trade {
             contract, price, size, ms_of_day, ..
         }) = event {
             let h = ms_of_day / 3_600_000;
@@ -1292,7 +1292,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'option_flow_scanner': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData};
+use thetadatadx::fpss::{StreamEvent, StreamData};
 use thetadatadx::fpss::protocol::SecTypeExt;
 use thetadatadx::SecType;
 
@@ -1307,8 +1307,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     println!("{:<35}  {:>6}  {:>8}  {:>12}", "Contract", "Size", "Price", "Premium");
     println!("{}", "-".repeat(70));
 
-    client.stream().start_streaming(move |event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+    client.stream().start_streaming(move |event: &StreamEvent| {
+        if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
             if *size >= min_size {
                 let name = format!(
                     "{} {} {} {}",
@@ -1331,7 +1331,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'live_option_chain': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData};
+use thetadatadx::fpss::{StreamEvent, StreamData};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
@@ -1342,8 +1342,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    client.stream().start_streaming(|event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+    client.stream().start_streaming(|event: &StreamEvent| {
+        if let StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) = event {
             let name = format!(
                 "{} {} {} {}",
                 contract.symbol,

@@ -13,8 +13,8 @@ It owns normalized endpoint names, parameter semantics, REST paths, return kinds
 projection call-shapes, reusable parameter groups, and endpoint templates. The
 build validates that surface spec against the wire contract in `mdds.proto`.
 
-Earlier revisions of this crate shipped two separate proto files extracted
-from the Java terminal (`endpoints.proto` + `v3_endpoints.proto`). Those have
+Earlier revisions of this crate shipped two separate proto files
+(`endpoints.proto` + `v3_endpoints.proto`). Those have
 been superseded by the single-file definition. Do not hand-edit `mdds.proto`;
 request an updated file from ThetaData when the wire protocol changes.
 
