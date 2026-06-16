@@ -267,7 +267,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 contract: (**contract).clone(),
             },
             fpss::StreamControl::Disconnected { reason } => BufferedEvent::Disconnected {
-                reason: *reason as i32,
+                reason: i32::from(*reason as i16),
             },
             fpss::StreamControl::LoginSuccess { permissions } => BufferedEvent::LoginSuccess {
                 permissions: permissions.clone(),
@@ -283,17 +283,17 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
             fpss::StreamControl::Reconnected => BufferedEvent::Reconnected,
             fpss::StreamControl::ReconnectedServer => BufferedEvent::ReconnectedServer,
             fpss::StreamControl::Reconnecting { reason, attempt, delay_ms } => BufferedEvent::Reconnecting {
-                reason: *reason as i32,
+                reason: i32::from(*reason as i16),
                 attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                 delay_ms: *delay_ms,
             },
             fpss::StreamControl::ReconnectsExhausted { reason, attempts } => BufferedEvent::ReconnectsExhausted {
-                reason: *reason as i32,
+                reason: i32::from(*reason as i16),
                 attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
             },
             fpss::StreamControl::ReqResponse { req_id, result } => BufferedEvent::ReqResponse {
                 req_id: *req_id,
-                result: *result as i32,
+                result: i32::from(*result as u8),
             },
             fpss::StreamControl::Restart => BufferedEvent::Restart,
             fpss::StreamControl::ServerError { message } => BufferedEvent::ServerError {

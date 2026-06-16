@@ -512,7 +512,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::Disconnected,
                         disconnected: ThetaDataDxStreamDisconnected {
-                            reason: *reason as i32,
+                            reason: i32::from(*reason as i16),
                         },
                         market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
@@ -800,7 +800,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::Reconnecting,
                         reconnecting: ThetaDataDxStreamReconnecting {
-                            reason: *reason as i32,
+                            reason: i32::from(*reason as i16),
                             attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                             delay_ms: *delay_ms,
                         },
@@ -837,7 +837,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::ReconnectsExhausted,
                         reconnects_exhausted: ThetaDataDxStreamReconnectsExhausted {
-                            reason: *reason as i32,
+                            reason: i32::from(*reason as i16),
                             attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                         },
                         market_value: ZERO_MARKET_VALUE,
@@ -874,7 +874,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                         kind: ThetaDataDxStreamEventKind::ReqResponse,
                         req_response: ThetaDataDxStreamReqResponse {
                             req_id: *req_id,
-                            result: *result as i32,
+                            result: i32::from(*result as u8),
                         },
                         market_value: ZERO_MARKET_VALUE,
                         ohlcvc: ZERO_OHLCVC,
