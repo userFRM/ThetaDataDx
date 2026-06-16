@@ -1,6 +1,6 @@
 # thetadatadx
 
-The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — from one async client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
+The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — from one async client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg?logo=rust)](https://crates.io/crates/thetadatadx)
 [![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx)
@@ -12,9 +12,9 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
 - **Typed errors** — one `Error` enum across every transport, plus a dedicated `FpssError` for the streaming path.
 - **DataFrames on demand** — opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
@@ -64,7 +64,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 
-61 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery — the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
+65 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery — the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
 
 ## Streaming
 
@@ -148,7 +148,7 @@ use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamingClient, StreamEvent};
 
 let creds = Credentials::from_file("creds.txt")?;
-let hosts = DirectConfig::production().fpss.hosts;
+let hosts = DirectConfig::production().streaming.hosts;
 let client = StreamingClient::builder(&creds, &hosts).ring_size(8192).build()?;
 
 client.subscribe(Contract::stock("AAPL").quote())?;
@@ -179,7 +179,7 @@ let path = thetadatadx::flatfile_request(
 
 ## Greeks calculator
 
-A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver — runs locally, no request required.
+A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required.
 
 ## DataFrames
 

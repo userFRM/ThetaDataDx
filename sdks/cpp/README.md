@@ -1,6 +1,6 @@
 # thetadatadx (C++)
 
-The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; no Java terminal, no JVM, no local proxy.
+The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://isocpp.org)
@@ -12,10 +12,10 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
-- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
 - **Header plus one library** — a single `thetadatadx.hpp` over a prebuilt C ABI shared library.
 
@@ -157,7 +157,7 @@ fpss.subscribe(thetadatadx::SecType::option().full_trades());   // the callback 
 
 ## Greeks calculator
 
-A full Black-Scholes calculator — 23 Greeks plus an implied-volatility solver — runs locally, no connection required:
+A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no connection required:
 
 ```cpp
 auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
@@ -191,12 +191,12 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-61 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |

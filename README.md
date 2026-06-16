@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust** — one Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData — no Java terminal, no JVM.
+High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust** — one Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData — nothing to install and run locally.
 
 [![Rust CI](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Python SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml)
@@ -25,10 +25,10 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 61 typed endpoints.
+- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip** — 23 Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **The same surface in every language** — identical methods and identical typed errors, Python through Rust.
 - **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
 
@@ -224,13 +224,13 @@ with client.streaming(on_event) as session:
 
 ## Endpoint coverage
 
-61 typed endpoints across stocks, options, indices, the market calendar, and
+65 typed endpoints across stocks, options, indices, the market calendar, and
 interest rates, plus real-time streaming and a local Greeks calculator.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 34 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |

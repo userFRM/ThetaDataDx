@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   // Intraday 1-minute bars.
   console.log("=== AAPL 1-min OHLC (Mar 15, 2024) ===");
   const bars = await client.historical.stockHistoryOHLC("AAPL", "20240315", {
-    interval: "60000",
+    interval: "1m",
   });
   for (const bar of bars.slice(0, 5)) {
     console.log(

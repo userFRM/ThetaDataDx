@@ -5,7 +5,7 @@ description: Install the SDK, save your credentials, and make your first request
 
 # Getting Started
 
-ThetaDataDx connects directly to ThetaData's servers — no Java terminal process to install or babysit. Pick a language, install, save your credentials, and make a request.
+ThetaDataDx connects directly to ThetaData's servers — nothing to install and babysit locally. Pick a language, install, save your credentials, and make a request.
 
 ## 1. Install
 

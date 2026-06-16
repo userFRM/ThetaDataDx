@@ -35,15 +35,20 @@ hosts = [
 # Connection timeout per server attempt (ms)
 connect_timeout = 2000
 
-# Read timeout — how long to wait for data before considering disconnected (ms)
-read_timeout = 10000
+# Read timeout — how long to wait for data before the link is considered
+# dead (ms). The server heartbeats every ~100 ms on a quiet session, so this
+# default is ~30 missed heartbeats: a dead link is declared quickly.
+read_timeout = 3000
 
-# Heartbeat interval (ms). The streaming protocol requires pings every 100ms.
-ping_interval = 100
+# Client heartbeat interval (ms). The server's own ~100 ms heartbeat is the
+# primary liveness signal; this client ping proves write-side health at a
+# 4 Hz cadence without adding inbound-frame pressure on a recovering upstream.
+ping_interval = 250
 
-# Reconnect wait after involuntary disconnect (ms)
-# FPSSClient.RECONNECT_DELAY_MS = 2000 at runtime in the Java terminal.
-reconnect_wait = 2000
+# Initial reconnect wait after an involuntary disconnect (ms). The auto-
+# reconnect driver doubles this per consecutive attempt up to its cap, then
+# applies jitter so a fleet does not reconnect in lockstep.
+reconnect_wait = 250
 
 # Reconnect wait after TooManyRequests (ms). ThetaData enforces rate limits.
 reconnect_wait_rate_limited = 130000
