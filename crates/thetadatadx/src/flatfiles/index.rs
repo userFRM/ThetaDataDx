@@ -104,6 +104,23 @@ pub(crate) fn parse_header(blob: &[u8]) -> Result<BlobHeader, Error> {
     })
 }
 
+/// Divisor that converts the vendor wire strike (tenths of a cent) into
+/// dollars. `210000` wire units ≡ `$210.00`. Invariant: strikes are
+/// always dollars on every client-facing surface (CSV, JSONL, Arrow, and
+/// the typed [`crate::flatfiles::decoded_row::FlatFileRow`]); the scaled
+/// integer wire form must never reach a caller. Centralised here so the
+/// scale lives in exactly one place across all output paths.
+pub(crate) const STRIKE_WIRE_PER_DOLLAR: f64 = 1000.0;
+
+/// Convert a wire strike (tenths of a cent) to dollars.
+///
+/// Returns `None` for stock entries, which carry no strike. Shared by
+/// every output path so CSV, JSONL, Arrow, and the typed row agree on the
+/// exact value for the same input.
+pub(crate) fn strike_dollars(strike: Option<i32>) -> Option<f64> {
+    strike.map(|s| f64::from(s) / STRIKE_WIRE_PER_DOLLAR)
+}
+
 /// One INDEX entry's contract key + DATA-section pointer.
 #[derive(Debug, Clone)]
 pub(crate) struct IndexEntry {
@@ -119,6 +136,14 @@ pub(crate) struct IndexEntry {
     pub(crate) block_start: u64,
     /// Byte offset one past the last byte of the FIT block.
     pub(crate) block_end: u64,
+}
+
+impl IndexEntry {
+    /// This entry's strike in dollars, or `None` for stock entries. See
+    /// [`strike_dollars`] for the shared conversion every output path uses.
+    pub(crate) fn strike_dollars(&self) -> Option<f64> {
+        strike_dollars(self.strike)
+    }
 }
 
 /// Iterator over INDEX entries.

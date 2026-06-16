@@ -132,7 +132,11 @@ fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
             buf.push(',');
             let _ = write!(buf, "{}", entry.expiration.unwrap_or(0));
             buf.push(',');
-            let _ = write!(buf, "{}", entry.strike.unwrap_or(0));
+            // Strikes are dollars on every client-facing surface — emit
+            // the same dollar value the Arrow and typed-row paths do, via
+            // the shared conversion. `f64` Display preserves sub-dollar
+            // strikes without trailing-zero noise.
+            let _ = write!(buf, "{}", entry.strike_dollars().unwrap_or(0.0));
             buf.push(',');
             buf.push(entry.right.unwrap_or('?'));
             buf.push(',');
@@ -292,9 +296,17 @@ impl RowSink for JsonlSink {
                     "expiration".into(),
                     serde_json::Value::Number(row.entry.expiration.unwrap_or(0).into()),
                 );
+                // Strikes are dollars on every client-facing surface;
+                // emit the same dollar value as the Arrow and typed-row
+                // paths via the shared conversion. A non-finite f64 cannot
+                // arise from an i32/1000 quotient, but `from_f64` is the
+                // only fallible step, so fall back to JSON null defensively.
+                let strike_dollars = row.entry.strike_dollars().unwrap_or(0.0);
                 obj.insert(
                     "strike".into(),
-                    serde_json::Value::Number(row.entry.strike.unwrap_or(0).into()),
+                    serde_json::Number::from_f64(strike_dollars)
+                        .map(serde_json::Value::Number)
+                        .unwrap_or(serde_json::Value::Null),
                 );
                 obj.insert(
                     "right".into(),
@@ -508,6 +520,155 @@ mod tests {
         let res =
             FlatFileRow::from_decoded("AAPL", None, None, None, &fmt, &row, &data_idx, Some(20));
         assert!(res.is_err());
+    }
+
+    /// Read back the strike value the CSV sink wrote for `entry`. CSV
+    /// strike is the 3rd field: `symbol,expiration,strike,right,...`.
+    fn csv_strike_for(entry: &IndexEntry, fmt: &[DataType], row_data: &[i32]) -> f64 {
+        let path = scratch_path();
+        let mut csv =
+            CsvSink::new(&path, SecType::Option, fmt.to_vec(), Some(2)).expect("CsvSink::new");
+        csv.write_header().expect("csv header");
+        csv.write_row(RowView {
+            entry,
+            data: row_data,
+        })
+        .expect("csv row");
+        Box::new(csv).finish().expect("csv finish");
+        let text = std::fs::read_to_string(&path).expect("read csv");
+        text.lines()
+            .nth(1)
+            .expect("csv data row")
+            .split(',')
+            .nth(2)
+            .expect("csv strike field")
+            .parse()
+            .expect("csv strike parses as f64")
+    }
+
+    /// Read back the strike value the JSONL sink wrote for `entry`.
+    fn jsonl_strike_for(entry: &IndexEntry, fmt: &[DataType], row_data: &[i32]) -> f64 {
+        let path = scratch_path();
+        let mut jsonl =
+            JsonlSink::new(&path, SecType::Option, fmt.to_vec(), Some(2)).expect("JsonlSink::new");
+        jsonl.write_header().expect("jsonl header");
+        jsonl
+            .write_row(RowView {
+                entry,
+                data: row_data,
+            })
+            .expect("jsonl row");
+        Box::new(jsonl).finish().expect("jsonl finish");
+        let text = std::fs::read_to_string(&path).expect("read jsonl");
+        let parsed: serde_json::Value =
+            serde_json::from_str(text.lines().next().expect("jsonl line")).expect("jsonl parses");
+        parsed["strike"].as_f64().expect("jsonl strike is a number")
+    }
+
+    #[test]
+    fn strike_is_dollars_and_identical_across_csv_and_jsonl() {
+        let fmt = vec![
+            DataType::MsOfDay,
+            DataType::Bid,
+            DataType::PriceType,
+            DataType::Date,
+        ];
+        let row_data = [34_200_000_i32, 15_025, 8, 20_250_428];
+        // Whole-dollar and sub-dollar wire strikes (tenths of a cent).
+        // 580000 -> $580.00, 1500 -> $1.50.
+        for (wire_strike, expected_dollars) in [(580_000_i32, 580.0_f64), (1_500_i32, 1.5_f64)] {
+            let entry = IndexEntry {
+                symbol: "SPX".into(),
+                expiration: Some(20_260_516),
+                strike: Some(wire_strike),
+                right: Some('C'),
+                block_start: 0,
+                block_end: 0,
+            };
+            let csv_strike = csv_strike_for(&entry, &fmt, &row_data);
+            let jsonl_strike = jsonl_strike_for(&entry, &fmt, &row_data);
+            assert!(
+                (csv_strike - expected_dollars).abs() < 1e-9,
+                "CSV strike must be dollars: got {csv_strike}, want {expected_dollars}"
+            );
+            assert!(
+                (jsonl_strike - expected_dollars).abs() < 1e-9,
+                "JSONL strike must be dollars: got {jsonl_strike}, want {expected_dollars}"
+            );
+            assert_eq!(
+                csv_strike, jsonl_strike,
+                "CSV and JSONL strike must be identical"
+            );
+        }
+    }
+
+    #[cfg(feature = "arrow")]
+    #[test]
+    fn strike_is_dollars_and_identical_across_csv_jsonl_arrow() {
+        use crate::flatfiles::arrow::rows_to_arrow;
+        use crate::flatfiles::decoded_row::FlatFileRow;
+        use arrow_array::cast::AsArray;
+        use arrow_array::types::Float64Type;
+
+        // Schema with a PRICE_TYPE column so every surface decodes prices
+        // the same way; the strike assertion is independent of price.
+        let fmt = vec![
+            DataType::MsOfDay,
+            DataType::Bid,
+            DataType::PriceType,
+            DataType::Date,
+        ];
+        let data_idx = data_indices(&fmt, Some(2));
+        let row_data = [34_200_000_i32, 15_025, 8, 20_250_428];
+
+        // Whole-dollar and sub-dollar wire strikes (tenths of a cent).
+        // 580000 -> $580.00, 1500 -> $1.50.
+        for (wire_strike, expected_dollars) in [(580_000_i32, 580.0_f64), (1_500_i32, 1.5_f64)] {
+            let entry = IndexEntry {
+                symbol: "SPX".into(),
+                expiration: Some(20_260_516),
+                strike: Some(wire_strike),
+                right: Some('C'),
+                block_start: 0,
+                block_end: 0,
+            };
+
+            let csv_strike = csv_strike_for(&entry, &fmt, &row_data);
+            let jsonl_strike = jsonl_strike_for(&entry, &fmt, &row_data);
+
+            // Arrow: strike column is Float64 dollars.
+            let typed_row = FlatFileRow::from_decoded(
+                &entry.symbol,
+                entry.expiration,
+                entry.strike,
+                entry.right,
+                &fmt,
+                &row_data,
+                &data_idx,
+                Some(row_data[2]),
+            )
+            .expect("from_decoded");
+            let batch = rows_to_arrow(std::slice::from_ref(&typed_row)).expect("rows_to_arrow");
+            let strike_col = batch
+                .column_by_name("strike")
+                .expect("strike column")
+                .as_primitive::<Float64Type>();
+            let arrow_strike = strike_col.value(0);
+            assert!(
+                (arrow_strike - expected_dollars).abs() < 1e-9,
+                "Arrow strike must be dollars: got {arrow_strike}, want {expected_dollars}"
+            );
+
+            // The load-bearing invariant: all three surfaces agree exactly.
+            assert_eq!(
+                csv_strike, jsonl_strike,
+                "CSV and JSONL strike must be identical"
+            );
+            assert_eq!(
+                csv_strike, arrow_strike,
+                "CSV and Arrow strike must be identical"
+            );
+        }
     }
 
     #[test]

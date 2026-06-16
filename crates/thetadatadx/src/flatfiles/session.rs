@@ -13,6 +13,7 @@
 //! from the METADATA payload.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use rustls::pki_types::ServerName;
 use rustls::ClientConfig;
@@ -172,24 +173,47 @@ pub(crate) async fn login(
 /// short-circuited: replaying it across every MDDS host is pointless,
 /// risks rate-limiting the account, and the original error already
 /// describes what the server objected to.
+///
+/// `connect_timeout` bounds the combined TCP + TLS handshake **and** auth
+/// exchange for a single host. A host that accepts the socket but never
+/// finishes the TLS handshake, or never returns the auth frames, would
+/// otherwise block the whole request forever; on expiry the attempt
+/// moves on to the next host (or surfaces a transient timeout the retry
+/// ladder reconnects on).
 pub(crate) async fn connect_and_login<'a>(
     hosts: &[MddsHost<'a>],
     creds: &Credentials,
+    connect_timeout: Duration,
 ) -> Result<AuthedSession, Error> {
     let mut last_err: Option<Error> = None;
     for host in hosts {
-        match connect_tls(MddsHost {
-            host: host.host,
-            port: host.port,
-        })
-        .await
-        {
-            Ok(mut stream) => match login(&mut stream, creds).await {
-                Ok(bundle) => return Ok(AuthedSession { stream, bundle }),
-                Err(e) if is_terminal_login_error(&e) => return Err(e),
-                Err(e) => last_err = Some(e),
-            },
-            Err(e) => last_err = Some(e),
+        let attempt = async {
+            let mut stream = connect_tls(MddsHost {
+                host: host.host,
+                port: host.port,
+            })
+            .await?;
+            let bundle = login(&mut stream, creds).await?;
+            Ok::<AuthedSession, Error>(AuthedSession { stream, bundle })
+        };
+        match tokio::time::timeout(connect_timeout, attempt).await {
+            Ok(Ok(session)) => return Ok(session),
+            Ok(Err(e)) if is_terminal_login_error(&e) => return Err(e),
+            Ok(Err(e)) => last_err = Some(e),
+            Err(_) => {
+                // Treated as a transient I/O timeout so the retry ladder
+                // reconnects; a stuck handshake on one host should not
+                // fail the whole request without a reconnect attempt.
+                last_err = Some(Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!(
+                        "MDDS connect/login to {}:{} timed out after {}s",
+                        host.host,
+                        host.port,
+                        connect_timeout.as_secs()
+                    ),
+                )));
+            }
         }
     }
     Err(last_err.unwrap_or_else(|| Error::config_missing("mdds.hosts")))
@@ -223,5 +247,48 @@ mod tests {
         assert_eq!(p.len(), 4 + len);
         // first character of the JSON body must be '{'.
         assert_eq!(p[4], b'{');
+    }
+
+    #[tokio::test]
+    async fn connect_and_login_times_out_on_unreachable_host() {
+        use crate::auth::Credentials;
+        use std::time::Instant;
+
+        // 192.0.2.1 is TEST-NET-1 (RFC 5737): guaranteed non-routable, so
+        // the TCP connect stalls until our timeout fires rather than
+        // failing fast. Without the connect bound this call would hang.
+        let hosts = [MddsHost {
+            host: "192.0.2.1",
+            port: 12_000,
+        }];
+        let creds = Credentials::new("user@example.com", "pw");
+        let budget = Duration::from_millis(150);
+        let started = Instant::now();
+        let result = connect_and_login(&hosts, &creds, budget).await;
+        let elapsed = started.elapsed();
+
+        // `AuthedSession` is not `Debug`; match the variants by hand so a
+        // success path fails the test without needing a `Debug` bound.
+        let err = match result {
+            Ok(_) => panic!("connect to a black-hole host must fail, not succeed"),
+            Err(e) => e,
+        };
+        // The bound must actually fire — a hung host cannot block forever.
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "connect must abandon the host near its timeout, took {elapsed:?}"
+        );
+        // Classified transient so the retry ladder reconnects.
+        assert!(
+            error_is_transient_for_test(&err),
+            "connect timeout must be transient, got {err:?}"
+        );
+    }
+
+    /// Mirror of the request-layer transient classifier for the single
+    /// case this test exercises: a timed-out connect surfaces as
+    /// `Error::Io`, which the retry loop treats as transient.
+    fn error_is_transient_for_test(err: &Error) -> bool {
+        matches!(err, Error::Io(_))
     }
 }
