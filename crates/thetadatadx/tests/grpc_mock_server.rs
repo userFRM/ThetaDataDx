@@ -1274,12 +1274,24 @@ async fn channel_pool_routes_around_saturated_channel() {
         .expect("slow RPC reached the wire within 5s");
 
     // Confirm member 0's in-flight counter actually advanced — this
-    // is the assertion the rest of the test depends on.
-    assert_eq!(
-        pool.member_for_test(0).in_flight_count(),
-        1,
-        "slow RPC is in flight on member 0"
-    );
+    // is the assertion the rest of the test depends on. The server-side
+    // drain Notify and the client-side in-flight counter advance on
+    // opposite ends of the connection, so the counter can lag the drain
+    // signal by a scheduler tick; poll until it observes the in-flight
+    // RPC rather than reading once. The bound still requires the count to
+    // reach exactly 1 — it only tolerates the cross-side ordering gap.
+    let in_flight_deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        if pool.member_for_test(0).in_flight_count() == 1 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < in_flight_deadline,
+            "slow RPC never registered as in flight on member 0 (count = {})",
+            pool.member_for_test(0).in_flight_count()
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     for idx in 1..4 {
         assert_eq!(
             pool.member_for_test(idx).in_flight_count(),
