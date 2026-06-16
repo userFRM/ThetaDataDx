@@ -422,6 +422,30 @@ export declare class Config {
   /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
   get flatfilesMaxBackoffSecs(): bigint
   /**
+   * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+   * attempt. Bounds the connect/auth handshake before the attempt is
+   * abandoned and the next host (or the retry ladder) takes over.
+   * Default `10n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesConnectTimeoutSecs(secs: bigint): void
+  /** Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt). */
+  get flatfilesConnectTimeoutSecs(): bigint
+  /**
+   * Set the read timeout (seconds) for a single flatfile response
+   * frame. Bounds the wait for the next chunk once streaming has begun
+   * so a mid-stream stall fails over instead of blocking forever.
+   * Default `60n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesReadTimeoutSecs(secs: bigint): void
+  /** Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt). */
+  get flatfilesReadTimeoutSecs(): bigint
+  /**
    * Set the Nexus auth URL. Default matches the upstream
    * production endpoint; override to redirect at a staging
    * cluster for testing.

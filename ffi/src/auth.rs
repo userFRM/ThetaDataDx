@@ -2146,6 +2146,82 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_backoff_secs(
     })
 }
 
+/// Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+/// attempt. Bounds the connect/auth handshake before the attempt is
+/// abandoned and the next host (or the retry ladder) takes over.
+/// Default `10`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_connect_timeout_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.flatfiles.connect_timeout_secs = secs;
+    })
+}
+
+/// Read the current `flatfiles.connect_timeout_secs` setting (seconds).
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_connect_timeout_secs(
+    config: *const ThetaDataDxConfig,
+    out_secs: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_secs.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+        unsafe {
+            *out_secs = config.inner.flatfiles.connect_timeout_secs;
+        }
+        0
+    })
+}
+
+/// Set the read timeout (seconds) for a single flatfile response frame.
+/// Bounds the wait for the next chunk once streaming has begun so a
+/// mid-stream stall fails over instead of blocking forever. Default
+/// `60`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_read_timeout_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.flatfiles.read_timeout_secs = secs;
+    })
+}
+
+/// Read the current `flatfiles.read_timeout_secs` setting (seconds).
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_read_timeout_secs(
+    config: *const ThetaDataDxConfig,
+    out_secs: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_secs.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+        unsafe {
+            *out_secs = config.inner.flatfiles.read_timeout_secs;
+        }
+        0
+    })
+}
+
 // ── AuthConfig ─────────────────────────────────────────────────────
 //
 // Per-field setters/getters on `DirectConfig.auth`. Both fields are
@@ -3351,6 +3427,56 @@ mod flatfiles_setter_tests {
     }
 
     #[test]
+    fn flatfiles_connect_timeout_secs_round_trips() {
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from FlatFilesConfig::production_defaults().
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_connect_timeout_secs(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 10);
+            for secs in [0u64, 1, 4, 10, 60, 3600] {
+                super::thetadatadx_config_set_flatfiles_connect_timeout_secs(cfg, secs);
+                assert_eq!((*cfg).inner.flatfiles.connect_timeout_secs, secs);
+                assert_eq!(
+                    super::thetadatadx_config_get_flatfiles_connect_timeout_secs(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, secs);
+            }
+            super::thetadatadx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flatfiles_read_timeout_secs_round_trips() {
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from FlatFilesConfig::production_defaults().
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_read_timeout_secs(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 60);
+            for secs in [0u64, 1, 4, 10, 60, 3600, 86_400] {
+                super::thetadatadx_config_set_flatfiles_read_timeout_secs(cfg, secs);
+                assert_eq!((*cfg).inner.flatfiles.read_timeout_secs, secs);
+                assert_eq!(
+                    super::thetadatadx_config_get_flatfiles_read_timeout_secs(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, secs);
+            }
+            super::thetadatadx_config_free(cfg);
+        }
+    }
+
+    #[test]
     fn flatfiles_setters_null_handle_returns_minus_one_or_noop() {
         // SAFETY: passing null to thetadatadx_config_* is the documented FFI
         // contract — getter returns sentinel, setter no-ops.
@@ -3358,6 +3484,8 @@ mod flatfiles_setter_tests {
             super::thetadatadx_config_set_flatfiles_max_attempts(std::ptr::null_mut(), 3);
             super::thetadatadx_config_set_flatfiles_initial_backoff_secs(std::ptr::null_mut(), 1);
             super::thetadatadx_config_set_flatfiles_max_backoff_secs(std::ptr::null_mut(), 4);
+            super::thetadatadx_config_set_flatfiles_connect_timeout_secs(std::ptr::null_mut(), 10);
+            super::thetadatadx_config_set_flatfiles_read_timeout_secs(std::ptr::null_mut(), 60);
             let mut got_n: u32 = 0;
             let mut got_secs: u64 = 0;
             assert_eq!(
@@ -3378,6 +3506,20 @@ mod flatfiles_setter_tests {
                 ),
                 -1
             );
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_connect_timeout_secs(
+                    std::ptr::null(),
+                    &mut got_secs
+                ),
+                -1
+            );
+            assert_eq!(
+                super::thetadatadx_config_get_flatfiles_read_timeout_secs(
+                    std::ptr::null(),
+                    &mut got_secs
+                ),
+                -1
+            );
         }
     }
 
@@ -3392,10 +3534,14 @@ mod flatfiles_setter_tests {
             super::thetadatadx_config_set_flatfiles_max_attempts(cfg, 5);
             super::thetadatadx_config_set_flatfiles_initial_backoff_secs(cfg, 2);
             super::thetadatadx_config_set_flatfiles_max_backoff_secs(cfg, 30);
+            super::thetadatadx_config_set_flatfiles_connect_timeout_secs(cfg, 15);
+            super::thetadatadx_config_set_flatfiles_read_timeout_secs(cfg, 90);
             let ff = &(*cfg).inner.flatfiles;
             assert_eq!(ff.max_attempts, 5);
             assert_eq!(ff.initial_backoff, std::time::Duration::from_secs(2));
             assert_eq!(ff.max_backoff, std::time::Duration::from_secs(30));
+            assert_eq!(ff.connect_timeout_secs, 15);
+            assert_eq!(ff.read_timeout_secs, 90);
             super::thetadatadx_config_free(cfg);
         }
     }

@@ -155,6 +155,10 @@ class Config:
     """Ceiling back-off, in seconds, of the flat-file driver retry loop (default 30)."""
     flatfiles_jitter: bool
     """Whether jitter is applied to flat-file driver retry delays (default ``True``)."""
+    flatfiles_connect_timeout_secs: int
+    """TCP + TLS connect timeout, in seconds, for one flat-file host attempt (default 10)."""
+    flatfiles_read_timeout_secs: int
+    """Read timeout, in seconds, for a single flat-file response frame (default 60)."""
     nexus_url: str
     """Authentication endpoint URL (defaults to the production endpoint)."""
     client_type: str

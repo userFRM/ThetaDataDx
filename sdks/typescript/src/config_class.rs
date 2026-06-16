@@ -1282,6 +1282,82 @@ impl Config {
         ))
     }
 
+    /// Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+    /// attempt. Bounds the connect/auth handshake before the attempt is
+    /// abandoned and the next host (or the retry ladder) takes over.
+    /// Default `10n`.
+    ///
+    /// Accepts a `bigint` for parity with the other bindings, which
+    /// use a 64-bit unsigned integer.
+    #[napi(js_name = "setFlatfilesConnectTimeoutSecs")]
+    pub fn set_flatfiles_connect_timeout_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = secs.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setFlatfilesConnectTimeoutSecs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.connect_timeout_secs = value;
+        Ok(())
+    }
+
+    /// Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt).
+    #[napi(getter, js_name = "flatfilesConnectTimeoutSecs")]
+    pub fn flatfiles_connect_timeout_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.flatfiles.connect_timeout_secs,
+        ))
+    }
+
+    /// Set the read timeout (seconds) for a single flatfile response
+    /// frame. Bounds the wait for the next chunk once streaming has begun
+    /// so a mid-stream stall fails over instead of blocking forever.
+    /// Default `60n`.
+    ///
+    /// Accepts a `bigint` for parity with the other bindings, which
+    /// use a 64-bit unsigned integer.
+    #[napi(js_name = "setFlatfilesReadTimeoutSecs")]
+    pub fn set_flatfiles_read_timeout_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = secs.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setFlatfilesReadTimeoutSecs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.read_timeout_secs = value;
+        Ok(())
+    }
+
+    /// Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt).
+    #[napi(getter, js_name = "flatfilesReadTimeoutSecs")]
+    pub fn flatfiles_read_timeout_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.flatfiles.read_timeout_secs,
+        ))
+    }
+
     // ── AuthConfig field setters/getters ──────────────────────────
 
     /// Set the Nexus auth URL. Default matches the upstream

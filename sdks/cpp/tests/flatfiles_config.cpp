@@ -2,8 +2,9 @@
 // with Python / TypeScript / FFI.
 //
 // Pins the C++ surface contract for `set_flatfiles_max_attempts`,
-// `set_flatfiles_initial_backoff_secs`, and
-// `set_flatfiles_max_backoff_secs`. The Rust core enforces the
+// `set_flatfiles_initial_backoff_secs`,
+// `set_flatfiles_max_backoff_secs`, `set_flatfiles_connect_timeout_secs`,
+// and `set_flatfiles_read_timeout_secs`. The Rust core enforces the
 // `[1, 10]` range on `max_attempts` and the
 // `max_backoff >= initial_backoff` invariant at
 // `DirectConfig::validate` time, not at the C ABI setter; this file
@@ -24,6 +25,8 @@ TEST_CASE("Config exposes FlatFilesConfig production defaults",
     REQUIRE(cfg.get_flatfiles_max_attempts() == 10u);
     REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 1u);
     REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 30u);
+    REQUIRE(cfg.get_flatfiles_connect_timeout_secs() == 10u);
+    REQUIRE(cfg.get_flatfiles_read_timeout_secs() == 60u);
 }
 
 TEST_CASE("Config::set_flatfiles_max_attempts round-trips via getter",
@@ -58,6 +61,28 @@ TEST_CASE("Config::set_flatfiles_max_backoff_secs round-trips via getter",
     }
 }
 
+TEST_CASE("Config::set_flatfiles_connect_timeout_secs round-trips via getter",
+          "[config][flatfiles][offline]") {
+    auto cfg = thetadatadx::Config::production();
+    for (std::uint64_t secs : {std::uint64_t{0}, std::uint64_t{1},
+                               std::uint64_t{4}, std::uint64_t{10},
+                               std::uint64_t{60}, std::uint64_t{3600}}) {
+        REQUIRE_NOTHROW(cfg.set_flatfiles_connect_timeout_secs(secs));
+        REQUIRE(cfg.get_flatfiles_connect_timeout_secs() == secs);
+    }
+}
+
+TEST_CASE("Config::set_flatfiles_read_timeout_secs round-trips via getter",
+          "[config][flatfiles][offline]") {
+    auto cfg = thetadatadx::Config::production();
+    for (std::uint64_t secs : {std::uint64_t{0}, std::uint64_t{1},
+                               std::uint64_t{4}, std::uint64_t{60},
+                               std::uint64_t{3600}, std::uint64_t{86'400}}) {
+        REQUIRE_NOTHROW(cfg.set_flatfiles_read_timeout_secs(secs));
+        REQUIRE(cfg.get_flatfiles_read_timeout_secs() == secs);
+    }
+}
+
 TEST_CASE("FlatFiles setters compose with pool-sizing setters",
           "[config][flatfiles][offline]") {
     // Interleaved flatfiles setter and pool-sizing setter calls on
@@ -66,9 +91,13 @@ TEST_CASE("FlatFiles setters compose with pool-sizing setters",
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_attempts(7));
     REQUIRE_NOTHROW(cfg.set_flatfiles_initial_backoff_secs(3));
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(12));
+    REQUIRE_NOTHROW(cfg.set_flatfiles_connect_timeout_secs(20));
+    REQUIRE_NOTHROW(cfg.set_flatfiles_read_timeout_secs(45));
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
 
     REQUIRE(cfg.get_flatfiles_max_attempts() == 7u);
     REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 3u);
     REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 12u);
+    REQUIRE(cfg.get_flatfiles_connect_timeout_secs() == 20u);
+    REQUIRE(cfg.get_flatfiles_read_timeout_secs() == 45u);
 }

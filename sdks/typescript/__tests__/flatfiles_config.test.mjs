@@ -1,7 +1,8 @@
 // FlatFilesConfig setters on `Config` — TypeScript binding parity
 // with Python / C++ / FFI. Pins the JS surface contract for
-// `setFlatfilesMaxAttempts`, `setFlatfilesInitialBackoffSecs`, and
-// `setFlatfilesMaxBackoffSecs`.
+// `setFlatfilesMaxAttempts`, `setFlatfilesInitialBackoffSecs`,
+// `setFlatfilesMaxBackoffSecs`, `setFlatfilesConnectTimeoutSecs`, and
+// `setFlatfilesReadTimeoutSecs`.
 //
 // The Rust core enforces the `[1, 10]` range on `max_attempts` and
 // the `max_backoff >= initial_backoff` invariant at
@@ -22,11 +23,13 @@ try {
 const { Config } = mod;
 
 describe('Config.flatFiles* — defaults mirror FlatFilesConfig::production_defaults', () => {
-  it('expose the three FlatFilesConfig field defaults', () => {
+  it('expose the FlatFilesConfig field defaults', () => {
     const cfg = Config.production();
     assert.equal(cfg.flatfilesMaxAttempts, 10);
     assert.equal(cfg.flatfilesInitialBackoffSecs, 1n);
     assert.equal(cfg.flatfilesMaxBackoffSecs, 30n);
+    assert.equal(cfg.flatfilesConnectTimeoutSecs, 10n);
+    assert.equal(cfg.flatfilesReadTimeoutSecs, 60n);
   });
 });
 
@@ -78,16 +81,58 @@ describe('Config.setFlatfilesMaxBackoffSecs', () => {
   });
 });
 
+describe('Config.setFlatfilesConnectTimeoutSecs', () => {
+  it('round-trips through the setter across the documented u64 range', () => {
+    const cfg = Config.production();
+    for (const secs of [0n, 1n, 4n, 10n, 60n, 3_600n]) {
+      cfg.setFlatfilesConnectTimeoutSecs(secs);
+      assert.equal(cfg.flatfilesConnectTimeoutSecs, secs);
+    }
+  });
+
+  it('rejects BigInt magnitudes above u64::MAX', () => {
+    const cfg = Config.production();
+    assert.throws(
+      () => cfg.setFlatfilesConnectTimeoutSecs(1n << 65n),
+      /setFlatfilesConnectTimeoutSecs/,
+      'magnitude above u64::MAX must be rejected at the boundary',
+    );
+  });
+});
+
+describe('Config.setFlatfilesReadTimeoutSecs', () => {
+  it('round-trips through the setter across the documented u64 range', () => {
+    const cfg = Config.production();
+    for (const secs of [0n, 1n, 4n, 10n, 60n, 3_600n, 86_400n]) {
+      cfg.setFlatfilesReadTimeoutSecs(secs);
+      assert.equal(cfg.flatfilesReadTimeoutSecs, secs);
+    }
+  });
+
+  it('rejects BigInt magnitudes above u64::MAX', () => {
+    const cfg = Config.production();
+    assert.throws(
+      () => cfg.setFlatfilesReadTimeoutSecs(1n << 65n),
+      /setFlatfilesReadTimeoutSecs/,
+      'magnitude above u64::MAX must be rejected at the boundary',
+    );
+  });
+});
+
 describe('FlatFiles setter state survives interleaved pool-sizing calls', () => {
   it('FlatFiles setter mutations land independently of pool-sizing mutations', () => {
     const cfg = Config.production();
     cfg.setFlatfilesMaxAttempts(7);
     cfg.setFlatfilesInitialBackoffSecs(3n);
     cfg.setFlatfilesMaxBackoffSecs(12n);
+    cfg.setFlatfilesConnectTimeoutSecs(20n);
+    cfg.setFlatfilesReadTimeoutSecs(45n);
     cfg.setConcurrentRequests(4);
     assert.equal(cfg.flatfilesMaxAttempts, 7);
     assert.equal(cfg.flatfilesInitialBackoffSecs, 3n);
     assert.equal(cfg.flatfilesMaxBackoffSecs, 12n);
+    assert.equal(cfg.flatfilesConnectTimeoutSecs, 20n);
+    assert.equal(cfg.flatfilesReadTimeoutSecs, 45n);
     assert.equal(cfg.concurrentRequests, 4);
   });
 });

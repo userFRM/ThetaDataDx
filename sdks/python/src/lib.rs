@@ -958,6 +958,40 @@ impl Config {
         guard.flatfiles.max_backoff.as_secs()
     }
 
+    /// Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+    /// attempt. Bounds the connect/auth handshake before the attempt is
+    /// abandoned and the next host (or the retry ladder) takes over.
+    /// Default ``10``.
+    #[setter]
+    fn set_flatfiles_connect_timeout_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.connect_timeout_secs = secs;
+    }
+
+    /// Current ``flatfiles.connect_timeout_secs`` value in seconds.
+    #[getter]
+    fn get_flatfiles_connect_timeout_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.connect_timeout_secs
+    }
+
+    /// Set the read timeout (seconds) for a single flatfile response
+    /// frame. Bounds the wait for the next chunk once streaming has begun
+    /// so a mid-stream stall fails over instead of blocking forever.
+    /// Default ``60``.
+    #[setter]
+    fn set_flatfiles_read_timeout_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.read_timeout_secs = secs;
+    }
+
+    /// Current ``flatfiles.read_timeout_secs`` value in seconds.
+    #[getter]
+    fn get_flatfiles_read_timeout_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.read_timeout_secs
+    }
+
     // ── AuthConfig field setters/getters ──────────────────────────────
     //
     // Per-field access on ``DirectConfig.auth``. Both fields are

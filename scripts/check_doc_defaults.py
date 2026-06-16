@@ -178,6 +178,8 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["flatfiles.max_attempts"] = _norm_int(ff["max_attempts"])
     canon["flatfiles.initial_backoff_secs"] = _duration_secs(ff["initial_backoff"])
     canon["flatfiles.max_backoff_secs"] = _duration_secs(ff["max_backoff"])
+    canon["flatfiles.connect_timeout_secs"] = _norm_int(ff["connect_timeout_secs"])
+    canon["flatfiles.read_timeout_secs"] = _norm_int(ff["read_timeout_secs"])
 
     # FlatFilesConfig bounds — `MAX_ATTEMPTS: ... = 1..=100`.
     ff_src = _read(CONFIG_DIR / "flatfiles.rs", root)
@@ -543,6 +545,14 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
         ),
+        SurfaceField(
+            "flatfiles.connect_timeout_secs",
+            _re(r"set_flatfiles_connect_timeout_secs\b"),
+        ),
+        SurfaceField(
+            "flatfiles.read_timeout_secs",
+            _re(r"set_flatfiles_read_timeout_secs\b"),
+        ),
     ]
     surfaces.append(ffi)
 
@@ -607,6 +617,14 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
         ),
+        SurfaceField(
+            "flatfiles.connect_timeout_secs",
+            _re(r"set_flatfiles_connect_timeout_secs\b"),
+        ),
+        SurfaceField(
+            "flatfiles.read_timeout_secs",
+            _re(r"set_flatfiles_read_timeout_secs\b"),
+        ),
     ]
     surfaces.append(cpp_h)
 
@@ -654,6 +672,14 @@ def build_surfaces() -> list[Surface]:
         SurfaceField(
             "flatfiles.max_backoff_secs", _re(r"setFlatfilesMaxBackoffSecs\b")
         ),
+        SurfaceField(
+            "flatfiles.connect_timeout_secs",
+            _re(r"setFlatfilesConnectTimeoutSecs\b"),
+        ),
+        SurfaceField(
+            "flatfiles.read_timeout_secs",
+            _re(r"setFlatfilesReadTimeoutSecs\b"),
+        ),
     ]
     surfaces.append(ts)
 
@@ -700,6 +726,14 @@ def build_surfaces() -> list[Surface]:
         ),
         SurfaceField(
             "flatfiles.max_backoff_secs", _re(r"^\s*flatfiles_max_backoff_secs:")
+        ),
+        SurfaceField(
+            "flatfiles.connect_timeout_secs",
+            _re(r"^\s*flatfiles_connect_timeout_secs:"),
+        ),
+        SurfaceField(
+            "flatfiles.read_timeout_secs",
+            _re(r"^\s*flatfiles_read_timeout_secs:"),
         ),
         SurfaceField("streaming.timeout_ms", _re(r"^\s*streaming_timeout_ms:")),
         SurfaceField("streaming.data_watchdog_ms", _re(r"^\s*streaming_data_watchdog_ms:")),
@@ -805,6 +839,8 @@ impl FlatFilesConfig {
             initial_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(30),
             jitter: true,
+            connect_timeout_secs: 10,
+            read_timeout_secs: 60,
         }
     }
 }

@@ -1088,6 +1088,30 @@ public:
         return out;
     }
 
+    /** TCP + TLS connect timeout (seconds) for one flatfile-host attempt.
+     *  Bounds the connect/auth handshake before the next host (or the
+     *  retry ladder) takes over. Default 10. */
+    void set_flatfiles_connect_timeout_secs(uint64_t secs) {
+        thetadatadx_config_set_flatfiles_connect_timeout_secs(handle_.get(), secs);
+    }
+    uint64_t get_flatfiles_connect_timeout_secs() const {
+        uint64_t out{};
+        thetadatadx_config_get_flatfiles_connect_timeout_secs(handle_.get(), &out);
+        return out;
+    }
+
+    /** Read timeout (seconds) for a single flatfile response frame. Bounds
+     *  the wait for the next chunk so a mid-stream stall fails over
+     *  instead of blocking forever. Default 60. */
+    void set_flatfiles_read_timeout_secs(uint64_t secs) {
+        thetadatadx_config_set_flatfiles_read_timeout_secs(handle_.get(), secs);
+    }
+    uint64_t get_flatfiles_read_timeout_secs() const {
+        uint64_t out{};
+        thetadatadx_config_get_flatfiles_read_timeout_secs(handle_.get(), &out);
+        return out;
+    }
+
     // ── AuthConfig field setters/getters ──
 
     /**
