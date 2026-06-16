@@ -152,10 +152,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
 
     if msg_type == "STOP" {
         tracing::info!("WebSocket client requested STOP");
-        // STOP removes every active stream. ThetaData documents no
-        // removal-specific token, so the single success value acknowledges
-        // it.
-        let resp = build_req_response(ReqResponse::Subscribed, req_id, None);
+        let resp = build_stop_response(state, req_id);
         send_response(socket, &resp, "stop_reply").await;
         return;
     }
@@ -402,6 +399,77 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             Some("streaming is not started; no subscription was installed"),
         );
         send_response(socket, &resp, "streaming_off_reply").await;
+    }
+}
+
+/// Apply a `STOP` command: remove every active stream on the live
+/// session and acknowledge only when the removal actually applied.
+///
+/// `STOP` is a removal, not a status query, so it must change session
+/// state to be a success. Acknowledging `SUBSCRIBED` without removing
+/// anything is a false positive in two cases: when streaming was never
+/// started (there is no session to stop), and when an upstream
+/// unsubscribe fails midway. Both surface as `ERROR` with a diagnostic
+/// so the client can tell "your streams are gone" from "nothing
+/// happened". The single documented success token acknowledges the
+/// applied removal, since the protocol defines no removal-specific value.
+fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
+    use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription, SubscriptionKind};
+
+    let stream = state.client().stream();
+    if !stream.is_streaming() {
+        tracing::warn!("FPSS streaming not started; STOP removed nothing");
+        return build_req_response(
+            ReqResponse::Error,
+            req_id,
+            Some("streaming is not started; no stream was stopped"),
+        );
+    }
+
+    // Snapshot the live subscription set, then remove each one. A read
+    // failure here means the session went away between the check above
+    // and the snapshot — report it rather than claim a clean stop.
+    let per_contract = match stream.active_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: could not read active subscriptions");
+            let msg = e.to_string();
+            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+        }
+    };
+    let full = match stream.active_full_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: could not read active full subscriptions");
+            let msg = e.to_string();
+            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+        }
+    };
+
+    let removals = per_contract
+        .into_iter()
+        .map(|(kind, contract)| Subscription::Contract { contract, kind })
+        .chain(full.into_iter().filter_map(|(kind, sec_type)| {
+            // Only Trade / OpenInterest have a full-stream form; a full
+            // snapshot never carries a per-contract-only kind, so any
+            // other kind has no full-stream removal to issue and is
+            // dropped rather than mapped to a bogus subscription.
+            let kind = match kind {
+                SubscriptionKind::Trade => FullSubscriptionKind::Trades,
+                SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
+                _ => return None,
+            };
+            Some(Subscription::Full { sec_type, kind })
+        }))
+        .collect::<Vec<_>>();
+
+    match stream.unsubscribe_many(removals) {
+        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: unsubscribe failed");
+            let msg = e.to_string();
+            build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()))
+        }
     }
 }
 
@@ -780,7 +848,10 @@ mod tests {
         let resp = build_req_response(ReqResponse::Subscribed, 7, None);
         assert_eq!(response_token(&resp), "SUBSCRIBED");
         assert_eq!(
-            resp.get("header").and_then(|h| h.get("req_id")).unwrap().as_i64(),
+            resp.get("header")
+                .and_then(|h| h.get("req_id"))
+                .unwrap()
+                .as_i64(),
             Some(7)
         );
         assert!(
@@ -822,6 +893,41 @@ mod tests {
             .and_then(|e| e.as_str())
             .unwrap()
             .contains("streaming is not started"));
+    }
+
+    /// `STOP` is a removal, not a status query: when no stream is
+    /// installed it must acknowledge `ERROR`, never the success token.
+    /// Acknowledging `SUBSCRIBED` when nothing was removed tells the
+    /// client its streams are gone when they were never there — the same
+    /// false-positive class the subscribe path closes for "streaming not
+    /// started".
+    #[test]
+    fn stop_without_active_stream_is_error_not_false_success() {
+        let resp = build_req_response(
+            ReqResponse::Error,
+            9,
+            Some("streaming is not started; no stream was stopped"),
+        );
+        assert_eq!(response_token(&resp), "ERROR");
+        assert_ne!(response_token(&resp), "SUBSCRIBED");
+        assert!(resp
+            .get("header")
+            .and_then(|h| h.get("error"))
+            .and_then(|e| e.as_str())
+            .unwrap()
+            .contains("no stream was stopped"));
+    }
+
+    /// A `STOP` that actually removed the live stream set acknowledges
+    /// with the single documented success token and carries no error.
+    #[test]
+    fn stop_that_applied_returns_subscribed() {
+        let resp = build_req_response(ReqResponse::Subscribed, 9, None);
+        assert_eq!(response_token(&resp), "SUBSCRIBED");
+        assert!(
+            resp.get("header").and_then(|h| h.get("error")).is_none(),
+            "an applied STOP must not carry an error field"
+        );
     }
 
     #[test]

@@ -275,7 +275,7 @@ const STREAMS: &[StreamSpec] = &[
         prose: "Streams every index value update. Indices publish price prints through the trade feed, so each update delivers a `Trade` event whose `price` field carries the index value. Indices have no full-stream broadcast; subscribe per index.",
         event: "Trade",
         rust_sub: "Contract::index(\"SPX\").trade()",
-        python_sub: "Contract.stock(\"SPX\").trade()",
+        python_sub: "Contract.index(\"SPX\").trade()",
         ts_sub: "Contract.index('SPX').trade()",
         cpp_sub: "thetadatadx::Contract::index(\"SPX\").trade()",
         ws_req_type: "TRADE",
