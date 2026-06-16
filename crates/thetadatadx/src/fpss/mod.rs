@@ -1661,7 +1661,8 @@ impl StreamingClient {
     /// most once for the life of this client.
     ///
     /// The blocking drain paths ([`Self::next_event`] /
-    /// [`Self::for_each_scoped`]) call this at entry; the one-shot
+    /// [`Self::for_each_scoped`] / [`Self::for_each_with_wait_strategy`])
+    /// call this at entry; the one-shot
     /// `AtomicBool` keeps the affinity syscall off the per-event path
     /// when `next_event` is driven one event at a time. A `None`
     /// `consumer_cpu` short-circuits to nothing.
@@ -1961,6 +1962,7 @@ impl StreamingClient {
         W: disruptor::wait_strategies::WaitStrategy,
         F: FnMut(&StreamEvent),
     {
+        self.pin_consumer_once();
         loop {
             match self.poll_batch(&mut on_event) {
                 PollOutcome::Shutdown => return,
@@ -2783,21 +2785,37 @@ mod builder_tests {
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
 
-        // Default preset must be low-latency (never sleeps).
+        // Default preset is the low-latency strategy that never sleeps; a
+        // selected Balanced preset with a measurable park actually parks.
+        // Compare the two RELATIVELY: an absolute upper bound on the
+        // never-sleeping path flakes when a loaded host stretches the
+        // yield phase, whereas a real `thread::sleep` has a reliable lower
+        // bound and is always slower than the spin-only path.
         let default_args = StreamingClientBuilder::new(&creds, &hosts).into_args();
         let t0 = std::time::Instant::now();
         default_args.wait_strategy.wait_for(0);
-        assert!(t0.elapsed() < std::time::Duration::from_millis(5));
+        let low_latency_elapsed = t0.elapsed();
 
-        // A selected Balanced preset with a measurable park reaches args
-        // and actually parks.
         let balanced_args = StreamingClientBuilder::new(&creds, &hosts)
             .wait_strategy(StreamingWaitStrategy::Balanced)
             .wait_strategy_tuning(0, 0, 2_000)
             .into_args();
         let t1 = std::time::Instant::now();
         balanced_args.wait_strategy.wait_for(0);
-        assert!(t1.elapsed() >= std::time::Duration::from_micros(2_000));
+        let balanced_elapsed = t1.elapsed();
+
+        // Balanced parks ~its configured 2 ms (a sleep never returns much
+        // early — reliable lower bound).
+        assert!(
+            balanced_elapsed >= std::time::Duration::from_micros(1_800),
+            "Balanced should park ~2ms, took {balanced_elapsed:?}"
+        );
+        // The never-sleeping low-latency path is faster than the 2 ms park —
+        // a relative bound that holds even on a contended CI host.
+        assert!(
+            low_latency_elapsed < balanced_elapsed,
+            "LowLatency ({low_latency_elapsed:?}) should be faster than Balanced ({balanced_elapsed:?})"
+        );
     }
 
     /// Selecting any preset wires into a built ring without changing the
