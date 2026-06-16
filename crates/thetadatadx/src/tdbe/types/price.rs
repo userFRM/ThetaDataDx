@@ -14,8 +14,9 @@ use std::fmt;
 /// `exp = price_type - 10` ranges from -10 to +9 across the valid set
 /// (`price_type` 0 means "unset" — at the boundary, see [`Price::is_unset`]).
 /// The constant defines the upper bound for `with_value_and_type`'s
-/// range check and the matching `debug_assert!` guards on every path
-/// that indexes the `POW10_*` tables (sized 20 entries / indices 0..=19).
+/// range check and the clamp applied on every read path that indexes
+/// the `POW10_*` tables (sized 20 entries / indices 0..=19), keeping
+/// conversion and comparison total.
 pub const MAX_PRICE_TYPE: i32 = 19;
 
 /// Construction error for [`Price::with_value_and_type`].
@@ -79,25 +80,28 @@ static POW10_F64: [f64; 20] = [
 /// - type>10: value * 10^(type-10)
 #[derive(Clone, Copy, Default)]
 pub struct Price {
-    /// Mantissa. Public for backwards compatibility; prefer the typed
-    /// [`Price::value`] accessor in new code so the field can become
-    /// `pub(crate)` in a future major release.
-    pub value: i32,
+    /// Mantissa. Read via the [`Price::value`] accessor.
+    pub(crate) value: i32,
     /// Decimal type: 0 means zero, otherwise `10 - type` = fractional digits.
+    /// Read via the [`Price::price_type`] accessor.
     ///
-    /// MUST stay within `0..=19` — the `POW10_I64` / `POW10_F64` tables
-    /// have 20 entries (indices `0..=19`) and every indexing path
-    /// debug-asserts the bound. Index 19 is a reserved upper boundary:
-    /// the arithmetic only ever uses indices `0..=18` (since
-    /// `10^19` overflows `i64`, the index-19 slot stores `i64::MAX` as
-    /// an unreachable placeholder), but accepting `price_type = 19`
-    /// without rejecting it lets us widen the wire decode boundary
-    /// in one constant if a future server-side schema extends the
-    /// range.
-    /// Public for backwards compatibility; new code should construct via
-    /// [`Price::new`] (clamps) or [`Price::with_value_and_type`] (errors
-    /// out of range) so the invariant is enforced at the boundary.
-    pub price_type: i32,
+    /// Holds the `0..=MAX_PRICE_TYPE` invariant: the `POW10_I64` /
+    /// `POW10_F64` tables have 20 entries (indices `0..=19`) and the
+    /// encoded power-of-ten `exp = price_type - 10` must keep every
+    /// index in bounds. Index 19 is a reserved upper boundary — the
+    /// arithmetic only ever uses indices `0..=18` (since `10^19`
+    /// overflows `i64`, the index-19 slot stores `i64::MAX` as an
+    /// unreachable placeholder), but accepting `price_type = 19` lets
+    /// the wire decode boundary widen in one constant if a server-side
+    /// schema extends the range.
+    ///
+    /// Construct via [`Price::new`] (clamps) or
+    /// [`Price::with_value_and_type`] (errors out of range) so the
+    /// invariant is enforced at the boundary. Field access is
+    /// crate-private; every read path additionally clamps the
+    /// exponent into the table range so conversion and comparison stay
+    /// total even for an internally constructed odd value.
+    pub(crate) price_type: i32,
 }
 
 impl Price {
@@ -139,18 +143,16 @@ impl Price {
         Ok(Self { value, price_type })
     }
 
-    /// Mantissa accessor — prefer over direct field access in new code
-    /// so the field can become `pub(crate)` in a future major release
-    /// without breaking call sites.
+    /// Mantissa accessor. The raw field is crate-private so the
+    /// `0..=MAX_PRICE_TYPE` invariant cannot be bypassed by construction.
     #[inline]
     #[must_use]
     pub const fn value(&self) -> i32 {
         self.value
     }
 
-    /// Decimal-exponent accessor — prefer over direct field access in
-    /// new code so the field can become `pub(crate)` in a future major
-    /// release without breaking call sites.
+    /// Decimal-exponent accessor. The raw field is crate-private so the
+    /// `0..=MAX_PRICE_TYPE` invariant cannot be bypassed by construction.
     #[inline]
     #[must_use]
     pub const fn price_type(&self) -> i32 {
@@ -186,63 +188,56 @@ impl Price {
         self.value == 0 || self.price_type == 0
     }
 
+    /// `price_type` clamped into the valid `0..=MAX_PRICE_TYPE` range so
+    /// every `POW10_*` index stays in bounds. Construction enforces the
+    /// invariant; this keeps the read paths total even for an internally
+    /// constructed odd value, turning a would-be out-of-bounds index into
+    /// a saturated, well-defined result instead of a panic.
+    #[inline]
+    fn clamped_price_type(&self) -> i32 {
+        self.price_type.clamp(0, MAX_PRICE_TYPE)
+    }
+
     /// Convert to f64. This is lossy but useful for display/calculations.
-    // Reason: price_type is bounded to 0..=19 by new/with_value_and_type
-    // (index 19 is a reserved unreachable placeholder; see the constant
-    // doc on MAX_PRICE_TYPE), and a debug_assert below pins the
-    // invariant for hand-constructed values that bypass those
-    // constructors.
-    #[allow(clippy::cast_sign_loss)]
     #[inline]
     #[must_use]
     pub fn to_f64(&self) -> f64 {
-        if self.price_type == 0 {
+        let price_type = self.clamped_price_type();
+        if price_type == 0 {
             return 0.0;
         }
-        debug_assert!(
-            (self.price_type as usize) < POW10_F64.len(),
-            "price_type {} outside POW10_F64 table",
-            self.price_type
-        );
-        let exp = self.price_type - 10;
+        let exp = price_type - 10;
         if exp >= 0 {
-            debug_assert!(
-                (exp as usize) < POW10_F64.len(),
-                "exp {exp} outside POW10_F64 table"
-            );
-            f64::from(self.value) * POW10_F64[exp as usize]
+            // `price_type` is clamped to `0..=MAX_PRICE_TYPE` (19), so
+            // `exp` is `0..=9` — always a valid `POW10_F64` index.
+            f64::from(self.value) * POW10_F64[exp.unsigned_abs() as usize]
         } else {
-            debug_assert!(
-                ((-exp) as usize) < POW10_F64.len(),
-                "(-exp) {} outside POW10_F64 table",
-                -exp
-            );
-            f64::from(self.value) / POW10_F64[(-exp) as usize]
+            // `exp` is `-10..=-1`, so `-exp` is `1..=10` — always a valid
+            // `POW10_F64` index.
+            f64::from(self.value) / POW10_F64[exp.unsigned_abs() as usize]
         }
     }
 
     /// Normalize both prices to the same type for comparison.
-    // Reason: price_type is bounded to 0..=19, so differences are in
-    // 0..=19 (safe cast). `&self` required by PartialOrd/Ord trait
-    // implementations. Every index into POW10_I64 is guarded by a
-    // debug_assert in addition to the explicit `exp > 18` early-out
-    // (index 19 stores `i64::MAX` as an unreachable placeholder, so the
-    // early-out is what keeps the arithmetic correct).
-    #[allow(clippy::cast_sign_loss, clippy::trivially_copy_pass_by_ref)]
+    // `&self` is required by the `PartialOrd`/`Ord` trait signatures.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     fn compare(&self, other: &Self) -> Ordering {
-        if self.price_type == other.price_type {
+        // Clamp into the valid range so every `POW10_I64` index stays in
+        // bounds even for an internally constructed odd value.
+        let self_type = self.clamped_price_type();
+        let other_type = other.clamped_price_type();
+        if self_type == other_type {
             return self.value.cmp(&other.value);
         }
         // Scale to common base using i64 to avoid overflow.
         // For exponents > 18, i64 multiplication can overflow; fall back to f64.
-        if self.price_type > other.price_type {
-            let exp = (self.price_type - other.price_type) as usize;
+        if self_type > other_type {
+            let exp = (self_type - other_type).unsigned_abs() as usize;
             if exp > 18 {
                 // Fall back to f64 comparison for very large exponent differences.
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            debug_assert!(exp < POW10_I64.len(), "exp {exp} outside POW10_I64 table");
             let scaled = i64::from(self.value).checked_mul(POW10_I64[exp]);
             match scaled {
                 Some(s) => s.cmp(&i64::from(other.value)),
@@ -250,11 +245,10 @@ impl Price {
                 None => self.to_f64().total_cmp(&other.to_f64()),
             }
         } else {
-            let exp = (other.price_type - self.price_type) as usize;
+            let exp = (other_type - self_type).unsigned_abs() as usize;
             if exp > 18 {
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            debug_assert!(exp < POW10_I64.len(), "exp {exp} outside POW10_I64 table");
             let scaled = i64::from(other.value).checked_mul(POW10_I64[exp]);
             match scaled {
                 Some(s) => i64::from(self.value).cmp(&s),
@@ -291,26 +285,19 @@ impl fmt::Debug for Price {
 }
 
 impl fmt::Display for Price {
-    // Reason: price_type is bounded to 0..=19; debug_asserts pin the
-    // invariant for the formatter paths that arithmetic-cast it to
-    // unsigned. The formatter never actually reaches an `exp` of 9
-    // (price_type 19) because `10^19` overflows i64 — the index-19 slot
-    // is an unreachable placeholder, see MAX_PRICE_TYPE.
-    #[allow(clippy::cast_sign_loss)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.price_type == 0 {
+        // Clamp into the valid range so the digit-count arithmetic below
+        // stays non-negative and bounded even for an internally
+        // constructed odd value.
+        let price_type = self.clamped_price_type();
+        if price_type == 0 {
             return write!(f, "0.0");
         }
-        debug_assert!(
-            (0..=MAX_PRICE_TYPE).contains(&self.price_type),
-            "price_type {} outside valid range",
-            self.price_type
-        );
-        if self.price_type == 10 {
+        if price_type == 10 {
             return write!(f, "{}.0", self.value);
         }
-        if self.price_type > 10 {
-            let zeros = "0".repeat((self.price_type - 10) as usize);
+        if price_type > 10 {
+            let zeros = "0".repeat((price_type - 10).unsigned_abs() as usize);
             return write!(f, "{}{}.0", self.value, zeros);
         }
 
@@ -323,7 +310,7 @@ impl fmt::Display for Price {
             format!("{}", self.value)
         };
 
-        let frac_digits = (10 - self.price_type) as usize;
+        let frac_digits = (10 - price_type).unsigned_abs() as usize;
         let padded = if abs_str.len() <= frac_digits {
             let pad = "0".repeat(frac_digits - abs_str.len() + 1);
             format!("{pad}{abs_str}")
@@ -471,13 +458,69 @@ mod tests {
         let _ = Price::new(1, i32::MAX);
     }
 
-    /// Accessors return the same value as direct field access — they
-    /// exist so the fields can become `pub(crate)` in a future major
-    /// release without breaking call sites.
+    /// Accessors return the same value as direct field access. The raw
+    /// fields are crate-private so the `0..=MAX_PRICE_TYPE` invariant
+    /// cannot be bypassed by external construction.
     #[test]
     fn accessors_match_fields() {
         let p = Price::new(15025, 8);
         assert_eq!(p.value(), p.value);
         assert_eq!(p.price_type(), p.price_type);
+    }
+
+    /// The read paths (`to_f64`, `to_string`, `compare`) stay total even
+    /// for a `price_type` outside the table range. Construction enforces
+    /// the invariant, but an internally built odd value must saturate
+    /// into the valid range rather than index a `POW10_*` table out of
+    /// bounds and panic. Covers above the table max, below the unset
+    /// boundary (negative exponent), and both table boundaries.
+    #[test]
+    fn read_paths_are_total_for_out_of_range_price_type() {
+        // Bypass the validating constructors via crate-private fields to
+        // model an out-of-range value reaching the read paths.
+        let above = Price {
+            value: 1,
+            price_type: 30,
+        };
+        let below = Price {
+            value: 1,
+            price_type: -5,
+        };
+        let lo = Price {
+            value: 1,
+            price_type: 0,
+        };
+        let hi = Price {
+            value: 1,
+            price_type: MAX_PRICE_TYPE,
+        };
+        let reference = Price::new(15025, 8);
+
+        for p in [above, below, lo, hi] {
+            // None of these may panic; all must produce a finite f64,
+            // a non-empty string, and a defined ordering.
+            let f = p.to_f64();
+            assert!(f.is_finite(), "to_f64 must be finite; got {f}");
+            assert!(!p.to_string().is_empty(), "Display must be non-empty");
+            let _ = p.cmp(&reference);
+            let _ = reference.cmp(&p);
+            let _ = p.cmp(&p);
+        }
+    }
+
+    /// In-range conversions are unchanged by the read-path guard: a
+    /// clamp that leaves valid values untouched must reproduce the exact
+    /// prior results for known `(value, price_type)` pairs.
+    #[test]
+    fn in_range_conversions_are_unchanged() {
+        // value=12345, price_type=8 -> 12345 * 10^(8-10) = 123.45
+        assert!((Price::new(12345, 8).to_f64() - 123.45).abs() < 1e-10);
+        assert_eq!(Price::new(12345, 8).to_string(), "123.45");
+        // value=5, price_type=12 -> 5 * 10^2 = 500.0
+        assert!((Price::new(5, 12).to_f64() - 500.0).abs() < 1e-10);
+        assert_eq!(Price::new(5, 12).to_string(), "500.0");
+        // value=100, price_type=10 -> 100 * 10^0 = 100.0
+        assert!((Price::new(100, 10).to_f64() - 100.0).abs() < 1e-10);
+        assert_eq!(Price::new(100, 10).to_string(), "100.0");
     }
 }
