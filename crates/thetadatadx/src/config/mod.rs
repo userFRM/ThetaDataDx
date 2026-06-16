@@ -288,6 +288,29 @@ impl DirectConfig {
                 to_i64(*streaming_bounds::IO_READ_SLICE_MS.end()),
             ));
         }
+        // `data_watchdog_ms` is a wall-clock backstop above the read
+        // timeout: `0` disables it, and any enabled value must sit inside
+        // its band and at or above `timeout_ms` so the backstop cannot
+        // fire before the read timeout it is meant to backstop.
+        if self.streaming.data_watchdog_ms != 0 {
+            if !streaming_bounds::DATA_WATCHDOG_MS.contains(&self.streaming.data_watchdog_ms) {
+                return Err(Error::config_out_of_range(
+                    "streaming.data_watchdog_ms",
+                    to_i64(self.streaming.data_watchdog_ms),
+                    to_i64(*streaming_bounds::DATA_WATCHDOG_MS.start()),
+                    to_i64(*streaming_bounds::DATA_WATCHDOG_MS.end()),
+                ));
+            }
+            if self.streaming.data_watchdog_ms < self.streaming.timeout_ms {
+                return Err(Error::config_invalid(
+                    "streaming.data_watchdog_ms",
+                    format!(
+                        "data_watchdog_ms ({}) must be 0 (disabled) or >= timeout_ms ({})",
+                        self.streaming.data_watchdog_ms, self.streaming.timeout_ms
+                    ),
+                ));
+            }
+        }
         if !streaming_bounds::KEEPALIVE_IDLE_SECS.contains(&self.streaming.keepalive_idle_secs) {
             return Err(Error::config_out_of_range(
                 "streaming.keepalive_idle_secs",
@@ -767,6 +790,21 @@ mod config_file {
         concurrent_requests: usize,
     }
 
+    impl GrpcSection {
+        /// Upper ceiling for `[grpc] max_message_size_mb`, in megabytes.
+        ///
+        /// The inbound message size is a pre-allocated decode budget, so an
+        /// out-of-range value is a footgun in both directions: the
+        /// MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for
+        /// absurd inputs, and even a value that does not overflow commits
+        /// the channel to a buffer far beyond any legitimate response. The
+        /// production default is 4 MB; 64 MB leaves generous headroom for
+        /// the largest bulk historical chunk while keeping the budget
+        /// bounded. Values above this — or a `0` that would disable the
+        /// limit entirely — are rejected by name at load time.
+        const MAX_MESSAGE_SIZE_MB: usize = 64;
+    }
+
     impl Default for GrpcSection {
         fn default() -> Self {
             let prod = DirectConfig::production();
@@ -903,7 +941,29 @@ mod config_file {
             // wins when present — including when set to the same number as
             // the default — and is inert when absent.
             let max_message_size = match cf.grpc.max_message_size_mb {
-                Some(mb) => mb * 1024 * 1024,
+                // The override is a pre-allocated decode budget. Reject a
+                // `0` (which would disable the limit) or an out-of-ceiling
+                // value up front, and compute the byte count with
+                // `checked_mul` so an absurd input is reported as a range
+                // error rather than wrapping `usize` into a tiny cap.
+                Some(mb) => {
+                    if mb == 0 || mb > GrpcSection::MAX_MESSAGE_SIZE_MB {
+                        return Err(Error::config_out_of_range(
+                            "grpc.max_message_size_mb",
+                            i64::try_from(mb).unwrap_or(i64::MAX),
+                            1,
+                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                        ));
+                    }
+                    mb.checked_mul(1024 * 1024).ok_or_else(|| {
+                        Error::config_out_of_range(
+                            "grpc.max_message_size_mb",
+                            i64::try_from(mb).unwrap_or(i64::MAX),
+                            1,
+                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                        )
+                    })?
+                }
                 None => cf.historical.max_message_size,
             };
 
@@ -1266,6 +1326,51 @@ mod tests {
         }
 
         #[test]
+        fn grpc_max_message_size_mb_at_ceiling_is_accepted() {
+            let toml = r#"
+                [grpc]
+                max_message_size_mb = 64
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(config.historical.max_message_size, 64 * 1024 * 1024);
+        }
+
+        #[test]
+        fn grpc_max_message_size_mb_above_ceiling_is_rejected() {
+            let toml = r#"
+                [grpc]
+                max_message_size_mb = 65
+            "#;
+            let err = DirectConfig::from_toml_str(toml)
+                .expect_err("a value above the ceiling must be rejected");
+            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
+        }
+
+        #[test]
+        fn grpc_max_message_size_mb_zero_is_rejected() {
+            // `0` would disable the inbound-size limit entirely; it must be
+            // reported by name rather than silently uncapping the channel.
+            let toml = r#"
+                [grpc]
+                max_message_size_mb = 0
+            "#;
+            let err =
+                DirectConfig::from_toml_str(toml).expect_err("a zero override must be rejected");
+            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
+        }
+
+        #[test]
+        fn grpc_max_message_size_mb_absurd_value_does_not_panic_or_wrap() {
+            // A value that would overflow the MB→byte conversion must
+            // surface as a range error, never a debug panic or a release
+            // wrap into a tiny garbage cap.
+            let toml = format!("[grpc]\nmax_message_size_mb = {}\n", usize::MAX);
+            let err = DirectConfig::from_toml_str(&toml)
+                .expect_err("an absurd value must be rejected, not wrapped");
+            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
+        }
+
+        #[test]
         fn grpc_max_message_size_absent_keeps_historical_bytes() {
             // With no [grpc] override the canonical [historical] byte value
             // stays in force.
@@ -1431,6 +1536,52 @@ mod tests {
         config.streaming.io_read_slice_ms = 5;
         let err = config.validate().expect_err("must reject below-minimum");
         assert!(err.to_string().contains("io_read_slice_ms"));
+    }
+
+    #[test]
+    fn validate_accepts_disabled_data_watchdog() {
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.data_watchdog_ms = 0;
+        let validated = config
+            .validate()
+            .expect("0 disables the watchdog and must validate");
+        assert_eq!(validated.streaming.data_watchdog_ms, 0);
+    }
+
+    #[test]
+    fn validate_rejects_data_watchdog_below_read_timeout() {
+        let mut config = DirectConfig::production_defaults();
+        // Above the band floor but below timeout_ms — the backstop would
+        // fire before the read timeout it is meant to backstop.
+        config.streaming.timeout_ms = 5_000;
+        config.streaming.data_watchdog_ms = 1_000;
+        let err = config
+            .validate()
+            .expect_err("watchdog below timeout_ms must be rejected");
+        let msg = err.to_string();
+        assert!(msg.contains("data_watchdog_ms"), "{msg}");
+        assert!(msg.contains("timeout_ms"), "{msg}");
+    }
+
+    #[test]
+    fn validate_rejects_data_watchdog_above_maximum() {
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.data_watchdog_ms = 7_200_000;
+        let err = config
+            .validate()
+            .expect_err("watchdog above the ceiling must be rejected");
+        assert!(err.to_string().contains("data_watchdog_ms"));
+    }
+
+    #[test]
+    fn validate_accepts_in_range_data_watchdog() {
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.timeout_ms = 3_000;
+        config.streaming.data_watchdog_ms = 60_000;
+        let validated = config
+            .validate()
+            .expect("an enabled watchdog at or above timeout_ms validates");
+        assert_eq!(validated.streaming.data_watchdog_ms, 60_000);
     }
 
     #[test]

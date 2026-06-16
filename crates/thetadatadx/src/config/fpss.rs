@@ -400,6 +400,18 @@ pub mod bounds {
     pub const PING_INTERVAL_MS: std::ops::RangeInclusive<u64> = 100..=300_000;
     /// Allowed range for [`super::StreamingConfig::io_read_slice_ms`], in milliseconds.
     pub const IO_READ_SLICE_MS: std::ops::RangeInclusive<u64> = 10..=500;
+    /// Allowed non-zero range for
+    /// [`super::StreamingConfig::data_watchdog_ms`], in milliseconds.
+    ///
+    /// `0` disables the watchdog and is handled separately; any enabled
+    /// value must fall inside this band. The floor matches the streaming
+    /// read-timeout floor ([`TIMEOUT_MS`]) because the watchdog is a
+    /// wall-clock backstop that sits *above* the read timeout — a value
+    /// below `timeout_ms` would fire before the read timeout and defeat
+    /// its purpose, so the `>= timeout_ms` invariant is also enforced in
+    /// `validate`. The ceiling bounds the longest a dead link can sit
+    /// undetected by the backstop at one hour.
+    pub const DATA_WATCHDOG_MS: std::ops::RangeInclusive<u64> = 100..=3_600_000;
     /// Allowed range for [`super::StreamingConfig::keepalive_idle_secs`], in seconds.
     pub const KEEPALIVE_IDLE_SECS: std::ops::RangeInclusive<u64> = 1..=7_200;
     /// Allowed range for [`super::StreamingConfig::keepalive_interval_secs`], in seconds.
