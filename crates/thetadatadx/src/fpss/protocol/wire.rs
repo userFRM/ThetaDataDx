@@ -281,6 +281,7 @@ mod tests {
             Error::Config {
                 kind: crate::error::ConfigErrorKind::InvalidValue { field, .. },
                 message,
+                ..
             } => {
                 assert_eq!(field, "auth.credentials");
                 assert!(

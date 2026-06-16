@@ -527,11 +527,13 @@ export declare class Config {
   get waitYieldIters(): number
   /**
    * Set the wait-strategy park interval in microseconds (used by the
-   * `"balanced"` / `"efficient"` strategies).
+   * `"balanced"` / `"efficient"` strategies). The interval is a `u64`
+   * microsecond value, marshalled as a `bigint`:
+   * `setWaitParkUs(BigInt(50))`.
    */
-  setWaitParkUs(parkUs: number): void
+  setWaitParkUs(parkUs: bigint): void
   /** Current wait-strategy park interval in microseconds. */
-  get waitParkUs(): number
+  get waitParkUs(): bigint
   /**
    * Pin the streaming consumer thread to a CPU core, or `null` to
    * leave it under the OS scheduler (default).

@@ -408,6 +408,13 @@ pub enum Error {
         kind: DecodeErrorKind,
         /// Human-readable detail for logs and `Display`.
         message: String,
+        /// Typed underlying cause when this error was bridged from a
+        /// lower layer (the per-cell decoder), so `Error::source()`
+        /// returns the original error for chain walking. `None` for
+        /// failures raised directly at this layer, whose full detail is
+        /// already carried by `kind` and `message`.
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
     /// Query returned no data rows.
@@ -439,6 +446,13 @@ pub enum Error {
         kind: ConfigErrorKind,
         /// Human-readable detail for logs and `Display`.
         message: String,
+        /// Typed underlying cause when this error was bridged from a
+        /// lower layer (the data-format encoding layer), so
+        /// `Error::source()` returns the original error for chain
+        /// walking. `None` for failures raised directly at this layer,
+        /// whose full detail is already carried by `kind` and `message`.
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
     /// HTTP error (reqwest).
@@ -516,6 +530,7 @@ impl Error {
         Self::Config {
             kind: ConfigErrorKind::InvalidValue { field, message },
             message: display,
+            source: None,
         }
     }
 
@@ -527,6 +542,7 @@ impl Error {
         Self::Config {
             kind: ConfigErrorKind::MissingField(field),
             message: display,
+            source: None,
         }
     }
 
@@ -543,6 +559,7 @@ impl Error {
                 max,
             },
             message: display,
+            source: None,
         }
     }
 
@@ -553,6 +570,7 @@ impl Error {
         Self::Config {
             kind: ConfigErrorKind::Io(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -563,6 +581,7 @@ impl Error {
         Self::Config {
             kind: ConfigErrorKind::TomlParse(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -573,6 +592,7 @@ impl Error {
         Self::Config {
             kind: ConfigErrorKind::Internal(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -586,6 +606,7 @@ impl Error {
         Self::Decode {
             kind: DecodeErrorKind::Protobuf(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -596,6 +617,7 @@ impl Error {
         Self::Decode {
             kind: DecodeErrorKind::Codec(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -607,6 +629,7 @@ impl Error {
         Self::Decode {
             kind: DecodeErrorKind::Arrow(message.clone()),
             message,
+            source: None,
         }
     }
 
@@ -623,7 +646,11 @@ impl Error {
             actual_columns,
         };
         let message = kind.to_string();
-        Self::Decode { kind, message }
+        Self::Decode {
+            kind,
+            message,
+            source: None,
+        }
     }
 
     /// Build a `Decode` error categorized as a column type mismatch.
@@ -641,7 +668,11 @@ impl Error {
             actual: actual.into(),
         };
         let message = kind.to_string();
-        Self::Decode { kind, message }
+        Self::Decode {
+            kind,
+            message,
+            source: None,
+        }
     }
 
     // ─── Decompress constructors ────────────────────────────────────────
@@ -710,9 +741,18 @@ impl From<crate::tdbe::error::Error> for Error {
         // these failures reflect a bad caller-supplied value, never an
         // SDK-internal name.
         match err {
-            crate::tdbe::error::Error::Config(msg) => Self::config_invalid("input", msg),
             crate::tdbe::error::Error::Io(e) => Self::Io(e),
-            other => Self::config_invalid("input", other.to_string()),
+            other => {
+                let display = format!("input: {other}");
+                Self::Config {
+                    kind: ConfigErrorKind::InvalidValue {
+                        field: "input".to_string(),
+                        message: other.to_string(),
+                    },
+                    message: display,
+                    source: Some(Box::new(other)),
+                }
+            }
         }
     }
 }
@@ -722,8 +762,15 @@ impl From<crate::decode::DecodeError> for Error {
         // Per-cell decode failures surface through the same channel as
         // protobuf decode failures so callers pattern-match a single
         // `Error::Decode` variant. The `Codec` kind is the closest fit
-        // for FIE/FIT-cell type-mismatch failures.
-        Self::decode_codec(err.to_string())
+        // for FIE/FIT-cell type-mismatch failures. The typed cause is
+        // retained as the error source so chain walkers reach the
+        // per-cell detail without parsing the `Display` string.
+        let message = err.to_string();
+        Self::Decode {
+            kind: DecodeErrorKind::Codec(message.clone()),
+            message,
+            source: Some(Box::new(err)),
+        }
     }
 }
 
@@ -731,8 +778,11 @@ impl From<crate::grpc::Status> for Error {
     fn from(s: crate::grpc::Status) -> Self {
         // The transport carries the canonical `grpc-status` /
         // `grpc-message` pair plus the decoded `google.rpc.RetryInfo`
-        // hint. Surface the numeric code + UTF-8 message as-is so
-        // callers get `GrpcStatusKind` pattern-matching.
+        // hint. Every field of the source status is preserved
+        // structurally — the numeric code maps to a typed
+        // `GrpcStatusKind`, the message and the backoff hint carry over
+        // verbatim — so nothing is flattened away and a source link
+        // would expose no detail the variant does not already hold.
         let kind = GrpcStatusKind::from_u32(s.code());
         Self::Grpc {
             kind,
@@ -959,6 +1009,43 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn decode_error_bridge_preserves_source() {
+        use std::error::Error as _;
+        let cause = crate::decode::DecodeError::MissingCell { column: 4 };
+        let cause_display = cause.to_string();
+        let err: Error = cause.into();
+        assert!(matches!(
+            err,
+            Error::Decode {
+                kind: DecodeErrorKind::Codec(_),
+                ..
+            }
+        ));
+        let source = err.source().expect("bridged decode error carries a source");
+        assert_eq!(source.to_string(), cause_display);
+        assert!(source
+            .downcast_ref::<crate::decode::DecodeError>()
+            .is_some());
+    }
+
+    #[test]
+    fn tdbe_error_bridge_preserves_source() {
+        use std::error::Error as _;
+        let cause = crate::tdbe::error::Error::Decode("bad nibble".into());
+        let cause_display = cause.to_string();
+        let err: Error = cause.into();
+        assert!(matches!(
+            err,
+            Error::Config {
+                kind: ConfigErrorKind::InvalidValue { .. },
+                ..
+            }
+        ));
+        let source = err.source().expect("bridged tdbe error carries a source");
+        assert_eq!(source.to_string(), cause_display);
     }
 
     #[test]

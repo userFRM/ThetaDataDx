@@ -1621,25 +1621,33 @@ impl Config {
     }
 
     /// Set the wait-strategy park interval in microseconds (used by the
-    /// `"balanced"` / `"efficient"` strategies).
+    /// `"balanced"` / `"efficient"` strategies). The interval is a `u64`
+    /// microsecond value in the core, so it marshals as a `BigInt` like
+    /// the other microsecond / second streaming and reconnect knobs:
+    /// `setWaitParkUs(BigInt(50))`. The core clamps the effective park
+    /// interval to its supported ceiling when the wait strategy is built.
     #[napi(js_name = "setWaitParkUs")]
-    pub fn set_wait_park_us(&self, park_us: u32) -> napi::Result<()> {
+    pub fn set_wait_park_us(&self, park_us: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setWaitParkUs", &park_us)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_park_us = u64::from(park_us);
+        guard.streaming.wait_park_us = value;
         Ok(())
     }
 
-    /// Current wait-strategy park interval in microseconds.
+    /// Current wait-strategy park interval in microseconds (returned as a
+    /// `BigInt`).
     #[napi(getter, js_name = "waitParkUs")]
-    pub fn wait_park_us(&self) -> napi::Result<u32> {
+    pub fn wait_park_us(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.streaming.wait_park_us).unwrap_or(u32::MAX))
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.streaming.wait_park_us,
+        ))
     }
 
     /// Pin the streaming consumer thread to a CPU core, or `null` to

@@ -737,8 +737,8 @@ impl std::str::FromStr for Contract {
     ///
     /// Two formats are accepted:
     ///
-    /// 1. **Bare root** (stock contract). 1..=6 ASCII uppercase letters,
-    ///    optionally including a single `.`:
+    /// 1. **Bare root** (stock contract). 1..=16 ASCII uppercase letters,
+    ///    optionally including a single `.` (e.g. `"BRK.B"`):
     ///    ```
     ///    # use std::str::FromStr;
     ///    # use thetadatadx::fpss::protocol::Contract;
