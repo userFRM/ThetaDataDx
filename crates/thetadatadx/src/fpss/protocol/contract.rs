@@ -798,7 +798,16 @@ impl std::str::FromStr for Contract {
         // (digits, right byte, strike width) still surface their exact
         // errors with the repaired input in the message.
         const OCC21_SUFFIX_LEN: usize = 15; // YYMMDD(6) + right(1) + strike(8)
-        if trimmed.len() == Self::OCC21_LEN - 1 && trimmed.len() > OCC21_SUFFIX_LEN {
+
+        // `trimmed.len()` is a byte count, so a non-ASCII input can reach
+        // this length with `split` (byte index 5) landing mid-codepoint;
+        // slicing there would panic. OCC-21 identifiers are ASCII by spec,
+        // so require ASCII before the byte slices and let anything else
+        // fall through to the bare-root validator for a clean error.
+        if trimmed.len() == Self::OCC21_LEN - 1
+            && trimmed.len() > OCC21_SUFFIX_LEN
+            && trimmed.is_ascii()
+        {
             let split = trimmed.len() - OCC21_SUFFIX_LEN;
             let root_slice = trimmed[..split].trim_end_matches(' ');
             let suffix = &trimmed[split..];
@@ -1249,6 +1258,23 @@ mod tests {
         assert!(
             err.contains("APPLETREESARECUTEST"),
             "expected error to include the offending input, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_non_ascii_at_repair_length_does_not_panic() {
+        use std::str::FromStr;
+        // 20 bytes via a multi-byte codepoint whose continuation byte
+        // lands on the byte-5 split the repair heuristic slices at.
+        // Before the ASCII guard this panicked on a non-char-boundary
+        // slice; now it must fall through to the bare-root validator and
+        // return a clean error.
+        let input = "ABCDé260417C0055000"; // 'é' is two bytes -> 20 bytes total
+        assert_eq!(input.len(), 20);
+        let err = Contract::from_str(input).unwrap_err().to_string();
+        assert!(
+            err.contains("Contract::from_str"),
+            "expected Contract::from_str-prefixed error, got: {err}"
         );
     }
 
