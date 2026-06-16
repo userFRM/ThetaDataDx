@@ -89,6 +89,7 @@ impl Credentials {
                     e
                 )),
                 message: "credentials file unreadable".to_string(),
+                source: Some(Box::new(e)),
             }
         })?);
 

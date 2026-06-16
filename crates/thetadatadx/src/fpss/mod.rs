@@ -275,6 +275,7 @@ impl From<FpssError> for Error {
                     message: message.clone(),
                 },
                 message,
+                source: None,
             },
             FpssError::Io(message) => Error::Io(std::io::Error::other(message)),
         }
@@ -2079,6 +2080,7 @@ impl StreamingClient {
                     ),
                 },
                 message: "unsupported full-stream security type".to_string(),
+                source: None,
             });
         }
         let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));

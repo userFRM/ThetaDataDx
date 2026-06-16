@@ -30,17 +30,17 @@ test("default wait tuning", () => {
   const cfg = Config.production();
   assert.equal(cfg.waitSpinIters, 100);
   assert.equal(cfg.waitYieldIters, 10);
-  assert.equal(cfg.waitParkUs, 50);
+  assert.equal(cfg.waitParkUs, 50n);
 });
 
 test("wait tuning round-trips", () => {
   const cfg = Config.production();
   cfg.setWaitSpinIters(16);
   cfg.setWaitYieldIters(2);
-  cfg.setWaitParkUs(200);
+  cfg.setWaitParkUs(200n);
   assert.equal(cfg.waitSpinIters, 16);
   assert.equal(cfg.waitYieldIters, 2);
-  assert.equal(cfg.waitParkUs, 200);
+  assert.equal(cfg.waitParkUs, 200n);
 });
 
 test("default consumer cpu is null", () => {

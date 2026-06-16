@@ -16,6 +16,12 @@
 //! fixture inside must exist — a missing CSV at that point is a hard
 //! failure. The JSONL sink re-encodes the same logical rows and is
 //! row-count smoke-tested.
+//!
+//! The comparison is column-for-column rather than a raw byte compare:
+//! the SDK emits option strikes in dollars on every client-facing
+//! surface, while the vendor reference renders the raw scaled-integer
+//! wire value (1000 wire units per dollar). That one column is compared
+//! on a common scale; every other byte must still match exactly.
 
 // Test gate sits on each #[test] via `cfg_attr(not(feature="live-tests"),
 // ignore)`. Without `--features live-tests`, the live-MDDS integration
@@ -110,6 +116,76 @@ fn resolve_fixture(filename: &str) -> Option<PathBuf> {
     resolution_to_option(resolve_fixture_inner(filename, FIXTURES_PATH_ENV))
 }
 
+/// Zero-based index of the `strike` column in the option CSV layout
+/// (`symbol,expiration,strike,right,...`). The contract prefix the
+/// vendor prepends to every option row shares this layout.
+const OPTION_STRIKE_COLUMN: usize = 2;
+
+/// Assert the SDK CSV matches the vendor CSV column-for-column, treating
+/// the strike column as semantically equal across the two scales.
+///
+/// The strike column is the one cell that legitimately differs: the SDK
+/// emits strikes in dollars (`$210.00`), while the vendor reference
+/// renders the raw wire integer (1000 wire units per dollar, so `210000`
+/// for a $210 strike). The two encode the same strike at different
+/// scales, so a byte-equal comparison of that column would always fail.
+/// Every other byte must still match exactly, so each row is compared
+/// field-by-field with the strike cell converted to a common scale
+/// (vendor wire units / 1000 == SDK dollars) and all remaining cells
+/// compared verbatim. The header row matches byte-for-byte and is
+/// compared whole.
+fn assert_option_csv_matches_vendor(ours: &[u8], theirs: &[u8], context: &str) {
+    let ours = std::str::from_utf8(ours).expect("SDK CSV is UTF-8");
+    let theirs = std::str::from_utf8(theirs).expect("vendor CSV is UTF-8");
+    let our_lines: Vec<&str> = ours.lines().collect();
+    let their_lines: Vec<&str> = theirs.lines().collect();
+    assert_eq!(
+        our_lines.len(),
+        their_lines.len(),
+        "{context}: row count mismatch SDK={} vendor={}",
+        our_lines.len(),
+        their_lines.len()
+    );
+
+    for (row_idx, (our_line, their_line)) in our_lines.iter().zip(&their_lines).enumerate() {
+        // Row 0 is the header; both sides write the identical column
+        // names, so compare it whole.
+        if row_idx == 0 {
+            assert_eq!(our_line, their_line, "{context}: header row differs");
+            continue;
+        }
+        let our_cells: Vec<&str> = our_line.split(',').collect();
+        let their_cells: Vec<&str> = their_line.split(',').collect();
+        assert_eq!(
+            our_cells.len(),
+            their_cells.len(),
+            "{context}: column count mismatch at row {row_idx}: SDK={our_line:?} vendor={their_line:?}"
+        );
+        for (col, (our_cell, their_cell)) in our_cells.iter().zip(&their_cells).enumerate() {
+            if col == OPTION_STRIKE_COLUMN {
+                let our_strike: f64 = our_cell
+                    .parse()
+                    .unwrap_or_else(|_| panic!("{context}: SDK strike {our_cell:?} not numeric"));
+                let their_wire: f64 = their_cell.parse().unwrap_or_else(|_| {
+                    panic!("{context}: vendor strike {their_cell:?} not numeric")
+                });
+                // 1000 wire units per dollar; SDK dollars are wire /
+                // 1000. Compare on the dollar scale.
+                let their_dollars = their_wire / 1_000.0;
+                assert!(
+                    (our_strike - their_dollars).abs() < 1e-9,
+                    "{context}: strike mismatch at row {row_idx}: SDK={our_strike} vendor={their_wire} (={their_dollars} dollars)"
+                );
+            } else {
+                assert_eq!(
+                    our_cell, their_cell,
+                    "{context}: cell mismatch at row {row_idx} col {col}: SDK={our_cell:?} vendor={their_cell:?}"
+                );
+            }
+        }
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg_attr(
     not(feature = "live-tests"),
@@ -166,14 +242,7 @@ async fn option_open_interest_csv_byte_matches_vendor() {
     .expect("CSV decode");
     let ours = std::fs::read(&csv_path).expect("read SDK CSV");
     let theirs = std::fs::read(&reference_path).expect("read vendor CSV");
-    assert_eq!(
-        ours.len(),
-        theirs.len(),
-        "byte length mismatch: SDK={} vendor={}",
-        ours.len(),
-        theirs.len()
-    );
-    assert_eq!(ours, theirs, "CSV content does not byte-match vendor");
+    assert_option_csv_matches_vendor(&ours, &theirs, "OPTION/OPEN_INTEREST");
 
     // Smoke-test JSONL on the same blob; assert row count equals CSV
     // rows minus the header.
@@ -271,14 +340,7 @@ async fn option_eod_csv_byte_matches_vendor() {
     .expect("CSV decode");
     let ours = std::fs::read(&csv_path).expect("read SDK CSV");
     let theirs = std::fs::read(&reference_path).expect("read vendor CSV");
-    assert_eq!(
-        ours.len(),
-        theirs.len(),
-        "byte length mismatch: SDK={} vendor={}",
-        ours.len(),
-        theirs.len()
-    );
-    assert_eq!(ours, theirs, "EOD CSV content does not byte-match vendor");
+    assert_option_csv_matches_vendor(&ours, &theirs, "OPTION/EOD");
 
     // Smoke-test JSONL on the same blob; assert row count equals CSV
     // rows minus the header.
