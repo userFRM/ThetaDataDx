@@ -458,7 +458,7 @@ impl<'a> StreamingClientBuilder<'a> {
     /// preset's defaults; use [`Self::wait_strategy_tuning`] afterwards to
     /// override the individual counts. Rust callers that want to supply
     /// their own [`disruptor::wait_strategies::WaitStrategy`] impl use
-    /// [`StreamingClient::start_streaming_with_wait_strategy`] instead.
+    /// [`StreamingClient::for_each_with_wait_strategy`] instead.
     #[must_use]
     pub fn wait_strategy(mut self, strategy: StreamingWaitStrategy) -> Self {
         self.wait_strategy = match strategy {
