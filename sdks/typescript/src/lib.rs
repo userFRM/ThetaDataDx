@@ -100,8 +100,8 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 /// line 1 = email, line 2 = password), then pass the handle to a client
 /// `connect(creds, config?)`.
 ///
-/// ```js
-/// const { Credentials, Client } = require("@thetadatadx/sdk");
+/// ```ts
+/// import { Credentials, Client } from "thetadatadx";
 /// const creds = Credentials.fromFile("creds.txt");
 /// const client = Client.connect(creds);
 /// ```
@@ -183,6 +183,59 @@ pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
         )));
     }
     Ok(timeout_ms as u64)
+}
+
+/// Validate a non-negative integer query parameter and convert it to the
+/// `i32` domain the core request builders take.
+///
+/// The bounded integer filters (`maxDte`, `strikeRange` — days-to-expiry
+/// and strike windows that are counts, never negative) ride in the options
+/// object as JS `number`s (IEEE-754 doubles). Typing the napi field as
+/// `i32` would route the value through V8's `ToInt32`, which silently
+/// wraps a hostile or oversized input — `3e9` becomes a negative count,
+/// `NaN`/`Infinity` become `0`, and a fractional value is truncated — each
+/// the opposite of a caller's intent. Taking the field as `f64` and
+/// validating here rejects those inputs with `InvalidParameterError`
+/// (the typed class the Python binding raises as `ValueError` for the
+/// identical input) rather than coercing them, so a caller's
+/// `catch (e instanceof InvalidParameterError)` branch ports across
+/// bindings. `param` names the camelCase key in the rejection message.
+pub(crate) fn validate_nonneg_i32(param: &str, value: f64) -> napi::Result<i32> {
+    if !value.is_finite() {
+        return Err(invalid_parameter_err(format!(
+            "{param} must be a non-negative whole number; got {value}"
+        )));
+    }
+    if value < 0.0 {
+        return Err(invalid_parameter_err(format!(
+            "{param} must be non-negative; got {value}"
+        )));
+    }
+    if value.fract() != 0.0 {
+        return Err(invalid_parameter_err(format!(
+            "{param} must be a whole number; got {value}"
+        )));
+    }
+    if value > i32::MAX as f64 {
+        return Err(invalid_parameter_err(format!(
+            "{param} exceeds the representable range; got {value}"
+        )));
+    }
+    Ok(value as i32)
+}
+
+/// Validate an optional non-negative integer query parameter, leaving an
+/// omitted value (`None`) untouched. Thin `Option` wrapper over
+/// [`validate_nonneg_i32`] so the generated method bodies validate
+/// optional `Int` filters with a single expression.
+pub(crate) fn validate_optional_nonneg_i32(
+    param: &str,
+    value: Option<f64>,
+) -> napi::Result<Option<i32>> {
+    match value {
+        Some(v) => Ok(Some(validate_nonneg_i32(param, v)?)),
+        None => Ok(None),
+    }
 }
 
 /// Run an endpoint round-trip off the runtime's execution thread and
@@ -441,7 +494,7 @@ pub struct StreamView {
 
 #[napi]
 impl Client {
-    /// Historical-data sub-namespace: `client.historical.stockHistoryEod(...)`.
+    /// Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
     ///
     /// Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
     /// inner client. No auth round-trip, no streaming-state mutation.
@@ -480,7 +533,8 @@ impl Client {
     /// The config is snapshot at connect time: the `Config` handle may be
     /// reused or mutated afterward without affecting this client.
     ///
-    /// ```js
+    /// ```ts
+    /// import { Credentials, Client } from "thetadatadx";
     /// const creds = Credentials.fromFile("creds.txt");
     /// const client = Client.connect(creds);
     /// ```
@@ -715,17 +769,17 @@ impl StreamView {
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
-/// is identical to the unified client, so `historicalClient.stockHistoryEod(...)`
-/// behaves exactly like `client.stockHistoryEod(...)`. The streaming and
+/// is identical to the unified client, so `historicalClient.stockHistoryEOD(...)`
+/// behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
 /// subscription methods are simply not present: there is no
 /// `startStreaming` / `subscribe` on this class, so a historical-only handle
 /// cannot open a streaming slot. Use `StreamingClient` for streaming, or the
 /// unified `Client` when you need both surfaces.
 ///
-/// ```js
-/// const { HistoricalClient, Config } = require("@thetadatadx/sdk");
+/// ```ts
+/// import { HistoricalClient } from "thetadatadx";
 /// const historical = HistoricalClient.connectFromFile("creds.txt");
-/// const eod = await historical.stockHistoryEod("AAPL", "20240101", "20240301");
+/// const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
 pub struct HistoricalClient {

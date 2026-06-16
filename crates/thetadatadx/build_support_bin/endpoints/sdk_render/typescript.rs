@@ -288,6 +288,18 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
                 )
                 .unwrap();
             }
+            "Int" => {
+                // Validate + narrow the JS `number` to `i32`, rejecting a
+                // non-finite, negative, fractional, or out-of-range value
+                // with `InvalidParameterError` instead of V8-wrapping it.
+                writeln!(
+                    out,
+                    "        let {name} = validate_optional_nonneg_i32(\"{camel}\", options.{name})?;",
+                    name = param.name,
+                    camel = napi_field_camel(&param.name),
+                )
+                .unwrap();
+            }
             _ => {
                 writeln!(out, "        let {} = options.{};", param.name, param.name).unwrap();
             }
@@ -517,6 +529,18 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
                 )
                 .unwrap();
             }
+            "Int" => {
+                // Validate + narrow the JS `number` to `i32`, rejecting a
+                // non-finite, negative, fractional, or out-of-range value
+                // with `InvalidParameterError` instead of V8-wrapping it.
+                writeln!(
+                    out,
+                    "        let {name} = validate_optional_nonneg_i32(\"{camel}\", options.{name})?;",
+                    name = param.name,
+                    camel = napi_field_camel(&param.name),
+                )
+                .unwrap();
+            }
             _ => {
                 writeln!(out, "        let {} = options.{};", param.name, param.name).unwrap();
             }
@@ -612,9 +636,34 @@ fn ts_napi_arg_type(param: &super::super::model::GeneratedParam) -> &'static str
     }
 }
 
+/// Convert a snake_case field name to the lowerCamelCase key napi-rs emits
+/// for a `#[napi(object)]` field (`max_dte` -> `maxDte`,
+/// `strike_range` -> `strikeRange`). Unlike `to_camel_case`, this performs
+/// no acronym uppercasing, so the name matches the literal key a JS caller
+/// passes — the key a validation rejection message must echo back.
+fn napi_field_camel(snake: &str) -> String {
+    let mut out = String::with_capacity(snake.len());
+    let mut upper_next = false;
+    for ch in snake.chars() {
+        if ch == '_' {
+            upper_next = true;
+        } else if upper_next {
+            out.extend(ch.to_uppercase());
+            upper_next = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
-        "Int" => "Option<i32>",
+        // `Int` filters ride in as a JS `number` (f64) and are validated +
+        // narrowed to `i32` in the method body via `validate_nonneg_i32`,
+        // rather than typed `i32` here where V8's `ToInt32` would silently
+        // wrap a hostile or oversized input instead of rejecting it.
+        "Int" => "Option<f64>",
         "Float" => "Option<f64>",
         "Bool" => "Option<bool>",
         "Date" | "Expiration" => "Option<Either<String, chrono::DateTime<chrono::Utc>>>",
