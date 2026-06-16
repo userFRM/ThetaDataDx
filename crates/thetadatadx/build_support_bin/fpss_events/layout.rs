@@ -17,7 +17,8 @@ pub(super) struct CFieldLayout {
 /// the pair before computing offsets.
 pub(super) fn c_field_layout(ty: &str) -> CFieldLayout {
     match ty {
-        "i32" | "u8" => CFieldLayout { size: 4, align: 4 },
+        "u8" => CFieldLayout { size: 1, align: 1 },
+        "i32" => CFieldLayout { size: 4, align: 4 },
         "i64" | "u64" | "f64" => CFieldLayout { size: 8, align: 8 },
         // String → `const char*` borrowed pointer.
         "String" => CFieldLayout { size: 8, align: 8 },

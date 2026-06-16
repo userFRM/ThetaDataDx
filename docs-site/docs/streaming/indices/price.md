@@ -45,7 +45,7 @@ def on_event(event):
 
 client.stream.start_streaming(on_event)
 
-sub = Contract.stock("SPX").trade()
+sub = Contract.index("SPX").trade()
 client.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.

@@ -603,6 +603,33 @@ pub enum StreamResponseType {
     InvalidPerms = 3,
 }
 
+impl StreamResponseType {
+    /// Stream-request verification token this outcome is published as on
+    /// the WebSocket wire.
+    ///
+    /// The wire vocabulary is fixed by the stream-verification contract
+    /// every client matches on: `SUBSCRIBED` / `ERROR` /
+    /// `MAX_STREAMS_REACHED` / `INVALID_PERMS`. This mapping is the single
+    /// source of those tokens, so the Rust variant identifier can never
+    /// reach the wire — emitting the debug form of the variant would break
+    /// every client written against the documented vocabulary.
+    #[must_use]
+    pub const fn as_wire_str(self) -> &'static str {
+        match self {
+            Self::Subscribed => "SUBSCRIBED",
+            Self::Error => "ERROR",
+            Self::MaxStreamsReached => "MAX_STREAMS_REACHED",
+            Self::InvalidPerms => "INVALID_PERMS",
+        }
+    }
+}
+
+impl core::fmt::Display for StreamResponseType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.as_wire_str())
+    }
+}
+
 /// Disconnect reason codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i16)]
@@ -699,6 +726,37 @@ impl RemoveReason {
             Self::InvalidCredentialsNullUser => "InvalidCredentialsNullUser",
         }
     }
+
+    /// Stable SCREAMING_SNAKE_CASE token published as the disconnect
+    /// `reason` on the WebSocket wire.
+    ///
+    /// This mapping is the single source of the wire reason vocabulary, so
+    /// the Rust variant identifier can never reach a client: emitting the
+    /// debug form of the variant would leak an internal type name in place
+    /// of the documented status token.
+    #[must_use]
+    pub const fn as_wire_str(self) -> &'static str {
+        match self {
+            Self::Unspecified => "UNSPECIFIED",
+            Self::InvalidCredentials => "INVALID_CREDENTIALS",
+            Self::InvalidLoginValues => "INVALID_LOGIN_VALUES",
+            Self::InvalidLoginSize => "INVALID_LOGIN_SIZE",
+            Self::GeneralValidationError => "GENERAL_VALIDATION_ERROR",
+            Self::TimedOut => "TIMED_OUT",
+            Self::ClientForcedDisconnect => "CLIENT_FORCED_DISCONNECT",
+            Self::AccountAlreadyConnected => "ACCOUNT_ALREADY_CONNECTED",
+            Self::SessionTokenExpired => "SESSION_TOKEN_EXPIRED",
+            Self::InvalidSessionToken => "INVALID_SESSION_TOKEN",
+            Self::FreeAccount => "FREE_ACCOUNT",
+            Self::TooManyRequests => "TOO_MANY_REQUESTS",
+            Self::NoStartDate => "NO_START_DATE",
+            Self::LoginTimedOut => "LOGIN_TIMED_OUT",
+            Self::ServerRestarting => "SERVER_RESTARTING",
+            Self::SessionTokenNotFound => "SESSION_TOKEN_NOT_FOUND",
+            Self::ServerUserDoesNotExist => "SERVER_USER_DOES_NOT_EXIST",
+            Self::InvalidCredentialsNullUser => "INVALID_CREDENTIALS_NULL_USER",
+        }
+    }
 }
 
 /// Market-calendar day classification.
@@ -783,3 +841,74 @@ impl std::fmt::Display for CalendarStatus {
 }
 
 include!("generated/enums_endpoint.rs");
+
+#[cfg(test)]
+mod wire_token_tests {
+    use super::{RemoveReason, StreamResponseType};
+
+    /// Every stream-response outcome maps to its exact stream-verification
+    /// token. This is the single source the WebSocket surface publishes,
+    /// so a drift here would leak the Rust variant name onto the wire and
+    /// break clients matching on the documented vocabulary.
+    #[test]
+    fn stream_response_wire_tokens_are_exact() {
+        assert_eq!(StreamResponseType::Subscribed.as_wire_str(), "SUBSCRIBED");
+        assert_eq!(StreamResponseType::Error.as_wire_str(), "ERROR");
+        assert_eq!(
+            StreamResponseType::MaxStreamsReached.as_wire_str(),
+            "MAX_STREAMS_REACHED"
+        );
+        assert_eq!(
+            StreamResponseType::InvalidPerms.as_wire_str(),
+            "INVALID_PERMS"
+        );
+        // `Display` routes through the same mapping.
+        assert_eq!(StreamResponseType::Subscribed.to_string(), "SUBSCRIBED");
+    }
+
+    /// Every disconnect reason maps to a stable SCREAMING_SNAKE token; the
+    /// Rust variant identifier must never reach the wire.
+    #[test]
+    fn remove_reason_wire_tokens_are_exact() {
+        for (reason, token) in [
+            (RemoveReason::Unspecified, "UNSPECIFIED"),
+            (RemoveReason::InvalidCredentials, "INVALID_CREDENTIALS"),
+            (RemoveReason::InvalidLoginValues, "INVALID_LOGIN_VALUES"),
+            (RemoveReason::InvalidLoginSize, "INVALID_LOGIN_SIZE"),
+            (
+                RemoveReason::GeneralValidationError,
+                "GENERAL_VALIDATION_ERROR",
+            ),
+            (RemoveReason::TimedOut, "TIMED_OUT"),
+            (
+                RemoveReason::ClientForcedDisconnect,
+                "CLIENT_FORCED_DISCONNECT",
+            ),
+            (
+                RemoveReason::AccountAlreadyConnected,
+                "ACCOUNT_ALREADY_CONNECTED",
+            ),
+            (RemoveReason::SessionTokenExpired, "SESSION_TOKEN_EXPIRED"),
+            (RemoveReason::InvalidSessionToken, "INVALID_SESSION_TOKEN"),
+            (RemoveReason::FreeAccount, "FREE_ACCOUNT"),
+            (RemoveReason::TooManyRequests, "TOO_MANY_REQUESTS"),
+            (RemoveReason::NoStartDate, "NO_START_DATE"),
+            (RemoveReason::LoginTimedOut, "LOGIN_TIMED_OUT"),
+            (RemoveReason::ServerRestarting, "SERVER_RESTARTING"),
+            (
+                RemoveReason::SessionTokenNotFound,
+                "SESSION_TOKEN_NOT_FOUND",
+            ),
+            (
+                RemoveReason::ServerUserDoesNotExist,
+                "SERVER_USER_DOES_NOT_EXIST",
+            ),
+            (
+                RemoveReason::InvalidCredentialsNullUser,
+                "INVALID_CREDENTIALS_NULL_USER",
+            ),
+        ] {
+            assert_eq!(reason.as_wire_str(), token, "{reason:?}");
+        }
+    }
+}

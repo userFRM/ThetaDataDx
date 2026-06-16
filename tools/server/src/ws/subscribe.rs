@@ -35,6 +35,68 @@ pub(super) fn is_valid_yyyymmdd_range(exp: i32) -> bool {
     (MIN_OPTION_EXP..=MAX_OPTION_EXP).contains(&exp)
 }
 
+/// Stream-request acknowledgement value carried in the `REQ_RESPONSE`
+/// header's `response` field.
+///
+/// The strings match ThetaData's stream-request verification vocabulary
+/// so a client written against the Terminal WebSocket contract reads the
+/// acknowledgement directly:
+///
+/// - `SUBSCRIBED` — the request was accepted. ThetaData documents one
+///   success token; it covers add, remove, and stop acknowledgements,
+///   since the protocol defines no distinct value for a removal.
+/// - `ERROR` — the request was rejected (bad envelope, streaming not
+///   started, or an upstream failure).
+///
+/// ThetaData also documents `MAX_STREAMS_REACHED` and `INVALID_PERMS`,
+/// but the upstream FPSS error type does not carry enough to tell those
+/// apart from a generic failure, so both currently fall through to
+/// `Error` with a descriptive message. The more specific values belong
+/// here once the error type surfaces the category.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReqResponse {
+    Subscribed,
+    Error,
+}
+
+impl ReqResponse {
+    /// The exact wire string ThetaData clients match on.
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            ReqResponse::Subscribed => "SUBSCRIBED",
+            ReqResponse::Error => "ERROR",
+        }
+    }
+}
+
+/// Build the `REQ_RESPONSE` acknowledgement envelope. Pure: it allocates
+/// only the JSON value, so the exact wire shape — including the
+/// `response` token and an optional `error` diagnostic — is testable
+/// without a live socket. `error` is omitted entirely on a success ack.
+pub(super) fn build_req_response(
+    response: ReqResponse,
+    req_id: i64,
+    error: Option<&str>,
+) -> sonic_rs::Value {
+    match error {
+        Some(msg) => sonic_rs::json!({
+            "header": {
+                "type": "REQ_RESPONSE",
+                "response": response.as_str(),
+                "req_id": req_id,
+                "error": msg,
+            }
+        }),
+        None => sonic_rs::json!({
+            "header": {
+                "type": "REQ_RESPONSE",
+                "response": response.as_str(),
+                "req_id": req_id,
+            }
+        }),
+    }
+}
+
 /// Parse and handle a client subscription command.
 pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSocket) {
     // Reject oversize Text frames BEFORE handing bytes to the JSON parser.
@@ -56,7 +118,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         let resp = sonic_rs::json!({
             "header": {
                 "type": "REQ_RESPONSE",
-                "response": "ERROR",
+                "response": ReqResponse::Error.as_str(),
                 "req_id": 0,
                 "error": err_msg.as_str(),
             }
@@ -72,7 +134,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             let resp = sonic_rs::json!({
                 "header": {
                     "type": "REQ_RESPONSE",
-                    "response": "ERROR",
+                    "response": ReqResponse::Error.as_str(),
                     "req_id": 0
                 }
             });
@@ -90,9 +152,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
 
     if msg_type == "STOP" {
         tracing::info!("WebSocket client requested STOP");
-        let resp = sonic_rs::json!({
-            "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
-        });
+        let resp = build_stop_response(state, req_id);
         send_response(socket, &resp, "stop_reply").await;
         return;
     }
@@ -126,14 +186,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     // performed in `handler::build_endpoint_args`.
     if let Err(e) = validation::validate_symbol(symbol, "symbol") {
         tracing::warn!(error = %e, "WS subscribe: symbol failed length validation");
-        let resp = sonic_rs::json!({
-            "header": {
-                "type": "REQ_RESPONSE",
-                "response": "ERROR",
-                "req_id": req_id,
-                "error": e.message.as_str(),
-            }
-        });
+        let resp = build_req_response(ReqResponse::Error, req_id, Some(e.message.as_str()));
         send_response(socket, &resp, "bad_request_reply").await;
         return;
     }
@@ -162,7 +215,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
-                        "response": "ERROR",
+                        "response": ReqResponse::Error.as_str(),
                         "req_id": req_id,
                         "error": "expiration must be an integer",
                     }
@@ -182,7 +235,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
-                        "response": "ERROR",
+                        "response": ReqResponse::Error.as_str(),
                         "req_id": req_id,
                         "error": err_msg.as_str(),
                     }
@@ -217,7 +270,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             let resp = sonic_rs::json!({
                 "header": {
                     "type": "REQ_RESPONSE",
-                    "response": "ERROR",
+                    "response": ReqResponse::Error.as_str(),
                     "req_id": req_id,
                     "error": err_msg.as_str(),
                 }
@@ -238,7 +291,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             let resp = sonic_rs::json!({
                 "header": {
                     "type": "REQ_RESPONSE",
-                    "response": "ERROR",
+                    "response": ReqResponse::Error.as_str(),
                     "req_id": req_id,
                     "error": err_msg.as_str(),
                 }
@@ -258,7 +311,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
-                        "response": "ERROR",
+                        "response": ReqResponse::Error.as_str(),
                         "req_id": req_id,
                         "error": err_msg.as_str(),
                     }
@@ -275,7 +328,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
-                        "response": "ERROR",
+                        "response": ReqResponse::Error.as_str(),
                         "req_id": req_id,
                         "error": err_msg.as_str(),
                     }
@@ -302,7 +355,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             let resp = sonic_rs::json!({
                 "header": {
                     "type": "REQ_RESPONSE",
-                    "response": "ERROR",
+                    "response": ReqResponse::Error.as_str(),
                     "req_id": req_id,
                     "error": err_msg.as_str(),
                 }
@@ -321,29 +374,102 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         };
 
         let resp = match result {
-            Ok(()) => sonic_rs::json!({
-                "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
-            }),
+            // Both add and remove acknowledge with the single documented
+            // success token; the protocol defines no removal-specific value.
+            Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
             Err(e) => {
                 tracing::warn!(error = %e, "FPSS subscription failed");
                 let err_msg = e.to_string();
-                sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": "ERROR",
-                        "req_id": req_id,
-                        "error": err_msg.as_str()
-                    }
-                })
+                // The FPSS error category does not distinguish a max-streams
+                // or permission rejection from a generic failure, so every
+                // upstream error maps to the generic token. The enum carries
+                // the more specific values for the day the error type does.
+                build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()))
             }
         };
         send_response(socket, &resp, "subscription_reply").await;
     } else {
-        tracing::warn!("FPSS streaming not started, subscription command ignored");
-        let resp = sonic_rs::json!({
-            "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
-        });
+        // Streaming is not running, so the command cannot be honored.
+        // Acknowledging it as a success would be a false positive: the
+        // client believes it is subscribed while no feed is installed.
+        tracing::warn!("FPSS streaming not started, subscription command rejected");
+        let resp = build_req_response(
+            ReqResponse::Error,
+            req_id,
+            Some("streaming is not started; no subscription was installed"),
+        );
         send_response(socket, &resp, "streaming_off_reply").await;
+    }
+}
+
+/// Apply a `STOP` command: remove every active stream on the live
+/// session and acknowledge only when the removal actually applied.
+///
+/// `STOP` is a removal, not a status query, so it must change session
+/// state to be a success. Acknowledging `SUBSCRIBED` without removing
+/// anything is a false positive in two cases: when streaming was never
+/// started (there is no session to stop), and when an upstream
+/// unsubscribe fails midway. Both surface as `ERROR` with a diagnostic
+/// so the client can tell "your streams are gone" from "nothing
+/// happened". The single documented success token acknowledges the
+/// applied removal, since the protocol defines no removal-specific value.
+fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
+    use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription, SubscriptionKind};
+
+    let stream = state.client().stream();
+    if !stream.is_streaming() {
+        tracing::warn!("FPSS streaming not started; STOP removed nothing");
+        return build_req_response(
+            ReqResponse::Error,
+            req_id,
+            Some("streaming is not started; no stream was stopped"),
+        );
+    }
+
+    // Snapshot the live subscription set, then remove each one. A read
+    // failure here means the session went away between the check above
+    // and the snapshot — report it rather than claim a clean stop.
+    let per_contract = match stream.active_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: could not read active subscriptions");
+            let msg = e.to_string();
+            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+        }
+    };
+    let full = match stream.active_full_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: could not read active full subscriptions");
+            let msg = e.to_string();
+            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+        }
+    };
+
+    let removals = per_contract
+        .into_iter()
+        .map(|(kind, contract)| Subscription::Contract { contract, kind })
+        .chain(full.into_iter().filter_map(|(kind, sec_type)| {
+            // Only Trade / OpenInterest have a full-stream form; a full
+            // snapshot never carries a per-contract-only kind, so any
+            // other kind has no full-stream removal to issue and is
+            // dropped rather than mapped to a bogus subscription.
+            let kind = match kind {
+                SubscriptionKind::Trade => FullSubscriptionKind::Trades,
+                SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
+                _ => return None,
+            };
+            Some(Subscription::Full { sec_type, kind })
+        }))
+        .collect::<Vec<_>>();
+
+    match stream.unsubscribe_many(removals) {
+        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+        Err(e) => {
+            tracing::warn!(error = %e, "STOP: unsubscribe failed");
+            let msg = e.to_string();
+            build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()))
+        }
     }
 }
 
@@ -690,6 +816,119 @@ mod tests {
     // -----------------------------------------------------------------------
     //  C1 — WS text frame cap
     // -----------------------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    //  REQ_RESPONSE stream-verification values
+    // -----------------------------------------------------------------------
+
+    /// Read the `header.response` token out of a built acknowledgement.
+    fn response_token(value: &sonic_rs::Value) -> String {
+        value
+            .get("header")
+            .and_then(|h| h.get("response"))
+            .and_then(|r| r.as_str())
+            .unwrap_or("")
+            .to_string()
+    }
+
+    /// The acknowledgement tokens are the exact strings ThetaData's
+    /// stream-request verification contract defines. A drift here breaks
+    /// every client matching on the wire value.
+    #[test]
+    fn req_response_tokens_match_thetadata_vocabulary() {
+        assert_eq!(ReqResponse::Subscribed.as_str(), "SUBSCRIBED");
+        assert_eq!(ReqResponse::Error.as_str(), "ERROR");
+    }
+
+    /// A successful subscribe acknowledges with `SUBSCRIBED` (the prior
+    /// `OK` was not part of the verification vocabulary), and the success
+    /// envelope carries no `error` field.
+    #[test]
+    fn success_subscribe_returns_subscribed() {
+        let resp = build_req_response(ReqResponse::Subscribed, 7, None);
+        assert_eq!(response_token(&resp), "SUBSCRIBED");
+        assert_eq!(
+            resp.get("header")
+                .and_then(|h| h.get("req_id"))
+                .unwrap()
+                .as_i64(),
+            Some(7)
+        );
+        assert!(
+            resp.get("header").and_then(|h| h.get("error")).is_none(),
+            "a success ack must not carry an error field"
+        );
+    }
+
+    /// A validation failure acknowledges with `ERROR` and a diagnostic
+    /// `error` field naming the cause.
+    #[test]
+    fn validation_failure_returns_error_with_message() {
+        let resp = build_req_response(ReqResponse::Error, 3, Some("symbol too long"));
+        assert_eq!(response_token(&resp), "ERROR");
+        assert_eq!(
+            resp.get("header")
+                .and_then(|h| h.get("error"))
+                .and_then(|e| e.as_str()),
+            Some("symbol too long")
+        );
+    }
+
+    /// A subscribe arriving before streaming has started installs nothing,
+    /// so it must be rejected with `ERROR` rather than the old false
+    /// positive `OK` that told the client it was subscribed.
+    #[test]
+    fn streaming_not_started_returns_error_not_false_success() {
+        let resp = build_req_response(
+            ReqResponse::Error,
+            1,
+            Some("streaming is not started; no subscription was installed"),
+        );
+        assert_eq!(response_token(&resp), "ERROR");
+        assert_ne!(response_token(&resp), "SUBSCRIBED");
+        assert_ne!(response_token(&resp), "OK");
+        assert!(resp
+            .get("header")
+            .and_then(|h| h.get("error"))
+            .and_then(|e| e.as_str())
+            .unwrap()
+            .contains("streaming is not started"));
+    }
+
+    /// `STOP` is a removal, not a status query: when no stream is
+    /// installed it must acknowledge `ERROR`, never the success token.
+    /// Acknowledging `SUBSCRIBED` when nothing was removed tells the
+    /// client its streams are gone when they were never there — the same
+    /// false-positive class the subscribe path closes for "streaming not
+    /// started".
+    #[test]
+    fn stop_without_active_stream_is_error_not_false_success() {
+        let resp = build_req_response(
+            ReqResponse::Error,
+            9,
+            Some("streaming is not started; no stream was stopped"),
+        );
+        assert_eq!(response_token(&resp), "ERROR");
+        assert_ne!(response_token(&resp), "SUBSCRIBED");
+        assert!(resp
+            .get("header")
+            .and_then(|h| h.get("error"))
+            .and_then(|e| e.as_str())
+            .unwrap()
+            .contains("no stream was stopped"));
+    }
+
+    /// A `STOP` that actually removed the live stream set acknowledges
+    /// with the single documented success token and carries no error.
+    #[test]
+    fn stop_that_applied_returns_subscribed() {
+        let resp = build_req_response(ReqResponse::Subscribed, 9, None);
+        assert_eq!(response_token(&resp), "SUBSCRIBED");
+        assert!(
+            resp.get("header").and_then(|h| h.get("error")).is_none(),
+            "an applied STOP must not carry an error field"
+        );
+    }
 
     #[test]
     fn ws_text_cap_is_tight() {

@@ -105,7 +105,7 @@ strike: 0.0,
 pub struct ThetaDataDxStreamMarketValue {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Milliseconds since midnight (exchange-local) when the event was recorded.
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Calculated market bid (dollars), nudged from the quote bid.
     pub market_bid: f64,
@@ -124,7 +124,7 @@ pub struct ThetaDataDxStreamMarketValue {
 pub struct ThetaDataDxStreamOhlcvc {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Milliseconds since midnight (exchange-local) when the event was recorded.
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Opening price of the bar.
     pub open: f64,
@@ -149,7 +149,7 @@ pub struct ThetaDataDxStreamOhlcvc {
 pub struct ThetaDataDxStreamOpenInterest {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Milliseconds since midnight (exchange-local) when the event was recorded.
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Number of outstanding open contracts.
     pub open_interest: i32,
@@ -164,7 +164,7 @@ pub struct ThetaDataDxStreamOpenInterest {
 pub struct ThetaDataDxStreamQuote {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Milliseconds since midnight (exchange-local) when the event was recorded.
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Number of contracts/shares resting at the bid.
     pub bid_size: i32,
@@ -193,7 +193,7 @@ pub struct ThetaDataDxStreamQuote {
 pub struct ThetaDataDxStreamTrade {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Milliseconds since midnight (exchange-local) when the event was recorded.
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Exchange sequence number for ordering trades within the day.
     pub sequence: i32,

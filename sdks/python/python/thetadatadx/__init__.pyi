@@ -425,7 +425,7 @@ class Quote:
     contract: ContractRef
     """The contract this quote is for."""
     ms_of_day: int
-    """Milliseconds since exchange-local midnight when the quote was recorded."""
+    """Milliseconds since midnight Eastern Time when the quote was recorded."""
     bid_size: int
     """Number of contracts or shares resting at the bid."""
     bid_exchange: int
@@ -464,7 +464,7 @@ class Trade:
     contract: ContractRef
     """The contract this trade is for."""
     ms_of_day: int
-    """Milliseconds since exchange-local midnight when the trade printed."""
+    """Milliseconds since midnight Eastern Time when the trade printed."""
     sequence: int
     """Exchange sequence number ordering trades within the day."""
     ext_condition1: int
@@ -513,7 +513,7 @@ class OpenInterest:
     contract: ContractRef
     """The contract this open-interest tick is for."""
     ms_of_day: int
-    """Milliseconds since exchange-local midnight when the open interest was recorded."""
+    """Milliseconds since midnight Eastern Time when the open interest was recorded."""
     open_interest: int
     """Number of outstanding open contracts."""
     date: int
@@ -538,7 +538,7 @@ class Ohlcvc:
     contract: ContractRef
     """The contract this bar is for."""
     ms_of_day: int
-    """Milliseconds since exchange-local midnight at the bar's open."""
+    """Milliseconds since midnight Eastern Time at the bar's open."""
     open: float
     """Opening price of the bar in dollars."""
     high: float

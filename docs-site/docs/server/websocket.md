@@ -28,19 +28,19 @@ The server bridges [streaming](/streaming/) onto a local WebSocket at `ws://127.
 | `id` | Your request id; echoed in the acknowledgement |
 | `contract` | Omit for `FULL_*` streams |
 
-Option contracts carry the four-tuple, with the strike in **thousandths of a dollar** (the one wire-format exception to the dollars-everywhere rule — see [Symbology](/articles/symbology)):
+Option contracts carry the four-tuple, with the strike in **dollars** (a JSON number, e.g. `570` or `570.0`):
 
 ```json
-{"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}
+{"symbol": "SPY", "expiration": 20250321, "strike": 570, "right": "C"}
 ```
 
-`{"msg_type": "STOP", "id": 2}` removes every active stream at once. Each command is acknowledged:
+`{"msg_type": "STOP", "id": 2}` removes every active stream at once. Each command is acknowledged with a stream-request verification value in the `response` field:
 
 ```json
-{ "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": 1 } }
+{ "header": { "type": "REQ_RESPONSE", "response": "SUBSCRIBED", "req_id": 1 } }
 ```
 
-Invalid commands answer with `"response": "ERROR"` and a message naming the offending field.
+`SUBSCRIBED` confirms the request was accepted; it acknowledges subscribe (`add: true`), unsubscribe (`add: false`), and `STOP`, since there is no removal-specific value. Rejected commands answer with `"response": "ERROR"` and an `error` field naming the cause — a bad envelope, an offending field, or a subscribe sent before streaming has started (which installs nothing, so it is never acknowledged as a success). The values `MAX_STREAMS_REACHED` and `INVALID_PERMS` are also part of the verification vocabulary.
 
 ## Event messages
 
@@ -50,7 +50,7 @@ Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, `OHLC`, or `OPEN
 
 ```bash
 websocat ws://127.0.0.1:25520/v1/events
-{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}}
+{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20250321, "strike": 570, "right": "C"}}
 ```
 
 ## Limits
