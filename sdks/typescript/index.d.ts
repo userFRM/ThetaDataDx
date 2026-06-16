@@ -2628,6 +2628,16 @@ export declare class StreamingClient {
  */
 export declare class StreamView {
   /**
+   * Whether the live streaming session is currently authenticated.
+   *
+   * Distinct from `isStreaming()`: the session can be live yet briefly
+   * unauthenticated mid-reconnect (the authenticated flag is cleared on
+   * disconnect and restored on a successful re-auth). Returns `false`
+   * before `startStreaming` and after `stopStreaming`. The value
+   * matches every other binding (C ABI, Python, C++).
+   */
+  isAuthenticated(): boolean
+  /**
    * Cumulative count of FPSS events that were dropped because the
    * callback fell behind and the in-flight buffer was full.
    *

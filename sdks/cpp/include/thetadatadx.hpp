@@ -161,6 +161,18 @@ struct Subscription {
     std::string contract;
 };
 
+/// Full-stream subscription descriptor returned by
+/// `Stream::active_full_subscriptions` /
+/// `StreamingClient::active_full_subscriptions`. `sec_type` carries the
+/// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
+/// full-stream subscription is bound to; `kind` is the snake_case
+/// full-stream kind label (`"full_trades"` / `"full_open_interest"`),
+/// matching the Python / TypeScript `Subscription.kind` accessor.
+struct FullSubscription {
+    std::string kind;
+    std::string sec_type;
+};
+
 // ── Greeks result (from standalone thetadatadx_all_greeks) ──
 
 /// Full set of option Greeks and Black-Scholes intermediates returned by the
@@ -1715,6 +1727,42 @@ public:
         return out;
     }
 
+    /** `true` iff the streaming connection is currently open. Distinct
+     *  from is_authenticated(): the connection can be open yet briefly
+     *  unauthenticated mid-reconnect. Returns false on a moved-from or
+     *  shut-down client. Mirrors the unified Stream::is_streaming() and
+     *  the Python / TypeScript `is_streaming` getter so the same status
+     *  reads identically on both C++ streaming surfaces. */
+    bool is_streaming() const {
+        return handle_ && thetadatadx_streaming_is_streaming(handle_.get()) == 1;
+    }
+
+    /** Snapshot the currently-active full-stream subscriptions (the
+     *  entire universe for a given sec_type + kind, not bound to a
+     *  single contract). Throws on FFI error. Mirrors the unified
+     *  Stream::active_full_subscriptions() and the Python / TypeScript
+     *  `active_full_subscriptions` placement. */
+    std::vector<FullSubscription> active_full_subscriptions() const {
+        ThetaDataDxSubscriptionArray* arr =
+            thetadatadx_streaming_active_full_subscriptions(handle_.get());
+        if (arr == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        std::vector<FullSubscription> out;
+        if (arr->data != nullptr && arr->len > 0) {
+            out.reserve(arr->len);
+            for (size_t i = 0; i < arr->len; ++i) {
+                const ThetaDataDxSubscription& s = arr->data[i];
+                out.push_back(FullSubscription{
+                    s.kind ? std::string(s.kind) : std::string(),
+                    s.contract ? std::string(s.contract) : std::string(),
+                });
+            }
+        }
+        thetadatadx_subscription_array_free(arr);
+        return out;
+    }
+
 
 private:
     // Free C-ABI shim that the dispatcher invokes. `ctx` is the
@@ -1884,17 +1932,6 @@ struct UnifiedDeleter {
     void operator()(ThetaDataDxClient* p) const {
         if (p) thetadatadx_client_free(p);
     }
-};
-
-/// Full-stream subscription descriptor returned by
-/// `Stream::active_full_subscriptions`. `sec_type` carries the
-/// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
-/// full-stream subscription is bound to; `kind` is the snake_case
-/// full-stream kind label (`"full_trades"` / `"full_open_interest"`),
-/// matching the Python / TypeScript `Subscription.kind` accessor.
-struct FullSubscription {
-    std::string kind;
-    std::string sec_type;
 };
 
 /// Historical-data sub-namespace returned by `Client::historical()`.
@@ -2111,6 +2148,15 @@ public:
     /// and stop_streaming / terminal close has not).
     bool is_streaming() const {
         return handle_ && thetadatadx_client_is_streaming(handle_) == 1;
+    }
+
+    /// `true` iff the live streaming session is currently authenticated.
+    /// Distinct from is_streaming(): the session can be live yet briefly
+    /// unauthenticated mid-reconnect. Mirrors the Python / TypeScript
+    /// `client.stream.is_authenticated` placement and the standalone
+    /// `StreamingClient::is_authenticated()`.
+    bool is_authenticated() const {
+        return handle_ && thetadatadx_client_is_authenticated(handle_) == 1;
     }
 
     /// Snapshot the currently-active per-contract subscriptions. Throws on

@@ -126,6 +126,23 @@ describe('historical methods resolve off the execution thread', () => {
       'awaitDrain must stay Promise<boolean> (streaming lifecycle, not a data fetch)'
     );
   });
+
+  it('the unified StreamView exposes isAuthenticated() alongside isStreaming()', () => {
+    // Cross-binding parity: the unified surface mirrors the standalone
+    // StreamingClient.isAuthenticated() (and the C++ Stream::is_authenticated()
+    // / Python client.stream.is_authenticated()), distinct from the
+    // session-live isStreaming() signal.
+    assert.match(
+      streamBody,
+      /isStreaming\(\): boolean/,
+      'StreamView must declare isStreaming(): boolean'
+    );
+    assert.match(
+      streamBody,
+      /isAuthenticated\(\): boolean/,
+      'StreamView must declare isAuthenticated(): boolean'
+    );
+  });
 });
 
 describe('strike is dollars everywhere', () => {

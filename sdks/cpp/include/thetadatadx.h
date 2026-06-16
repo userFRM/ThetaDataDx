@@ -2186,6 +2186,13 @@ ThetaDataDxStreamHandle* thetadatadx_streaming_connect_from_file(const char* pat
 
 /** Polymorphic subscribe / unsubscribe — see ThetaDataDxSubscriptionRequest below. */
 
+/** Report whether the streaming connection is currently open. Distinct
+ *  from thetadatadx_streaming_is_authenticated: the connection can be open yet
+ *  briefly unauthenticated mid-reconnect.
+ *  @param h The streaming handle.
+ *  @return 1 when streaming, 0 otherwise (including after shutdown). */
+int thetadatadx_streaming_is_streaming(const ThetaDataDxStreamHandle* h);
+
 /** Report whether the streaming session is authenticated.
  *  @param h The streaming handle.
  *  @return 1 when authenticated, 0 otherwise. */
@@ -2196,6 +2203,15 @@ int thetadatadx_streaming_is_authenticated(const ThetaDataDxStreamHandle* h);
  *  @return A subscription array the caller MUST free with
  *          thetadatadx_subscription_array_free. */
 ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_subscriptions(const ThetaDataDxStreamHandle* h);
+
+/** Read the active full-stream subscriptions as a typed array. Each
+ *  entry's `contract` field carries the security-type discriminant
+ *  (`"Stock"` / `"Option"` / `"Index"`); the `kind` field is the
+ *  full-stream label (`"full_trades"` / `"full_open_interest"`).
+ *  @param h The streaming handle.
+ *  @return A subscription array the caller MUST free with
+ *          thetadatadx_subscription_array_free. */
+ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_full_subscriptions(const ThetaDataDxStreamHandle* h);
 
 /** User callback signature for thetadatadx_*_set_callback.
  *  `event` is valid only for the duration of the call -- copy any fields the
@@ -2476,6 +2492,13 @@ int thetadatadx_client_reconnect(const ThetaDataDxClient* handle);
  *  @param handle The unified handle.
  *  @return 1 when streaming, 0 otherwise. */
 int thetadatadx_client_is_streaming(const ThetaDataDxClient* handle);
+
+/** Report whether the live streaming session is authenticated on the
+ *  unified client. Distinct from thetadatadx_client_is_streaming: the session
+ *  can be live yet briefly unauthenticated mid-reconnect.
+ *  @param handle The unified handle.
+ *  @return 1 when authenticated, 0 otherwise. */
+int thetadatadx_client_is_authenticated(const ThetaDataDxClient* handle);
 
 /** Read the active subscriptions as a typed array.
  *  @param handle The unified handle.

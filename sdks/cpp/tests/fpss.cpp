@@ -60,6 +60,19 @@ TEST_CASE("StreamingClient binds the observability surface",
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SC&>().set_slow_callback_threshold_us(uint64_t{})),
         void>);
+    // is_streaming() -> bool (evened up with the unified Stream view and
+    // the Python / TypeScript standalone surface)
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().is_streaming()), bool>);
+    // is_authenticated() -> bool
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().is_authenticated()), bool>);
+    // active_full_subscriptions() -> std::vector<FullSubscription>
+    // (evened up with the unified Stream view and the Python / TypeScript
+    // standalone surface)
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(std::declval<const SC&>().active_full_subscriptions()),
+        std::vector<thetadatadx::FullSubscription>>);
 }
 
 TEST_CASE("StreamingClient registers a callback and receives at least one event",

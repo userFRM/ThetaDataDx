@@ -1075,6 +1075,13 @@ cpp = true
 
 [[method]]
 class = "StreamView"
+name = "isAuthenticated"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamView"
 name = "awaitDrain"
 python = true
 typescript = true
@@ -1231,7 +1238,7 @@ class = "StreamingClient"
 name = "isStreaming"
 python = true
 typescript = true
-cpp = false  # C++ `StreamingClient` is always live once constructed
+cpp = true
 
 [[method]]
 class = "StreamingClient"
@@ -1287,7 +1294,7 @@ class = "StreamingClient"
 name = "activeFullSubscriptions"
 python = true
 typescript = true
-cpp = false  # C++ StreamingClient surface omits the full-stream snapshot today
+cpp = true
 
 [[method]]
 class = "StreamingClient"

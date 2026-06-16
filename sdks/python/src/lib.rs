@@ -1557,6 +1557,19 @@ impl Client {
 
 #[pymethods]
 impl StreamView {
+    /// Whether the live streaming session is currently authenticated.
+    ///
+    /// Distinct from :meth:`is_streaming`: the session can be live yet
+    /// briefly unauthenticated mid-reconnect (the authenticated flag is
+    /// cleared on disconnect and restored on a successful re-auth).
+    /// Returns ``False`` before streaming starts and after it stops.
+    /// Mirrors the standalone
+    /// [`crate::fpss_client::StreamingClient::is_authenticated`] and the
+    /// C++ `Stream::is_authenticated()` getter.
+    fn is_authenticated(&self) -> bool {
+        self.client.stream().is_authenticated()
+    }
+
     /// Cumulative count of streaming events the TLS reader could not
     /// publish into the bounded ring because the consumer fell behind
     /// and the ring was full.
