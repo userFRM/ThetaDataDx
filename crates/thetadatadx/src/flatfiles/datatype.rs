@@ -2,8 +2,8 @@
 //!
 //! The first FLATFILES chunk header encodes the per-column schema as an
 //! array of `i32` codes — one per column — describing the FIT-decoded row
-//! layout. The codes are stable identifiers from the vendor's
-//! `net.thetadata.enums.DataType` enum (e.g. `MS_OF_DAY=1`, `OPEN_INTEREST=121`).
+//! layout. The codes are the vendor's stable wire identifiers for each
+//! column data type (e.g. `MS_OF_DAY=1`, `OPEN_INTEREST=121`).
 //!
 //! For each code we need three pieces of information when emitting CSV
 //! or JSONL:
