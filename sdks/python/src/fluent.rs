@@ -83,11 +83,11 @@ impl PySecType {
     }
 
     fn __repr__(&self) -> String {
-        format!("SecType.{:?}", self.inner).to_uppercase()
+        format!("SecType.{}", self.inner.as_str())
     }
 
     fn __str__(&self) -> String {
-        format!("{:?}", self.inner).to_uppercase()
+        self.inner.as_str().to_string()
     }
 
     fn __eq__(&self, other: &Self) -> bool {

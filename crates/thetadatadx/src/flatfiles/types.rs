@@ -65,6 +65,34 @@ impl ReqType {
     pub(crate) fn as_wire(self) -> u32 {
         self as u32
     }
+
+    /// Client-facing dataset token (`"trade_quote"`, `"open_interest"`,
+    /// `"eod"`, …) for the request type.
+    ///
+    /// This is the canonical spelling the public surface accepts and emits:
+    /// the request-type segment of the flat-file route, the tokens
+    /// user-facing error text names, and the value rendered on response
+    /// payloads. It is the single source of those tokens so the Rust
+    /// variant identifier can never reach a client surface — emitting the
+    /// debug form of the variant would diverge from the documented
+    /// vocabulary callers parse against.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Eod => "eod",
+            Self::Quote => "quote",
+            Self::OpenInterest => "open_interest",
+            Self::Ohlc => "ohlc",
+            Self::Trade => "trade",
+            Self::TradeQuote => "trade_quote",
+        }
+    }
+}
+
+impl fmt::Display for ReqType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// Single source of truth for the `(SecType, ReqType)` pairs the flat-file
@@ -92,14 +120,7 @@ pub(crate) fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
 /// text (e.g. `open_interest`). Matches the request-type tokens the
 /// public surface accepts.
 pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
-    match req {
-        ReqType::Eod => "eod",
-        ReqType::Quote => "quote",
-        ReqType::OpenInterest => "open_interest",
-        ReqType::Ohlc => "ohlc",
-        ReqType::Trade => "trade",
-        ReqType::TradeQuote => "trade_quote",
-    }
+    req.as_str()
 }
 
 /// Reason a [`Client::flatfile_request`](crate::Client::flatfile_request)
@@ -201,6 +222,46 @@ impl fmt::Display for FlatFilesUnavailableReason {
             Self::StreamTruncated { bytes_received } => {
                 write!(f, "stream truncated after {bytes_received} bytes")
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every flat-file request type maps to its exact client-facing dataset
+    /// token. `as_str`/`Display` is the single source of these tokens on the
+    /// public surface, so a drift here would diverge from the documented
+    /// vocabulary callers parse against.
+    #[test]
+    fn req_type_tokens_are_exact() {
+        for (req, token) in [
+            (ReqType::Eod, "eod"),
+            (ReqType::Quote, "quote"),
+            (ReqType::OpenInterest, "open_interest"),
+            (ReqType::Ohlc, "ohlc"),
+            (ReqType::Trade, "trade"),
+            (ReqType::TradeQuote, "trade_quote"),
+        ] {
+            assert_eq!(req.as_str(), token, "{req:?}");
+            // `Display` routes through the same mapping.
+            assert_eq!(req.to_string(), token, "{req:?}");
+            // The Rust variant identifier must never reach a client surface.
+            assert_ne!(token, format!("{req:?}"), "{req:?}");
+        }
+    }
+
+    /// Every security type maps to its exact upper-case wire token; the
+    /// Rust variant identifier must never reach the `SEC=` field.
+    #[test]
+    fn sec_type_tokens_are_exact() {
+        for (sec, token) in [
+            (SecType::Option, "OPTION"),
+            (SecType::Stock, "STOCK"),
+            (SecType::Index, "INDEX"),
+        ] {
+            assert_eq!(sec.to_string(), token, "{sec:?}");
         }
     }
 }
