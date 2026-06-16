@@ -114,9 +114,9 @@ npm run build
 ```typescript
 import { Client } from 'thetadatadx';
 
-const client = await Client.connectFromFile('creds.txt');
+const client = Client.connectFromFile('creds.txt');
 
-const eod = client.historical.stockHistoryEOD('AAPL', '20240101', '20240315');
+const eod = await client.historical.stockHistoryEOD('AAPL', '20240101', '20240315');
 ```
 
 Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.
