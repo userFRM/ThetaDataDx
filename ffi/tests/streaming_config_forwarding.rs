@@ -8,8 +8,8 @@
 //! C boundary would pass that test silently. This module pins the FULL
 //! field set the higher-level bindings already cover (Python
 //! `test_config_resilience.py::test_streaming_transport_defaults_and_round_trip`
-//! + the reconnect round-trip tests; the TypeScript `config_resilience`
-//! / `config_reconnect` suites), so the C ABI stays in lockstep.
+//! plus the reconnect round-trip tests, and the TypeScript
+//! `config_resilience` and `config_reconnect` suites), so the C ABI stays in lockstep.
 //!
 //! Every FFI call below operates on a non-null `ThetaDataDxConfig`
 //! returned by `thetadatadx_config_production` and not yet freed, on a

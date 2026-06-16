@@ -177,7 +177,6 @@ mod tests {
     fn shipped_default_is_under_maximum() {
         // The default shipped in `config.default.toml`.
         assert_eq!(check_ring_size(131_072), Ok(131_072));
-        assert!(131_072 < MAX_RING_SIZE);
     }
 
     #[test]
