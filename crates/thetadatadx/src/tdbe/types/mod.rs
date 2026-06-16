@@ -20,9 +20,10 @@ mod generated;
 // Flat facade for the `types` submodule. Callers and the crate root
 // reach the leaf modules (`types::tick`, `types::enums`, `types::price`)
 // directly, so `unused_imports` is allowed on the convenience surface.
+//
+// The fixed-point price encoding (`price::Price` and friends) is wire-internal
+// and stays off this facade; the decode layer reaches `types::price` directly.
 #[allow(unused_imports)]
 pub use enums::*;
-#[allow(unused_imports)]
-pub use price::{Price, PriceError, MAX_PRICE_TYPE};
 #[allow(unused_imports)]
 pub use tick::*;

@@ -293,16 +293,25 @@ pub use crate::tdbe::types::tick::{
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
-// ─── Enums and price wrapper ──────────────────────────────────────────────────
+// ─── Enums ────────────────────────────────────────────────────────────────────
 
 pub use crate::tdbe::types::enums::{
     DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
     StreamResponseType, Venue, Version,
 };
-// `Price` plus the validated `PriceType` exponent, the `PriceError` its
-// fallible constructor (`Price::with_value_and_type`) returns, and the
-// `MAX_PRICE_TYPE` bound that constructor validates against — the public
-// fixed-point price surface.
+/// Variable-precision fixed-point price encoding (`value` / `price_type`
+/// mantissa-and-exponent pair) and its supporting types: the validated
+/// `PriceType` exponent, the `PriceError` its fallible constructor returns,
+/// and the `MAX_PRICE_TYPE` bound that constructor validates against.
+///
+/// This is a wire-encoding detail: a client receives decoded prices
+/// (`f64` dollars on the tick rows) and never sees, sets, or reasons about
+/// the raw `(value, price_type)` pair. The encoding therefore stays off the
+/// public API. Only available when the `__internal` feature is enabled, for
+/// workspace tools, bindings, and the data-format benches. NOT a stable
+/// public surface — external crates MUST NOT enable that feature.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE};
 
 // ─── Offline Black-Scholes (Greeks + implied volatility) ─────────────────────

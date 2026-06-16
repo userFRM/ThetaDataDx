@@ -142,7 +142,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 pub fn extract_price_column(
     table: &proto::DataTable,
     header: &str,
-) -> Vec<Option<crate::tdbe::Price>> {
+) -> Vec<Option<crate::tdbe::types::price::Price>> {
     let Some(col_idx) = resolve_column(table, header, "Price") else {
         return vec![];
     };

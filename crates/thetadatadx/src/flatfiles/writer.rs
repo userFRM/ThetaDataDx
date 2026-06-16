@@ -78,7 +78,7 @@ pub(crate) fn data_indices(fmt: &[DataType], price_type_idx: Option<usize>) -> V
         .collect()
 }
 
-/// Per-row PRICE_TYPE exponent for `crate::tdbe::Price` decoding.
+/// Per-row PRICE_TYPE exponent for `crate::tdbe::types::price::Price` decoding.
 ///
 /// When PRICE_TYPE is in the schema, the value at that column is the
 /// vendor `price_type` field (real price = `value * 10^(price_type - 10)`).

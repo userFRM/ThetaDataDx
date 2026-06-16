@@ -204,8 +204,8 @@ impl Price {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::PriceError::PriceTypeOutOfRange`] when `price_type` is
-    /// negative or larger than [`crate::MAX_PRICE_TYPE`].
+    /// Returns [`PriceError::PriceTypeOutOfRange`] when `price_type` is
+    /// negative or larger than [`MAX_PRICE_TYPE`].
     #[inline]
     pub fn with_value_and_type(value: i32, price_type: i32) -> Result<Self, PriceError> {
         Ok(Self {
