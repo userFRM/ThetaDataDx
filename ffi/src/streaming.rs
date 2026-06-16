@@ -1274,6 +1274,56 @@ pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaData
     })
 }
 
+/// Set the slow-callback wall-clock threshold in microseconds on this
+/// unified handle.
+///
+/// When a user-callback invocation runs longer than `threshold_us`,
+/// `thetadatadx_client_slow_callback_count` increments and a rate-limited
+/// warning is logged. Pass `0` to disable the watchdog. The watchdog is
+/// observability-only — it never cancels or kills the callback; the
+/// counter and log let operators detect a callback that has outgrown its
+/// budget and decide how to respond.
+///
+/// No-op if the handle is null or no callback has been installed yet.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_client_set_slow_callback_threshold_us(
+    handle: *const ThetaDataDxClient,
+    threshold_us: u64,
+) {
+    ffi_boundary!((), {
+        if handle.is_null() {
+            return;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        unsafe {
+            (*handle)
+                .inner
+                .stream()
+                .set_slow_callback_threshold(std::time::Duration::from_micros(threshold_us));
+        }
+    })
+}
+
+/// Cumulative count of user-callback invocations whose wall-clock
+/// duration exceeded the threshold set by
+/// `thetadatadx_client_set_slow_callback_threshold_us` on this unified handle.
+///
+/// Returns 0 when the watchdog is disabled (threshold 0), the handle is
+/// null, or no callback has been installed yet. Safe to call from any
+/// thread without blocking.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_client_slow_callback_count(
+    handle: *const ThetaDataDxClient,
+) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        unsafe { (*handle).inner.stream().slow_callback_count() }
+    })
+}
+
 /// Wait for the previously-superseded streaming session to quiesce.
 ///
 /// Returns `1` once the previous `thetadatadx_client_stop_streaming` /
@@ -2383,6 +2433,64 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard.as_ref().map_or(0, |c| c.panic_count())
+    })
+}
+
+/// Set the slow-callback wall-clock threshold in microseconds on this
+/// FPSS handle.
+///
+/// When a user-callback invocation runs longer than `threshold_us`,
+/// `thetadatadx_streaming_slow_callback_count` increments and a
+/// rate-limited warning is logged. Pass `0` to disable the watchdog. The
+/// watchdog is observability-only — it never cancels or kills the
+/// callback; the counter and log let operators detect a callback that has
+/// outgrown its budget and decide how to respond.
+///
+/// No-op if the handle is null or has been shut down.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_streaming_set_slow_callback_threshold_us(
+    handle: *const ThetaDataDxStreamHandle,
+    threshold_us: u64,
+) {
+    ffi_boundary!((), {
+        if handle.is_null() {
+            return;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(c) = guard.as_ref() {
+            c.set_slow_callback_threshold(std::time::Duration::from_micros(threshold_us));
+        }
+    })
+}
+
+/// Cumulative count of user-callback invocations whose wall-clock
+/// duration exceeded the threshold set by
+/// `thetadatadx_streaming_set_slow_callback_threshold_us` on this FPSS
+/// handle.
+///
+/// Returns 0 when the watchdog is disabled (threshold 0), the handle is
+/// null, or has been shut down. Safe to call from any thread without
+/// blocking.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_streaming_slow_callback_count(
+    handle: *const ThetaDataDxStreamHandle,
+) -> u64 {
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.as_ref().map_or(0, |c| c.slow_callback_count())
     })
 }
 

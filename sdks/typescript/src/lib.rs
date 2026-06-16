@@ -622,6 +622,36 @@ impl StreamView {
         napi::bindgen_prelude::BigInt::from(self.client.stream().panic_count())
     }
 
+    /// Set the slow-callback wall-clock threshold in microseconds.
+    ///
+    /// When a callback invocation runs longer than `thresholdUs`,
+    /// `slowCallbackCount()` increments and a rate-limited warning is
+    /// logged. Pass `0n` to disable the watchdog (the default).
+    /// Observability only: the watchdog never cancels the callback. No-op
+    /// before `startStreaming`. Accepts `bigint` for the full 64-bit
+    /// unsigned range.
+    #[napi(js_name = "setSlowCallbackThresholdUs")]
+    pub fn set_slow_callback_threshold_us(
+        &self,
+        threshold_us: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, _lossless) = threshold_us.get_u64();
+        self.client
+            .stream()
+            .set_slow_callback_threshold(std::time::Duration::from_micros(value));
+        Ok(())
+    }
+
+    /// Cumulative count of user-callback invocations whose wall-clock
+    /// duration exceeded the threshold set by `setSlowCallbackThresholdUs()`.
+    /// Returns `0n` when the watchdog is disabled or before `startStreaming`.
+    /// The value matches every other binding (C ABI, Python, C++). Returned
+    /// as `bigint` for the full 64-bit unsigned range.
+    #[napi(js_name = "slowCallbackCount")]
+    pub fn slow_callback_count(&self) -> napi::bindgen_prelude::BigInt {
+        napi::bindgen_prelude::BigInt::from(self.client.stream().slow_callback_count())
+    }
+
     /// Snapshot of full-stream subscriptions (e.g. `OPTION` /
     /// `full_trades`, `OPTION` / `full_open_interest`).
     ///

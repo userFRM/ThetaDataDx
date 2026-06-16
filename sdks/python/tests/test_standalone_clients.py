@@ -68,6 +68,8 @@ BLOCKED_FPSS_METHODS = (
     "active_full_subscriptions",
     "dropped_event_count",
     "panic_count",
+    "slow_callback_count",
+    "set_slow_callback_threshold_us",
 )
 
 
@@ -270,6 +272,12 @@ def test_fpss_client_no_mdds_channel() -> None:
     # No drops, no panics on a never-started session.
     assert fpss.dropped_event_count() == 0
     assert fpss.panic_count() == 0
+    # The slow-callback watchdog reads 0 and the threshold setter is a
+    # no-op before a session is live (no live client to configure).
+    assert fpss.slow_callback_count() == 0
+    fpss.set_slow_callback_threshold_us(5_000)
+    assert fpss.slow_callback_count() == 0
+    fpss.set_slow_callback_threshold_us(0)
     assert fpss.is_streaming() is False
     assert fpss.is_authenticated() is False, (
         "StreamingClient must not be authenticated before start_streaming*"

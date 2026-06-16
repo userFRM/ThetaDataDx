@@ -1484,7 +1484,7 @@ using StreamEvent = ThetaDataDxStreamEvent;
 // from the streaming reader through a bounded ring to a dedicated consumer
 // thread, which invokes `fn` inside an isolation boundary. The reader
 // thread never blocks on user code; on ring overflow events are dropped
-// and counted via `dropped_events()`.
+// and counted via `dropped_event_count()`.
 //
 // The StreamingClient owns the `std::function`. A free `extern "C"` shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
@@ -1569,7 +1569,7 @@ public:
      *  `fn` runs on the consumer thread inside an isolation boundary, never
      *  on the streaming reader. The reader thread cannot be blocked by
      *  user code: on ring overflow events are dropped and counted via
-     *  `dropped_events()`. Throws on registration failure.
+     *  `dropped_event_count()`. Throws on registration failure.
      *
      *  ## Callback storage + thread affinity
      *
@@ -1608,8 +1608,10 @@ public:
     /** Cumulative count of streaming events the TLS reader could not
      *  publish into the bounded ring because the consumer fell behind
      *  and the ring was full. Returns 0 when no callback has been
-     *  installed yet. Safe to call on a moved-from client. */
-    uint64_t dropped_events() const {
+     *  installed yet. Safe to call on a moved-from client. Mirrors the
+     *  unified Stream::dropped_event_count() spelling so the same counter
+     *  reads identically on both C++ streaming surfaces. */
+    uint64_t dropped_event_count() const {
         return handle_ ? thetadatadx_streaming_dropped_events(handle_.get()) : 0;
     }
 
@@ -1617,7 +1619,7 @@ public:
      *  event ring but not yet drained into the registered callback —
      *  the in-flight depth between the I/O thread and the dispatcher.
      *  Rising occupancy that approaches ring_capacity() predicts
-     *  drops before dropped_events() moves; sampling never blocks the
+     *  drops before dropped_event_count() moves; sampling never blocks the
      *  feed and is safe from any thread. Returns 0 when no session is
      *  live. Safe to call on a moved-from client. */
     uint64_t ring_occupancy() const {
@@ -1640,6 +1642,26 @@ public:
      *  installed yet. Safe to call from any thread without blocking. */
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_streaming_panic_count(handle_.get()) : 0;
+    }
+
+    /** Set the slow-callback wall-clock threshold in microseconds. When a
+     *  callback invocation runs longer than threshold_us,
+     *  slow_callback_count() increments and a rate-limited warning is
+     *  logged. Pass 0 to disable. Observability-only: the watchdog never
+     *  cancels the callback. No-op on a moved-from or shut-down client. */
+    void set_slow_callback_threshold_us(uint64_t threshold_us) const {
+        if (handle_) {
+            thetadatadx_streaming_set_slow_callback_threshold_us(handle_.get(), threshold_us);
+        }
+    }
+
+    /** Cumulative count of user-callback invocations whose wall-clock
+     *  duration exceeded the threshold set via
+     *  set_slow_callback_threshold_us(). Returns 0 when the watchdog is
+     *  disabled or no session is live. Safe to call on a moved-from
+     *  client. */
+    uint64_t slow_callback_count() const {
+        return handle_ ? thetadatadx_streaming_slow_callback_count(handle_.get()) : 0;
     }
 
     /** Milliseconds since the most recent inbound streaming frame of
@@ -2098,6 +2120,28 @@ public:
     /// Python / TypeScript `client.stream.panic_count` placement.
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_client_panic_count(handle_) : 0;
+    }
+
+    /// Set the slow-callback wall-clock threshold in microseconds. When a
+    /// callback invocation runs longer than threshold_us,
+    /// slow_callback_count() increments and a rate-limited warning is logged.
+    /// Pass 0 to disable. Observability-only: the watchdog never cancels the
+    /// callback. No-op when no callback has been installed yet. Mirrors the
+    /// Python / TypeScript `client.stream.set_slow_callback_threshold_us`
+    /// placement.
+    void set_slow_callback_threshold_us(uint64_t threshold_us) const {
+        if (handle_) {
+            thetadatadx_client_set_slow_callback_threshold_us(handle_, threshold_us);
+        }
+    }
+
+    /// Cumulative count of user-callback invocations whose wall-clock duration
+    /// exceeded the threshold set via set_slow_callback_threshold_us(). Returns
+    /// 0 when the watchdog is disabled or no callback has been installed yet.
+    /// Mirrors the Python / TypeScript `client.stream.slow_callback_count`
+    /// placement.
+    uint64_t slow_callback_count() const {
+        return handle_ ? thetadatadx_client_slow_callback_count(handle_) : 0;
     }
 
     /// Snapshot the currently-active full-stream subscriptions (the entire

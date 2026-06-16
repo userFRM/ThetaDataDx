@@ -64,6 +64,12 @@ CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "ffi" / "src"
 CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
+# Core Rust streaming surfaces whose public observability accessors must
+# each carry a parity row. The unified surface lives on the
+# `StreamSurface` view returned by `Client::stream()`; the standalone
+# surface is the `StreamingClient` FPSS client.
+CORE_CLIENT_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "client.rs"
+CORE_FPSS_MOD_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "mod.rs"
 
 
 # ─── Public-surface vocabulary guard ────────────────────────────────
@@ -365,12 +371,20 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
         return set()
     for rs in ts_src.rglob("*.rs"):
         text = rs.read_text(encoding="utf-8")
-        # `#[napi(js_name = "setX")]` → setter `X` (drop the `set` prefix).
-        for m in re.finditer(
-            r'#\[napi\([^)]*\bjs_name\s*=\s*"set([A-Z]\w*)"[^)]*\)\]',
-            text,
-        ):
-            setters_camel.add(m.group(1))
+        # Scope to `impl Config { ... }` blocks so a `set<X>` napi method
+        # on a non-Config class (e.g. the live `StreamView` streaming
+        # knobs like `setSlowCallbackThresholdUs`) is not mistaken for a
+        # Config knob setter. This mirrors the Python collector, which
+        # relies on `#[setter]` being a Config-property-only attribute,
+        # and the C++/FFI collectors, which intersect with the
+        # `thetadatadx_config_set_*` C ABI surface.
+        for body in _iter_impl_config_bodies(text):
+            # `#[napi(js_name = "setX")]` → setter `X` (drop the `set` prefix).
+            for m in re.finditer(
+                r'#\[napi\([^)]*\bjs_name\s*=\s*"set([A-Z]\w*)"[^)]*\)\]',
+                body,
+            ):
+                setters_camel.add(m.group(1))
     # Lift to snake_case for parity-row matching. Every camelCase
     # name renders to one or more snake-case candidates (the bare
     # snake form plus any compound-word alias rendering); the gate
@@ -1256,6 +1270,140 @@ def _check_method_rows(
                 f"stays tracked."
             )
 
+    return errors
+
+
+# ─── Core streaming observability-surface orphan check ──────────────
+#
+# The cross-binding `[[method]]` rows above gate each DECLARED method
+# against the bindings. They do not gate the reverse direction on the
+# Rust side: a public observability accessor wired onto the core
+# streaming surface (`StreamSurface` view / `StreamingClient`) that never
+# grew a parity row is invisible — the row simply does not exist, so no
+# check fires, and the accessor silently reaches none of the bindings.
+# That is exactly how a wired-but-unbound counter/threshold knob drifts.
+#
+# This check harvests the public observability accessors on the two core
+# streaming surfaces and asserts each maps to a `[[method]]` row. It is
+# scoped to the observability accessor SHAPE (cumulative counters, ring
+# telemetry, and the slow-callback threshold setter) so it never trips on
+# the lifecycle / subscription methods whose cross-binding spelling
+# legitimately diverges and which the forward rows already cover.
+
+# The core Rust class name → the parity-toml `class` field. The unified
+# streaming surface is the `StreamSurface` view returned by
+# `Client::stream()`, tracked in `parity.toml` under the binding-facing
+# `StreamView` name.
+CORE_STREAMING_CLASS_TO_ROW: dict[str, str] = {
+    "StreamSurface": "StreamView",
+    "StreamingClient": "StreamingClient",
+}
+
+# Core Rust accessor name → the canonical camelCase parity-row `name`.
+# Most accessors camelCase directly; the standalone `StreamingClient`
+# core counter is named `dropped_count` but the binding/row contract
+# spells it `droppedEventCount` (the same counter as the unified
+# surface), so it is bridged explicitly here.
+CORE_STREAMING_METHOD_RENAMES: dict[str, str] = {
+    "dropped_count": "droppedEventCount",
+    "dropped_event_count": "droppedEventCount",
+    "slow_callback_count": "slowCallbackCount",
+    "set_slow_callback_threshold": "setSlowCallbackThresholdUs",
+}
+
+# An observability accessor is one whose name matches this shape. The
+# closure is intentionally narrow: cumulative counters (`*_count`), ring
+# telemetry (`ring_*`), and the slow-callback threshold setter. Lifecycle
+# / subscription / connection methods do not match and stay governed by
+# the forward `[[method]]` rows alone.
+def _is_core_observability_accessor(name: str) -> bool:
+    if name == "record_panic":
+        # Internal `#[cfg(feature = "__internal")]` fault-injection hook,
+        # not a public client accessor.
+        return False
+    if name.endswith("_count"):
+        return True
+    if name.startswith("ring_"):
+        return True
+    if name.startswith("set_") and name.endswith("_threshold"):
+        return True
+    return False
+
+
+def _collect_core_streaming_observability_methods(
+    client_rs: pathlib.Path,
+    fpss_mod_rs: pathlib.Path,
+) -> dict[str, set[str]]:
+    """Return `{core_class: {accessor, ...}}` for the public observability
+    accessors on the core streaming surfaces.
+
+    Parses `impl StreamSurface<...> { ... }` in `client.rs` and
+    `impl StreamingClient { ... }` in `fpss/mod.rs`, collecting every
+    `pub fn <name>` whose name matches the observability shape
+    (`_is_core_observability_accessor`). `#[cfg(...)]` / `#[doc(hidden)]`
+    gated methods are skipped — they are not part of the published
+    surface a binding must mirror.
+    """
+    out: dict[str, set[str]] = {}
+    sources: list[tuple[str, pathlib.Path]] = [
+        ("StreamSurface", client_rs),
+        ("StreamingClient", fpss_mod_rs),
+    ]
+    # `impl StreamSurface<'_> {` / `impl StreamingClient {` — tolerate an
+    # optional generic / lifetime parameter list before the brace.
+    pub_fn_re = re.compile(
+        r"((?:#\[[^\]]*\]\s*)*)\bpub\s+fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
+    )
+    for class_name, rs in sources:
+        if not rs.is_file():
+            continue
+        text = rs.read_text(encoding="utf-8")
+        impl_re = re.compile(
+            rf"impl\s+{class_name}\b[^{{]*\{{"
+        )
+        for header in impl_re.finditer(text):
+            body = _balanced_body(text, header.end())
+            for m in pub_fn_re.finditer(body):
+                attrs = m.group(1)
+                name = m.group(2)
+                if "cfg(" in attrs or "doc(hidden)" in attrs:
+                    continue
+                if not _is_core_observability_accessor(name):
+                    continue
+                out.setdefault(class_name, set()).add(name)
+    return out
+
+
+def _check_core_streaming_method_rows(
+    core_methods: dict[str, set[str]],
+    method_rows: list[dict[str, Any]],
+) -> list[str]:
+    """Assert every public observability accessor on the core streaming
+    surfaces carries a `[[method]]` parity row.
+
+    Closes the blind spot where a counter / threshold knob wired onto the
+    core `StreamSurface` / `StreamingClient` surface reaches none of the
+    bindings because no row enrolls it. The row's per-binding columns are
+    then gated by `_check_method_rows`; this check only asserts the row
+    EXISTS for the right class.
+    """
+    errors: list[str] = []
+    declared: set[tuple[str, str]] = {
+        (row.get("class", ""), row.get("name", "")) for row in method_rows
+    }
+    for core_class, names in sorted(core_methods.items()):
+        row_class = CORE_STREAMING_CLASS_TO_ROW.get(core_class, core_class)
+        for name in sorted(names):
+            row_name = CORE_STREAMING_METHOD_RENAMES.get(name, _snake_to_camel(name))
+            if (row_class, row_name) not in declared:
+                errors.append(
+                    f"  {core_class}::{name}: public observability accessor on "
+                    f"the core streaming surface has no `[[method]]` row "
+                    f"(expected `class = \"{row_class}\"`, `name = "
+                    f"\"{row_name}\"` in sdks/parity.toml). A wired-but-"
+                    f"unenrolled accessor reaches none of the bindings — add "
+                    f"the row and bind it on python / typescript / cpp."
+                )
     return errors
 
 
@@ -2804,6 +2952,20 @@ def main(argv: list[str] | None = None) -> int:
         method_rows, py_class_methods, ts_class_methods, cpp_class_methods
     )
 
+    # Reverse-direction orphan check on the core streaming surfaces: a
+    # public observability accessor (counter / ring telemetry / the
+    # slow-callback threshold setter) wired onto the core `StreamSurface`
+    # view or the standalone `StreamingClient` MUST carry a `[[method]]`
+    # row. Without this, a wired-but-unenrolled knob reaches none of the
+    # bindings and no forward check fires, because the row simply does not
+    # exist. This closes that blind spot at its source — the Rust surface.
+    core_streaming_methods = _collect_core_streaming_observability_methods(
+        CORE_CLIENT_RS, CORE_FPSS_MOD_RS
+    )
+    core_streaming_errors = _check_core_streaming_method_rows(
+        core_streaming_methods, method_rows
+    )
+
     # Orphan Rust pub fields (no parity row).
     orphan_errors = _check_orphan_rust_fields(rust_fields, rows)
 
@@ -2977,6 +3139,16 @@ def main(argv: list[str] | None = None) -> int:
             f"mismatch(es) (per-method `[[method]]` granularity):"
         )
         for e in method_errors:
+            print(e)
+        print()
+
+    if core_streaming_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(core_streaming_errors)} core "
+            f"streaming observability accessor(s) lack a `[[method]]` row:"
+        )
+        for e in core_streaming_errors:
             print(e)
         print()
 
@@ -3619,6 +3791,116 @@ def _run_selftest() -> int:
         assert errors == [], (
             f"class-scoped TS lookup must not leak across classes; got {errors!r}"
         )
+
+    def _case_core_streaming_positive_all_enrolled() -> None:
+        """Every core observability accessor has a `[[method]]` row —
+        gate is silent. Covers the `dropped_count` -> `droppedEventCount`
+        and `set_slow_callback_threshold` -> `setSlowCallbackThresholdUs`
+        renames plus the direct camelCase mappings."""
+        core_methods = {
+            "StreamSurface": {
+                "dropped_event_count",
+                "ring_occupancy",
+                "ring_capacity",
+                "panic_count",
+                "slow_callback_count",
+                "set_slow_callback_threshold",
+            },
+            "StreamingClient": {
+                "dropped_count",
+                "ring_occupancy",
+                "ring_capacity",
+                "panic_count",
+                "slow_callback_count",
+                "set_slow_callback_threshold",
+            },
+        }
+        rows = [
+            {"class": "StreamView", "name": n}
+            for n in (
+                "droppedEventCount",
+                "ringOccupancy",
+                "ringCapacity",
+                "panicCount",
+                "slowCallbackCount",
+                "setSlowCallbackThresholdUs",
+            )
+        ] + [
+            {"class": "StreamingClient", "name": n}
+            for n in (
+                "droppedEventCount",
+                "ringOccupancy",
+                "ringCapacity",
+                "panicCount",
+                "slowCallbackCount",
+                "setSlowCallbackThresholdUs",
+            )
+        ]
+        errors = _check_core_streaming_method_rows(core_methods, rows)
+        assert errors == [], (
+            f"fully-enrolled core observability surface must be silent; got {errors!r}"
+        )
+
+    def _case_core_streaming_negative_unenrolled_getter() -> None:
+        """A wired core counter with no `[[method]]` row trips the gate —
+        the exact blind spot this check closes."""
+        core_methods = {"StreamSurface": {"slow_callback_count"}}
+        rows: list[dict[str, Any]] = []  # no enrolling row
+        errors = _check_core_streaming_method_rows(core_methods, rows)
+        assert any("slow_callback_count" in e and "slowCallbackCount" in e for e in errors), (
+            f"unenrolled core counter must trip the gate; got {errors!r}"
+        )
+
+    def _case_core_streaming_negative_unenrolled_setter() -> None:
+        """A wired core threshold setter with no row trips, mapped to the
+        unit-suffixed binding row name."""
+        core_methods = {"StreamingClient": {"set_slow_callback_threshold"}}
+        rows: list[dict[str, Any]] = []
+        errors = _check_core_streaming_method_rows(core_methods, rows)
+        assert any("setSlowCallbackThresholdUs" in e for e in errors), (
+            f"unenrolled core setter must trip the gate; got {errors!r}"
+        )
+
+    def _case_core_streaming_internal_hook_ignored() -> None:
+        """`record_panic` (the internal fault-injection hook) is not an
+        observability accessor, so the harvester never surfaces it and it
+        never needs a row. The predicate is the filter; assert it
+        directly. Lifecycle / subscription methods are likewise excluded."""
+        assert not _is_core_observability_accessor("record_panic"), (
+            "record_panic must be excluded from the observability surface"
+        )
+        for non_obs in ("subscribe", "stop_streaming", "reconnect", "is_streaming"):
+            assert not _is_core_observability_accessor(non_obs), (
+                f"{non_obs} must not be treated as an observability accessor"
+            )
+        # The shape predicate accepts the genuine observability accessors.
+        for obs in (
+            "dropped_count",
+            "ring_occupancy",
+            "panic_count",
+            "slow_callback_count",
+            "set_slow_callback_threshold",
+        ):
+            assert _is_core_observability_accessor(obs), (
+                f"{obs} must be treated as an observability accessor"
+            )
+
+    _case(
+        "core-streaming positive — every observability accessor enrolled",
+        _case_core_streaming_positive_all_enrolled,
+    )
+    _case(
+        "core-streaming negative — unenrolled counter trips",
+        _case_core_streaming_negative_unenrolled_getter,
+    )
+    _case(
+        "core-streaming negative — unenrolled threshold setter trips",
+        _case_core_streaming_negative_unenrolled_setter,
+    )
+    _case(
+        "core-streaming positive — internal record_panic hook ignored",
+        _case_core_streaming_internal_hook_ignored,
+    )
 
     _case("method positive — declared and present on all three bindings", _case_method_positive_all_three)
     _case("method negative — declared Python but missing in source", _case_method_python_missing)

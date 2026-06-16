@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
 
         const int total = total_events.load(std::memory_order_relaxed);
         const int data = data_events.load(std::memory_order_relaxed);
-        const uint64_t dropped = fpss.dropped_events();
+        const uint64_t dropped = fpss.dropped_event_count();
 
         std::cout << "summary: total=" << total
                   << " data=" << data
