@@ -106,10 +106,10 @@ WebSocket streaming from the bundled [server binary](/server/). Send one JSON en
 
 ```bash
 websocat ws://127.0.0.1:25520/v1/events
-{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "QUOTE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}}
+{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "QUOTE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}}
 ```
 
-The WebSocket envelope takes the strike in thousandths of a dollar (`570000` = $570.00); the SDKs take dollars.
+The WebSocket envelope takes the strike in dollars (`570`), the same as the SDKs.
 
 </template>
 
