@@ -1,8 +1,9 @@
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_option_contract_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     std::vector<OptionContract> result;

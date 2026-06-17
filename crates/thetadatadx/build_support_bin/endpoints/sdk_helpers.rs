@@ -308,7 +308,7 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
             // stale error from a prior call isn't misattributed.
             let free_fn = render_for(other).ffi_free_fn.clone();
             format!(
-                "{{\n        const std::string err = detail::last_ffi_error_raw();\n        if (!err.empty()) {{\n            {free_fn}(arr);\n            throw std::runtime_error(\"thetadatadx: \" + err);\n        }}\n    }}\n    auto result = detail::to_vector(arr.data, arr.len);\n    {free_fn}(arr);\n    return result;"
+                "{{\n        const std::string err = detail::last_ffi_error_raw();\n        if (!err.empty()) {{\n            const int32_t code = thetadatadx_last_error_code();\n            {free_fn}(arr);\n            detail::throw_for_code(code, err);\n        }}\n    }}\n    auto result = detail::to_vector(arr.data, arr.len);\n    {free_fn}(arr);\n    return result;"
             )
         }
     }

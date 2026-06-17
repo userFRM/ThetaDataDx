@@ -24,8 +24,9 @@ std::vector<OhlcTick> HistoricalClient::stock_snapshot_ohlc(const std::vector<st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -45,8 +46,9 @@ std::vector<TradeTick> HistoricalClient::stock_snapshot_trade(const std::vector<
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -66,8 +68,9 @@ std::vector<QuoteTick> HistoricalClient::stock_snapshot_quote(const std::vector<
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -87,8 +90,9 @@ std::vector<MarketValueTick> HistoricalClient::stock_snapshot_market_value(const
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -103,8 +107,9 @@ std::vector<EodTick> HistoricalClient::stock_history_eod(const std::string& symb
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -119,8 +124,9 @@ std::vector<OhlcTick> HistoricalClient::stock_history_ohlc(const std::string& sy
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -135,8 +141,9 @@ std::vector<TradeTick> HistoricalClient::stock_history_trade(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -151,8 +158,9 @@ std::vector<QuoteTick> HistoricalClient::stock_history_quote(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -167,8 +175,9 @@ std::vector<TradeQuoteTick> HistoricalClient::stock_history_trade_quote(const st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -183,8 +192,9 @@ std::vector<TradeTick> HistoricalClient::stock_at_time_trade(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -199,8 +209,9 @@ std::vector<QuoteTick> HistoricalClient::stock_at_time_quote(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -239,8 +250,9 @@ std::vector<OptionContract> HistoricalClient::option_list_contracts(const std::s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_option_contract_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     std::vector<OptionContract> result;
@@ -264,8 +276,9 @@ std::vector<OhlcTick> HistoricalClient::option_snapshot_ohlc(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -280,8 +293,9 @@ std::vector<TradeTick> HistoricalClient::option_snapshot_trade(const std::string
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -296,8 +310,9 @@ std::vector<QuoteTick> HistoricalClient::option_snapshot_quote(const std::string
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -312,8 +327,9 @@ std::vector<OpenInterestTick> HistoricalClient::option_snapshot_open_interest(co
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_open_interest_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -328,8 +344,9 @@ std::vector<MarketValueTick> HistoricalClient::option_snapshot_market_value(cons
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -344,8 +361,9 @@ std::vector<IvTick> HistoricalClient::option_snapshot_greeks_implied_volatility(
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_iv_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -360,8 +378,9 @@ std::vector<GreeksAllTick> HistoricalClient::option_snapshot_greeks_all(const st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -376,8 +395,9 @@ std::vector<GreeksFirstOrderTick> HistoricalClient::option_snapshot_greeks_first
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -392,8 +412,9 @@ std::vector<GreeksSecondOrderTick> HistoricalClient::option_snapshot_greeks_seco
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -408,8 +429,9 @@ std::vector<GreeksThirdOrderTick> HistoricalClient::option_snapshot_greeks_third
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -424,8 +446,9 @@ std::vector<EodTick> HistoricalClient::option_history_eod(const std::string& sym
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -440,8 +463,9 @@ std::vector<OhlcTick> HistoricalClient::option_history_ohlc(const std::string& s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -456,8 +480,9 @@ std::vector<TradeTick> HistoricalClient::option_history_trade(const std::string&
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -472,8 +497,9 @@ std::vector<QuoteTick> HistoricalClient::option_history_quote(const std::string&
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -488,8 +514,9 @@ std::vector<TradeQuoteTick> HistoricalClient::option_history_trade_quote(const s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -504,8 +531,9 @@ std::vector<OpenInterestTick> HistoricalClient::option_history_open_interest(con
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_open_interest_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -520,8 +548,9 @@ std::vector<GreeksEodTick> HistoricalClient::option_history_greeks_eod(const std
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -536,8 +565,9 @@ std::vector<GreeksAllTick> HistoricalClient::option_history_greeks_all(const std
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -552,8 +582,9 @@ std::vector<TradeGreeksAllTick> HistoricalClient::option_history_trade_greeks_al
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -568,8 +599,9 @@ std::vector<GreeksFirstOrderTick> HistoricalClient::option_history_greeks_first_
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -584,8 +616,9 @@ std::vector<TradeGreeksFirstOrderTick> HistoricalClient::option_history_trade_gr
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -600,8 +633,9 @@ std::vector<GreeksSecondOrderTick> HistoricalClient::option_history_greeks_secon
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -616,8 +650,9 @@ std::vector<TradeGreeksSecondOrderTick> HistoricalClient::option_history_trade_g
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -632,8 +667,9 @@ std::vector<GreeksThirdOrderTick> HistoricalClient::option_history_greeks_third_
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -648,8 +684,9 @@ std::vector<TradeGreeksThirdOrderTick> HistoricalClient::option_history_trade_gr
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -664,8 +701,9 @@ std::vector<IvTick> HistoricalClient::option_history_greeks_implied_volatility(c
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_iv_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -680,8 +718,9 @@ std::vector<TradeGreeksImpliedVolatilityTick> HistoricalClient::option_history_t
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_implied_volatility_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -696,8 +735,9 @@ std::vector<TradeTick> HistoricalClient::option_at_time_trade(const std::string&
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -712,8 +752,9 @@ std::vector<QuoteTick> HistoricalClient::option_at_time_quote(const std::string&
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -745,8 +786,9 @@ std::vector<OhlcTick> HistoricalClient::index_snapshot_ohlc(const std::vector<st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -766,8 +808,9 @@ std::vector<PriceTick> HistoricalClient::index_snapshot_price(const std::vector<
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_price_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -787,8 +830,9 @@ std::vector<MarketValueTick> HistoricalClient::index_snapshot_market_value(const
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -803,8 +847,9 @@ std::vector<EodTick> HistoricalClient::index_history_eod(const std::string& symb
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -819,8 +864,9 @@ std::vector<OhlcTick> HistoricalClient::index_history_ohlc(const std::string& sy
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -835,8 +881,9 @@ std::vector<PriceTick> HistoricalClient::index_history_price(const std::string& 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_price_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -851,8 +898,9 @@ std::vector<IndexPriceAtTimeTick> HistoricalClient::index_at_time_price(const st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_index_price_at_time_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -867,8 +915,9 @@ std::vector<CalendarDay> HistoricalClient::calendar_open_today(const EndpointReq
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -883,8 +932,9 @@ std::vector<CalendarDay> HistoricalClient::calendar_on_date(const std::string& d
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -899,8 +949,9 @@ std::vector<CalendarDay> HistoricalClient::calendar_year(const std::string& year
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -915,8 +966,9 @@ std::vector<InterestRateTick> HistoricalClient::interest_rate_history_eod(const 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_interest_rate_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -931,8 +983,9 @@ std::vector<OhlcTick> HistoricalClient::stock_history_ohlc_range(const std::stri
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -964,8 +1017,9 @@ std::vector<OhlcTick> Historical::stock_snapshot_ohlc(const std::vector<std::str
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -985,8 +1039,9 @@ std::vector<TradeTick> Historical::stock_snapshot_trade(const std::vector<std::s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1006,8 +1061,9 @@ std::vector<QuoteTick> Historical::stock_snapshot_quote(const std::vector<std::s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1027,8 +1083,9 @@ std::vector<MarketValueTick> Historical::stock_snapshot_market_value(const std::
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1043,8 +1100,9 @@ std::vector<EodTick> Historical::stock_history_eod(const std::string& symbol, co
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1059,8 +1117,9 @@ std::vector<OhlcTick> Historical::stock_history_ohlc(const std::string& symbol, 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1075,8 +1134,9 @@ std::vector<TradeTick> Historical::stock_history_trade(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1091,8 +1151,9 @@ std::vector<QuoteTick> Historical::stock_history_quote(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1107,8 +1168,9 @@ std::vector<TradeQuoteTick> Historical::stock_history_trade_quote(const std::str
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1123,8 +1185,9 @@ std::vector<TradeTick> Historical::stock_at_time_trade(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1139,8 +1202,9 @@ std::vector<QuoteTick> Historical::stock_at_time_quote(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1179,8 +1243,9 @@ std::vector<OptionContract> Historical::option_list_contracts(const std::string&
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_option_contract_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     std::vector<OptionContract> result;
@@ -1204,8 +1269,9 @@ std::vector<OhlcTick> Historical::option_snapshot_ohlc(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1220,8 +1286,9 @@ std::vector<TradeTick> Historical::option_snapshot_trade(const std::string& symb
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1236,8 +1303,9 @@ std::vector<QuoteTick> Historical::option_snapshot_quote(const std::string& symb
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1252,8 +1320,9 @@ std::vector<OpenInterestTick> Historical::option_snapshot_open_interest(const st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_open_interest_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1268,8 +1337,9 @@ std::vector<MarketValueTick> Historical::option_snapshot_market_value(const std:
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1284,8 +1354,9 @@ std::vector<IvTick> Historical::option_snapshot_greeks_implied_volatility(const 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_iv_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1300,8 +1371,9 @@ std::vector<GreeksAllTick> Historical::option_snapshot_greeks_all(const std::str
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1316,8 +1388,9 @@ std::vector<GreeksFirstOrderTick> Historical::option_snapshot_greeks_first_order
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1332,8 +1405,9 @@ std::vector<GreeksSecondOrderTick> Historical::option_snapshot_greeks_second_ord
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1348,8 +1422,9 @@ std::vector<GreeksThirdOrderTick> Historical::option_snapshot_greeks_third_order
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1364,8 +1439,9 @@ std::vector<EodTick> Historical::option_history_eod(const std::string& symbol, c
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1380,8 +1456,9 @@ std::vector<OhlcTick> Historical::option_history_ohlc(const std::string& symbol,
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1396,8 +1473,9 @@ std::vector<TradeTick> Historical::option_history_trade(const std::string& symbo
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1412,8 +1490,9 @@ std::vector<QuoteTick> Historical::option_history_quote(const std::string& symbo
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1428,8 +1507,9 @@ std::vector<TradeQuoteTick> Historical::option_history_trade_quote(const std::st
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1444,8 +1524,9 @@ std::vector<OpenInterestTick> Historical::option_history_open_interest(const std
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_open_interest_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1460,8 +1541,9 @@ std::vector<GreeksEodTick> Historical::option_history_greeks_eod(const std::stri
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1476,8 +1558,9 @@ std::vector<GreeksAllTick> Historical::option_history_greeks_all(const std::stri
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1492,8 +1575,9 @@ std::vector<TradeGreeksAllTick> Historical::option_history_trade_greeks_all(cons
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_all_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1508,8 +1592,9 @@ std::vector<GreeksFirstOrderTick> Historical::option_history_greeks_first_order(
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1524,8 +1609,9 @@ std::vector<TradeGreeksFirstOrderTick> Historical::option_history_trade_greeks_f
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_first_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1540,8 +1626,9 @@ std::vector<GreeksSecondOrderTick> Historical::option_history_greeks_second_orde
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1556,8 +1643,9 @@ std::vector<TradeGreeksSecondOrderTick> Historical::option_history_trade_greeks_
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_second_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1572,8 +1660,9 @@ std::vector<GreeksThirdOrderTick> Historical::option_history_greeks_third_order(
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1588,8 +1677,9 @@ std::vector<TradeGreeksThirdOrderTick> Historical::option_history_trade_greeks_t
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_third_order_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1604,8 +1694,9 @@ std::vector<IvTick> Historical::option_history_greeks_implied_volatility(const s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_iv_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1620,8 +1711,9 @@ std::vector<TradeGreeksImpliedVolatilityTick> Historical::option_history_trade_g
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_greeks_implied_volatility_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1636,8 +1728,9 @@ std::vector<TradeTick> Historical::option_at_time_trade(const std::string& symbo
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_trade_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1652,8 +1745,9 @@ std::vector<QuoteTick> Historical::option_at_time_quote(const std::string& symbo
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_quote_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1685,8 +1779,9 @@ std::vector<OhlcTick> Historical::index_snapshot_ohlc(const std::vector<std::str
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1706,8 +1801,9 @@ std::vector<PriceTick> Historical::index_snapshot_price(const std::vector<std::s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_price_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1727,8 +1823,9 @@ std::vector<MarketValueTick> Historical::index_snapshot_market_value(const std::
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_market_value_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1743,8 +1840,9 @@ std::vector<EodTick> Historical::index_history_eod(const std::string& symbol, co
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_eod_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1759,8 +1857,9 @@ std::vector<OhlcTick> Historical::index_history_ohlc(const std::string& symbol, 
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1775,8 +1874,9 @@ std::vector<PriceTick> Historical::index_history_price(const std::string& symbol
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_price_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1791,8 +1891,9 @@ std::vector<IndexPriceAtTimeTick> Historical::index_at_time_price(const std::str
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_index_price_at_time_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1807,8 +1908,9 @@ std::vector<CalendarDay> Historical::calendar_open_today(const EndpointRequestOp
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1823,8 +1925,9 @@ std::vector<CalendarDay> Historical::calendar_on_date(const std::string& date, c
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1839,8 +1942,9 @@ std::vector<CalendarDay> Historical::calendar_year(const std::string& year, cons
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_calendar_day_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1855,8 +1959,9 @@ std::vector<InterestRateTick> Historical::interest_rate_history_eod(const std::s
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_interest_rate_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
@@ -1871,8 +1976,9 @@ std::vector<OhlcTick> Historical::stock_history_ohlc_range(const std::string& sy
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
+            const int32_t code = thetadatadx_last_error_code();
             thetadatadx_ohlc_tick_array_free(arr);
-            throw std::runtime_error("thetadatadx: " + err);
+            detail::throw_for_code(code, err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
