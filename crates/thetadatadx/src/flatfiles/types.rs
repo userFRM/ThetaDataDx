@@ -145,7 +145,7 @@ pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
 #[non_exhaustive]
 pub enum FlatFilesUnavailableReason {
     /// Server returned a `RemoveReason` ordinal during auth (e.g.
-    /// `INVALID_CREDENTIALS=1`, `ACCOUNT_ALREADY_CONNECTED=7`).
+    /// `INVALID_CREDENTIALS=0`, `ACCOUNT_ALREADY_CONNECTED=6`).
     AuthRejected {
         /// Server-supplied removal-reason ordinal explaining the rejection.
         reason_code: u16,
