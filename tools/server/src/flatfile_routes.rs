@@ -30,8 +30,9 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::rejection::JsonRejection;
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
+use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
+use axum::http::request::Parts;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -110,6 +111,82 @@ fn json_rejection_response(rejection: &JsonRejection) -> Response {
     error_response(rejection.status(), "bad_request", &rejection.body_text())
 }
 
+// ── Query extractor with a canonical-envelope rejection ──────────────────
+
+/// `axum::Query` wrapper whose extraction failure renders the server's
+/// canonical error envelope instead of axum's default plain-text 400.
+///
+/// The convenience GET route carries its `date` (required) and `format`
+/// in the query string. A request with a missing `date` or an otherwise
+/// malformed query string fails deserialization in the extractor, before
+/// the handler body runs. With the stock `Query` extractor that surfaces
+/// as a bare text `400`, diverging from the canonical
+/// `{"header":{"error_type":...,"error_msg":...},"response":[]}` envelope
+/// that the POST sibling and every other route family return. Clients
+/// drive retry / backoff off `header.error_type`, so the GET path must
+/// fail the same shape as the POST path. This extractor maps the
+/// `QueryRejection` onto `error_response` and otherwise behaves exactly
+/// like `axum::Query<T>`.
+pub(crate) struct FlatfileQueryExtractor<T>(pub(crate) T);
+
+impl<S, T> FromRequestParts<S> for FlatfileQueryExtractor<T>
+where
+    axum::extract::Query<T>: FromRequestParts<S, Rejection = QueryRejection>,
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Query::<T>::from_request_parts(parts, state).await {
+            Ok(Query(value)) => Ok(Self(value)),
+            Err(rejection) => Err(query_rejection_response(&rejection)),
+        }
+    }
+}
+
+/// Map a `QueryRejection` onto the canonical error envelope.
+///
+/// Pure over the rejection so the wire shape is testable without driving
+/// a live request through the router. A query string the server could not
+/// deserialize (missing required `date`, malformed key/value) is a
+/// client-supplied input fault: `400` with `error_type="bad_request"`.
+fn query_rejection_response(rejection: &QueryRejection) -> Response {
+    error_response(rejection.status(), "bad_request", &rejection.body_text())
+}
+
+// ── Path extractor with a canonical-envelope rejection ───────────────────
+
+/// `axum::Path` wrapper whose extraction failure renders the server's
+/// canonical error envelope instead of axum's default plain-text 400.
+///
+/// The `{sec_type}/{req_type}` segments deserialize to `String`, which
+/// cannot fail on a UTF-8-valid path that the router already matched, so
+/// this rejection is not reachable from untrusted input in practice. It
+/// is wired through the same envelope helper anyway so that the GET route
+/// has no remaining extractor that could answer with a non-canonical body,
+/// matching the defensiveness of the POST `FlatfileJson` path.
+pub(crate) struct FlatfilePath<T>(pub(crate) T);
+
+impl<S, T> FromRequestParts<S> for FlatfilePath<T>
+where
+    axum::extract::Path<T>: FromRequestParts<S, Rejection = PathRejection>,
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Path::<T>::from_request_parts(parts, state).await {
+            Ok(Path(value)) => Ok(Self(value)),
+            Err(rejection) => Err(path_rejection_response(&rejection)),
+        }
+    }
+}
+
+/// Map a `PathRejection` onto the canonical error envelope.
+fn path_rejection_response(rejection: &PathRejection) -> Response {
+    error_response(rejection.status(), "bad_request", &rejection.body_text())
+}
+
 // ── Wire-friendly error response ─────────────────────────────────────────
 
 fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
@@ -176,8 +253,8 @@ fn content_type_for(format: FlatFileFormat) -> &'static str {
 
 async fn handle_get(
     state: State<AppState>,
-    Path((sec_type_s, req_type_s)): Path<(String, String)>,
-    Query(params): Query<FlatfileQuery>,
+    FlatfilePath((sec_type_s, req_type_s)): FlatfilePath<(String, String)>,
+    FlatfileQueryExtractor(params): FlatfileQueryExtractor<FlatfileQuery>,
 ) -> Response {
     let sec_type = match parse_sec_type(&sec_type_s) {
         Ok(v) => v,
@@ -472,6 +549,142 @@ mod tests {
                 .and_then(|h| h.get("error_type"))
                 .as_str(),
             Some("bad_request"),
+        );
+    }
+
+    /// A GET whose query string omits the required `date` param must
+    /// surface the server's canonical error envelope, not axum's default
+    /// plain-text 400. The `Query<FlatfileQuery>` deserialize fails in the
+    /// extractor before the handler body runs; the custom extractor routes
+    /// that failure through the same `error_response` helper the POST path
+    /// uses, so the GET path keys the same `header.error_type` contract
+    /// clients drive retry / backoff off.
+    #[tokio::test]
+    async fn get_missing_date_returns_canonical_envelope() {
+        use axum::body::to_bytes;
+        use axum::extract::FromRequestParts;
+        use axum::http::Request as HttpRequest;
+        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+
+        // No `date` key at all: `FlatfileQuery.date` is required, so the
+        // deserialize fails before the handler runs.
+        let request = HttpRequest::builder()
+            .method("GET")
+            .uri("/v3/flatfile/option/trade_quote?format=csv")
+            .body(Body::empty())
+            .unwrap();
+        let (mut parts, _) = request.into_parts();
+
+        let rejection =
+            FlatfileQueryExtractor::<FlatfileQuery>::from_request_parts(&mut parts, &())
+                .await
+                .err()
+                .expect("a query string missing the required `date` must be rejected");
+
+        assert_eq!(
+            rejection.status(),
+            StatusCode::BAD_REQUEST,
+            "a missing required query param is a client fault (400)"
+        );
+        assert_eq!(
+            rejection
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some(crate::handler::JSON_CONTENT_TYPE),
+            "the rejection must be served as JSON, not plain text"
+        );
+
+        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
+        let value: sonic_rs::Value =
+            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
+
+        let header = value.get("header").expect("envelope must carry a header");
+        assert_eq!(
+            header.get("error_type").as_str(),
+            Some("bad_request"),
+            "clients drive retry off header.error_type"
+        );
+        assert!(
+            header
+                .get("error_msg")
+                .as_str()
+                .is_some_and(|m| !m.is_empty()),
+            "the envelope must carry a non-empty diagnostic error_msg"
+        );
+        assert_eq!(
+            value
+                .get("response")
+                .and_then(|r| r.as_array())
+                .map(sonic_rs::Array::len),
+            Some(0),
+            "the error envelope's response array must be empty"
+        );
+    }
+
+    /// A GET with a malformed query string is rejected through the same
+    /// canonical envelope. Here `date` is present but supplied twice, which
+    /// the single-valued `String` field cannot deserialize.
+    #[tokio::test]
+    async fn get_malformed_query_string_returns_canonical_envelope() {
+        use axum::body::to_bytes;
+        use axum::extract::FromRequestParts;
+        use axum::http::Request as HttpRequest;
+        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+
+        // `date` repeated: a single-valued `String` field cannot accept a
+        // multi-value sequence, so the query deserialize fails.
+        let request = HttpRequest::builder()
+            .method("GET")
+            .uri("/v3/flatfile/option/trade_quote?date=20260428&date=20260429")
+            .body(Body::empty())
+            .unwrap();
+        let (mut parts, _) = request.into_parts();
+
+        let rejection =
+            FlatfileQueryExtractor::<FlatfileQuery>::from_request_parts(&mut parts, &())
+                .await
+                .err()
+                .expect("a malformed query string must be rejected");
+
+        assert_eq!(
+            rejection.status(),
+            StatusCode::BAD_REQUEST,
+            "a malformed query string is a client fault (400)"
+        );
+        assert_eq!(
+            rejection
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some(crate::handler::JSON_CONTENT_TYPE),
+            "the rejection must be served as JSON, not plain text"
+        );
+
+        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
+        let value: sonic_rs::Value =
+            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
+
+        let header = value.get("header").expect("envelope must carry a header");
+        assert_eq!(
+            header.get("error_type").as_str(),
+            Some("bad_request"),
+            "clients drive retry off header.error_type"
+        );
+        assert!(
+            header
+                .get("error_msg")
+                .as_str()
+                .is_some_and(|m| !m.is_empty()),
+            "the envelope must carry a non-empty diagnostic error_msg"
+        );
+        assert_eq!(
+            value
+                .get("response")
+                .and_then(|r| r.as_array())
+                .map(sonic_rs::Array::len),
+            Some(0),
+            "the error envelope's response array must be empty"
         );
     }
 
