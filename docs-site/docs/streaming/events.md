@@ -5,7 +5,7 @@ description: The typed event catalogue and how to narrow events in each language
 
 # Handling Events
 
-Every streaming update reaches your callback as one typed event. There are four **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields — no JSON, no string parsing.
+Every streaming update reaches your callback as one typed event. There are five **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields — no JSON, no string parsing.
 
 ## Narrowing
 
@@ -125,6 +125,7 @@ Over the [server's WebSocket](/server/websocket), each event arrives as one JSON
 | `trade` | `price`, `size`, `exchange`, `condition` (+ extended conditions), `sequence`, flags, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
 | `open_interest` | `open_interest`, `ms_of_day`, `date`, `received_at_ns` | [Open-interest streams](/streaming/options/open-interest) |
 | `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars derived from any active trade subscription |
+| `market_value` | `market_price` (calculated value), `market_bid` / `market_ask` (stocks and options only), `ms_of_day`, `date`, `received_at_ns` | [Index market value](/streaming/indices/market-value) and per-contract market-value streams |
 
 Each stream-type page in the sidebar lists its event's complete field table.
 
