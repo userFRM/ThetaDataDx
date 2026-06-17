@@ -236,6 +236,11 @@ fn render_cpp_async_overload(
     captures.push("options = std::move(options)".to_string());
     forwards.push("options".to_string());
 
+    out.push_str(
+        "    /// \\warning The future borrows the object it was called on; do not let it\n",
+    );
+    out.push_str("    /// outlive that object. Call on a named `HistoricalClient` (or chain the\n");
+    out.push_str("    /// result), never on the temporary returned by `client.historical()`.\n");
     writeln!(
         out,
         "    std::future<std::vector<{row}>> {async_name}({}) const {{",
