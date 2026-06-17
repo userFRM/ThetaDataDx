@@ -35,7 +35,7 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 /// At ~10k events/sec peak (market open), 4096 gives ~400ms of headroom
 /// before a slow WebSocket consumer starts dropping events.  Each slot is
 /// an `Arc<str>` (~16 bytes), so 4096 slots cost ~64KB per client.
-const WS_CLIENT_CAPACITY: usize = 4096;
+const WS_CLIENT_CAPACITY: usize = 65536;
 
 /// Connected WS clients. Each gets its own bounded mpsc sender so the FPSS
 /// callback can fan out a single `Arc<str>` (serialized once) without cloning
