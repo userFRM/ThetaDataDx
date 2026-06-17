@@ -3713,8 +3713,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
   SnapshotTradeTick, TradeQuoteTick with fixed-point Price encoding
 - **80+ DataType enum codes** — quotes, trades, OHLC, all Greek orders, dividends,
   splits, fundamentals
-- **Proto definitions** — extracted via runtime FileDescriptor reflection from
-  ThetaData Terminal v202603181 (endpoints.proto + v3_endpoints.proto)
+- **Proto definitions** — the v3 protocol surface (endpoints.proto +
+  v3_endpoints.proto)
 - **Runtime configuration** — `DirectConfig` with all JVM-equivalent tuning knobs
 - `contract_lookup(id)` on `StreamingClient` for single-entry hot-path lookup
 - `StreamEvent::Error` variant for surfacing protocol parse failures
