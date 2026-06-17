@@ -31,7 +31,7 @@ Security fixes land on the current major line only. Older majors are not patched
 
 The ThetaData terminal ships with a hardcoded API key that is identical across all
 installations. **This is not a secret** — it is a protocol constant embedded in every
-copy of the Java terminal. thetadatadx includes this key for protocol compatibility. It
+copy of the JVM terminal. thetadatadx includes this key for protocol compatibility. It
 provides no privileged access.
 
 ### Credential Handling
@@ -53,7 +53,7 @@ All network operations enforce timeouts to prevent indefinite hangs:
 - **Nexus auth HTTP**: 10s request timeout, 5s connect timeout
 - **MDDS**: connect timeout + keepalive from `DirectConfig`
 - **FPSS TLS**: connect timeout wraps both TCP and TLS handshake
-- **FPSS read loop**: read timeout matching Java's `SO_TIMEOUT=10s`
+- **FPSS read loop**: a 10s read timeout matching the JVM terminal
 
 ### TLS
 
@@ -66,12 +66,12 @@ All network connections use a **unified TLS stack** (`rustls` with ring backend)
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
 validation is enforced on MDDS (gRPC) and Nexus (HTTP) connections. FPSS (streaming)
 skips certificate verification because ThetaData's FPSS servers have certificates
-expired since January 2024 -- this matches the Java terminal's behavior.
+expired since January 2024 -- this matches the JVM terminal's behavior.
 
 ### Credential Handling (FPSS)
 
-FPSS credential length fields are read as unsigned integers (matching Java's
-`readUnsignedShort()`), so passwords longer than 127 bytes authenticate correctly
+FPSS credential length fields are read as an unsigned 16-bit integer (matching the
+JVM terminal), so passwords longer than 127 bytes authenticate correctly
 (a signed read would sign-extend the length and break the handshake).
 
 ### Concurrent Request Limiting
@@ -90,9 +90,9 @@ silently passed to callers.
 
 ### FPSS Event Dispatch
 
-FPSS streaming uses a fully synchronous I/O thread with a lock-free event ring buffer
-for event dispatch. The bounded ring buffer prevents unbounded memory
-growth from unconsumed events.
+FPSS streaming uses a dedicated read path with bounded buffering for event
+dispatch. The bounded buffer prevents unbounded memory growth from unconsumed
+events.
 
 ### Frame Size Limits
 

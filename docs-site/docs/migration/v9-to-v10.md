@@ -156,8 +156,8 @@ The session wakes the asyncio event loop only when events arrive:
 zero polling cost during quiet periods, one wake per coalesced
 batch. The matching surface on
 the standalone `StreamingClient` (`fpss_client.streaming_async()`) opens
-no historical-channel / Nexus surface — useful for asyncio apps coexisting with a
-parallel Java historical-channel process.
+no historical-channel / Nexus surface — useful for asyncio apps coexisting with the
+JVM terminal's historical-channel process.
 
 ## Standalone `StreamingClient` / `HistoricalClient` Python pyclasses
 

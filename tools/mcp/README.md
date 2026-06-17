@@ -143,7 +143,7 @@ For option tools, MCP uses `"0"` as the wildcard value for `strike` and `expirat
 - Use `"strike":"0"` when you want a bulk chain-style response with contract identification fields on each row.
 - `strike_range` filters a wildcard bulk selection around spot / ATM. It does **not** fan out a pinned strike into neighboring strikes.
 
-This matches the current Java terminal behavior. The v3 REST surface uses `*` for the same wildcard concept; the MCP server uses `"0"` because it follows the underlying SDK contract.
+This matches the current JVM terminal behavior. The v3 REST surface uses `*` for the same wildcard concept; the MCP server uses `"0"` because it follows the underlying SDK contract.
 
 ### Index Data (9 tools)
 - `index_list_symbols`, `index_list_dates`
