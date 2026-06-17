@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import (
     Any,
+    Awaitable,
     Callable,
     List,
     Literal,
@@ -1297,9 +1298,40 @@ class AsyncClient:
     def __init__(self, creds: Credentials, config: Config) -> None:
         """Connect to ThetaData with ``creds`` and ``config``.
 
+        Runs the authentication and connection handshake to completion
+        before returning. Use this when constructing outside a running
+        event loop. Inside a coroutine, prefer
+        :meth:`connect` so the handshake does not stall the event loop.
+
         Args:
             creds: Account credentials.
             config: Connection configuration.
+
+        Raises:
+            ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
+    @staticmethod
+    def connect(
+        creds: Credentials,
+        config: Config,
+    ) -> Awaitable[AsyncClient]:
+        """Connect without blocking the running event loop.
+
+        The authentication and connection handshake resolves off the
+        event loop, so other coroutines keep running while the connection
+        is established. This is the preferred way to build an
+        :class:`AsyncClient` from inside a coroutine::
+
+            client = await AsyncClient.connect(creds, config)
+
+        Args:
+            creds: Account credentials.
+            config: Connection configuration.
+
+        Returns:
+            An awaitable resolving to a connected :class:`AsyncClient`.
 
         Raises:
             ThetaDataError: If authentication or the connection fails.
@@ -1320,6 +1352,33 @@ class AsyncClient:
 
         Returns:
             A connected :class:`AsyncClient`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or the connection
+                fails.
+        """
+        ...
+
+    @staticmethod
+    def connect_from_file(
+        path: str,
+        config: Optional[Config] = None,
+    ) -> Awaitable[AsyncClient]:
+        """Connect from a credentials file without blocking the event loop.
+
+        Loads credentials from a two-line file and connects off the event
+        loop, defaulting to ``Config.production()`` when no ``config`` is
+        supplied::
+
+            client = await AsyncClient.connect_from_file("creds.txt")
+
+        Args:
+            path: Path to a two-line credentials file.
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+
+        Returns:
+            An awaitable resolving to a connected :class:`AsyncClient`.
 
         Raises:
             ThetaDataError: If the file cannot be read or the connection

@@ -1788,12 +1788,18 @@ impl StreamView {
 ///
 /// async def main():
 ///     creds = Credentials.from_file("creds.txt")
-///     client = AsyncClient(creds, Config.production())
+///     client = await AsyncClient.connect(creds, Config.production())
 ///     ticks = await client.stock_history_eod_async("AAPL", "20240101", "20240301")
 ///     print(ticks.to_pandas().head())
 ///
 /// asyncio.run(main())
 /// ```
+///
+/// Construct with `await AsyncClient.connect(...)` (or
+/// `await AsyncClient.connect_from_file("creds.txt")`) from inside a
+/// coroutine so the auth + connect handshake resolves off the event loop
+/// instead of stalling it. The synchronous `AsyncClient(creds, config)`
+/// constructor stays available for building outside a running loop.
 ///
 /// Attribute access is restricted to async-suffixed methods plus a
 /// safelisted set of synchronous lifecycle methods that have no
@@ -1972,10 +1978,62 @@ struct AsyncClient {
 
 #[pymethods]
 impl AsyncClient {
+    /// Synchronous constructor that runs the auth + connect handshake to
+    /// completion before returning.
+    ///
+    /// Suitable for construction OUTSIDE a running event loop (module
+    /// import, a worker thread, a `__main__` body before `asyncio.run`).
+    /// Inside a coroutine, prefer ``await AsyncClient.connect(...)`` so
+    /// the handshake does not stall the event loop.
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
         let client = Py::new(py, Client::new(py, creds, config)?)?;
         Ok(Self { inner: client })
+    }
+
+    /// Awaitable constructor that yields a connected ``AsyncClient``
+    /// without stalling the running event loop.
+    ///
+    /// The auth round-trip and gRPC channel setup resolve off the event
+    /// loop, so other coroutines keep running while the connection is
+    /// established. This is the preferred way to build an ``AsyncClient``
+    /// from inside a coroutine::
+    ///
+    ///     client = await AsyncClient.connect(creds, config)
+    ///
+    /// The synchronous ``AsyncClient(creds, config)`` constructor remains
+    /// available for construction outside a running loop.
+    #[staticmethod]
+    fn connect<'py>(
+        py: Python<'py>,
+        creds: &Credentials,
+        config: &Config,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        // Snapshot the config + credentials under the GIL before handing
+        // the connect future to the runtime. `connect()` takes ownership
+        // of the `DirectConfig`, and the outer `Config` handle may still
+        // be mutated Python-side after this call returns its awaitable.
+        let direct_config = {
+            let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
+            guard.clone()
+        };
+        // Seed the process-global runtime from this client's runtime
+        // config before the awaitable resolves, so `worker_threads` takes
+        // effect when the first client in the process connects.
+        runtime_from_config(&direct_config.runtime);
+        let inner_creds = creds.inner.clone();
+        spawn_awaitable(
+            py,
+            async move { thetadatadx::Client::connect(&inner_creds, direct_config).await },
+            |py, client| {
+                let wrapped = Client {
+                    client: std::sync::Arc::new(client),
+                    callback: Arc::new(Mutex::new(None)),
+                };
+                let inner = Py::new(py, wrapped)?;
+                Ok(Py::new(py, Self { inner })?.into_any())
+            },
+        )
     }
 
     /// Convenience constructor: `AsyncClient.from_file("creds.txt")`.
@@ -1995,6 +2053,33 @@ impl AsyncClient {
         };
         let client = Py::new(py, Client::new(py, &creds, cfg)?)?;
         Ok(Self { inner: client })
+    }
+
+    /// Awaitable file constructor that yields a connected ``AsyncClient``
+    /// without stalling the running event loop.
+    ///
+    /// Loads credentials from a two-line file (line 1 = email, line 2 =
+    /// password) and connects off the event loop, defaulting to the
+    /// production endpoint when no ``config`` is supplied::
+    ///
+    ///     client = await AsyncClient.connect_from_file("creds.txt")
+    #[staticmethod]
+    #[pyo3(signature = (path, config=None))]
+    fn connect_from_file<'py>(
+        py: Python<'py>,
+        path: &str,
+        config: Option<&Config>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let creds = Credentials::from_file(path)?;
+        let owned_default;
+        let cfg = match config {
+            Some(c) => c,
+            None => {
+                owned_default = Config::production();
+                &owned_default
+            }
+        };
+        Self::connect(py, &creds, cfg)
     }
 
     /// Forward attribute access to the wrapped `Client`.
