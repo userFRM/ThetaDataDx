@@ -947,7 +947,7 @@ def on_event(event):
 
     if size >= ${minSize()}:
         c        = event.contract
-        contract = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+        contract = f"{c.symbol} {c.expiration} {c.strike:g} {c.right}"
         premium  = price * size * 100
         print(f"{contract:<35}  {size:>6,}  {price:>8.2f}  \${premium:>11,.0f}")
 
@@ -979,7 +979,7 @@ def on_event(event):
     if event.kind != "quote":
         return
     c    = event.contract
-    name = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+    name = f"{c.symbol} {c.expiration} {c.strike:g} {c.right}"
     bid   = event.bid
     ask   = event.ask
     chain_state[name] = {"bid": bid, "ask": ask}

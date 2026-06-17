@@ -129,8 +129,8 @@ const SHUTDOWN_BURST_SIZE: u32 = 3;
 /// `{"header":{"error_type","error_msg"},"response":[]}` envelope as
 /// every other failure, plus a standards-compliant `Retry-After` header
 /// in seconds (RFC 9110) — the field every HTTP retry helper reads
-/// natively. Shared by the REST shutdown limiter, the general
-/// non-loopback limiter, and the WS upgrade limiter.
+/// natively. Shared by the REST shutdown limiter, the opt-in general
+/// per-IP limiter, and the WS upgrade limiter.
 pub(crate) fn governor_error_response(error: GovernorError) -> axum::response::Response {
     match error {
         GovernorError::TooManyRequests { wait_time, .. } => {
