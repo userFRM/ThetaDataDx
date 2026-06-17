@@ -300,7 +300,7 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
       return;
     }
 
-    assert.throws(
+    await assert.rejects(
       () => client.flatFiles.request('BOGUS', 'QUOTE', '20260102'),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'an unknown flat-file sec_type must reclassify to InvalidParameterError, matching the Python ValueError',
@@ -316,7 +316,7 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
       return;
     }
 
-    assert.throws(
+    await assert.rejects(
       () => client.flatFileToPath('OPTION', 'BOGUS', '20260102', '/tmp/thetadatadx-test.csv'),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'an unknown flat-file req_type must reclassify to InvalidParameterError',

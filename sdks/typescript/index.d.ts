@@ -48,7 +48,7 @@ export declare class Client {
    * Returns the final on-disk path with the format extension
    * auto-appended if missing.
    */
-  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): string
+  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): Promise<string>
 }
 
 /**
@@ -687,20 +687,20 @@ export declare class FlatFileRowList {
  */
 export declare class FlatFilesNamespace {
   /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
-  optionTradeQuote(date: string): FlatFileRowList
+  optionTradeQuote(date: string): Promise<FlatFileRowList>
   /** Option open-interest flat file for the given `YYYYMMDD` date. */
-  optionOpenInterest(date: string): FlatFileRowList
+  optionOpenInterest(date: string): Promise<FlatFileRowList>
   /** Option end-of-day flat file for the given `YYYYMMDD` date. */
-  optionEod(date: string): FlatFileRowList
+  optionEod(date: string): Promise<FlatFileRowList>
   /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
-  stockTradeQuote(date: string): FlatFileRowList
+  stockTradeQuote(date: string): Promise<FlatFileRowList>
   /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
-  stockEod(date: string): FlatFileRowList
+  stockEod(date: string): Promise<FlatFileRowList>
   /**
    * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
    * `"QUOTE"` style strings.
    */
-  request(secType: string, reqType: string, date: string): FlatFileRowList
+  request(secType: string, reqType: string, date: string): Promise<FlatFileRowList>
 }
 
 /**
