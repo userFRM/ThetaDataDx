@@ -67,6 +67,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike_thousandths.is_some(),
                 strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
             };
             FfiBufferedEvent {
                 event: ThetaDataDxStreamEvent {
@@ -139,6 +140,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike_thousandths.is_some(),
                 strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
             };
             FfiBufferedEvent {
                 event: ThetaDataDxStreamEvent {
@@ -209,6 +211,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike_thousandths.is_some(),
                 strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
             };
             FfiBufferedEvent {
                 event: ThetaDataDxStreamEvent {
@@ -281,6 +284,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike_thousandths.is_some(),
                 strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
             };
             FfiBufferedEvent {
                 event: ThetaDataDxStreamEvent {
@@ -365,6 +369,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike_thousandths.is_some(),
                 strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
             };
             FfiBufferedEvent {
                 event: ThetaDataDxStreamEvent {
@@ -471,6 +476,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     right: contract.right().map_or(0, |r| r.as_char() as c_char),
                     has_strike: contract.strike_thousandths.is_some(),
                     strike: contract.strike_dollars().unwrap_or(0.0),
+                    strike_thousandths: contract.strike_thousandths.unwrap_or(0),
                 };
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {

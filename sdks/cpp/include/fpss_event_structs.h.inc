@@ -51,6 +51,7 @@ bool has_right;
 char right;
 bool has_strike;
 double strike;
+int32_t strike_thousandths;
 } ThetaDataDxContract;
 
 /* FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */

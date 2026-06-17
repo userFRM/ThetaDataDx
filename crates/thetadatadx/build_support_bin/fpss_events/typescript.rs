@@ -34,6 +34,7 @@ pub struct Contract {
     pub expiration: Option<i32>,
     pub right: Option<String>,
     pub strike: Option<f64>,
+    pub strike_thousandths: Option<i32>,
 }
 
 "#
@@ -204,7 +205,7 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
             // owned String at the SDK boundary; the option fields transfer by value.
             "Contract" => writeln!(
                 out,
-                "                {name}: Contract {{\n                    symbol: {name}.symbol.to_string(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike: {name}.strike_dollars(),\n                }},",
+                "                {name}: Contract {{\n                    symbol: {name}.symbol.to_string(),\n                    sec_type: {name}.sec_type.as_str().to_string(),\n                    expiration: {name}.expiration,\n                    right: {name}.right().map(|r| r.as_char().to_string()),\n                    strike: {name}.strike_dollars(),\n                    strike_thousandths: {name}.strike_thousandths,\n                }},",
                 name = column.name
             )
             .unwrap(),

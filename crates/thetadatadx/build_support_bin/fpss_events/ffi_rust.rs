@@ -88,6 +88,10 @@ pub struct ThetaDataDxContract {\n\
     pub has_strike: bool,\n\
     /// Option strike price in dollars (0.0 when `has_strike` is false).\n\
     pub strike: f64,\n\
+    /// Option strike in thousandths of a dollar (a `$550.00` strike is\n\
+    /// `550000`; `0` when `has_strike` is false). The exact integer the\n\
+    /// wire carries — read this for an exact key, `strike` for dollars.\n\
+    pub strike_thousandths: i32,\n\
 }\n\
 \n\
 /// Zeroed `ThetaDataDxContract` literal: null symbol, all-false presence flags, zero scalars.\n\
@@ -100,6 +104,7 @@ pub(crate) const ZERO_CONTRACT_STRUCT: ThetaDataDxContract = ThetaDataDxContract
     right: 0,\n\
     has_strike: false,\n\
     strike: 0.0,\n\
+    strike_thousandths: 0,\n\
 };\n\n"
 }
 
@@ -368,7 +373,7 @@ fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &Ev
 
     if has_contract {
         out.push_str(
-            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(&contract.symbol[..]).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let thetadatadx_contract = ThetaDataDxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike_thousandths.is_some(),\n                strike: contract.strike_dollars().unwrap_or(0.0),\n            };\n",
+            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(&contract.symbol[..]).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let thetadatadx_contract = ThetaDataDxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike_thousandths.is_some(),\n                strike: contract.strike_dollars().unwrap_or(0.0),\n                strike_thousandths: contract.strike_thousandths.unwrap_or(0),\n            };\n",
         );
     }
 
@@ -557,7 +562,7 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
         .unwrap();
         writeln!(
             out,
-            "                let thetadatadx_contract = ThetaDataDxContract {{\n                    symbol: contract_symbol_ptr,\n                    sec_type: {field}.sec_type as i32,\n                    has_expiration: {field}.expiration.is_some(),\n                    expiration: {field}.expiration.unwrap_or(0),\n                    has_right: {field}.is_call.is_some(),\n                    right: {field}.right().map_or(0, |r| r.as_char() as c_char),\n                    has_strike: {field}.strike_thousandths.is_some(),\n                    strike: {field}.strike_dollars().unwrap_or(0.0),\n                }};"
+            "                let thetadatadx_contract = ThetaDataDxContract {{\n                    symbol: contract_symbol_ptr,\n                    sec_type: {field}.sec_type as i32,\n                    has_expiration: {field}.expiration.is_some(),\n                    expiration: {field}.expiration.unwrap_or(0),\n                    has_right: {field}.is_call.is_some(),\n                    right: {field}.right().map_or(0, |r| r.as_char() as c_char),\n                    has_strike: {field}.strike_thousandths.is_some(),\n                    strike: {field}.strike_dollars().unwrap_or(0.0),\n                    strike_thousandths: {field}.strike_thousandths.unwrap_or(0),\n                }};"
         )
         .unwrap();
     }
