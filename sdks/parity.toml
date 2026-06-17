@@ -1033,6 +1033,79 @@ python = true
 typescript = true
 cpp = true
 
+# ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
+#
+# The `flatFiles` accessor above returns the flat-file namespace; the rows
+# below pin the fetch methods ON that namespace so the surface is machine-checked
+# across bindings and cannot silently drift or drop on one of them. Five named
+# convenience methods cover exactly the `(SecType, ReqType)` pairs the flat-file
+# distribution serves (option trade_quote / open_interest / eod and stock
+# trade_quote / eod); `request` is the generic string-keyed dispatcher behind them.
+# The namespace class is named `FlatFilesNamespace` on Python and TypeScript and
+# `FlatFiles` on C++; the row carries the canonical name and the C++ alias table
+# routes it to the C++ class body. Per-language method spelling is snake_case on
+# the Python pyclass, camelCase on the TypeScript napi class, snake_case on the
+# C++ class — the per-binding resolvers derive each form from the row name. The
+# reverse-orphan scan over this namespace fails if a binding grows a fetch method
+# with no enrolling row, so a future dataset accessor cannot ship untracked.
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionTradeQuote"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionOpenInterest"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionEod"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "stockTradeQuote"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "stockEod"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "request"
+python = true
+typescript = true
+cpp = true
+
+# The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
+# wire format (csv / jsonl) without decoding into rows. Its home class and method
+# spelling diverge per binding: Python exposes it on the unified `Client` as
+# `flatfile_to_path` (one word), TypeScript on `Client` (and `HistoricalClient`)
+# as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`. A single row
+# pins all three; the per-binding home-class + name override below routes the
+# canonical row to each binding's actual symbol so the divergence reads as
+# convention, not drift, and a drop on any binding trips the gate.
+[[method]]
+class = "FlatFilesNamespace"
+name = "flatFileToPath"
+python = true
+typescript = true
+cpp = true
+
 [[method]]
 class = "StreamView"
 name = "startStreaming"
