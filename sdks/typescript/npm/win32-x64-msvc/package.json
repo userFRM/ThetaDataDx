@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx-win32-x64-msvc",
-  "version": "12.0.0",
+  "version": "13.0.0-rc.1",
   "os": [
     "win32"
   ],

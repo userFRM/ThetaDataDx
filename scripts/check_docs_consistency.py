@@ -133,7 +133,7 @@ def check_static_docs() -> None:
     # enforces this against `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
-        'thetadatadx = "12"',
+        'thetadatadx = "13.0.0-rc.1"',
     )
     expect_contains(
         DOCS_SITE / "mcp.md",
