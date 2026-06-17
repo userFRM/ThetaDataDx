@@ -222,6 +222,9 @@ int main(int argc, char** argv) {
         // stock_history_trade_quote::with_date_range
         //   rationale: start_date + end_date pair — date range optional wiring
         cell("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        // stock_history_trade_quote::with_exclusive
+        //   rationale: exclusive=true optional filter wiring
+        cell("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", thetadatadx::EndpointRequestOptions{}.with_exclusive(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -687,6 +690,9 @@ int main(int argc, char** argv) {
         // option_history_trade_quote::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_quote", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("call").with_timeout_ms(kPerCellTimeoutMs)); });
+        // option_history_trade_quote::with_exclusive
+        //   rationale: exclusive=true optional filter wiring
+        cell("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "20250303", thetadatadx::EndpointRequestOptions{}.with_exclusive(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });

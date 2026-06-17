@@ -245,6 +245,16 @@ struct FfiEndpointRequestOptions {
             raw.has_timeout_ms = 1;
         }
     }
+
+    // Non-copyable and non-movable: `raw`'s `const char*` fields borrow into the
+    // `*_storage` members of this same object, so any copy or move would leave the
+    // destination's `raw` pointers dangling into the source's buffers. This type is
+    // only ever constructed in place and consumed by reference (`&raw`), so deleting
+    // these makes the borrow invariant unbreakable by construction.
+    FfiEndpointRequestOptions(const FfiEndpointRequestOptions&) = delete;
+    FfiEndpointRequestOptions(FfiEndpointRequestOptions&&) = delete;
+    FfiEndpointRequestOptions& operator=(const FfiEndpointRequestOptions&) = delete;
+    FfiEndpointRequestOptions& operator=(FfiEndpointRequestOptions&&) = delete;
 };
 
 } // namespace detail

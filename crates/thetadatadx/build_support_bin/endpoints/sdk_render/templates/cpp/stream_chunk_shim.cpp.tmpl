@@ -1,5 +1,8 @@
-    // Shared `extern "C"` trampoline the C ABI invokes once per streamed
-    // chunk. `ctx` is the address of the erased
+    // Shared trampoline the C ABI invokes once per streamed chunk. It is a
+    // static member (so it cannot carry `extern "C"` C language linkage), but
+    // its signature matches the C-linkage `ThetaDataDxTickChunkCallback`
+    // typedef and every mainstream ABI accepts the assignment. `ctx` is the
+    // address of the erased
     // `std::function<void(const void*, size_t)>` the calling `_stream`
     // method staged on its stack; it reinterprets the chunk pointer as the
     // endpoint's tick type and forwards the span to the user handler. The

@@ -2108,7 +2108,7 @@ impl HistoricalView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
@@ -3790,7 +3790,7 @@ impl HistoricalView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
@@ -7507,7 +7507,7 @@ impl HistoricalClient {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
@@ -9189,7 +9189,7 @@ impl HistoricalClient {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
