@@ -65,6 +65,9 @@ fn event_field_doc(name: &str) -> &'static str {
         "volume" => "Number of contracts or shares traded in the bar.",
         "count" => "Number of trades in the bar.",
         "open_interest" => "Total outstanding contracts.",
+        "market_bid" => "Calculated market-value bid (stocks and options only).",
+        "market_ask" => "Calculated market-value ask (stocks and options only).",
+        "market_price" => "Calculated market value; the only populated value for an index.",
         other => panic!("no doc sentence for streaming event field {other}"),
     }
 }
@@ -284,6 +287,22 @@ const STREAMS: &[StreamSpec] = &[
         group: "Indices",
         label: "Price",
     },
+    StreamSpec {
+        path: "streaming/indices/market-value",
+        title: "Index Market Value",
+        description: "Real-time calculated market value for an index.",
+        prose: "Streams the calculated market value for an index, delivered as a `MarketValue` event. For an index only `market_price` is populated; the bid/ask market values that accompany stock and option market-value events do not apply to indices. Market value is a per-index subscription with no full-stream broadcast.",
+        event: "MarketValue",
+        rust_sub: "Contract::index(\"SPX\").market_value()",
+        python_sub: "Contract.index(\"SPX\").market_value()",
+        ts_sub: "Contract.index('SPX').marketValue()",
+        cpp_sub: "thetadatadx::Contract::index(\"SPX\").market_value()",
+        ws_req_type: "MARKET_VALUE",
+        ws_sec_type: "INDEX",
+        ws_contract: Some(r#"{"symbol": "SPX"}"#),
+        group: "Indices",
+        label: "Market Value",
+    },
 ];
 
 // ───────────────────────── Per-language example blocks ──────────────────────
@@ -307,6 +326,10 @@ fn rust_tab(spec: &StreamSpec) -> String {
         "OpenInterest" => (
             "StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. })",
             "println!(\"{} oi={open_interest}\", contract.symbol);",
+        ),
+        "MarketValue" => (
+            "StreamEvent::Data(StreamData::MarketValue { contract, market_price, .. })",
+            "println!(\"{} market_price={market_price}\", contract.symbol);",
         ),
         other => panic!("no Rust callback template for event {other}"),
     };
@@ -334,6 +357,10 @@ fn python_tab(spec: &StreamSpec) -> String {
         "OpenInterest" => (
             "open_interest",
             "print(event.contract.symbol, event.open_interest)",
+        ),
+        "MarketValue" => (
+            "market_value",
+            "print(event.contract.symbol, event.market_price)",
         ),
         other => panic!("no Python callback template for event {other}"),
     };
@@ -365,6 +392,11 @@ fn typescript_tab(spec: &StreamSpec) -> String {
             "openInterest",
             "console.log(e.contract.symbol, e.openInterest);",
         ),
+        "MarketValue" => (
+            "market_value",
+            "marketValue",
+            "console.log(e.contract.symbol, e.marketPrice);",
+        ),
         other => panic!("no TypeScript callback template for event {other}"),
     };
     format!(
@@ -389,6 +421,11 @@ fn cpp_tab(spec: &StreamSpec) -> String {
             "THETADATADX_FPSS_OPEN_INTEREST",
             "open_interest",
             "std::cout << e.contract.symbol << \" oi=\" << e.open_interest << \"\\n\";",
+        ),
+        "MarketValue" => (
+            "THETADATADX_FPSS_MARKET_VALUE",
+            "market_value",
+            "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
         ),
         other => panic!("no C++ callback template for event {other}"),
     };
@@ -469,6 +506,12 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
             http_tab(spec)
         );
         out.push_str("</SdkTabs>\n\n");
+
+        if spec.event == "Trade" {
+            out.push_str(
+                "## Derived OHLCVC bars\n\nWith `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).\n\n",
+            );
+        }
 
         out.push_str(&render_event_table(&schema, spec.event));
         pages.push((spec.path.to_string(), out));
