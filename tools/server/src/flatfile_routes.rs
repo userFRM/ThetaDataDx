@@ -149,6 +149,12 @@ async fn handle_get(
         Ok(f) => f,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
+    // Validate `date` at the boundary, before it is interpolated into a
+    // temp PathBuf in `flatfile_paths`. Path safety must not depend solely
+    // on the downstream format validator rejecting non-YYYYMMDD first.
+    if let Err(e) = crate::validation::validate_date(&params.date, "date") {
+        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
+    }
     serve_flatfile(state, sec_type, req_type, &params.date, format).await
 }
 
@@ -165,6 +171,12 @@ async fn handle_post(state: State<AppState>, body: axum::Json<FlatfileRequestBod
         Ok(f) => f,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
+    // Validate `date` at the boundary, before it is interpolated into a
+    // temp PathBuf in `flatfile_paths`. Path safety must not depend solely
+    // on the downstream format validator rejecting non-YYYYMMDD first.
+    if let Err(e) = crate::validation::validate_date(&body.date, "date") {
+        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
+    }
     serve_flatfile(state, sec_type, req_type, &body.date, format).await
 }
 

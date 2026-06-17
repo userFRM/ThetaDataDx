@@ -345,7 +345,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             .map(|&is_call| Contract::option_raw(symbol, exp, is_call, strike))
             .collect::<Vec<_>>()
     } else {
-        vec![Contract::stock(symbol)]
+        vec![non_option_contract(&sec_type, symbol)]
     };
 
     let subscriptions = match subscription_plan(&req_type, &sec_type, &contracts) {
@@ -539,6 +539,22 @@ fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
         // `Both` has no single FPSS side; subscribe the call AND the put.
         None => vec![true, false],
     })
+}
+
+/// Build the per-contract contract for a non-option subscribe.
+///
+/// The FPSS contract wire encoding carries a load-bearing sec_type: an
+/// index addresses a different instrument map than a stock of the same
+/// symbol. Branch on the client `sec_type` so an `INDEX` per-contract
+/// subscribe is encoded as an index-typed contract instead of being
+/// silently sent as a stock (wrong instrument, no ticks). Options are
+/// handled upstream; any other value defaults to stock, matching the
+/// wire default for a root with no security type.
+fn non_option_contract(sec_type: &str, symbol: &str) -> Contract {
+    match sec_type {
+        "INDEX" => Contract::index(symbol),
+        _ => Contract::stock(symbol),
+    }
 }
 
 /// Translate a validated subscribe command into the FPSS subscriptions
@@ -865,6 +881,28 @@ mod tests {
             )
         });
         assert!(kinds_ok, "both sides subscribe the same tick kind");
+    }
+
+    /// A per-contract `sec_type=INDEX` subscribe builds an index-typed
+    /// contract, not a stock. The FPSS contract wire encoding carries the
+    /// sec_type, so a stock-typed contract for an index symbol addresses
+    /// the wrong instrument and yields no ticks.
+    #[test]
+    fn non_option_index_builds_index_contract() {
+        let c = non_option_contract("INDEX", "VIX");
+        assert_eq!(c.sec_type, SecType::Index, "INDEX must map to index");
+        assert_eq!(&*c.symbol, "VIX");
+    }
+
+    /// A non-option subscribe with any other `sec_type` (or none) defaults
+    /// to stock, matching the wire default for a root with no security type.
+    #[test]
+    fn non_option_defaults_to_stock_contract() {
+        for st in ["STOCK", ""] {
+            let c = non_option_contract(st, "AAPL");
+            assert_eq!(c.sec_type, SecType::Stock, "{st:?} must map to stock");
+            assert_eq!(&*c.symbol, "AAPL");
+        }
     }
 
     /// Unknown `req_type` values return ERROR with the accepted set —
