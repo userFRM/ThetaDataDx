@@ -168,27 +168,33 @@ impl AuthUser {
     pub fn max_concurrent_requests(&self) -> usize {
         use crate::mdds::SubscriptionTier;
 
-        let tier_wire = [
+        // Resolve each asset's subscription byte to a tier independently,
+        // then take the highest valid tier. Mapping through `from_wire`
+        // BEFORE the max is what keeps a single unrecognized byte on one
+        // asset class from poisoning a legitimate tier on another and
+        // silently collapsing a paid account to Free: an out-of-range
+        // byte is dropped, not promoted past every real tier.
+        let best = [
             self.stock_subscription,
             self.options_subscription,
             self.indices_subscription,
             self.interest_rate_subscription,
         ]
-        .iter()
-        .filter_map(|s| *s)
-        .max()
-        .unwrap_or(0);
+        .into_iter()
+        .flatten()
+        .filter_map(SubscriptionTier::from_wire)
+        .max_by_key(|tier| tier.max_concurrent_requests());
 
-        match SubscriptionTier::from_wire(tier_wire) {
-            Some(tier) => tier.max_concurrent_requests(),
-            None => {
+        best.map_or_else(
+            || {
                 tracing::warn!(
-                    tier_wire,
-                    "Nexus auth reported unknown subscription tier; defaulting to Free=1 concurrent request",
+                    "Nexus auth reported no recognized subscription tier; \
+                     defaulting to Free=1 concurrent request",
                 );
                 SubscriptionTier::Free.max_concurrent_requests()
-            }
-        }
+            },
+            |tier| tier.max_concurrent_requests(),
+        )
     }
 }
 
@@ -603,5 +609,27 @@ mod tests {
             interest_rate_subscription: None,
         };
         assert_eq!(user.max_concurrent_requests(), 8);
+    }
+
+    /// A legitimate paid tier on one asset class must survive an
+    /// out-of-range byte on another. The earlier `max()`-then-`from_wire`
+    /// order let a hostile byte (`4`) win the raw max, fold to `None`,
+    /// and collapse a Pro account (`3` → 8) to Free=1. Resolving each
+    /// byte through `from_wire` first keeps the valid Pro tier.
+    #[cfg(feature = "__internal")]
+    #[test]
+    fn max_concurrent_requests_keeps_valid_tier_despite_hostile_byte() {
+        let user = AuthUser {
+            email: None,
+            stock_subscription: Some(4),    // out of range — must be dropped
+            options_subscription: Some(3),  // Pro — must win
+            indices_subscription: Some(99), // out of range — must be dropped
+            interest_rate_subscription: None,
+        };
+        assert_eq!(
+            user.max_concurrent_requests(),
+            8,
+            "a valid Pro tier must not be downgraded by an unrecognized byte"
+        );
     }
 }

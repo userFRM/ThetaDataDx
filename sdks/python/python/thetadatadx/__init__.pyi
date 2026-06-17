@@ -313,10 +313,10 @@ class ContractRef:
 
     Distinct from the fluent `Contract` builder — `ContractRef` is what
     `event.contract` returns inside a streaming callback, with the
-    resolved `symbol`, `sec_type`, `expiration`, `right`, and `strike`
-    (dollars — the same unit historical rows carry under the same
-    name). The fluent `Contract` (above) is the one users instantiate
-    to subscribe.
+    resolved `symbol`, `sec_type`, `expiration`, `right`, `strike`
+    (dollars, the same unit historical rows carry under the same name),
+    and `strike_thousandths` (the exact wire integer). The fluent
+    `Contract` (above) is the one users instantiate to subscribe.
     """
 
     @property
@@ -342,6 +342,12 @@ class ContractRef:
     @property
     def strike(self) -> Optional[float]:
         """Strike price in dollars; ``None`` for non-options."""
+        ...
+
+    @property
+    def strike_thousandths(self) -> Optional[int]:
+        """Strike in thousandths of a dollar (a ``$550.00`` strike is
+        ``550000``); the exact wire integer. ``None`` for non-options."""
         ...
 
     def __repr__(self) -> str:

@@ -1540,6 +1540,19 @@ class = "Contract"               # TypeScript streaming event payload
 name = "strike"
 typescript = "Option<f64>"
 
+# The exact wire integer alongside dollars `strike`, pinned so the raw
+# representation cannot silently re-type to a float or drop on either
+# streaming-event payload.
+[[value_field]]
+class = "ContractRef"            # Python streaming event payload
+name = "strike_thousandths"
+python = "Option<i32>"
+
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "strike_thousandths"
+typescript = "Option<i32>"
+
 [[value_field]]
 class = "ContractRef"
 name = "right"
