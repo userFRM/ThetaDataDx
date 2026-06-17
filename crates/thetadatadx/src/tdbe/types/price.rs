@@ -263,7 +263,7 @@ impl Price {
     /// Convert to f64. This is lossy but useful for display/calculations.
     #[inline]
     #[must_use]
-    pub fn to_f64(&self) -> f64 {
+    pub fn to_f64(self) -> f64 {
         let price_type = self.price_type.get();
         if price_type == 0 {
             return 0.0;
