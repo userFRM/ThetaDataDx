@@ -341,16 +341,24 @@ pub fn parse_calendar_days_v3(
             };
 
             // type: Text "open"/"full_close"/"early_close"/"weekend"
-            // (the documented v3 wire shape). `NullValue` -> the
-            // conservative closed-day fill, matching the generated
-            // parser's absent-column seed. Any other variant ->
-            // TypeMismatch. The column itself is required (guard
-            // above), so the `None` arm is unreachable but kept total.
+            // (the documented v3 wire shape). The `type` column is the
+            // sole source of both `is_open` and `status`, so a present-
+            // but-null cell on a rows-present response is malformed: a
+            // calendar row that carries no day type cannot be classified.
+            // Reject it as a typed decode error rather than coalescing to
+            // a conservative closed-day fill, matching the strict policy
+            // `row_calendar_status` applies on every other typed column.
+            // The column itself is required (guard above), so the `None`
+            // (Unset) arm is unreachable but kept total.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => {
-                        (false, crate::tdbe::CalendarStatus::FullClose)
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Text",
+                            observed: "Null",
+                        });
                     }
                     None => {
                         return Err(DecodeError::TypeMismatch {

@@ -540,13 +540,30 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
     let mut end = guess;
     let mut changer = 0.2;
 
-    // Find upper bound
+    // Find upper bound: grow `end` until the model value crosses above `o`.
+    let mut bracketed = false;
     for _ in 0..32 {
         end += changer;
         if value(s, x, end, r, q, t, is_call) > o {
+            bracketed = true;
             break;
         }
         changer *= 2.0;
+    }
+    // Upper-bound bracketing failed: the model value never reaches `o` even at
+    // the largest probed vol. A Black-Scholes call value asymptotes to
+    // `s * exp(-q*t)` as vol grows without bound, so any `o` at or above that
+    // ceiling (a crossed/stale tick where the option trades above its own
+    // attainable maximum) has no implied volatility. Mirror the price-too-low
+    // intrinsic branch: report the no-IV signal (`iv == 0.0` plus the relative
+    // residual) rather than walking `guess` up to the runaway upper bound. The
+    // solve is total — an unattainable price yields the no-IV signal, never a
+    // garbage IV near the search ceiling.
+    if !bracketed {
+        let v = value(s, x, end, r, q, t, is_call);
+        out[0] = 0.0;
+        out[1] = ((v - o) / o).clamp(-100.0, 100.0);
+        return;
     }
     for _ in 0..MAX_TRIES {
         let v = value(s, x, guess, r, q, t, is_call);
@@ -1003,6 +1020,56 @@ mod tests {
         assert!(
             (iv - true_vol).abs() < 0.005,
             "IV roundtrip: expected {true_vol}, got {iv}, err={err}"
+        );
+    }
+
+    #[test]
+    fn iv_unattainable_price_above_spot_returns_no_iv_signal() {
+        // A call value asymptotes to `s * exp(-q*t)` as vol grows without bound,
+        // so a price above spot can never be matched by any positive vol. The
+        // solve must report the no-IV signal (`iv == 0.0`), never a runaway IV
+        // near the upper-bound search ceiling.
+        let (iv, _err) = implied_volatility(100.0, 100.0, 0.05, 0.0, 0.25, 1_000_000.0, "C")
+            .expect("valid right");
+        assert_eq!(
+            iv, 0.0,
+            "unattainable price (>> spot) must yield no-IV signal, got {iv}"
+        );
+    }
+
+    #[test]
+    fn iv_price_moderately_above_ceiling_returns_no_iv_signal() {
+        // Just above the attainable maximum (`s * exp(-q*t)`): still unattainable.
+        let s = 100.0;
+        let q = 0.02;
+        let ceiling = s * (-q * 0.25_f64).exp();
+        let price = ceiling * 1.05;
+        let (iv, _err) =
+            implied_volatility(s, 100.0, 0.05, q, 0.25, price, "C").expect("valid right");
+        assert_eq!(
+            iv, 0.0,
+            "price just above attainable ceiling must yield no-IV signal, got {iv}"
+        );
+    }
+
+    #[test]
+    fn iv_in_range_price_still_converges() {
+        // Regression guard: a normal, attainable price must solve unchanged.
+        let s = 100.0;
+        let x = 100.0;
+        let r = 0.05;
+        let q = 0.01;
+        let t = 0.25;
+        let true_vol = 0.30;
+        let price = value(s, x, true_vol, r, q, t, true);
+        let (iv, _err) = implied_volatility(s, x, r, q, t, price, "C").expect("valid right");
+        assert!(
+            iv > 0.0,
+            "in-range price must converge to a positive IV, got {iv}"
+        );
+        assert!(
+            (iv - true_vol).abs() < 0.005,
+            "in-range IV must recover the input vol: expected {true_vol}, got {iv}"
         );
     }
 
