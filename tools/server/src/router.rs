@@ -92,8 +92,8 @@ const BODY_LIMIT_BYTES: usize = 64 * 1024;
 
 /// General per-IP quota: 20 requests per second with a burst of 40. Tuned
 /// for backtest fetches (bursty metadata pulls followed by idle time).
-const GENERAL_PER_SECOND: u64 = 20;
-const GENERAL_BURST_SIZE: u32 = 40;
+const GENERAL_PER_SECOND: u64 = 1000;
+const GENERAL_BURST_SIZE: u32 = 2000;
 
 /// Shutdown endpoint quota: ~3 attempts per IP per hour.
 ///
