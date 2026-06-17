@@ -32,6 +32,21 @@ const ONE_ROOT2PI: f64 = 0.398_942_280_401_432_7;
 
 const MAX_TRIES: usize = 128;
 
+// Below this target price the Black-Scholes price-to-vol map is effectively
+// flat: vega collapses toward zero, so a wide band of volatilities all
+// reproduce the price within machine-meaningful terms and the implied vol is
+// not numerically recoverable. Targets at or under the floor are reported with
+// the no-IV signal, the same treatment the intrinsic-too-low and no-bracket
+// branches already apply to prices that no positive vol can match.
+const IV_PRICE_FLOOR: f64 = 1e-3;
+
+// Price-residual convergence is relative to the target so a fixed absolute band
+// cannot accept a high-residual probe on a cheap option as "converged". The
+// absolute floor keeps the test well-defined as the target shrinks toward the
+// price floor without ever demanding tighter-than-machine precision.
+const IV_PRICE_REL_TOL: f64 = 1e-4;
+const IV_PRICE_ABS_TOL: f64 = 1e-7;
+
 /// Standard normal PDF: phi(x)
 fn f1(x: f64) -> f64 {
     ONE_ROOT2PI * (-0.5 * x * x).exp()
@@ -535,6 +550,18 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
         return;
     }
 
+    // Sub-floor target prices carry no recoverable implied volatility: with vega
+    // collapsed near zero, the bisection's first cheap-vol probe would satisfy a
+    // residual test against a near-zero target and report a bracket artifact as
+    // a converged IV. Report the no-IV signal instead, mirroring the
+    // intrinsic-too-low branch above (`iv == 0.0` plus the relative residual).
+    if o < IV_PRICE_FLOOR {
+        let v = value(s, x, 0.0, r, q, t, is_call);
+        out[0] = 0.0;
+        out[1] = ((v - o) / o).clamp(-100.0, 100.0);
+        return;
+    }
+
     let mut guess = 0.5;
     let mut start = 0.0;
     let mut end = guess;
@@ -565,9 +592,18 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
         out[1] = ((v - o) / o).clamp(-100.0, 100.0);
         return;
     }
+    // Enter the refinement from the midpoint of the bracket the growth loop just
+    // established, not a stale fixed seed: `[start, end]` now straddles the root,
+    // so its midpoint is the correct first bisection probe.
+    guess = (start + end) / 2.0;
+    // Convergence is judged on the price residual relative to the target, with a
+    // tiny absolute floor. A fixed absolute band would accept an arbitrarily
+    // high relative residual once the target shrank toward zero; scaling to the
+    // target keeps every accepted IV faithful to its own price.
+    let price_tol = (IV_PRICE_REL_TOL * o).max(IV_PRICE_ABS_TOL);
     for _ in 0..MAX_TRIES {
         let v = value(s, x, guess, r, q, t, is_call);
-        if (v - o).abs() < 0.001 {
+        if (v - o).abs() < price_tol {
             out[0] = guess;
             out[1] = ((v - o) / o).clamp(-100.0, 100.0);
             return;
@@ -1070,6 +1106,53 @@ mod tests {
         assert!(
             (iv - true_vol).abs() < 0.005,
             "in-range IV must recover the input vol: expected {true_vol}, got {iv}"
+        );
+    }
+
+    #[test]
+    fn iv_cheap_option_returns_no_iv_signal_not_artifact() {
+        // Deep-OTM, short-dated: the true price is far below a cent, so the
+        // implied vol is not numerically recoverable. The solver must report the
+        // no-IV signal (`iv == 0.0`), not a bracket-bisection artifact tagged
+        // "converged" against a near-zero target.
+        let s = 100.0;
+        let x = 130.0;
+        let r = 0.05;
+        let q = 0.0;
+        let t = 0.10;
+        let true_vol = 0.20;
+        let price = value(s, x, true_vol, r, q, t, true);
+        assert!(
+            price < 1e-3,
+            "test premise: cheap-option price must be sub-floor, got {price}"
+        );
+        let (iv, _err) = implied_volatility(s, x, r, q, t, price, "C").expect("valid right");
+        assert_eq!(
+            iv, 0.0,
+            "sub-floor option price must yield the no-IV signal, got {iv}"
+        );
+    }
+
+    #[test]
+    fn iv_recoverable_cheap_price_above_floor_still_solves() {
+        // Cheap but recoverable: a price just above the floor still carries
+        // enough vega to recover the input vol. The floor must not over-reject
+        // legitimately solvable cheap options.
+        let s = 100.0;
+        let x = 120.0;
+        let r = 0.05;
+        let q = 0.0;
+        let t = 0.10;
+        let true_vol = 0.20;
+        let price = value(s, x, true_vol, r, q, t, true);
+        assert!(
+            price > 1e-3,
+            "test premise: price must sit above the floor, got {price}"
+        );
+        let (iv, _err) = implied_volatility(s, x, r, q, t, price, "C").expect("valid right");
+        assert!(
+            (iv - true_vol).abs() < 0.005,
+            "recoverable cheap price must solve to its input vol: expected {true_vol}, got {iv}"
         );
     }
 

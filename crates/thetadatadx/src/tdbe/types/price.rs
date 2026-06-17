@@ -162,8 +162,9 @@ static POW10_F64: [f64; 20] = [
 pub struct Price {
     /// Mantissa. Read via the [`Price::value`] accessor.
     pub(crate) value: i32,
-    /// Decimal exponent: 0 means zero/unset, otherwise `10 - price_type`
-    /// = fractional digits. Read via the [`Price::price_type`] accessor.
+    /// Decimal exponent: 0 means zero/unset, otherwise the real price is
+    /// `value * 10^(price_type - 10)`. Read via the [`Price::price_type`]
+    /// accessor.
     ///
     /// Typed as [`PriceType`], which can only hold `0..=MAX_PRICE_TYPE`.
     /// The `POW10_I64` / `POW10_F64` tables have 20 entries
