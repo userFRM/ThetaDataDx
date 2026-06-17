@@ -15,10 +15,12 @@
 //!
 //! # Hardening
 //!
-//! The WS router composes the same three layers as the REST router
+//! The WS router composes the same layers as the REST router
 //! (`router::build`): a 256-wide `ConcurrencyLimitLayer`, a 64 KiB
-//! `DefaultBodyLimit`, and a per-peer-IP `GovernorLayer` (20 rps, burst 40).
-//! On top of that, `handle_client_message` rejects any `Message::Text`
+//! `DefaultBodyLimit`, and — only when the operator opts in via the
+//! rate-limit env vars — a per-peer-IP `GovernorLayer`. The terminal this
+//! server replaces does no per-IP rate limiting, so the default attaches no
+//! governor. On top of that, `handle_client_message` rejects any `Message::Text`
 //! longer than [`WS_MAX_TEXT_BYTES`]. A legitimate subscribe / stop command
 //! is well under 200 bytes; anything larger is attack-shaped and discarded
 //! before `sonic_rs::from_str` touches it.
@@ -57,10 +59,6 @@ const WS_CONCURRENCY_LIMIT: usize = 256;
 /// multi-MB body through the axum extractor chain.
 const WS_BODY_LIMIT_BYTES: usize = 64 * 1024;
 
-/// Per-IP rate for the WS upgrade path. Matches the REST router.
-const WS_GENERAL_PER_SECOND: u64 = 20;
-const WS_GENERAL_BURST_SIZE: u32 = 40;
-
 /// Build the WebSocket router (single route: `/v1/events`).
 ///
 /// Applies the same hardening layers as `router::build`:
@@ -71,23 +69,25 @@ const WS_GENERAL_BURST_SIZE: u32 = 40;
 ///    attackers from queueing thousands of blocked upgrades.
 /// 2. `DefaultBodyLimit` caps the upgrade request body at
 ///    [`WS_BODY_LIMIT_BYTES`].
-/// 3. `GovernorLayer` keyed on the peer connect-info IP enforces
-///    [`WS_GENERAL_PER_SECOND`] rps with a burst of [`WS_GENERAL_BURST_SIZE`]
-///    — only when `rate_limit_general` is set (non-loopback binds; see
-///    `router::is_loopback_bind`). Peer-IP-only — `X-Forwarded-For` is
-///    ignored (see `router.rs` for rationale).
-pub fn router(state: AppState, rate_limit_general: bool) -> Router {
+/// 3. `GovernorLayer` keyed on the peer connect-info IP enforces the
+///    operator's tuned `(per_second, burst)` pair — only when `rate_limit`
+///    is `Some` (the operator opted in via the rate-limit env vars; see
+///    `router::resolve_rate_limit`). The same pair is applied to the HTTP
+///    general governor, keeping the two surfaces consistent. The default is
+///    no governor, matching the terminal this server replaces. Peer-IP-only
+///    — `X-Forwarded-For` is ignored (see `router.rs` for rationale).
+pub fn router(state: AppState, rate_limit: Option<crate::router::RateLimit>) -> Router {
     let mut app = Router::new()
         .route("/v1/events", get(upgrade::ws_upgrade))
         .layer(ConcurrencyLimitLayer::new(WS_CONCURRENCY_LIMIT))
         .layer(DefaultBodyLimit::max(WS_BODY_LIMIT_BYTES));
 
-    if rate_limit_general {
+    if let Some((per_second, burst_size)) = rate_limit {
         let governor = Arc::new(
             GovernorConfigBuilder::default()
                 .key_extractor(PeerIpKeyExtractor)
-                .per_second(WS_GENERAL_PER_SECOND)
-                .burst_size(WS_GENERAL_BURST_SIZE)
+                .per_second(per_second)
+                .burst_size(burst_size)
                 .finish()
                 .expect("ws governor config invariants hold at build time"),
         );

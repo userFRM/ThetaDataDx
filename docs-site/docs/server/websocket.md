@@ -57,4 +57,5 @@ websocat ws://127.0.0.1:25520/v1/events
 
 - **One client at a time.** A second connection takes over the stream; the first receives a Close frame (code 1000, reason `replaced by a new client connection`). Run one server instance per consumer for multi-client setups.
 - Text frames are capped at 4 KiB — far above any legitimate envelope.
+- Each connection has a per-client send buffer (default 4096 events). On a high-rate stream a slow consumer that fills the buffer starts dropping events; raise the buffer with the `THETADATADX_WS_CLIENT_CAPACITY` environment variable (trades memory for headroom). See [Environment variables](/server/#environment-variables).
 - Programmatic consumers should prefer the [SDK streaming surface](/streaming/), which adds typed events, automatic reconnect, and drop monitoring.

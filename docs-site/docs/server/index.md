@@ -75,6 +75,14 @@ thetadatadx-server --creds creds.txt
 | `--no-streaming` | — | Skip streaming startup (HTTP only). |
 | `--no-ohlcvc` | — | Disable derived OHLCVC bars on the stream. |
 
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `THETADATADX_RATE_LIMIT_PER_SECOND` | — (off) | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on; see [Security defaults](#security-defaults). |
+| `THETADATADX_RATE_LIMIT_BURST_SIZE` | — (off) | Burst size for the per-IP rate limiter. If you set only one of the two rate-limit variables, the other falls back to `20` req/s / `40` burst. |
+| `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer starts dropping events; invalid or zero values keep the default. |
+
 ## Logging
 
 - The access log (on by default) emits one `INFO` line per request with method, URI, status, and latency.
@@ -83,6 +91,6 @@ thetadatadx-server --creds creds.txt
 
 ## Security defaults
 
-- Binds loopback by default. On non-loopback binds, a per-IP rate limit (20 req/s, burst 40) answers excess traffic with `429` and `Retry-After`; loopback binds are never rate-limited.
+- Binds loopback by default. Per-IP rate limiting is **off by default** — the server imposes no per-IP limit, matching the terminal it replaces. Operators exposing the server as a relay opt in by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE`; once on, excess traffic from a single IP is answered with `429` and `Retry-After`, on both the HTTP routes and the WebSocket upgrade.
 - `POST /v3/system/shutdown` requires the `X-Shutdown-Token` header — a random token printed once to stderr at startup; there is no flag or environment variable to set it.
 - Request bodies are capped at 64 KiB and query strings at 32 parameters.

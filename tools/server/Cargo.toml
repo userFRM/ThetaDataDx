@@ -74,6 +74,12 @@ rpassword = "7.5.4"
 # `[workspace]` table (line 15) so it's an independent workspace — it
 # can't inherit via `[lints] workspace = true` from the parent repo.
 # Mirror the rules locally to keep `cargo clippy` parity.
+[dev-dependencies]
+# `util` provides `ServiceExt::oneshot`, used by the rate-limit wire tests
+# to drive the governor composition with an injected peer `ConnectInfo`
+# without binding a real socket or a live upstream client.
+tower = { version = "0.5.3", features = ["limit", "util"] }
+
 [lints.rust]
 warnings = "deny"
 unsafe_op_in_unsafe_fn = "deny"

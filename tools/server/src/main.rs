@@ -254,25 +254,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
-    // Loopback binds skip the general per-IP rate limiter: every local
-    // client shares the same peer IP, so a parallel backtest or bulk
-    // pull would throttle itself as a group — a regression against the
-    // legacy terminal, which imposes no per-IP limit. The limiter stays
-    // on for non-loopback binds where it is a real DoS guard, and the
-    // tighter shutdown-route limiter stays on everywhere.
-    let rate_limit_general = !router::is_loopback_bind(&args.bind);
-    if !rate_limit_general {
-        tracing::info!(
-            bind = %args.bind,
-            "loopback bind: general per-IP rate limiter disabled (shutdown-route limiter stays active)"
-        );
+    // The terminal this server replaces does no per-IP rate limiting, so
+    // the default must not either: with neither rate-limit env var set the
+    // general per-IP governor is attached nowhere, regardless of the bind
+    // address. An operator exposing the server as a relay opts in by
+    // setting THETADATADX_RATE_LIMIT_PER_SECOND and/or
+    // THETADATADX_RATE_LIMIT_BURST_SIZE. The same resolved pair drives both
+    // the HTTP general governor and the WS upgrade governor; the tighter
+    // shutdown-route limiter stays active on every bind regardless.
+    let rate_limit = router::resolve_rate_limit();
+    match rate_limit {
+        Some((per_second, burst_size)) => tracing::info!(
+            per_second,
+            burst_size,
+            "general per-IP rate limiter enabled by operator (opt-in)"
+        ),
+        None => tracing::info!(
+            "general per-IP rate limiter disabled (default; shutdown-route limiter stays active)"
+        ),
     }
 
-    let http_app = router::build(state.clone(), rate_limit_general).layer(cors);
+    let http_app = router::build(state.clone(), rate_limit).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
     // Step 7: Build WebSocket server.
-    let ws_app = ws::router(state.clone(), rate_limit_general);
+    let ws_app = ws::router(state.clone(), rate_limit);
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
     // Step 8: Start both servers concurrently.
