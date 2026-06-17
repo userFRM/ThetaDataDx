@@ -621,8 +621,8 @@ mod tests {
     fn max_concurrent_requests_keeps_valid_tier_despite_hostile_byte() {
         let user = AuthUser {
             email: None,
-            stock_subscription: Some(4),    // out of range — must be dropped
-            options_subscription: Some(3),  // Pro — must win
+            stock_subscription: Some(4), // out of range — must be dropped
+            options_subscription: Some(3), // Pro — must win
             indices_subscription: Some(99), // out of range — must be dropped
             interest_rate_subscription: None,
         };
