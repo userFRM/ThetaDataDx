@@ -586,6 +586,13 @@ fn subscription_plan(
         "OHLC" => Ok(per_contract(SubscriptionKind::Trade)),
         "OPEN_INTEREST" => Ok(per_contract(SubscriptionKind::OpenInterest)),
         "FULL_TRADES" => Ok(full(FullSubscriptionKind::Trades)),
+        // Open interest is an option-only concept; stocks and indices carry
+        // none, so a security-type-wide open-interest stream over them would
+        // never publish. Reject the pairing rather than acknowledge a feed
+        // that can never deliver.
+        "FULL_OPEN_INTEREST" if sec_type != "OPTION" => Err(format!(
+            "'FULL_OPEN_INTEREST' is only available for sec_type 'OPTION', got: '{sec_type}'"
+        )),
         "FULL_OPEN_INTEREST" => Ok(full(FullSubscriptionKind::OpenInterest)),
         other => Err(format!(
             "unknown req_type: '{other}' (accepted: {})",
@@ -777,6 +784,17 @@ mod tests {
                 kind: FullSubscriptionKind::OpenInterest,
             }]
         );
+    }
+
+    /// Open interest is option-only; a security-type-wide open-interest
+    /// stream over stocks or indices is rejected rather than acknowledged.
+    #[test]
+    fn plan_rejects_full_open_interest_for_non_option() {
+        for sec_type in ["STOCK", "INDEX"] {
+            let err = subscription_plan("FULL_OPEN_INTEREST", sec_type, &[]).unwrap_err();
+            assert!(err.contains("OPTION"), "names the only valid sec_type: {err}");
+            assert!(err.contains(sec_type), "echoes the rejected sec_type: {err}");
+        }
     }
 
     /// `right=Both` produces two contracts; the plan installs one
