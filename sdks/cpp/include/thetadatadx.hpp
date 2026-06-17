@@ -1353,31 +1353,7 @@ public:
         return port;
     }
 
-    // ── Historical pool sizing ──
-
-    /**
-     * Set the number of concurrent in-flight gRPC requests.
-     *
-     * @p n = 0 (default) auto-detects from the Nexus subscription tier
-     * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
-     * the tier cap are clamped at connect time with a warn.
-     */
-    void set_concurrent_requests(std::uint32_t n) {
-        thetadatadx_config_set_concurrent_requests(handle_.get(), n);
-    }
-
-    /**
-     * Read the current concurrent in-flight gRPC request count.
-     *
-     * Returns the configured value (`0` = auto-detect from the tier),
-     * or `0` on a null handle (matching the C ABI's `-1` failure
-     * mapping at the boundary).
-     */
-    std::uint32_t get_concurrent_requests() const {
-        std::uint32_t n = 0;
-        thetadatadx_config_get_concurrent_requests(handle_.get(), &n);
-        return n;
-    }
+    // ── Historical tuning ──
 
     /**
      * Set the warn_on_buffered_threshold_bytes ceiling.

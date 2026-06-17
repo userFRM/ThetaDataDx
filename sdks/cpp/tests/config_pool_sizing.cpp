@@ -1,8 +1,8 @@
-// Historical pool-sizing setter + getter on thetadatadx::Config.
+// Historical tuning setters + getters on thetadatadx::Config.
 //
-// Offline test pinning the contract that `set_concurrent_requests` and
-// the `get_concurrent_requests()` readback getter on the `thetadatadx::Config`
-// C++ wrapper round-trip through the underlying C ABI.
+// Offline test pinning the contract that the historical tuning setters
+// and readback getters on the `thetadatadx::Config` C++ wrapper
+// round-trip through the underlying C ABI.
 
 #include <cstdint>
 
@@ -10,21 +10,6 @@
 
 #include "thetadatadx.h"
 #include "thetadatadx.hpp"
-
-TEST_CASE("Config concurrent_requests setter + getter round-trip", "[config][pool_sizing][offline]") {
-    auto cfg = thetadatadx::Config::production();
-    // The readback getter mirrors the Python `Config.concurrent_requests`
-    // and TypeScript `concurrentRequests` surfaces, so a value set
-    // through the C++ wrapper reads back through the same wrapper.
-    cfg.set_concurrent_requests(0);
-    REQUIRE(cfg.get_concurrent_requests() == 0u);
-    cfg.set_concurrent_requests(1);
-    REQUIRE(cfg.get_concurrent_requests() == 1u);
-    cfg.set_concurrent_requests(8);
-    REQUIRE(cfg.get_concurrent_requests() == 8u);
-    cfg.set_concurrent_requests(32);
-    REQUIRE(cfg.get_concurrent_requests() == 32u);
-}
 
 TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
           "[config][pool_sizing][offline]") {

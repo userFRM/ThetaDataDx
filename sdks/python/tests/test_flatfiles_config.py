@@ -156,8 +156,8 @@ def test_flatfiles_field_setters_compose_into_consistent_config() -> None:
 
 
 def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
-    """Interleaved flatfile setter and pool-sizing setter calls must
-    not interfere with each other. Mirrors the TS / C++ contract.
+    """Interleaved flatfile setter and historical tuning setter calls
+    must not interfere with each other. Mirrors the TS / C++ contract.
     """
     mod = _import_module()
     cfg = mod.Config.production()
@@ -166,8 +166,8 @@ def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
     cfg.flatfiles_max_backoff_secs = 12
     cfg.flatfiles_connect_timeout_secs = 20
     cfg.flatfiles_read_timeout_secs = 45
-    cfg.concurrent_requests = 4
-    assert cfg.concurrent_requests == 4
+    cfg.warn_on_buffered_threshold_bytes = 8 * 1024 * 1024
+    assert cfg.warn_on_buffered_threshold_bytes == 8 * 1024 * 1024
     assert cfg.flatfiles_max_attempts == 7
     assert cfg.flatfiles_initial_backoff_secs == 3
     assert cfg.flatfiles_max_backoff_secs == 12

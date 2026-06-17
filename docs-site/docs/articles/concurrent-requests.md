@@ -1,11 +1,11 @@
 ---
 title: Concurrent Requests
-description: How many historical requests run in parallel per subscription tier, and how to use that budget.
+description: How many historical requests run in parallel per subscription tier.
 ---
 
 # Concurrent Requests
 
-Your requests are not rate-limited, but the number of requests **in flight at once** is capped by your subscription tier on each asset class:
+Your requests are not rate-limited, but the number of historical requests **in flight at once** is capped by your subscription tier on each asset class:
 
 | Tier | Concurrent requests |
 |---|---:|
@@ -14,11 +14,13 @@ Your requests are not rate-limited, but the number of requests **in flight at on
 | Standard | 4 |
 | Pro | 8 |
 
-## What the SDK does for you
+## It's automatic
 
-Every historical call acquires a permit from a client-side semaphore sized to your tier's cap, detected at connect time. Fire as many calls in parallel as you like — async tasks in Rust and Python, threads, a process-wide backfill loop — and anything beyond the cap **queues in order and drains as slots free**. You never receive a rejection for over-parallelism; the burst is absorbed as latency, not errors.
+There is no knob to set. At connect time the SDK reads your tier from authentication and sizes its historical connection pool to match. A Pro account gets eight in-flight slots, Free gets one, and so on. You don't pass a value, you don't tune anything, and there's nothing to get wrong.
 
-That means the idiomatic pattern is simply to launch your whole batch:
+Every historical call quietly takes a slot from that pool. Fire as many calls in parallel as you like, whether that's async tasks in Rust and Python, threads, or a process-wide backfill loop. Anything beyond your tier's slot count **queues in order and drains as slots free**. You never get a rejection for over-parallelism; the burst is absorbed as latency, not errors.
+
+So the idiomatic pattern is simply to launch your whole batch and let the pool pace it:
 
 ```python
 import asyncio
@@ -32,19 +34,12 @@ async def pull(day):
 results = asyncio.run(asyncio.gather(*(pull(d) for d in days)))
 ```
 
-With a Pro subscription, eight of those requests run concurrently and the rest wait their turn.
-
-## Tuning the cap down (or trying to exceed it)
-
-`concurrent_requests` on the configuration object overrides the auto-detected value — useful for capping a shared account's footprint from one process. Values above your tier cap are clamped back to the cap at connect time, with a single warning log naming both numbers, because the servers reject the excess anyway.
-
-```python
-cfg = Config.production()
-cfg.concurrent_requests = 2   # be a polite tenant on a shared account
-```
+With a Pro subscription, eight of those requests run concurrently and the rest wait their turn. On Free, they run one at a time. Same code either way.
 
 ## When parallelism pays
 
-Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request — split the request first ([Request Sizing](/articles/request-sizing)), then spend your tier's slots on the pieces.
+Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request, so split the request first ([Request Sizing](/articles/request-sizing)), then let your tier's slots work through the pieces.
 
 One more queue exists upstream: if the servers themselves report exhaustion, the SDK retries with backoff before surfacing an error. Long-running bulk jobs should still expect occasional retries during peak hours; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
+</content>
+</invoke>

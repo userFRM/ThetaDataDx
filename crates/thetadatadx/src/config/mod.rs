@@ -521,11 +521,6 @@ impl DirectConfig {
     pub fn historical_tls(&self) -> bool {
         self.historical.tls
     }
-    /// Historical concurrent in-flight requests budget.
-    #[must_use]
-    pub fn historical_concurrent_requests(&self) -> usize {
-        self.historical.concurrent_requests
-    }
     /// Historical max inbound message size, in bytes.
     #[must_use]
     pub fn historical_max_message_size(&self) -> usize {
@@ -787,7 +782,6 @@ mod config_file {
         /// override to the same number as the default is still honoured as
         /// an explicit choice rather than read as unset.
         max_message_size_mb: Option<usize>,
-        concurrent_requests: usize,
     }
 
     impl GrpcSection {
@@ -815,7 +809,6 @@ mod config_file {
                 // remains the single source of truth unless the operator
                 // sets this MB-denominated override explicitly.
                 max_message_size_mb: None,
-                concurrent_requests: prod.historical.concurrent_requests,
             }
         }
     }
@@ -878,7 +871,6 @@ mod config_file {
         /// [grpc]
         /// window_size_kb = 64
         /// connection_window_size_kb = 64
-        /// concurrent_requests = 0  # 0 = auto from tier
         /// ```
         ///
         /// # Errors
@@ -971,7 +963,6 @@ mod config_file {
             out.historical.host = cf.historical.host;
             out.historical.port = cf.historical.port;
             out.historical.tls = cf.historical.tls;
-            out.historical.concurrent_requests = cf.grpc.concurrent_requests;
             out.historical.max_message_size = max_message_size;
             out.historical.keepalive_secs = cf.historical.keepalive_time_secs;
             out.historical.keepalive_timeout_secs = cf.historical.keepalive_timeout_secs;
@@ -1225,12 +1216,10 @@ mod tests {
                 [grpc]
                 window_size_kb = 128
                 connection_window_size_kb = 256
-                concurrent_requests = 4
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.historical.window_size_kb, 128);
             assert_eq!(config.historical.connection_window_size_kb, 256);
-            assert_eq!(config.historical.concurrent_requests, 4);
         }
 
         #[test]
@@ -1427,10 +1416,6 @@ mod tests {
             assert_eq!(
                 config.historical.connection_window_size_kb,
                 prod.historical.connection_window_size_kb
-            );
-            assert_eq!(
-                config.historical.concurrent_requests,
-                prod.historical.concurrent_requests
             );
 
             // Streaming (TCP).
@@ -1662,10 +1647,12 @@ mod tests {
     #[test]
     fn historical_defaults_match_production_baseline() {
         let mdds = crate::config::HistoricalConfig::production_defaults();
-        // Tier clamp on by default — the override is an internal
-        // escape hatch only enabled by tests that need to reproduce
-        // the over-provisioning failure mode.
-        assert!(!mdds.override_tier_clamp);
+        // The buffered-response warn fires at 100 MiB by default, and
+        // the per-request deadline is the 300s ceiling. Channel-pool
+        // concurrency carries no default here — it is resolved from
+        // the subscription tier at connect time.
+        assert_eq!(mdds.warn_on_buffered_threshold_bytes, 100 * 1024 * 1024);
+        assert_eq!(mdds.request_timeout_secs, 300);
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

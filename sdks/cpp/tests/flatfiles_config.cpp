@@ -83,21 +83,23 @@ TEST_CASE("Config::set_flatfiles_read_timeout_secs round-trips via getter",
     }
 }
 
-TEST_CASE("FlatFiles setters compose with pool-sizing setters",
+TEST_CASE("FlatFiles setters compose with historical tuning setters",
           "[config][flatfiles][offline]") {
-    // Interleaved flatfiles setter and pool-sizing setter calls on
-    // the same `thetadatadx::Config` must not interfere with each other.
+    // Interleaved flatfiles setter and historical tuning setter calls
+    // on the same `thetadatadx::Config` must not interfere with each
+    // other.
     auto cfg = thetadatadx::Config::production();
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_attempts(7));
     REQUIRE_NOTHROW(cfg.set_flatfiles_initial_backoff_secs(3));
     REQUIRE_NOTHROW(cfg.set_flatfiles_max_backoff_secs(12));
     REQUIRE_NOTHROW(cfg.set_flatfiles_connect_timeout_secs(20));
     REQUIRE_NOTHROW(cfg.set_flatfiles_read_timeout_secs(45));
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
+    REQUIRE_NOTHROW(cfg.set_warn_on_buffered_threshold_bytes(8 * 1024 * 1024));
 
     REQUIRE(cfg.get_flatfiles_max_attempts() == 7u);
     REQUIRE(cfg.get_flatfiles_initial_backoff_secs() == 3u);
     REQUIRE(cfg.get_flatfiles_max_backoff_secs() == 12u);
     REQUIRE(cfg.get_flatfiles_connect_timeout_secs() == 20u);
     REQUIRE(cfg.get_flatfiles_read_timeout_secs() == 45u);
+    REQUIRE(cfg.get_warn_on_buffered_threshold_bytes() == 8u * 1024u * 1024u);
 }

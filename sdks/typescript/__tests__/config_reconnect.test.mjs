@@ -108,18 +108,19 @@ describe('Config.setReconnectStableWindowSecs', () => {
 });
 
 describe('Pool-sizing setter state survives interleaved reconnect setter calls', () => {
-  it('reconnect setters do not interfere with pool-sizing getters', () => {
+  it('reconnect setters do not interfere with historical tuning getters', () => {
     // The reconnect setters expose no getters, so the contract
     // we can verify is: after interleaving reconnect setter
-    // calls with pool-sizing setter calls, the pool-sizing
-    // getters still observe the values that were last written.
+    // calls with historical tuning setter calls, the historical
+    // tuning getters still observe the values that were last
+    // written.
     const cfg = Config.production();
     cfg.setReconnectPolicy('auto');
     cfg.setReconnectMaxAttempts(7);
     cfg.setReconnectMaxRateLimitedAttempts(77);
     cfg.setReconnectStableWindowSecs(120n);
-    cfg.setConcurrentRequests(4);
-    assert.equal(cfg.concurrentRequests, 4);
+    cfg.setWarnOnBufferedThresholdBytes(8n * 1024n * 1024n);
+    assert.equal(cfg.warnOnBufferedThresholdBytes, 8n * 1024n * 1024n);
   });
 });
 

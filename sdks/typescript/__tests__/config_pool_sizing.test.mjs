@@ -1,12 +1,13 @@
-// Historical pool-sizing setter on `Config`.
+// Historical tuning setters on `Config`.
 //
-// Locks the contract that the `concurrentRequests` property exposed
-// by the `Config` napi class round-trips through napi-rs to the
-// underlying Rust `HistoricalConfig` correctly.
+// Locks the contract that the historical tuning properties exposed by
+// the `Config` napi class (such as `requestTimeoutSecs`) round-trip
+// through napi-rs to the underlying Rust `HistoricalConfig` correctly.
 //
-// Live behaviour (the tier clamp at connect time) is covered by the
-// Rust unit tests under `mdds::client::pool_size_tests`; this file
-// pins only the JS surface contract.
+// Live behaviour (the per-tier connection-pool concurrency limit
+// resolved at connect time) is covered by the Rust unit tests under
+// `mdds::client::pool_size_tests`; this file pins only the JS surface
+// contract.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -19,21 +20,6 @@ try {
 }
 
 const { Config } = mod;
-
-describe('Config.concurrentRequests', () => {
-  it('defaults to 0 (auto-detect sentinel)', () => {
-    const cfg = Config.production();
-    assert.equal(cfg.concurrentRequests, 0);
-  });
-
-  it('round-trips through the setter', () => {
-    const cfg = Config.production();
-    for (const n of [1, 2, 4, 8, 16]) {
-      cfg.setConcurrentRequests(n);
-      assert.equal(cfg.concurrentRequests, n);
-    }
-  });
-});
 
 describe('Config.requestTimeoutSecs', () => {
   it('defaults to 300n (5-minute per-request deadline)', () => {

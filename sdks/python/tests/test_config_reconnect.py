@@ -160,9 +160,9 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     must not interfere with each other.
 
     Mirrors the TS ``Reconnect setters are independent`` case: the
-    reconnect setters have no getters, so we assert via the
-    pool-sizing getters that the pool-sizing state survives a
-    reconnect setter sequence.
+    reconnect setters have no getters, so we assert via a historical
+    tuning getter that that state survives a reconnect setter
+    sequence.
     """
     mod = _import_module()
     cfg = mod.Config.production()
@@ -170,8 +170,8 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     cfg.reconnect_max_attempts = 7
     cfg.reconnect_max_rate_limited_attempts = 77
     cfg.reconnect_stable_window_secs = 120
-    cfg.concurrent_requests = 4
-    assert cfg.concurrent_requests == 4
+    cfg.warn_on_buffered_threshold_bytes = 8 * 1024 * 1024
+    assert cfg.warn_on_buffered_threshold_bytes == 8 * 1024 * 1024
     # Reconnect policy getter still reads the policy we set.
     assert cfg.reconnect_policy == "auto"
 

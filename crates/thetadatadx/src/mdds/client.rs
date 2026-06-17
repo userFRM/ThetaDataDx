@@ -121,7 +121,7 @@ impl HistoricalClient {
         let port = config.historical.port;
         tracing::debug!(host = %host, port, tls = config.historical.tls, "connecting to MDDS");
 
-        let pool_size = effective_pool_size(&config, &auth_resp);
+        let pool_size = effective_pool_size(&auth_resp);
         let channels =
             open_channel_pool(&host, port, config.historical.tls, pool_size, &config).await?;
         tracing::info!(
@@ -137,16 +137,12 @@ impl HistoricalClient {
         // The request semaphore must match the resolved channel pool
         // size so the (N+1)-th in-flight RPC can never claim a permit
         // before there's a channel free to carry it. `pool_size`
-        // already reflects the tier-clamped, auto-detected resolution
-        // from `effective_pool_size`; reusing it keeps the semaphore
-        // and the channel count strictly coupled.
+        // already reflects the tier-derived resolution from
+        // `effective_pool_size`; reusing it keeps the semaphore and
+        // the channel count strictly coupled.
         let request_semaphore = Arc::new(tokio::sync::Semaphore::new(pool_size));
 
-        tracing::debug!(
-            mdds_concurrent_requests = pool_size,
-            auto_detected = config.historical.concurrent_requests == 0,
-            "request semaphore initialized"
-        );
+        tracing::debug!(pool_size, "request semaphore initialized");
 
         let stock_tier = auth_resp
             .user
@@ -314,62 +310,26 @@ impl HistoricalClient {
     }
 }
 
-/// Pool sizing — `concurrent_requests` from `DirectConfig` is the
-/// explicit caller intent, **clamped to the subscription tier cap**.
-/// Subscription tier supplies the default when `concurrent_requests = 0`
-/// and the upper bound when it's set explicitly.
+/// Channel-pool sizing — resolved purely from the subscription tier.
 ///
-/// # Why clamp explicit caller intent
+/// The server enforces a hard per-tier cap on concurrent in-flight
+/// gRPC requests (Free=1 / Value=2 / Standard=4 / Pro=8). The SDK
+/// sizes the channel pool to exactly that cap so the live pool always
+/// stays inside the server-side ceiling — there is no caller-supplied
+/// concurrency knob to over-provision and trip per-RPC
+/// `ResourceExhausted` rejections.
 ///
-/// ThetaData enforces a hard server-side cap on concurrent in-flight
-/// gRPC requests per tier (Free=1 / Value=2 / Standard=4 / Pro=8).
-/// Without the clamp, a caller asking for `concurrent_requests = 32`
-/// on a Pro tier opens 32 channels; the (Pro_cap + 1)-th RPC then
-/// fails with an upstream `ResourceExhausted` per-stream rejection,
-/// which the SDK retries on a different channel, producing a confusing
-/// "everything fails intermittently" symptom. Clamping locally
-/// surfaces the misconfiguration as a `tracing::warn!` on connect and
-/// keeps the live pool inside the tier's headroom.
+/// # Resolution
 ///
-/// The `override_tier_clamp` escape hatch on `HistoricalConfig` bypasses
-/// the clamp — test-only, used to reproduce the over-provisioning
-/// failure mode against a stubbed auth response.
-///
-/// # Resolution ladder
-///
-/// 1. `concurrent_requests > 0` ∧ `from_tier > 0` ∧ `!override` →
-///    `min(from_config, from_tier)` (clamp + warn if `from_config > from_tier`)
-/// 2. `concurrent_requests > 0` ∧ (`from_tier = 0` ∨ `override`) →
-///    `from_config` (no tier reference available, or operator bypass)
-/// 3. `concurrent_requests = 0` ∧ `from_tier > 0` → `from_tier` (auto-detect)
-/// 4. `concurrent_requests = 0` ∧ `from_tier = 0` → `DEFAULT_POOL_SIZE`
-fn effective_pool_size(
-    config: &DirectConfig,
-    auth_resp: &crate::auth::nexus::AuthResponse,
-) -> usize {
+/// 1. tier resolved from the auth response → that tier's cap.
+/// 2. no tier on the auth response (anonymous channel, dev harness)
+///    → `DEFAULT_POOL_SIZE`.
+fn effective_pool_size(auth_resp: &crate::auth::nexus::AuthResponse) -> usize {
     const DEFAULT_POOL_SIZE: usize = 4;
-    let from_config = config.historical.concurrent_requests;
     let from_tier = auth_resp
         .user
         .as_ref()
         .map_or(0, crate::auth::nexus::AuthUser::max_concurrent_requests);
-    if from_config > 0 {
-        // Explicit caller intent — clamp to tier cap so a configured
-        // value above the server-side ceiling does not produce
-        // confusing per-RPC `ResourceExhausted` rejections downstream.
-        // The escape hatch (`override_tier_clamp`) bypasses the clamp
-        // for tests that need to reproduce the misconfiguration.
-        if from_tier > 0 && !config.historical.override_tier_clamp && from_config > from_tier {
-            tracing::warn!(
-                configured = from_config,
-                tier_cap = from_tier,
-                "mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap; \
-                 set HistoricalConfig.override_tier_clamp = true to bypass (tests only)"
-            );
-            return from_tier;
-        }
-        return from_config.max(1);
-    }
     if from_tier > 0 {
         from_tier
     } else {
@@ -519,11 +479,10 @@ mod pool_size_tests {
     use crate::auth::nexus::AuthResponse;
     #[cfg(feature = "__internal")]
     use crate::auth::nexus::AuthUser;
-    use crate::config::DirectConfig;
 
     /// Build an AuthResponse whose user reports the given subscription
-    /// wire bytes. `AuthUser::max_concurrent_requests` maps those into
-    /// `2^tier` — the same shape the JVM terminal uses.
+    /// wire byte. `AuthUser::max_concurrent_requests` maps that into
+    /// the per-tier cap (`2^tier`).
     #[cfg(feature = "__internal")]
     fn auth_with_tier(stock_sub: Option<i32>) -> AuthResponse {
         AuthResponse {
@@ -541,95 +500,24 @@ mod pool_size_tests {
 
     #[cfg(feature = "__internal")]
     #[test]
-    fn explicit_below_tier_cap_honoured() {
-        // Caller asks for exactly 1 channel; auth response carries a
-        // Pro tier (subscription byte 3 -> 2^3 = 8 concurrent). The
-        // explicit caller intent is below the tier cap, so honour it
-        // exactly without inflating.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 1;
-        let auth = auth_with_tier(Some(3));
-        assert_eq!(effective_pool_size(&config, &auth), 1);
-    }
-
-    #[cfg(feature = "__internal")]
-    #[test]
-    fn auto_detect_falls_back_to_tier_when_config_is_zero() {
-        // Caller signals "auto-detect" with concurrent_requests = 0;
-        // tier (subscription byte 2 -> 4 concurrent) supplies the
-        // default.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 0;
-        let auth = auth_with_tier(Some(2));
-        assert_eq!(effective_pool_size(&config, &auth), 4);
+    fn pool_size_tracks_tier_cap() {
+        // The pool is sized to exactly the tier cap: Free=1, Value=2,
+        // Standard=4, Pro=8 (subscription wire bytes 0..=3).
+        for (sub_byte, expected) in [(0, 1), (1, 2), (2, 4), (3, 8)] {
+            let auth = auth_with_tier(Some(sub_byte));
+            assert_eq!(effective_pool_size(&auth), expected);
+        }
     }
 
     #[test]
-    fn auto_detect_falls_back_to_default_when_no_tier() {
-        // Auto-detect + no auth user — hardcoded `4` is the last
-        // resort.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 0;
+    fn pool_size_falls_back_to_default_when_no_tier() {
+        // No auth user (anonymous channel, dev harness) — the
+        // hardcoded `4` is the last resort.
         let auth = AuthResponse {
             session_id: "session".to_string(),
             user: None,
             session_created: None,
         };
-        assert_eq!(effective_pool_size(&config, &auth), 4);
-    }
-
-    #[cfg(feature = "__internal")]
-    #[test]
-    fn explicit_above_tier_cap_clamped() {
-        // Caller asks for 32 channels but tier is Free (byte 0 -> 1
-        // concurrent). The clamp folds the configured value to the
-        // tier cap so the per-RPC `ResourceExhausted` rejections
-        // never surface — the local warn is the SDK's friendly
-        // boundary against the server-side cap.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 32;
-        let auth = auth_with_tier(Some(0));
-        assert_eq!(effective_pool_size(&config, &auth), 1);
-    }
-
-    #[cfg(feature = "__internal")]
-    #[test]
-    fn explicit_above_pro_cap_clamped_to_pro() {
-        // Pro tier permits 8. Caller asks for 16. Clamp to 8.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 16;
-        let auth = auth_with_tier(Some(3));
-        assert_eq!(effective_pool_size(&config, &auth), 8);
-    }
-
-    #[cfg(feature = "__internal")]
-    #[test]
-    fn override_tier_clamp_bypasses_clamp() {
-        // The internal escape hatch lets tests reproduce the
-        // over-provisioning failure mode against a stubbed Free-tier
-        // auth response. With the override on, the configured value
-        // passes through unmodified — useful for asserting downstream
-        // behaviour against an explicitly mis-sized pool.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 16;
-        config.historical.override_tier_clamp = true;
-        let auth = auth_with_tier(Some(0));
-        assert_eq!(effective_pool_size(&config, &auth), 16);
-    }
-
-    #[test]
-    fn no_tier_response_does_not_clamp() {
-        // Auth response carries no tier (anonymous channel, dev
-        // harness, etc.). The clamp arm is skipped entirely — the
-        // configured value passes through. The default-pool fallback
-        // only triggers for `concurrent_requests = 0`.
-        let mut config = DirectConfig::production_defaults();
-        config.historical.concurrent_requests = 16;
-        let auth = AuthResponse {
-            session_id: "session".to_string(),
-            user: None,
-            session_created: None,
-        };
-        assert_eq!(effective_pool_size(&config, &auth), 16);
+        assert_eq!(effective_pool_size(&auth), 4);
     }
 }

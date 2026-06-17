@@ -1881,24 +1881,6 @@ void thetadatadx_config_set_historical_port(ThetaDataDxConfig* config, uint16_t 
 int32_t thetadatadx_config_get_historical_port(const ThetaDataDxConfig* config, uint16_t* out_port);
 
 /**
- * Set the number of concurrent in-flight gRPC requests.
- * @param config Config handle to mutate; no-op when NULL.
- * @param n 0 (default) auto-detects the cap from the subscription
- *          entitlement; a positive value is an explicit cap, clamped to
- *          the entitlement cap at connect time with a logged warning if
- *          exceeded.
- */
-void thetadatadx_config_set_concurrent_requests(ThetaDataDxConfig* config, uint32_t n);
-
-/**
- * Read the current concurrent in-flight gRPC request count.
- * @param config Config handle to read.
- * @param out_n Receives the count on success (0 = auto-detect).
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_concurrent_requests(const ThetaDataDxConfig* config, uint32_t* out_n);
-
-/**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.
  *
  * Buffered (non-streaming) endpoints log a warning when a response's

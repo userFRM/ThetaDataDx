@@ -66,6 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The bring-your-own wait-strategy trait and presets used by the Rust generic streaming-drain escape hatch are re-exported under `thetadatadx::streaming::wait`, so a caller naming a custom wait strategy refers only to crate-owned paths and never adds an internal dependency to their own manifest. The zero-cost generic override is unchanged; only the path it is named through moved onto the crate's own surface.
 - The flat-file request-type and contract security-type fields render as stable wire tokens (`trade_quote`, `open_interest`, `eod`, `STOCK`, `OPTION`, `INDEX`, `RATE`) on the JSON, WebSocket, and fluent client surfaces instead of an internal variant identifier, so the token a client parses against is decoupled from the implementation and cannot shift under an internal rename. Output is identical to the prior rendering for every current value.
 
+### Removed
+
+- The `concurrent_requests` configuration knob is removed from the public client API on every binding; historical request concurrency is now derived automatically from the account's subscription tier (Free=1, Value=2, Standard=4, Pro=8) and sized into the connection pool at connect time, so there is no value to set, clamp, or migrate.
+
 ### Fixed
 
 - The TypeScript surface no longer renders internal runtime types in its public type declarations: the streaming callback and the namespace-handle doc comments described their plumbing in terms of internal wrappers, which the generated `index.d.ts` shipped to clients. The docs now describe the behavior on its own terms, so the published declarations carry only the client-facing surface.

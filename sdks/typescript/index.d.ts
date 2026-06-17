@@ -75,16 +75,6 @@ export declare class Config {
   /** Stage streaming config (port 20100, unstable testing servers). */
   static stage(): Config
   /**
-   * Set the number of concurrent in-flight gRPC requests.
-   *
-   * `0` (default) auto-detects from the Nexus subscription tier
-   * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
-   * the tier cap are clamped at connect time with a warn.
-   */
-  setConcurrentRequests(n: number): void
-  /** Current `concurrent_requests` setting (`0` = auto-detect). */
-  get concurrentRequests(): number
-  /**
    * Set the warning threshold (in bytes) for buffered (non-streaming)
    * historical responses. Endpoints whose decoded total exceeds this
    * value log a warning pointing the caller at the

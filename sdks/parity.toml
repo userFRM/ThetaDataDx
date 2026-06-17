@@ -270,15 +270,11 @@ cpp = true
 # ─── HistoricalConfig cross-binding setters ────────────────────────────
 #
 # Tuning knobs on the historical sub-config exposed across every binding.
-# `concurrent_requests` / `warn_on_buffered_threshold_bytes` are bound
+# `warn_on_buffered_threshold_bytes` / `request_timeout_secs` are bound
 # via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
 # `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
-
-[[class]]
-name = "HistoricalConfig.concurrent_requests"
-python = true
-typescript = true
-cpp = true
+# Channel-pool concurrency is intentionally absent: it is resolved
+# internally from the subscription tier, not exposed as a caller knob.
 
 [[class]]
 name = "HistoricalConfig.warn_on_buffered_threshold_bytes"
@@ -576,14 +572,6 @@ issue = "#595"
 
 [[class]]
 name = "HistoricalConfig.connect_timeout_secs"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
-
-[[class]]
-name = "HistoricalConfig.override_tier_clamp"
 python = false
 typescript = false
 cpp = false
@@ -1498,28 +1486,19 @@ python = true
 typescript = true
 cpp = true
 
-# The `flushMode` / `deriveOhlcvc` / `concurrentRequests` readback
-# getters are exposed on every binding: Python (`Config.flush_mode` /
-# `.derive_ohlcvc` / `.concurrent_requests` properties), TypeScript
-# (`Config.flushMode` / `.deriveOhlcvc` / `.concurrentRequests`
+# The `flushMode` / `deriveOhlcvc` readback getters are exposed on
+# every binding: Python (`Config.flush_mode` / `.derive_ohlcvc`
+# properties), TypeScript (`Config.flushMode` / `.deriveOhlcvc`
 # getters), C++ (`Config::get_flush_mode()` etc. over the FFI
 # `thetadatadx_config_get_*` symbols). Both the Python `#[getter]` accessors and
 # the C++ readback getters carry a uniform `get_` Rust/C++ fn prefix
 # (pyo3 strips it so the Python property name stays bare); the parity
 # gate accepts that per-language convention against the bare row. The
 # matching setters are tracked by the dotted `[[class]]` rows
-# `StreamingConfig.flush_mode` / `StreamingConfig.derive_ohlcvc` /
-# `HistoricalConfig.concurrent_requests`.
+# `StreamingConfig.flush_mode` / `StreamingConfig.derive_ohlcvc`.
 [[method]]
 class = "Config"
 name = "deriveOhlcvc"
-python = true
-typescript = true
-cpp = true
-
-[[method]]
-class = "Config"
-name = "concurrentRequests"
 python = true
 typescript = true
 cpp = true

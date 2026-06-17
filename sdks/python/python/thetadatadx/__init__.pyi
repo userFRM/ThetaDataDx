@@ -103,8 +103,6 @@ class Config:
     """Hostname of the historical-data server."""
     historical_port: int
     """TCP port of the historical-data server."""
-    concurrent_requests: int
-    """Maximum in-flight historical requests. ``0`` auto-detects the cap from the subscription tier; explicit values above the tier cap are clamped at connect time with a warning."""
     warn_on_buffered_threshold_bytes: int
     """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
     request_timeout_secs: int

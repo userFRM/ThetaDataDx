@@ -1241,35 +1241,7 @@ impl Config {
         guard.historical.port
     }
 
-    // ── Historical pool sizing ─────────────────────────────────────
-
-    /// Set the number of concurrent in-flight gRPC requests.
-    ///
-    /// ``0`` (default) auto-detects from the Nexus subscription tier:
-    /// FREE=1 / VALUE=2 / STANDARD=4 / PRO=8. Explicit values above
-    /// the tier cap are clamped to the cap at connect time with a
-    /// ``tracing::warn!`` — set ``override_tier_clamp = True`` to
-    /// bypass (tests only).
-    ///
-    /// Examples
-    /// --------
-    /// Multi-day backfill on a PRO subscription::
-    ///
-    ///     cfg = Config.production()
-    ///     cfg.concurrent_requests = 8
-    ///     client = Client(creds, cfg)
-    #[setter]
-    fn set_concurrent_requests(&self, n: usize) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.concurrent_requests = n;
-    }
-
-    /// Current `concurrent_requests` setting (``0`` = auto-detect).
-    #[getter]
-    fn get_concurrent_requests(&self) -> usize {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.concurrent_requests
-    }
+    // ── Historical tuning ──────────────────────────────────────────
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
     /// historical responses. Endpoints whose decoded total exceeds this

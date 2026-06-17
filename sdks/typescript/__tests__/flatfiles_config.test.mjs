@@ -119,20 +119,20 @@ describe('Config.setFlatfilesReadTimeoutSecs', () => {
   });
 });
 
-describe('FlatFiles setter state survives interleaved pool-sizing calls', () => {
-  it('FlatFiles setter mutations land independently of pool-sizing mutations', () => {
+describe('FlatFiles setter state survives interleaved historical tuning calls', () => {
+  it('FlatFiles setter mutations land independently of historical tuning mutations', () => {
     const cfg = Config.production();
     cfg.setFlatfilesMaxAttempts(7);
     cfg.setFlatfilesInitialBackoffSecs(3n);
     cfg.setFlatfilesMaxBackoffSecs(12n);
     cfg.setFlatfilesConnectTimeoutSecs(20n);
     cfg.setFlatfilesReadTimeoutSecs(45n);
-    cfg.setConcurrentRequests(4);
+    cfg.setWarnOnBufferedThresholdBytes(8n * 1024n * 1024n);
     assert.equal(cfg.flatfilesMaxAttempts, 7);
     assert.equal(cfg.flatfilesInitialBackoffSecs, 3n);
     assert.equal(cfg.flatfilesMaxBackoffSecs, 12n);
     assert.equal(cfg.flatfilesConnectTimeoutSecs, 20n);
     assert.equal(cfg.flatfilesReadTimeoutSecs, 45n);
-    assert.equal(cfg.concurrentRequests, 4);
+    assert.equal(cfg.warnOnBufferedThresholdBytes, 8n * 1024n * 1024n);
   });
 });

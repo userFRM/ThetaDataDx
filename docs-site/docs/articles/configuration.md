@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Environments, retries, timeouts, concurrency, and the streaming knobs.
+description: Environments, retries, timeouts, and the streaming knobs.
 ---
 
 # Configuration
@@ -32,7 +32,6 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 |---|---|---|
 | Request deadlines | `timeout_ms` per request (builder / kwarg) | Hard per-call deadline; expiry raises a timeout error and frees the slot. |
 | Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient historical-request faults. |
-| Concurrency | `concurrent_requests` | Parallel historical requests; auto-set from your tier. See [Concurrent Requests](/articles/concurrent-requests). |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
 | Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
@@ -40,6 +39,8 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
+
+Historical request concurrency is not in this table because it isn't configurable. The SDK sizes its historical connection pool automatically from your subscription tier at connect time. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
 
