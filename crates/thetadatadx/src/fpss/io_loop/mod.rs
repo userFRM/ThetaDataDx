@@ -140,6 +140,28 @@ pub(in crate::fpss) fn evict_stale_pending(map: &mut HashMap<i32, PendingSubEntr
         );
     }
 }
+
+/// Drop the in-flight subscribe correlation(s) for one tracked identity.
+///
+/// A pending correlation is only an authority to untrack while the tracked
+/// entry it created is still live. Once that entry leaves the tracked set — an
+/// unsubscribe removes it — the correlation points at nothing, so a later
+/// rejection of its (now superseded) `req_id` must not act on the set: the
+/// `(kind, contract)` slot may since have been re-subscribed into a new live
+/// entry that a value match would wrongly drop. Removing the correlation at the
+/// unsubscribe boundary keeps the invariant that at most one resident
+/// correlation per identity exists and it always names the current live entry,
+/// so an `apply_req_response` rejection can untrack purely by `req_id` lookup.
+///
+/// The map is keyed by `req_id`, so identity removal is a single retain pass.
+/// The caller holds the `pending_subs` lock; this touches only in-memory map
+/// state and performs no I/O.
+pub(in crate::fpss) fn evict_pending_for_identity(
+    map: &mut HashMap<i32, PendingSubEntry>,
+    identity: &super::protocol::PendingSub,
+) {
+    map.retain(|_, entry| &entry.sub != identity);
+}
 type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
@@ -280,6 +302,16 @@ fn host_index(hosts: &[(String, u16)], addr: &str) -> Option<usize> {
 /// id from a span longer than the 31-bit counter cycle) leaves the tracked set
 /// untouched: with no correlation, untracking would risk dropping a healthy
 /// subscription, so the conservative choice is to keep it.
+///
+/// The `req_id` lookup is a safe untrack because the pending registry holds the
+/// invariant that at most one correlation per `(kind, contract)` (or `(kind,
+/// sec_type)`) identity is resident, and it always names the current live
+/// entry. A duplicate subscribe shares the live entry and registers no second
+/// correlation; an unsubscribe removes the entry and evicts its correlation
+/// (see [`evict_pending_for_identity`]). So a subscribe that is superseded by an
+/// unsubscribe + re-subscribe of the same identity has no resident correlation
+/// for its old `req_id`, and a late rejection of that id is a no-op rather than
+/// a value match that would drop the re-subscribed live entry.
 fn apply_req_response(
     req_id: i32,
     result: StreamResponseType,
