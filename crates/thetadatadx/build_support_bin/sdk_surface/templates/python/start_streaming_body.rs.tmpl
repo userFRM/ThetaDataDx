@@ -25,15 +25,26 @@
         // `catch_unwind`, so the core counter is only bumped here.
         let panic_recorder = Arc::clone(&self.client);
 
-        // GIL once per batch, not per event. `start_streaming_scoped`
-        // brackets each consumer batch drain in the `Python::attach`
-        // scope below, so the GIL is acquired once and held across every
-        // event in the batch, then released across the idle inter-batch
-        // wait. The per-event `Python::attach` is then the cheap
-        // reentrant fast path (the GIL is already held by the scope), not
-        // a full acquire-from-detached every event — which is what lifts
-        // sustained drain throughput. The no-GIL discipline holds: the
-        // lock never spans the blocking wait.
+        // Never hold the GIL across the blocking network connect.
+        // `start_streaming_scoped` performs the FPSS TLS socket connect
+        // and the `CREDENTIALS` handshake synchronously on the calling
+        // thread before it spawns the dispatcher, so the whole call is
+        // released from the interpreter lock via `py.detach`. A sibling
+        // Python thread keeps running while the handshake is in flight.
+        // The connect path and the resulting `Result` are pure Rust — no
+        // Python object is touched inside the detached region; the typed
+        // exception mapping (`to_py_err`) runs AFTER the GIL is
+        // re-acquired, leaving the error surface unchanged.
+        //
+        // GIL once per batch, not per event. The dispatcher scope below
+        // re-acquires the GIL via `Python::attach` for each consumer
+        // batch drain, holds it across every event in the batch, then
+        // releases it across the idle inter-batch wait. The per-event
+        // `Python::attach` is the cheap reentrant fast path (the GIL is
+        // already held by the scope), not a full acquire-from-detached
+        // every event — which is what lifts sustained drain throughput.
+        // The no-GIL discipline holds: the lock never spans the blocking
+        // connect and never spans the idle wait.
         //
         // The consumer is not the FPSS TLS reader thread; a slow Python
         // callback at most fills the streaming ring and bumps
@@ -45,9 +56,8 @@
         // Python exceptions raised by the callback are caught via `call1`
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
-        self.client
-            .stream()
-            .start_streaming_scoped(
+        py.detach(|| {
+            self.client.stream().start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Convert the borrowed `&StreamEvent` straight to its
@@ -77,7 +87,8 @@
                 },
                 |drain| Python::attach(|_py| drain()),
             )
-            .map_err(to_py_err)?;
+        })
+        .map_err(to_py_err)?;
 
         // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is

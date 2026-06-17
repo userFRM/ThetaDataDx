@@ -57,7 +57,7 @@ impl StreamableHandle {
     /// `StreamView` surface, so the `Unified` arm dispatches through it.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         match self {
-            Self::Unified(handle) => handle.borrow(py).stream().start_streaming(callback),
+            Self::Unified(handle) => handle.borrow(py).stream().start_streaming(py, callback),
             Self::Fpss(handle) => handle.borrow(py).start_streaming(py, callback),
         }
     }

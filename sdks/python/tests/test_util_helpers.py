@@ -1,4 +1,4 @@
-"""Cross-language utility helpers — Python binding parity tests (issue #424).
+"""Cross-language utility helpers — Python binding parity tests.
 
 Verifies the `thetadatadx.util` submodule exposes the same lookup surface
 as the Rust core (`thetadatadx::utils::{conditions, exchange, sequences}`).

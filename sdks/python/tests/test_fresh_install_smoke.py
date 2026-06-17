@@ -1,9 +1,9 @@
-"""Gate 8 (issue #551): fresh-install smoke test.
+"""Fresh-install smoke test.
 
 Acts like a first-time user typing `pip install thetadatadx` then
 `from thetadatadx import <X>` for every documented top-level export.
-Catches "documented but unreachable" regressions of the class that bit
-production on v10.0.0 (issue #557).
+Catches "documented but unreachable" regressions — a name that the docs
+promise but the compiled module never registers.
 
 The CI workflow runs this against a wheel freshly installed into an
 isolated venv — see `python.yml::build`. The test deliberately uses

@@ -1,12 +1,13 @@
 """Regression coverage for the `InterestRateTick` schema fix.
 
-Before this PR the `tick_schema.toml` definition advertised three fields
-(`ms_of_day`, `rate`, `date`) but the upstream v3 server actually emits
-two columns: an ISO-date `created` header and a `rate` percent value.
-Every live `interest_rate_history_eod` call therefore failed inside the
-decoder with `expected: "Number|Timestamp", got Text`.
+The `tick_schema.toml` definition must match what the upstream v3 server
+actually emits for interest-rate EOD: two columns, an ISO-date `created`
+header and a `rate` percent value — not a fictitious `ms_of_day` field. A
+schema that advertises `ms_of_day` makes every live
+`interest_rate_history_eod` call fail inside the decoder with
+`expected: "Number|Timestamp", got Text`.
 
-The fix is cross-binding by design — the Python `InterestRateTick`
+The schema is cross-binding by design — the Python `InterestRateTick`
 pyclass is regenerated from `tick_schema.toml`, so the shape of the
 pyclass itself is the single source of truth this test pins. Liveness
 of the decode is covered upstream in
@@ -54,8 +55,8 @@ def test_interest_rate_tick_rejects_removed_ms_of_day_kw(InterestRateTick) -> No
     """Pin the breaking change: `ms_of_day` was a fictitious field
     (server never sent it) and has been removed. A keyword call that
     targets the removed field must raise `TypeError` — the wheel is
-    explicitly NOT backward-compatible with v10.x `InterestRateTick(
-    ms_of_day=...)` call sites."""
+    explicitly NOT backward-compatible with any `InterestRateTick(
+    ms_of_day=...)` call site."""
     with pytest.raises(TypeError):
         InterestRateTick(ms_of_day=34_200_000, rate=4.36, date=20250428)
 

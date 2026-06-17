@@ -155,7 +155,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // attribute lookup.
             writeln!(
                 out,
-                "    pub(crate) fn {}(&self, callback: Py<PyAny>) -> PyResult<()> {{",
+                "    pub(crate) fn {}(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {{",
                 method.name
             )
             .unwrap();
@@ -313,7 +313,12 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  references past a teardown the application has already\n\
                  observed.",
             );
-            writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
+            writeln!(
+                out,
+                "    fn {}(&self, py: Python<'_>) -> PyResult<()> {{",
+                method.name
+            )
+            .unwrap();
             out.push_str(include_str!("templates/python/reconnect_body.rs.tmpl"));
         }
         MethodKind::AwaitDrain => {

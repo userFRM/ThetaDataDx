@@ -143,7 +143,7 @@ def test_data_classes_still_exported(thetadatadx_mod):
     surfaced as `event.contract.symbol` / `event.contract.strike`. It is
     distinct from the fluent `Contract` builder (which lives at
     `thetadatadx.Contract` and exposes `.stock()` / `.option()` factory
-    methods); see #557 for the collision-rename background.
+    methods). The two identifiers must never collapse to one Python name.
     """
     for variant in ("Quote", "Trade", "Ohlcvc", "OpenInterest", "ContractRef"):
         cls = getattr(thetadatadx_mod, variant, None)

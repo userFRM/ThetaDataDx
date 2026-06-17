@@ -1,4 +1,4 @@
-"""Gate 3 (issue #546) - Python side: doctest gate.
+"""Python-side doctest gate.
 
 Scans the Rust source under `sdks/python/src/` for triple-slash doc
 comments containing `>>>` blocks, extracts them, and runs each block
@@ -10,10 +10,11 @@ sometimes loses the `>>>` prefix. The Rust source is the source of
 truth for what we documented; if the example there doesn't run, that
 is the bug.
 
-A doctest gate caught the v10.0.0 `Contract` regression after the
-fact - the docstring example referenced `Contract.stock("AAPL")` but
-the pyclass wasn't registered. Future regressions of the same shape
-fail here instead of in production.
+This gate exists because a docstring example can reference a symbol the
+module never registered — e.g. `Contract.stock("AAPL")` documented while
+the pyclass was unregistered. Running every documented example keeps the
+docs and the compiled surface in lockstep, so that class of regression
+fails here instead of in a user's session.
 """
 
 from __future__ import annotations

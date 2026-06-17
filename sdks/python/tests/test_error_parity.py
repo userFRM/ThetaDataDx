@@ -1,4 +1,4 @@
-"""Cross-binding error-class parity — Python surface (issue #681).
+"""Cross-binding error-class parity — Python surface.
 
 Pins the canonical typed-exception vocabulary so it stays identical to
 the TypeScript / C++ / C ABI leaf sets: a `NotFound` status raises

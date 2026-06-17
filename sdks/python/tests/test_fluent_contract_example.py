@@ -1,4 +1,4 @@
-"""Regression test for the v10.0.0 fluent `Contract` builder (#557).
+"""Regression test for the fluent `Contract` builder.
 
 Asserts that the example documented in `fluent.rs:7-10`:
 
@@ -69,8 +69,7 @@ def test_contract_class_is_fluent_builder(thetadatadx_mod) -> None:
     for method in ("stock", "option", "index", "quote", "trade", "open_interest"):
         assert hasattr(cls, method), (
             f"thetadatadx.Contract is missing fluent method {method!r}; "
-            f"is the event payload shadowing the fluent builder again? "
-            f"See #557."
+            f"is the event payload shadowing the fluent builder again?"
         )
 
 

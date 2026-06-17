@@ -18,13 +18,23 @@
         let dispatch_cb = Arc::clone(&callback_arc);
         let panic_recorder = Arc::clone(&self.client);
 
+        // Never hold the GIL across the blocking network reconnect.
+        // `reconnect_streaming_scoped` tears the old session down, opens a
+        // fresh FPSS TLS connection, re-runs the `CREDENTIALS` handshake,
+        // and paces the saved-subscription replay (sleeping
+        // `replay_pace_ms` between bursts) — all synchronously on the
+        // calling thread. The whole call is released from the interpreter
+        // lock via `py.detach` so a sibling Python thread keeps running
+        // while the reconnect is in flight. The reconnect path and its
+        // `Result` are pure Rust; `to_py_err` maps the failure AFTER the
+        // GIL is re-acquired.
+        //
         // GIL once per batch, not per event — see `start_streaming`. The
-        // scope holds the GIL across each batch drain and releases it
-        // across the idle wait; the per-event `Python::attach` is the
-        // cheap reentrant fast path.
-        self.client
-            .stream()
-            .reconnect_streaming_scoped(
+        // dispatcher scope holds the GIL across each batch drain and
+        // releases it across the idle wait; the per-event
+        // `Python::attach` is the cheap reentrant fast path.
+        py.detach(|| {
+            self.client.stream().reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Borrowed `&StreamEvent` → typed pyclass in one
@@ -46,7 +56,8 @@
                 },
                 |drain| Python::attach(|_py| drain()),
             )
-            .map_err(to_py_err)?;
+        })
+        .map_err(to_py_err)?;
 
         // Replace the stored callable with a freshly owned handle so
         // the next reconnect / shutdown sees the same state shape.

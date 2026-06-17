@@ -42,7 +42,7 @@ impl StreamView {
     /// `catch_unwind` boundary and routed through
     /// `PyErr::write_unraisable` (visible in `sys.stderr` and
     /// the unraisable hook); each one bumps `panic_count()`.
-    pub(crate) fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
+    pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         // Hold the user callable in a `Mutex<Option<Py<PyAny>>>` so
         // `stop_streaming` can drop it without leaking a Python
         // reference, and so a subsequent `start_streaming` /
@@ -70,15 +70,26 @@ impl StreamView {
         // `catch_unwind`, so the core counter is only bumped here.
         let panic_recorder = Arc::clone(&self.client);
 
-        // GIL once per batch, not per event. `start_streaming_scoped`
-        // brackets each consumer batch drain in the `Python::attach`
-        // scope below, so the GIL is acquired once and held across every
-        // event in the batch, then released across the idle inter-batch
-        // wait. The per-event `Python::attach` is then the cheap
-        // reentrant fast path (the GIL is already held by the scope), not
-        // a full acquire-from-detached every event — which is what lifts
-        // sustained drain throughput. The no-GIL discipline holds: the
-        // lock never spans the blocking wait.
+        // Never hold the GIL across the blocking network connect.
+        // `start_streaming_scoped` performs the FPSS TLS socket connect
+        // and the `CREDENTIALS` handshake synchronously on the calling
+        // thread before it spawns the dispatcher, so the whole call is
+        // released from the interpreter lock via `py.detach`. A sibling
+        // Python thread keeps running while the handshake is in flight.
+        // The connect path and the resulting `Result` are pure Rust — no
+        // Python object is touched inside the detached region; the typed
+        // exception mapping (`to_py_err`) runs AFTER the GIL is
+        // re-acquired, leaving the error surface unchanged.
+        //
+        // GIL once per batch, not per event. The dispatcher scope below
+        // re-acquires the GIL via `Python::attach` for each consumer
+        // batch drain, holds it across every event in the batch, then
+        // releases it across the idle inter-batch wait. The per-event
+        // `Python::attach` is the cheap reentrant fast path (the GIL is
+        // already held by the scope), not a full acquire-from-detached
+        // every event — which is what lifts sustained drain throughput.
+        // The no-GIL discipline holds: the lock never spans the blocking
+        // connect and never spans the idle wait.
         //
         // The consumer is not the FPSS TLS reader thread; a slow Python
         // callback at most fills the streaming ring and bumps
@@ -90,9 +101,8 @@ impl StreamView {
         // Python exceptions raised by the callback are caught via `call1`
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
-        self.client
-            .stream()
-            .start_streaming_scoped(
+        py.detach(|| {
+            self.client.stream().start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Convert the borrowed `&StreamEvent` straight to its
@@ -122,7 +132,8 @@ impl StreamView {
                 },
                 |drain| Python::attach(|_py| drain()),
             )
-            .map_err(to_py_err)?;
+        })
+        .map_err(to_py_err)?;
 
         // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is
@@ -178,7 +189,7 @@ impl StreamView {
     /// to enforce the explicit handoff and avoid retaining captured
     /// references past a teardown the application has already
     /// observed.
-    fn reconnect(&self) -> PyResult<()> {
+    fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
         // `reconnect` re-registers the previously installed callback
         // on a fresh FPSS connection. We require a prior
         // `start_streaming(callback)` so the Python surface stays
@@ -199,13 +210,23 @@ impl StreamView {
         let dispatch_cb = Arc::clone(&callback_arc);
         let panic_recorder = Arc::clone(&self.client);
 
+        // Never hold the GIL across the blocking network reconnect.
+        // `reconnect_streaming_scoped` tears the old session down, opens a
+        // fresh FPSS TLS connection, re-runs the `CREDENTIALS` handshake,
+        // and paces the saved-subscription replay (sleeping
+        // `replay_pace_ms` between bursts) — all synchronously on the
+        // calling thread. The whole call is released from the interpreter
+        // lock via `py.detach` so a sibling Python thread keeps running
+        // while the reconnect is in flight. The reconnect path and its
+        // `Result` are pure Rust; `to_py_err` maps the failure AFTER the
+        // GIL is re-acquired.
+        //
         // GIL once per batch, not per event — see `start_streaming`. The
-        // scope holds the GIL across each batch drain and releases it
-        // across the idle wait; the per-event `Python::attach` is the
-        // cheap reentrant fast path.
-        self.client
-            .stream()
-            .reconnect_streaming_scoped(
+        // dispatcher scope holds the GIL across each batch drain and
+        // releases it across the idle wait; the per-event
+        // `Python::attach` is the cheap reentrant fast path.
+        py.detach(|| {
+            self.client.stream().reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Borrowed `&StreamEvent` → typed pyclass in one
@@ -227,7 +248,8 @@ impl StreamView {
                 },
                 |drain| Python::attach(|_py| drain()),
             )
-            .map_err(to_py_err)?;
+        })
+        .map_err(to_py_err)?;
 
         // Replace the stored callable with a freshly owned handle so
         // the next reconnect / shutdown sees the same state shape.
