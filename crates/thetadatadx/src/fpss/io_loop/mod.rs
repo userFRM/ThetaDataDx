@@ -79,7 +79,67 @@ use super::ring::{
 type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
 /// Maps an in-flight subscribe's `req_id` to the tracked entry it created,
 /// so a rejecting `REQ_RESPONSE` can untrack exactly that subscription.
-type PendingSubs = Arc<Mutex<HashMap<i32, super::protocol::PendingSub>>>;
+///
+/// Each value carries the [`Instant`] the correlation was recorded so the
+/// registry stays bounded: a `REQ_RESPONSE` the server suppresses, or one that
+/// echoes the uncorrelated `-1` sentinel a matching `remove` can never key on,
+/// would otherwise leave its entry resident for the life of a session that
+/// never reconnects. Stale entries are swept on insert (see
+/// [`PENDING_SUB_TTL`] and [`PENDING_SUB_CAP`]).
+type PendingSubs = Arc<Mutex<HashMap<i32, PendingSubEntry>>>;
+
+/// A pending subscribe correlation plus the instant it was recorded.
+#[derive(Debug, Clone)]
+pub(in crate::fpss) struct PendingSubEntry {
+    /// The tracked subscription this `req_id` answers.
+    pub sub: super::protocol::PendingSub,
+    /// When the correlation was recorded, for TTL-based eviction.
+    pub recorded_at: std::time::Instant,
+}
+
+/// How long a pending subscribe correlation may live before it is treated as
+/// abandoned and swept. The server answers a subscribe well inside this
+/// window; an entry older than this never received its `REQ_RESPONSE` (the
+/// server suppressed it, or answered with the uncorrelated `-1` sentinel) and
+/// can never be matched, so retaining it only grows the map.
+const PENDING_SUB_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Hard ceiling on resident pending correlations. A burst of subscribes whose
+/// responses are all suppressed could otherwise outrun the TTL sweep within a
+/// single window; past this many entries the oldest are dropped so the map can
+/// never grow without bound.
+const PENDING_SUB_CAP: usize = 4096;
+
+/// Drop pending correlations that can no longer be matched.
+///
+/// Sweeps entries older than [`PENDING_SUB_TTL`], then, if the map still
+/// exceeds [`PENDING_SUB_CAP`], drops the oldest entries down to the cap. The
+/// caller holds the `pending_subs` lock; the sweep touches only in-memory map
+/// state and performs no I/O, so the lock is never held across a syscall.
+pub(in crate::fpss) fn evict_stale_pending(map: &mut HashMap<i32, PendingSubEntry>) {
+    let now = std::time::Instant::now();
+    let before = map.len();
+    map.retain(|_, entry| now.duration_since(entry.recorded_at) < PENDING_SUB_TTL);
+
+    if map.len() > PENDING_SUB_CAP {
+        let mut by_age: Vec<(i32, std::time::Instant)> =
+            map.iter().map(|(id, e)| (*id, e.recorded_at)).collect();
+        by_age.sort_unstable_by_key(|(_, recorded_at)| *recorded_at);
+        let overflow = map.len() - PENDING_SUB_CAP;
+        for (id, _) in by_age.into_iter().take(overflow) {
+            map.remove(&id);
+        }
+    }
+
+    let evicted = before.saturating_sub(map.len());
+    if evicted > 0 {
+        tracing::warn!(
+            evicted,
+            resident = map.len(),
+            "evicted unanswered subscribe correlations; a server response was never matched"
+        );
+    }
+}
 type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
@@ -240,7 +300,7 @@ fn apply_req_response(
         return;
     }
 
-    match pending {
+    match pending.sub {
         super::protocol::PendingSub::Contract(kind, contract) => {
             active_subs
                 .lock()
@@ -259,6 +319,20 @@ fn apply_req_response(
         result = ?result,
         "untracked rejected subscription; it will not be replayed on reconnect"
     );
+}
+
+/// Drive [`apply_req_response`] from the client-module tests, which need to
+/// reconcile a tracked set against a synthetic server response without a live
+/// session. Argument order mirrors the client's `(state, response)` framing.
+#[cfg(any(test, feature = "__test-helpers"))]
+pub(in crate::fpss) fn apply_req_response_for_test(
+    pending_subs: &PendingSubs,
+    active_subs: &ActiveSubs,
+    active_full_subs: &ActiveFullSubs,
+    req_id: i32,
+    result: StreamResponseType,
+) {
+    apply_req_response(req_id, result, pending_subs, active_subs, active_full_subs);
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -1148,7 +1222,10 @@ where
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .insert(
                     req_id,
-                    super::protocol::PendingSub::Contract(*kind, contract.clone()),
+                    PendingSubEntry {
+                        sub: super::protocol::PendingSub::Contract(*kind, contract.clone()),
+                        recorded_at: std::time::Instant::now(),
+                    },
                 );
             tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
@@ -1170,7 +1247,13 @@ where
             pending_subs
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(req_id, super::protocol::PendingSub::Full(*kind, *sec_type));
+                .insert(
+                    req_id,
+                    PendingSubEntry {
+                        sub: super::protocol::PendingSub::Full(*kind, *sec_type),
+                        recorded_at: std::time::Instant::now(),
+                    },
+                );
             tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
@@ -1947,11 +2030,17 @@ mod tests {
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
             10,
-            PendingSub::Contract(SubscriptionKind::Trade, rejected.clone()),
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, rejected.clone()),
+                recorded_at: std::time::Instant::now(),
+            },
         );
         pending_subs.lock().unwrap().insert(
             11,
-            PendingSub::Contract(SubscriptionKind::Trade, accepted.clone()),
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, accepted.clone()),
+                recorded_at: std::time::Instant::now(),
+            },
         );
 
         // req_id 10 is rejected: the server hit the account stream cap.
@@ -2041,7 +2130,10 @@ mod tests {
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
             7,
-            PendingSub::Full(SubscriptionKind::Trade, SecType::Option),
+            PendingSubEntry {
+                sub: PendingSub::Full(SubscriptionKind::Trade, SecType::Option),
+                recorded_at: std::time::Instant::now(),
+            },
         );
 
         apply_req_response(
@@ -2055,6 +2147,84 @@ mod tests {
         assert!(
             active_full_subs.lock().unwrap().is_empty(),
             "a rejected full-stream subscription must be removed from active_full_subs"
+        );
+    }
+
+    /// A correlation older than the TTL is swept; a fresh one survives.
+    ///
+    /// This bounds the registry against a server that suppresses a
+    /// `REQ_RESPONSE` (or answers with the uncorrelated `-1` sentinel a
+    /// matching `remove` can never key on) over a long-lived session that
+    /// never reconnects.
+    #[test]
+    fn stale_pending_correlations_are_evicted_by_ttl() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let mut map: HashMap<i32, PendingSubEntry> = HashMap::new();
+        // An entry recorded one tick past the TTL is unmatchable and must go.
+        map.insert(
+            1,
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, Contract::stock("OLD")),
+                recorded_at: std::time::Instant::now()
+                    - PENDING_SUB_TTL
+                    - std::time::Duration::from_secs(1),
+            },
+        );
+        // A just-recorded entry is still awaiting its response and must stay.
+        map.insert(
+            2,
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, Contract::stock("NEW")),
+                recorded_at: std::time::Instant::now(),
+            },
+        );
+
+        evict_stale_pending(&mut map);
+
+        assert!(
+            !map.contains_key(&1),
+            "a correlation past its TTL must be evicted"
+        );
+        assert!(
+            map.contains_key(&2),
+            "a fresh correlation must survive eviction"
+        );
+    }
+
+    /// Past the hard cap the oldest correlations are dropped so the registry
+    /// can never grow without bound within a single TTL window.
+    #[test]
+    fn pending_registry_is_capped() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let mut map: HashMap<i32, PendingSubEntry> = HashMap::new();
+        let base = std::time::Instant::now();
+        // One past the cap, all within the TTL window so only the cap sweep
+        // applies. Older `recorded_at` for lower ids so the oldest is id 0.
+        for id in 0..=(PENDING_SUB_CAP as i32) {
+            map.insert(
+                id,
+                PendingSubEntry {
+                    sub: PendingSub::Contract(SubscriptionKind::Trade, Contract::stock("SYM")),
+                    recorded_at: base + std::time::Duration::from_millis(id as u64),
+                },
+            );
+        }
+        assert_eq!(map.len(), PENDING_SUB_CAP + 1);
+
+        evict_stale_pending(&mut map);
+
+        assert_eq!(
+            map.len(),
+            PENDING_SUB_CAP,
+            "registry must be held at the cap"
+        );
+        assert!(
+            !map.contains_key(&0),
+            "the oldest entry must be the one dropped"
         );
     }
 }

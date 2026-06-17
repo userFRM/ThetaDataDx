@@ -851,7 +851,7 @@ struct SpawnArgs<'a, P> {
     authenticated: Arc<AtomicBool>,
     active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>>,
-    pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>>,
+    pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
     ring_cursors: Arc<RingCursors>,
@@ -936,7 +936,7 @@ pub struct StreamingClient {
     /// neither replayed on reconnect nor over-reported by
     /// `active_subscriptions()`.
     pub(in crate::fpss) pending_subs:
-        Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>>,
+        Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>>,
     /// The server address the initial connect landed on. Snapshot;
     /// see `last_connected_addr()` for the live session address.
     server_addr: String,
@@ -1303,7 +1303,7 @@ impl StreamingClient {
                 )>,
             >,
         > = Arc::new(Mutex::new(Vec::new()));
-        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>> =
+        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
@@ -2241,28 +2241,43 @@ impl StreamingClient {
             .active_full_subs
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if unsubscribe {
+        let newly_tracked = if unsubscribe {
             subs.retain(|(k, s)| !(*k == kind_for_track && *s == sec_type));
-        } else if !subs
+            false
+        } else if subs
             .iter()
             .any(|(k, s)| *k == kind_for_track && *s == sec_type)
         {
+            false
+        } else {
             // Idempotent by `(kind, sec_type)`: a repeated full-stream subscribe
             // must not accumulate duplicate tracked entries that would replay
             // the same subscribe frame multiple times on reconnect.
             subs.push((kind_for_track, sec_type));
-        }
+            true
+        };
         drop(subs);
 
-        // Only a subscribe awaits a `REQ_RESPONSE` worth correlating; an
-        // unsubscribe removed its entry above and has nothing to untrack.
         // Record the pending full-stream subscribe by `req_id` so a server
-        // rejection drops exactly this entry from the replay set.
-        if !unsubscribe {
-            self.pending_subs
+        // rejection drops exactly this entry from the replay set. Only the
+        // subscribe that actually added the tracked entry may carry an
+        // untrack-capable correlation: an unsubscribe removed its entry above
+        // and has nothing to untrack, and a duplicate subscribe shares the one
+        // live entry, so letting its rejection untrack by value would drop the
+        // live subscription.
+        if newly_tracked {
+            let mut pending = self
+                .pending_subs
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(req_id, protocol::PendingSub::Full(kind_for_track, sec_type));
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            io_loop::evict_stale_pending(&mut pending);
+            pending.insert(
+                req_id,
+                io_loop::PendingSubEntry {
+                    sub: protocol::PendingSub::Full(kind_for_track, sec_type),
+                    recorded_at: std::time::Instant::now(),
+                },
+            );
         }
         Ok(())
     }
@@ -2279,7 +2294,7 @@ impl StreamingClient {
         self.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
         // Track for reconnection
-        {
+        let newly_tracked = {
             let mut subs = self
                 .active_subs
                 .lock()
@@ -2288,22 +2303,41 @@ impl StreamingClient {
             // subscribe must not accumulate duplicate tracked entries that
             // would replay the same subscribe frame multiple times on
             // reconnect.
-            if !subs.iter().any(|(k, c)| *k == kind && c == contract) {
+            if subs.iter().any(|(k, c)| *k == kind && c == contract) {
+                false
+            } else {
                 subs.push((kind, contract.clone()));
+                true
             }
-        }
+        };
 
         // Record the in-flight subscribe keyed by its `req_id` so the I/O
         // thread can correlate the asynchronous server `REQ_RESPONSE` back to
         // this contract. A rejection then untracks exactly this entry rather
         // than leaving a permanently over-reported, forever-replayed sub.
-        self.pending_subs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(
+        //
+        // Only the subscribe that actually added the tracked entry may carry
+        // an untrack-capable pending correlation. A repeated subscribe for an
+        // already-tracked `(kind, contract)` shares one live entry; if a
+        // duplicate's `REQ_RESPONSE` (for example `MaxStreamsReached`) could
+        // untrack by value, it would drop the original live subscription and
+        // silence its stream on the next reconnect. Skipping the pending
+        // insert for a duplicate keeps the rejection from touching the live
+        // entry.
+        if newly_tracked {
+            let mut pending = self
+                .pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            io_loop::evict_stale_pending(&mut pending);
+            pending.insert(
                 req_id,
-                protocol::PendingSub::Contract(kind, contract.clone()),
+                io_loop::PendingSubEntry {
+                    sub: protocol::PendingSub::Contract(kind, contract.clone()),
+                    recorded_at: std::time::Instant::now(),
+                },
             );
+        }
 
         tracing::debug!(
             req_id,
@@ -2597,7 +2631,7 @@ impl StreamingClient {
         let active_full_subs: Arc<
             Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>,
         > = Arc::new(Mutex::new(Vec::new()));
-        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>> =
+        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
@@ -3248,6 +3282,78 @@ mod full_stream_guard_tests {
             tracked.len(),
             1,
             "duplicate per-contract subscribes must collapse to one tracked entry, got {tracked:?}"
+        );
+
+        client.shutdown();
+    }
+
+    /// A duplicate subscribe followed by a server rejection of the duplicate
+    /// must not drop the live original.
+    ///
+    /// One tracked `(kind, contract)` entry is shared by every subscribe for
+    /// it; only the subscribe that created the entry carries an
+    /// untrack-capable pending correlation. So when the server rejects the
+    /// duplicate (here `MaxStreamsReached`, the realistic trigger: the first
+    /// subscribe already used the contract's stream slot), the rejection finds
+    /// no pending entry to act on and the still-live original stays in
+    /// `active_subs` — and therefore in the reconnect-replay set, which is a
+    /// clone of `active_subs`.
+    #[test]
+    fn duplicate_subscribe_then_reject_keeps_live_sub() {
+        use super::io_loop::apply_req_response_for_test;
+        use crate::tdbe::types::enums::StreamResponseType;
+
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        // First subscribe is accepted and owns the tracked entry (and the only
+        // untrack-capable pending correlation). req_id counter starts at 1, so
+        // this allocates req_id 1.
+        let contract = Contract::stock("AAPL");
+        client
+            .subscribe(contract.clone().trade())
+            .expect("first subscribe");
+        // Duplicate subscribe: shares the live tracked entry, registers no
+        // untrack-capable pending correlation. This allocates req_id 2.
+        client
+            .subscribe(contract.clone().trade())
+            .expect("duplicate subscribe");
+
+        // Exactly one untrack-capable correlation exists despite two subscribes.
+        assert_eq!(
+            client
+                .pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1,
+            "a duplicate subscribe must not register a second untrack-capable correlation"
+        );
+
+        // The server rejects the duplicate's req_id (2). The original (req_id
+        // 1) is live and must survive.
+        apply_req_response_for_test(
+            &client.pending_subs,
+            &client.active_subs,
+            &client.active_full_subs,
+            2,
+            StreamResponseType::MaxStreamsReached,
+        );
+
+        let tracked = client.active_subscriptions();
+        assert_eq!(
+            tracked.len(),
+            1,
+            "rejecting a duplicate must leave the live original tracked, got {tracked:?}"
+        );
+        assert!(
+            tracked.iter().any(|(_, c)| *c == contract),
+            "the live original must remain in active_subscriptions(), got {tracked:?}"
         );
 
         client.shutdown();
