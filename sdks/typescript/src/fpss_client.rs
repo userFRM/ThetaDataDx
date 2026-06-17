@@ -260,10 +260,23 @@ impl StreamingClient {
         let dispatch_cb = Arc::clone(&callback);
 
         let params = self.params.clone();
-        let build_result = runtime()
+        let join_result = runtime()
             .spawn_blocking(move || params.builder().build())
-            .await
-            .map_err(|e| napi::Error::from_reason(format!("start_streaming task panicked: {e}")))?;
+            .await;
+        let build_result = match join_result {
+            Ok(build_result) => build_result,
+            Err(e) => {
+                // The connect task itself panicked. Release the slot
+                // reserved above, mirroring the handshake-failure path
+                // below, so the handle returns to a usable state and a
+                // later startStreaming retry sees a clean registration
+                // instead of a stuck "streaming already started".
+                *self.lock_callback() = None;
+                return Err(napi::Error::from_reason(format!(
+                    "start_streaming task panicked: {e}"
+                )));
+            }
+        };
         let client = match build_result {
             Ok(client) => client,
             Err(e) => {

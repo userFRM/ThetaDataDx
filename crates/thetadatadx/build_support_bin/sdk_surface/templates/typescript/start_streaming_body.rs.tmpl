@@ -37,7 +37,7 @@
         // both `Send + 'static`, so the closure satisfies the
         // `spawn_blocking` bound.
         let client = Arc::clone(&self.client);
-        let result = tokio::task::spawn_blocking(move || {
+        let join_result = tokio::task::spawn_blocking(move || {
             client
                 .stream()
                 .start_streaming(move |event: &fpss::StreamEvent| {
@@ -71,11 +71,26 @@
                     dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
                 })
         })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("start_streaming task panicked: {e}")))?;
+        .await;
+
+        let result = match join_result {
+            Ok(result) => result,
+            Err(e) => {
+                // The connect task itself panicked. Release the slot we
+                // reserved above, mirroring the handshake-failure path, so
+                // the handle returns to a usable state and a later
+                // `startStreaming` retry sees a clean registration instead
+                // of a stuck "streaming already started".
+                let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+                *cb_guard = None;
+                return Err(napi::Error::from_reason(format!(
+                    "start_streaming task panicked: {e}"
+                )));
+            }
+        };
 
         if let Err(e) = result {
-            // The handshake failed — release the slot we reserved above so
+            // The handshake failed -- release the slot we reserved above so
             // a later `startStreaming` retry sees a clean registration.
             let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             *cb_guard = None;
