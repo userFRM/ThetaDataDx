@@ -324,7 +324,7 @@ fn apply_req_response(
 /// Drive [`apply_req_response`] from the client-module tests, which need to
 /// reconcile a tracked set against a synthetic server response without a live
 /// session. Argument order mirrors the client's `(state, response)` framing.
-#[cfg(any(test, feature = "__test-helpers"))]
+#[cfg(test)]
 pub(in crate::fpss) fn apply_req_response_for_test(
     pending_subs: &PendingSubs,
     active_subs: &ActiveSubs,
