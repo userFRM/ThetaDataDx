@@ -131,6 +131,20 @@ pub enum DecodeError {
         /// The wire `int64` value, captured verbatim.
         raw: String,
     },
+    /// A wire `Timestamp` cell carried an `epoch_ms` outside the
+    /// supported Eastern-Time conversion window
+    /// (`crate::tdbe::time::MIN_SUPPORTED_EPOCH_MS..=crate::tdbe::time::MAX_SUPPORTED_EPOCH_MS`,
+    /// the 1900..=2100 calendar range every market-data surface in this
+    /// workspace exercises). The conversion is total over all `u64`, so
+    /// an out-of-range value is rejected here as corrupt input rather
+    /// than folded into a wrapped or saturated date. Mirrors the
+    /// `price_type` and packed-`YYYYMMDD` rejections at the same cell
+    /// boundary.
+    #[error("timestamp epoch_ms {raw} is outside the supported 1900..=2100 conversion window")]
+    TimestampOutOfRange {
+        /// The wire `epoch_ms` value, captured verbatim.
+        raw: u64,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

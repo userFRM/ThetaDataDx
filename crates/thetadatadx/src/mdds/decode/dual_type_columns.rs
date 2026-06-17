@@ -317,7 +317,8 @@ pub fn parse_calendar_days_v3(
                         n32
                     }
                     Some(proto::data_value::DataType::Timestamp(ts)) => {
-                        crate::tdbe::time::timestamp_to_date(ts.epoch_ms)
+                        crate::tdbe::time::try_timestamp_to_date(ts.epoch_ms)
+                            .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })?
                     }
                     Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => 0,

@@ -80,11 +80,49 @@ pub fn is_valid_yyyymmdd(yyyymmdd: i32) -> bool {
     is_valid_gregorian_date(year, month as u32, day as u32)
 }
 
+/// Inclusive lower bound of the supported `epoch_ms` conversion window:
+/// `1900-01-01 00:00:00 UTC` as Unix epoch milliseconds.
+///
+/// The Eastern-Time conversion functions are documented to operate over
+/// the `1900..=2100` calendar range (see [`is_valid_gregorian_date`]).
+/// `epoch_ms` is `0` at the Unix epoch, so the lower bound is negative on
+/// the i64 timeline; clamped to `0` here because the wire carries an
+/// unsigned `u64`, and any pre-1970 instant is corrupt input on a
+/// market-data surface.
+pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
+
+/// Inclusive upper bound of the supported `epoch_ms` conversion window:
+/// `2100-12-31 23:59:59.999 UTC` as Unix epoch milliseconds.
+///
+/// Day-count arithmetic in the DST-boundary helpers multiplies the civil
+/// day index by `86_400_000`; bounding `epoch_ms` to this window keeps
+/// every intermediate product inside `i64`, so the conversion never wraps
+/// for an in-range value and rejects anything beyond it as corrupt.
+pub const MAX_SUPPORTED_EPOCH_MS: u64 = 4_133_980_799_999;
+
+/// Whether `epoch_ms` lies inside the supported Eastern-Time conversion
+/// window (`MIN_SUPPORTED_EPOCH_MS..=MAX_SUPPORTED_EPOCH_MS`).
+///
+/// The decode boundary uses this to reject a corrupt wire `Timestamp`
+/// (an unbounded `u64` from the proto) before it reaches the date
+/// arithmetic, mirroring how the packed `YYYYMMDD` and `price_type`
+/// cells are range-checked at the same boundary.
+#[must_use]
+pub fn epoch_ms_in_range(epoch_ms: u64) -> bool {
+    epoch_ms <= MAX_SUPPORTED_EPOCH_MS
+}
+
 /// Eastern Time UTC offset in milliseconds for a given `epoch_ms`.
 ///
 /// Returns `-4 * 3_600_000` (EDT) when DST is in effect for the civil
 /// year of `epoch_ms`; otherwise `-5 * 3_600_000` (EST). DST window
 /// selection follows the rules documented at the module level.
+///
+/// Total over all `u64`: an `epoch_ms` beyond [`MAX_SUPPORTED_EPOCH_MS`]
+/// would overflow the day-count multiply, so it short-circuits to the
+/// EST default instead of wrapping. Callers that must distinguish a real
+/// out-of-range timestamp use [`epoch_ms_in_range`] at their boundary;
+/// this function never panics regardless of input.
 // Reason: the Euclidean date algorithm uses intentional signed/unsigned conversions for valid epoch timestamps.
 #[allow(
     clippy::cast_possible_wrap,
@@ -93,6 +131,14 @@ pub fn is_valid_yyyymmdd(yyyymmdd: i32) -> bool {
 )]
 #[must_use]
 pub fn eastern_offset_ms(epoch_ms: u64) -> i64 {
+    // Out-of-range timestamps would overflow the day-count multiply in
+    // the DST-boundary helpers; keep the function total by returning the
+    // EST default rather than wrapping. The decode boundary rejects such
+    // values up front via `epoch_ms_in_range`, so this guard only fires
+    // for inputs that never reach the typed surface.
+    if !epoch_ms_in_range(epoch_ms) {
+        return -5 * 3_600 * 1_000;
+    }
     // First, determine the UTC year/month/day to find DST boundaries.
     let epoch_secs = epoch_ms as i64 / 1_000;
     let days_since_epoch = epoch_secs / 86_400;
@@ -230,6 +276,37 @@ pub fn timestamp_to_date(epoch_ms: u64) -> i32 {
     (y as i32) * 10_000 + (m as i32) * 100 + (d as i32)
 }
 
+/// Convert `epoch_ms` to a YYYYMMDD Eastern-Time date, rejecting an
+/// out-of-range timestamp as `None`.
+///
+/// The decode boundary entry point: a wire `Timestamp` arrives as an
+/// unbounded `u64`, and an `epoch_ms` past [`MAX_SUPPORTED_EPOCH_MS`]
+/// would push the day-count arithmetic outside `i64`. Returning `None`
+/// lets the caller surface a typed decode error for corrupt input rather
+/// than a silently-wrapped date, while an in-range value yields exactly
+/// the same result as [`timestamp_to_date`]. Total over all `u64`.
+#[must_use]
+pub fn try_timestamp_to_date(epoch_ms: u64) -> Option<i32> {
+    if !epoch_ms_in_range(epoch_ms) {
+        return None;
+    }
+    Some(timestamp_to_date(epoch_ms))
+}
+
+/// Convert `epoch_ms` to Eastern-Time milliseconds-of-day, rejecting an
+/// out-of-range timestamp as `None`.
+///
+/// Companion to [`try_timestamp_to_date`] for the time-of-day columns;
+/// an in-range value yields exactly the same result as
+/// [`timestamp_to_ms_of_day`]. Total over all `u64`.
+#[must_use]
+pub fn try_timestamp_to_ms_of_day(epoch_ms: u64) -> Option<i32> {
+    if !epoch_ms_in_range(epoch_ms) {
+        return None;
+    }
+    Some(timestamp_to_ms_of_day(epoch_ms))
+}
+
 /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
 /// Unix epoch milliseconds (UTC, DST-aware).
 ///
@@ -349,6 +426,59 @@ mod tests {
         let epoch_ms: u64 = 1_768_487_400_000; // Jan 15 2026, 14:30 UTC
         let date = timestamp_to_date(epoch_ms);
         assert_eq!(date, 20260115);
+    }
+
+    #[test]
+    fn hostile_epoch_ms_is_rejected_not_wrapped() {
+        // An unbounded wire `u64` must never panic or silently wrap into a
+        // garbage date. The day-count multiply (`days * 86_400_000`)
+        // overflows i64 well before these magnitudes; the fallible entry
+        // points reject them as `None` so the decode boundary can raise a
+        // typed error instead.
+        for hostile in [
+            MAX_SUPPORTED_EPOCH_MS + 1,
+            #[allow(clippy::cast_sign_loss)]
+            {
+                i64::MAX as u64
+            },
+            u64::MAX,
+        ] {
+            assert_eq!(
+                try_timestamp_to_date(hostile),
+                None,
+                "out-of-range epoch_ms {hostile} must be rejected, not wrapped",
+            );
+            assert_eq!(
+                try_timestamp_to_ms_of_day(hostile),
+                None,
+                "out-of-range epoch_ms {hostile} must be rejected, not wrapped",
+            );
+            assert!(!epoch_ms_in_range(hostile));
+            // `eastern_offset_ms` stays total: no panic for any u64, and it
+            // returns a valid offset rather than a wrapped value.
+            let off = eastern_offset_ms(hostile);
+            assert!(off == -5 * 3_600 * 1_000 || off == -4 * 3_600 * 1_000);
+        }
+    }
+
+    #[test]
+    fn in_range_epoch_ms_matches_infallible_conversion() {
+        // The fallible path must not alter the result for any valid
+        // in-range timestamp.
+        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64] {
+            assert!(epoch_ms_in_range(epoch_ms));
+            assert_eq!(
+                try_timestamp_to_date(epoch_ms),
+                Some(timestamp_to_date(epoch_ms))
+            );
+            assert_eq!(
+                try_timestamp_to_ms_of_day(epoch_ms),
+                Some(timestamp_to_ms_of_day(epoch_ms)),
+            );
+        }
+        // The window boundary itself is accepted.
+        assert!(epoch_ms_in_range(MAX_SUPPORTED_EPOCH_MS));
+        assert!(try_timestamp_to_date(MAX_SUPPORTED_EPOCH_MS).is_some());
     }
 
     #[test]

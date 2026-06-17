@@ -138,6 +138,32 @@ fn row_number_accepts_timestamp_for_time_columns() {
 }
 
 #[test]
+fn timestamp_cell_rejects_out_of_range_epoch_ms() {
+    // A hostile unbounded `epoch_ms` (the proto carries a raw `u64`) must
+    // surface as a typed decode error at the cell boundary, never a
+    // wrapped or saturated date. Asserted across both the date and the
+    // time-of-day Timestamp paths.
+    #[allow(clippy::cast_sign_loss)]
+    for hostile in [
+        crate::tdbe::time::MAX_SUPPORTED_EPOCH_MS + 1,
+        i64::MAX as u64,
+        u64::MAX,
+    ] {
+        let row = row_of(vec![dv_timestamp(hostile)]);
+        assert_eq!(
+            row_date(&row, 0),
+            Err(DecodeError::TimestampOutOfRange { raw: hostile }),
+            "row_date must reject out-of-range epoch_ms {hostile}",
+        );
+        assert_eq!(
+            row_number(&row, 0),
+            Err(DecodeError::TimestampOutOfRange { raw: hostile }),
+            "row_number must reject out-of-range epoch_ms {hostile}",
+        );
+    }
+}
+
+#[test]
 fn row_text_errors_on_number_cell() {
     let row = row_of(vec![dv_number(42)]);
     assert_eq!(
