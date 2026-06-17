@@ -228,11 +228,52 @@ impl FlatFilesNamespace {
 
 // ── Client napi extension ─────────────────────────────────────────
 
-use crate::Client;
+use crate::{Client, HistoricalClient};
 
 #[napi]
 impl Client {
     /// FLATFILES namespace handle. Cheap — shares the underlying client connection.
+    #[napi(getter, js_name = "flatFiles")]
+    pub fn flat_files(&self) -> FlatFilesNamespace {
+        FlatFilesNamespace {
+            client: Arc::clone(&self.client),
+        }
+    }
+
+    /// Pull a flat-file blob and write the requested format to `path`.
+    /// Returns the final on-disk path with the format extension
+    /// auto-appended if missing.
+    #[napi(js_name = "flatFileToPath")]
+    pub async fn flat_file_to_path(
+        &self,
+        sec_type: String,
+        req_type: String,
+        date: String,
+        path: String,
+        format: Option<String>,
+    ) -> napi::Result<String> {
+        let sec = parse_flatfile_sec_type(&sec_type)?;
+        let req = parse_flatfile_req_type(&req_type)?;
+        let fmt = parse_flatfile_format(format.as_deref())?;
+        let client = Arc::clone(&self.client);
+        let path_buf = std::path::PathBuf::from(path);
+        let final_path = spawn_endpoint_task(async move {
+            client
+                .flatfile_request(sec, req, &date, &path_buf, fmt)
+                .await
+        })
+        .await?;
+        Ok(final_path.to_string_lossy().into_owned())
+    }
+}
+
+// ── HistoricalClient napi extension ────────────────────────────────
+
+#[napi]
+impl HistoricalClient {
+    /// FLATFILES namespace handle. Cheap — shares the underlying client connection.
+    /// The historical-only client opens the same data channel as the unified
+    /// client, so the full flat-file surface is reachable here unchanged.
     #[napi(getter, js_name = "flatFiles")]
     pub fn flat_files(&self) -> FlatFilesNamespace {
         FlatFilesNamespace {

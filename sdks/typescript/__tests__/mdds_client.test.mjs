@@ -101,9 +101,13 @@ describe('HistoricalClient carries the historical surface', () => {
     // The `connect` / `connectFromFile` static factories are lifecycle
     // constructors that live only on the standalone client; the
     // `HistoricalView` is reached through `client.historical` and has no
-    // constructor of its own. Exclude them so the comparison pins the
-    // generated data-fetch surface.
-    const LIFECYCLE = new Set(['connect', 'connectFromFile']);
+    // constructor of its own. The flat-files surface is a hand-written
+    // client-level member that lives on the unified `Client` itself, not on
+    // its `client.historical` view, so it is mirrored onto `HistoricalClient`
+    // directly and pinned against the unified `Client` in its own block
+    // above. Exclude both so this comparison pins the generated data-fetch
+    // surface.
+    const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath']);
     // Every data-fetch method the MDDS-only client exposes must also exist
     // on the unified client's `client.historical` view — the historical
     // surface is generated identically onto both, so the MDDS set is a
@@ -115,6 +119,61 @@ describe('HistoricalClient carries the historical surface', () => {
         `HistoricalClient method ${name} is missing from HistoricalView — the two historical surfaces have drifted`
       );
     }
+  });
+});
+
+describe('HistoricalClient exposes the flat-files surface its contract promises', () => {
+  // The class docstring states the historical / list / snapshot / at-time /
+  // flat-files surface is identical to the unified client. The flat-file
+  // entry points must therefore be reachable here, matching the unified
+  // `Client` and the Python `HistoricalClient`, which delegates to its
+  // wrapped client. A historical-only handle opens the same data channel,
+  // so the namespace and the to-path writer are client-agnostic.
+  const FLATFILE_GETTER = 'flatFiles';
+  const FLATFILE_METHOD = 'flatFileToPath';
+
+  it('declares the flatFiles getter in index.d.ts', () => {
+    assert.match(
+      mddsBlock[0],
+      /get flatFiles\(\): FlatFilesNamespace/,
+      'HistoricalClient must declare the flatFiles getter in index.d.ts'
+    );
+  });
+
+  it('declares the flatFileToPath method in index.d.ts', () => {
+    const methods = methodNames(mddsBlock[0]);
+    assert.ok(
+      methods.has(FLATFILE_METHOD),
+      'HistoricalClient must declare flatFileToPath in index.d.ts'
+    );
+  });
+
+  it('exposes both flat-file members on the loaded addon prototype', () => {
+    const proto = mod.HistoricalClient.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, FLATFILE_GETTER);
+    assert.equal(
+      typeof descriptor?.get,
+      'function',
+      'HistoricalClient.flatFiles must be an accessor on the prototype'
+    );
+    assert.equal(
+      typeof proto[FLATFILE_METHOD],
+      'function',
+      'HistoricalClient.flatFileToPath must be a method on the prototype'
+    );
+  });
+
+  it('matches the unified Client flat-file surface (control)', () => {
+    const clientBlock = dts.match(/export declare class Client \{[\s\S]*?\n\}/);
+    assert.match(
+      clientBlock[0],
+      /get flatFiles\(\): FlatFilesNamespace/,
+      'the unified Client must retain the flatFiles getter'
+    );
+    assert.ok(
+      methodNames(clientBlock[0]).has(FLATFILE_METHOD),
+      'the unified Client must retain flatFileToPath'
+    );
   });
 });
 

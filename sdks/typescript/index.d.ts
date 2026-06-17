@@ -1565,6 +1565,18 @@ export declare class HistoricalClient {
   stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, options?: StockHistoryOhlcRangeOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLCRange` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   stockHistoryOHLCRangeStream(symbol: string, startDate: string | Date, endDate: string | Date, options: StockHistoryOhlcRangeOptions | undefined | null, callback: ((arg: Array<OhlcTick>) => void)): Promise<void>
+  /**
+   * FLATFILES namespace handle. Cheap — shares the underlying client connection.
+   * The historical-only client opens the same data channel as the unified
+   * client, so the full flat-file surface is reachable here unchanged.
+   */
+  get flatFiles(): FlatFilesNamespace
+  /**
+   * Pull a flat-file blob and write the requested format to `path`.
+   * Returns the final on-disk path with the format extension
+   * auto-appended if missing.
+   */
+  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): Promise<string>
 }
 
 /**
