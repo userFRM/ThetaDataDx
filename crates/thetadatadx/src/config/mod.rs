@@ -367,6 +367,27 @@ impl DirectConfig {
                 "replay_burst_size must be at least 1".to_string(),
             ));
         }
+        // Generic-transient ladder: both the base delay and its exponential
+        // ceiling must be positive and in band. A `0` base (or a `0` cap that
+        // drags the base down through the ordering check below) would yield a
+        // 0 ms reconnect busy-loop on every generic transient, so both ends are
+        // band-checked the same way the sibling cadences are.
+        if !reconnect_bounds::WAIT_MS.contains(&self.reconnect.wait_ms) {
+            return Err(Error::config_out_of_range(
+                "reconnect.wait_ms",
+                to_i64(self.reconnect.wait_ms),
+                to_i64(*reconnect_bounds::WAIT_MS.start()),
+                to_i64(*reconnect_bounds::WAIT_MS.end()),
+            ));
+        }
+        if !reconnect_bounds::WAIT_MS.contains(&self.reconnect.wait_max_ms) {
+            return Err(Error::config_out_of_range(
+                "reconnect.wait_max_ms",
+                to_i64(self.reconnect.wait_max_ms),
+                to_i64(*reconnect_bounds::WAIT_MS.start()),
+                to_i64(*reconnect_bounds::WAIT_MS.end()),
+            ));
+        }
         if self.reconnect.wait_max_ms < self.reconnect.wait_ms {
             return Err(Error::config_invalid(
                 "reconnect.wait_max_ms",
@@ -1730,6 +1751,50 @@ mod tests {
         config.streaming.ring_size = 100; // not a power of two
         let err = config.validate().expect_err("must reject non-power-of-two");
         assert!(err.to_string().contains("ring_size"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_reconnect_wait_ms() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.wait_ms = 0;
+        let err = config
+            .validate()
+            .expect_err("must reject zero base reconnect cadence");
+        assert!(err.to_string().contains("wait_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_reconnect_wait_max_ms() {
+        let mut config = DirectConfig::production_defaults();
+        // Drive both ends to 0 so the ordering check cannot mask the floor:
+        // the band-check must reject the degenerate ceiling on its own.
+        config.reconnect.wait_ms = 0;
+        config.reconnect.wait_max_ms = 0;
+        let err = config
+            .validate()
+            .expect_err("must reject zero reconnect ceiling");
+        assert!(err.to_string().contains("wait_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_above_band_reconnect_wait_ms() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.wait_ms = 600_001;
+        config.reconnect.wait_max_ms = 600_001;
+        let err = config
+            .validate()
+            .expect_err("must reject above-band reconnect cadence");
+        assert!(err.to_string().contains("wait_ms"));
+    }
+
+    #[test]
+    fn validate_accepts_in_band_reconnect_wait_ms() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.wait_ms = 500;
+        config.reconnect.wait_max_ms = 60_000;
+        config
+            .validate()
+            .expect("a legitimate base/ceiling pair must validate");
     }
 
     #[test]
