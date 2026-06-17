@@ -58,10 +58,14 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // marshals each call onto the Node main thread. We register
             // a Rust closure with the dispatcher; the closure clones the
             // handle (a cheap reference bump) and invokes it with the
-            // typed event.
+            // typed event. The method is `async`: the FPSS connect and
+            // authentication handshake run on a blocking worker via
+            // `spawn_blocking` so the Node event loop is never frozen for
+            // the handshake. napi-rs maps the `napi::Result<()>` on an
+            // `async fn` to a `Promise<void>`.
             writeln!(
                 out,
-                "    pub fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {{",
+                "    pub async fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {{",
                 method.name
             )
             .unwrap();
@@ -207,9 +211,15 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  past a teardown the caller has already observed.",
             );
             writeln!(out, "    #[napi(js_name = \"reconnect\")]").unwrap();
+            // `async`: the reconnect re-runs the FPSS connect and
+            // authentication handshake plus the paced subscription
+            // restore, all of which are network-bound. Running them on a
+            // blocking worker via `spawn_blocking` keeps the Node event
+            // loop free; napi-rs maps the `napi::Result<()>` to a
+            // `Promise<void>`.
             writeln!(
                 out,
-                "    pub fn {}(&self) -> napi::Result<()> {{",
+                "    pub async fn {}(&self) -> napi::Result<()> {{",
                 method.name
             )
             .unwrap();

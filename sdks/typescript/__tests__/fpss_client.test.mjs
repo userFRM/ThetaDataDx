@@ -95,11 +95,24 @@ describe('StreamingClient carries the full streaming surface', () => {
     }
   });
 
-  it('awaitDrain is async (Promise<boolean>), the rest are sync', () => {
+  it('the network-bound lifecycle methods are async so they never block the event loop', () => {
     assert.match(
       fpssBlock[0],
       /awaitDrain\(timeoutMs: number\): Promise<boolean>/,
       'awaitDrain must resolve Promise<boolean> so it does not block the event loop'
+    );
+    // The FPSS connect plus authentication handshake runs inside
+    // startStreaming and reconnect, so both resolve a Promise rather than
+    // freezing the libuv thread for the handshake.
+    assert.match(
+      fpssBlock[0],
+      /startStreaming\(callback:[\s\S]*?\): Promise<void>/,
+      'startStreaming must resolve Promise<void> so the connect handshake does not block the event loop'
+    );
+    assert.match(
+      fpssBlock[0],
+      /reconnect\(\): Promise<void>/,
+      'reconnect must resolve Promise<void> so the connect handshake does not block the event loop'
     );
   });
 });

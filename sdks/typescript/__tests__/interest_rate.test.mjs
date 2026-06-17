@@ -1,13 +1,14 @@
-// Regression coverage for the v11 `InterestRateTick` schema fix.
+// Regression coverage for the `InterestRateTick` schema.
 //
-// The upstream v3 server emits 2 columns (`created` as ISO date Text,
-// `rate` as percent Number). The pre-v11 SDK schema declared 3 fields
+// The upstream server emits 2 columns (`created` as ISO date Text,
+// `rate` as percent Number). An earlier SDK schema declared 3 fields
 // (`ms_of_day`, `rate`, `date`) and decoded every live response into
 // `column 0: expected Number|Timestamp, got Text`. The fix removed the
 // fictitious `ms_of_day` field and rewired `date` to flow through
 // `parse_iso_date`. This test pins the napi-rs `InterestRateTick`
-// interface so a future schema regression cannot ship a JS bundle whose
-// type still carries the removed field.
+// interface to its 2-field shape (`date` + `rate`, no `ms_of_day`) so a
+// future schema regression cannot ship a JS bundle whose type still
+// carries the removed field.
 //
 // Live decode coverage lives in
 // `crates/thetadatadx/tests/test_interest_rate_schema.rs`.
@@ -42,7 +43,7 @@ describe('InterestRateTick (index.d.ts)', () => {
     assert.doesNotMatch(
       body,
       /\bmsOfDay\b/,
-      'msOfDay was removed in v11; index.d.ts still advertises it',
+      'msOfDay is not part of the InterestRateTick shape; index.d.ts still advertises it',
     );
   });
 
@@ -60,7 +61,7 @@ describe('InterestRateTick (index.d.ts)', () => {
 });
 
 describe('InterestRateTick (runtime shape)', () => {
-  it('hand-built tick objects round-trip the v11 wire reference row', () => {
+  it('hand-built tick objects round-trip the wire reference row', () => {
     // napi exposes `InterestRateTick` as a structural type
     // (`#[napi(object)]`) rather than a constructable class — runtime
     // values are plain `{ date, rate }` objects produced by the

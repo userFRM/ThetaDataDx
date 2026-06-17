@@ -291,7 +291,11 @@ if (
   typeof native.Client.prototype.streaming !== 'function'
 ) {
   native.Client.prototype.streaming = async function streaming(callback) {
-    this.stream.startStreaming(callback);
+    // Await the handshake: startStreaming is async, so a connect/auth
+    // failure must reject this Promise (and reach the caller's typed
+    // catch) rather than escape as an unhandled rejection, and the
+    // session must not be handed back before the stream is live.
+    await this.stream.startStreaming(callback);
     return new StreamingSession(this);
   };
 }

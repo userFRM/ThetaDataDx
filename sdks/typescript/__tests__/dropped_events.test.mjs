@@ -40,7 +40,7 @@ describe('client.stream.droppedEventCount()', () => {
       return;
     }
 
-    const client = mod.Client.connectFromFile(credsPath);
+    const client = await mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so the count is
     // 0. Must already be readable (the getter forwards to the unified
@@ -55,14 +55,14 @@ describe('client.stream.droppedEventCount()', () => {
     // `ThreadsafeFunction` queue; we don't assert anything about it
     // here because the live FPSS feed timing is non-deterministic.
     let received = 0n;
-    client.stream.startStreaming(() => {
+    await client.stream.startStreaming(() => {
       received += 1n;
     });
     const postStart = client.stream.droppedEventCount();
     assert.equal(typeof postStart, 'bigint');
     assert.ok(postStart >= 0n);
 
-    client.stream.reconnect();
+    await client.stream.reconnect();
     const postReconnect = client.stream.droppedEventCount();
     assert.equal(typeof postReconnect, 'bigint');
     // The counter lives on the live FPSS client; reconnect calls
@@ -85,31 +85,31 @@ describe('client.stream.droppedEventCount()', () => {
     assert.equal(typeof received, 'bigint');
   });
 
-  it('rejects double startStreaming with a clear error', () => {
+  it('rejects double startStreaming with a clear error', async () => {
     const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
       console.log('SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const client = mod.Client.connectFromFile(credsPath);
-    client.stream.startStreaming(() => {});
-    assert.throws(
-      () => client.stream.startStreaming(() => {}),
+    const client = await mod.Client.connectFromFile(credsPath);
+    await client.stream.startStreaming(() => {});
+    await assert.rejects(
+      client.stream.startStreaming(() => {}),
       /streaming already started/,
       'second startStreaming must reject with the napi error'
     );
     client.stream.stopStreaming();
   });
 
-  it('reconnect without prior startStreaming throws', () => {
+  it('reconnect without prior startStreaming throws', async () => {
     const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
       console.log('SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt');
       return;
     }
-    const client = mod.Client.connectFromFile(credsPath);
-    assert.throws(
-      () => client.stream.reconnect(),
+    const client = await mod.Client.connectFromFile(credsPath);
+    await assert.rejects(
+      client.stream.reconnect(),
       /no callback registered/,
       'reconnect without startStreaming must require a callback'
     );

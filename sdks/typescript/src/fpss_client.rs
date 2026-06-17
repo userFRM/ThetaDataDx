@@ -73,6 +73,7 @@ use crate::{
 ///
 /// [`StreamingConfig`]: thetadatadx::config::StreamingConfig
 /// [`ReconnectConfig`]: thetadatadx::config::ReconnectConfig
+#[derive(Clone)]
 struct FpssParams {
     creds: RustCredentials,
     streaming: thetadatadx::config::StreamingConfig,
@@ -149,7 +150,7 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
 /// ```ts
 /// import { StreamingClient, Contract } from "thetadatadx";
 /// const fpss = StreamingClient.connectFromFile("creds.txt");
-/// fpss.startStreaming((event) => console.log(event.kind, event));
+/// await fpss.startStreaming((event) => console.log(event.kind, event));
 /// fpss.subscribe(Contract.stock("AAPL").quote());
 /// // ... events arrive on the Node main thread ...
 /// fpss.stopStreaming();
@@ -233,32 +234,56 @@ impl StreamingClient {
     /// Open the FPSS TLS connection under `callback` and spawn the
     /// dispatcher thread. Shared by `startStreaming` and `reconnect`.
     ///
+    /// The TLS connect and the protocol `CREDENTIALS` handshake are
+    /// network-bound and run synchronously inside `builder().build()`. That
+    /// work is moved onto a blocking worker via `spawn_blocking` so the
+    /// single libuv thread is never frozen for the handshake. The callback
+    /// slot is reserved before the handshake (and released on failure) so
+    /// the double-registration check stays correct across the `.await`,
+    /// where two `startStreaming` calls could otherwise both pass it while
+    /// the first is still connecting.
+    ///
     /// Lock ordering: `callback` BEFORE `inner`, matching `stopStreaming`.
-    fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<()> {
-        let mut cb_guard = self.lock_callback();
-        if self.lock_inner().is_some() {
-            return Err(napi::Error::from_reason(
-                "streaming already started -- call stopStreaming() before startStreaming() again",
-            ));
+    async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<()> {
+        {
+            let mut cb_guard = self.lock_callback();
+            if cb_guard.is_some() || self.lock_inner().is_some() {
+                return Err(napi::Error::from_reason(
+                    "streaming already started -- call stopStreaming() before startStreaming() again",
+                ));
+            }
+            // Reserve the slot so a concurrent call is rejected while the
+            // handshake below is in flight.
+            *cb_guard = Some(Arc::clone(&callback));
         }
 
         let dispatch_cb = Arc::clone(&callback);
 
-        let client = self
-            .params
-            .builder()
-            .build()
-            .map_err(|e| to_napi_err(thetadatadx::Error::from(e)))?;
+        let params = self.params.clone();
+        let build_result = runtime()
+            .spawn_blocking(move || params.builder().build())
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("start_streaming task panicked: {e}")))?;
+        let client = match build_result {
+            Ok(client) => client,
+            Err(e) => {
+                // Release the slot reserved above so a later retry sees a
+                // clean registration.
+                *self.lock_callback() = None;
+                return Err(to_napi_err(thetadatadx::Error::from(e)));
+            }
+        };
         let client_arc = Arc::new(client);
 
-        // Publish the client and the stored callback BEFORE spawning the
-        // dispatcher so the first delivered event sees a fully initialised
-        // handle. A re-entrant call from inside the user callback to
-        // `subscribe()` / `isStreaming()` would otherwise race the late
-        // publish and observe `inner = None`.
+        // Publish the client BEFORE spawning the dispatcher so the first
+        // delivered event sees a fully initialised handle. The callback
+        // slot was already reserved above, so a re-entrant call from inside
+        // the user callback to `subscribe()` / `isStreaming()` observes a
+        // populated registration. `drop(callback)` releases this scope's
+        // last owning handle; the reserved slot and `dispatch_cb` keep the
+        // ref-count alive.
         *self.lock_inner() = Some(Arc::clone(&client_arc));
-        *cb_guard = Some(callback);
-        drop(cb_guard);
+        drop(callback);
 
         let dispatcher_client = Arc::clone(&client_arc);
         let dispatcher = std::thread::Builder::new()
@@ -385,7 +410,7 @@ impl StreamingClient {
     /// slow callback, so the upstream connection stays healthy regardless
     /// of callback speed.
     #[napi(js_name = "startStreaming")]
-    pub fn start_streaming(
+    pub async fn start_streaming(
         &self,
         // The callback parameter is spelled with the inline
         // `ThreadsafeFunction<StreamEvent, …>` rather than the
@@ -401,7 +426,7 @@ impl StreamingClient {
             false,
         >,
     ) -> napi::Result<()> {
-        self.start_with_callback(Arc::new(callback))
+        self.start_with_callback(Arc::new(callback)).await
     }
 
     /// Whether the FPSS TLS connection is currently open. Returns `false`
@@ -692,7 +717,7 @@ impl StreamingClient {
     /// a single error naming every contract that did not re-subscribe — the
     /// streaming session itself is already up at that point.
     #[napi]
-    pub fn reconnect(&self) -> napi::Result<()> {
+    pub async fn reconnect(&self) -> napi::Result<()> {
         let stored = {
             let guard = self.lock_callback();
             match guard.as_ref() {
@@ -709,12 +734,15 @@ impl StreamingClient {
         let (per_contract, full_stream) =
             self.with_live(|c| Ok((c.active_subscriptions(), c.active_full_subscriptions())))?;
 
-        // Stop + restart under the same callback.
+        // Stop + restart under the same callback. The restart re-runs the
+        // FPSS connect and authentication handshake off the libuv thread.
         self.stop_streaming();
-        self.start_with_callback(stored)?;
+        self.start_with_callback(stored).await?;
 
         // Re-apply every saved subscription against the freshly reconnected
-        // session through the core's paced replay engine.
+        // session through the core's paced replay engine. The replay is
+        // network-bound and paced, so it runs on a blocking worker to keep
+        // the Node event loop free for the whole restore.
         let inner = {
             let guard = self.lock_inner();
             guard.as_ref().map(Arc::clone)
@@ -724,8 +752,10 @@ impl StreamingClient {
                 "streaming not started -- call startStreaming(callback) first",
             ));
         };
-        inner
-            .restore_subscriptions(&per_contract, &full_stream)
+        runtime()
+            .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
             .map_err(|e| napi::Error::from_reason(format!("reconnect succeeded but {e}")))
     }
 

@@ -56,7 +56,7 @@ client.stream.start_streaming(on_event)
 <template #typescript>
 
 ```typescript
-client.stream.startStreaming((event) => {
+await client.stream.startStreaming((event) => {
   switch (event.kind) {
     case 'quote': {
       const q = event.quote!;

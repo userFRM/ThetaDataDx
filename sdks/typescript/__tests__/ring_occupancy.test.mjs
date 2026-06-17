@@ -57,7 +57,7 @@ describe('client.stream.ringOccupancy() / client.stream.ringCapacity()', () => {
       return;
     }
 
-    const client = mod.Client.connectFromFile(credsPath);
+    const client = await mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so both read 0n.
     const preOccupancy = client.stream.ringOccupancy();
@@ -71,7 +71,7 @@ describe('client.stream.ringOccupancy() / client.stream.ringCapacity()', () => {
     // power of two) and occupancy is bounded by it. No exact
     // occupancy value is asserted — it is a racy point-in-time
     // sample of a fast consumer.
-    client.stream.startStreaming(() => {});
+    await client.stream.startStreaming(() => {});
     const capacity = client.stream.ringCapacity();
     assert.ok(capacity > 0n, 'a live ring must report its configured capacity');
     assert.equal(capacity & (capacity - 1n), 0n, 'ring capacity is a power of two');

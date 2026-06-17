@@ -30,17 +30,29 @@ export declare class Client {
    * ```ts
    * import { Credentials, Client } from "thetadatadx";
    * const creds = Credentials.fromFile("creds.txt");
-   * const client = Client.connect(creds);
+   * const client = await Client.connect(creds);
    * ```
+   *
+   * The gRPC channel open plus the authentication handshake are
+   * network-bound, so this is `async`: the work runs on the runtime
+   * off the libuv thread and napi-rs returns a `Promise<Client>`,
+   * leaving the Node event loop free to service timers, IO, and queued
+   * promises for the whole handshake. A plain `async` associated
+   * function is used rather than a `#[napi(factory)]` because a factory
+   * must return its instance synchronously.
    */
-  static connect(creds: Credentials, config?: Config | undefined | null): Client
+  static connect(creds: Credentials, config?: Config | undefined | null): Promise<Client>
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
    * password). Convenience wrapper over `Credentials.fromFile` +
    * `connect`. Pass an optional `Config` to override the
    * production-default endpoint.
+   *
+   * `async` for the same reason as [`Client::connect`]: the gRPC channel
+   * open plus authentication handshake run off the libuv thread and the
+   * method returns a `Promise<Client>`.
    */
-  static connectFromFile(path: string, config?: Config | undefined | null): Client
+  static connectFromFile(path: string, config?: Config | undefined | null): Promise<Client>
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
   get flatFiles(): FlatFilesNamespace
   /**
@@ -641,7 +653,7 @@ export declare class ContractRef {
  * ```ts
  * import { Credentials, Client } from "thetadatadx";
  * const creds = Credentials.fromFile("creds.txt");
- * const client = Client.connect(creds);
+ * const client = await Client.connect(creds);
  * ```
  */
 export declare class Credentials {
@@ -722,7 +734,7 @@ export declare class FlatFilesNamespace {
  *
  * ```ts
  * import { HistoricalClient } from "thetadatadx";
- * const historical = HistoricalClient.connectFromFile("creds.txt");
+ * const historical = await HistoricalClient.connectFromFile("creds.txt");
  * const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
  * ```
  */
@@ -736,15 +748,22 @@ export declare class HistoricalClient {
    *
    * The config is snapshot at connect time: the `Config` handle may be
    * reused or mutated afterward without affecting this client.
+   *
+   * `async` for the same reason as [`Client::connect`]: the channel open
+   * plus authentication handshake run off the libuv thread and the
+   * method returns a `Promise<HistoricalClient>`, so the Node event loop
+   * is never frozen for the handshake.
    */
-  static connect(creds: Credentials, config?: Config | undefined | null): HistoricalClient
+  static connect(creds: Credentials, config?: Config | undefined | null): Promise<HistoricalClient>
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
    * password). Convenience wrapper over `Credentials.fromFile` +
    * `connect`. Historical only. Pass an optional
    * `Config` to override the production-default endpoint.
+   *
+   * `async` for the same reason as [`HistoricalClient::connect`].
    */
-  static connectFromFile(path: string, config?: Config | undefined | null): HistoricalClient
+  static connectFromFile(path: string, config?: Config | undefined | null): Promise<HistoricalClient>
   /**
    * List all available stock ticker symbols.
    *
@@ -2406,7 +2425,7 @@ export declare class SecType {
  * ```ts
  * import { StreamingClient, Contract } from "thetadatadx";
  * const fpss = StreamingClient.connectFromFile("creds.txt");
- * fpss.startStreaming((event) => console.log(event.kind, event));
+ * await fpss.startStreaming((event) => console.log(event.kind, event));
  * fpss.subscribe(Contract.stock("AAPL").quote());
  * // ... events arrive on the Node main thread ...
  * fpss.stopStreaming();
@@ -2446,7 +2465,7 @@ export declare class StreamingClient {
    * slow callback, so the upstream connection stays healthy regardless
    * of callback speed.
    */
-  startStreaming(callback: ((arg: StreamEvent) => void)): void
+  startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /**
    * Whether the FPSS TLS connection is currently open. Returns `false`
    * when the dispatcher thread has panicked — no events are arriving
@@ -2587,7 +2606,7 @@ export declare class StreamingClient {
    * a single error naming every contract that did not re-subscribe — the
    * streaming session itself is already up at that point.
    */
-  reconnect(): void
+  reconnect(): Promise<void>
   /**
    * Block until every superseded streaming session's event-ring consumer
    * has finished firing the registered callback. Resolves `true` once
@@ -2745,7 +2764,7 @@ export declare class StreamView {
    * blocked by a slow callback, so the upstream connection
    * stays healthy regardless of callback speed.
    */
-  startStreaming(callback: ((arg: StreamEvent) => void)): void
+  startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /** Whether the streaming connection is active. */
   isStreaming(): boolean
   /** Get a snapshot of currently active subscriptions. */
@@ -2777,7 +2796,7 @@ export declare class StreamView {
    * the explicit handoff and avoid retaining captured references
    * past a teardown the caller has already observed.
    */
-  reconnect(): void
+  reconnect(): Promise<void>
   /**
    * Stop streaming while keeping the historical client usable.
    *
