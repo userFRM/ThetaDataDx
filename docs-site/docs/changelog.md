@@ -3744,7 +3744,40 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.11...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...HEAD
+[13.0.0-rc.1]: https://github.com/userFRM/ThetaDataDx/compare/v12.0.0...v13.0.0-rc.1
+[12.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v11.0.1...v12.0.0
+[11.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v11.0.0...v11.0.1
+[11.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v10.0.0...v11.0.0
+[10.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v9.1.0...v10.0.0
+[9.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v9.0.1...v9.1.0
+[9.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v9.0.0...v9.0.1
+[9.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.37...v9.0.0
+[8.0.37]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.36...v8.0.37
+[8.0.36]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.35...v8.0.36
+[8.0.35]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.33...v8.0.35
+[8.0.33]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.32...v8.0.33
+[8.0.32]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.31...v8.0.32
+[8.0.31]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.30...v8.0.31
+[8.0.30]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.29...v8.0.30
+[8.0.29]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.28...v8.0.29
+[8.0.28]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.27...v8.0.28
+[8.0.27]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.26...v8.0.27
+[8.0.26]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.25...v8.0.26
+[8.0.25]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.24...v8.0.25
+[8.0.24]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.23...v8.0.24
+[8.0.23]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.22...v8.0.23
+[8.0.22]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.21...v8.0.22
+[8.0.21]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.20...v8.0.21
+[8.0.20]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.19...v8.0.20
+[8.0.19]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.18...v8.0.19
+[8.0.18]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.17...v8.0.18
+[8.0.17]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.16...v8.0.17
+[8.0.16]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.15...v8.0.16
+[8.0.15]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.14...v8.0.15
+[8.0.14]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.13...v8.0.14
+[8.0.13]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.12...v8.0.13
+[8.0.12]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.11...v8.0.12
 [8.0.11]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.10...v8.0.11
 [8.0.10]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.9...v8.0.10
 [8.0.9]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.8...v8.0.9
