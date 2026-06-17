@@ -1695,8 +1695,8 @@ impl StreamingClient {
     }
 
     /// Shared quiescence flag for this client. Flipped to `true` after
-    /// the I/O thread and the event-dispatch consumer have both joined, so
-    /// the user callback is guaranteed to have stopped firing.
+    /// the network reader and the event-delivery thread have both stopped,
+    /// so the user callback is guaranteed to have stopped firing.
     ///
     /// Returned as an `Arc<AtomicBool>` so a higher-level holder
     /// (e.g. [`crate::StreamSurface::stop_streaming`]) can capture a
@@ -2612,7 +2612,7 @@ impl StreamingClient {
     /// `consumer_thread_id` plumbing, not a mock of either.
     ///
     /// Topology:
-    /// - The user `handler` runs on the event-dispatch consumer thread,
+    /// - The user `handler` runs on the event-delivery thread,
     ///   under `catch_unwind`, exactly like `io_loop`.
     /// - The fake "I/O thread" runs a [`mode`]-dependent burst loop
     ///   (`publish` blocking or `try_publish` non-blocking, mirroring
