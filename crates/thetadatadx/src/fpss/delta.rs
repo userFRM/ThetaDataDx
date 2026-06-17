@@ -54,6 +54,16 @@ pub struct DeltaState {
     /// Actual data field count from the first absolute tick for each
     /// `(msg_type, contract_id)`. The dev server sends 8-field trades (simple
     /// format) while production sends 16-field trades (extended format).
+    ///
+    /// The width is fixed at the first absolute row and not revised by later
+    /// rows. This is correct because the trade-format width is a server-wide
+    /// constant for the session, not a per-row property: every row a given
+    /// peer emits carries the same field count. Subsequent rows for the same
+    /// `(msg_type, contract_id)` are FIT delta rows whose changed-field count
+    /// is smaller than the full width, so they cannot be used to re-derive it.
+    /// The decode buffer is always the full [`MAX_DATA_FIELDS`] width with
+    /// unused slots zero-filled, so a stale width can only under-report which
+    /// trailing fields a caller reads, never read out of bounds.
     field_counts: HashMap<(u8, i32), usize>,
     /// Timestamp of last STOP (market close) signal. Used to suppress
     /// "unknown `contract_id`" warnings for 5 seconds after STOP;
@@ -64,6 +74,18 @@ pub struct DeltaState {
 /// Duration after a STOP signal during which "unknown `contract_id`" warnings
 /// are suppressed (stale ticks are expected during market-close teardown).
 const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
+
+/// Upper bound on the number of distinct `(msg_type, contract_id)` rows the
+/// delta-decode maps retain within a single session (between START/STOP
+/// boundaries). A conformant session resets these maps at every session
+/// boundary, so they hold only the live universe — at most a few hundred
+/// `(msg_type, contract_id)` rows for the widest subscription. This cap sits
+/// well above any legitimate session yet keeps a non-conformant peer that
+/// streams ever-incrementing contract ids without a STOP from growing the
+/// maps without limit: on overflow the maps are cleared once and re-seeded
+/// from the current tick, trading a one-time delta-baseline reset (the next
+/// row for each contract decodes as absolute) for a hard memory ceiling.
+const MAX_SESSION_CONTRACT_ROWS: usize = 8192;
 
 impl DeltaState {
     #[doc(hidden)]
@@ -181,7 +203,25 @@ impl DeltaState {
                 tick_n,
             );
         } else {
-            // First absolute tick: record the actual field count.
+            // First absolute tick for this `(msg_type, contract_id)`.
+            //
+            // Bound the per-session state: a conformant peer resets these
+            // maps at every START/STOP boundary, so an unbounded distinct-id
+            // count means the peer never signalled a session boundary. Clear
+            // once and re-seed from this tick so the maps cannot grow without
+            // limit. The current row decodes as absolute (no `prev`), which is
+            // exactly the post-reset baseline, so no value is corrupted.
+            if self.prev.len() >= MAX_SESSION_CONTRACT_ROWS {
+                tracing::warn!(
+                    rows = self.prev.len(),
+                    cap = MAX_SESSION_CONTRACT_ROWS,
+                    "delta-decode state exceeded per-session contract cap; resetting baselines (peer streamed an unbounded distinct-contract universe without a session boundary)"
+                );
+                self.prev.clear();
+                self.ohlcvc.clear();
+                self.field_counts.clear();
+            }
+            // Record the actual field count for the (possibly re-seeded) key.
             self.field_counts.insert(key, tick_n);
         }
 
@@ -193,5 +233,16 @@ impl DeltaState {
 
         let data_fields = *self.field_counts.get(&key).unwrap_or(&expected_fields);
         Some((contract_id, data_fields))
+    }
+
+    /// Per-session distinct-contract cap, exposed for boundedness tests.
+    #[cfg(test)]
+    pub(super) const SESSION_CONTRACT_CAP: usize = MAX_SESSION_CONTRACT_ROWS;
+
+    /// Distinct-row counts of the three per-session maps, exposed for
+    /// boundedness tests.
+    #[cfg(test)]
+    pub(super) fn state_sizes(&self) -> (usize, usize, usize) {
+        (self.prev.len(), self.ohlcvc.len(), self.field_counts.len())
     }
 }

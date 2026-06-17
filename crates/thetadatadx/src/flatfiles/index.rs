@@ -187,9 +187,20 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     let mut e = Cursor::new(&entry_buf[..]);
 
     let (root, exp, strike, right) = match sec {
-        SecType::Option | SecType::Index => {
-            // Index payload (when supported by the vendor) follows the
-            // option layout: root_len, root, exp, right, strike, date.
+        SecType::Index => {
+            // The flat-file service publishes no INDEX dataset, so the
+            // request layer ([`crate::flatfiles::types::flat_file_serves`])
+            // rejects every Index pair before any blob is fetched and this
+            // walker is never reached with an INDEX section. No
+            // vendor-confirmed INDEX entry layout exists, so rather than
+            // borrow the option layout and risk misparsing a future format,
+            // fail loudly with a typed unsupported error.
+            return Err(Error::decode_codec(
+                "flatfiles INDEX: index flat-file entries are not supported",
+            ));
+        }
+        SecType::Option => {
+            // Option layout: root_len, root, exp, right, strike, date.
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
@@ -416,6 +427,32 @@ mod tests {
         assert_eq!(entry.right, None);
         assert_eq!(entry.block_start, 0);
         assert_eq!(entry.block_end, 100);
+    }
+
+    #[test]
+    fn index_sec_type_is_rejected_as_unsupported() {
+        // The flat-file service publishes no INDEX dataset; the walker must
+        // reject an INDEX section with a typed error rather than borrow the
+        // option layout and risk misparsing a future vendor format.
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(b"SPX");
+        e.extend_from_slice(&20_260_117i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Index);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("index flat-file entries are not supported"),
+            "expected unsupported-index error, got: {msg}"
+        );
     }
 
     #[test]
