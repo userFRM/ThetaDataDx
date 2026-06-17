@@ -131,3 +131,71 @@ def test_contract_str_renders_strike_in_dollars(thetadatadx_mod) -> None:
 
     stock = thetadatadx_mod.Contract.stock("AAPL")
     assert str(stock) == "AAPL STOCK"
+
+
+def _spy_option(mod):
+    return mod.Contract.option(
+        "SPY",
+        expiration="20260620",
+        strike="550",
+        right="C",
+    )
+
+
+def test_equal_contracts_hash_equal(thetadatadx_mod) -> None:
+    """Two contracts that compare equal must hash equal, so `Contract`
+    obeys the hash/eq invariant Python requires of any dict key or set
+    member."""
+    a = _spy_option(thetadatadx_mod)
+    b = _spy_option(thetadatadx_mod)
+    assert a == b
+    assert hash(a) == hash(b)
+
+    s1 = thetadatadx_mod.Contract.stock("AAPL")
+    s2 = thetadatadx_mod.Contract.stock("AAPL")
+    assert s1 == s2
+    assert hash(s1) == hash(s2)
+
+
+def test_unequal_contracts_compare_unequal(thetadatadx_mod) -> None:
+    """Distinct contracts compare unequal; equality must distinguish a
+    different symbol and a different right."""
+    stock = thetadatadx_mod.Contract.stock("AAPL")
+    other = thetadatadx_mod.Contract.stock("MSFT")
+    assert stock != other
+
+    call = _spy_option(thetadatadx_mod)
+    put = thetadatadx_mod.Contract.option(
+        "SPY",
+        expiration="20260620",
+        strike="550",
+        right="P",
+    )
+    assert call != put
+
+
+def test_contract_works_as_dict_key(thetadatadx_mod) -> None:
+    """A `Contract` is a usable dict key: a freshly built equal contract
+    looks up the same entry and overwrites in place."""
+    key = _spy_option(thetadatadx_mod)
+    book = {key: 42}
+    assert book[_spy_option(thetadatadx_mod)] == 42
+
+    book[_spy_option(thetadatadx_mod)] = 7
+    assert len(book) == 1
+    assert book[key] == 7
+
+
+def test_contract_works_as_set_member(thetadatadx_mod) -> None:
+    """Equal contracts collapse to one set member; distinct ones do
+    not."""
+    members = {
+        _spy_option(thetadatadx_mod),
+        _spy_option(thetadatadx_mod),
+        thetadatadx_mod.Contract.stock("AAPL"),
+        thetadatadx_mod.Contract.stock("AAPL"),
+    }
+    assert len(members) == 2
+    assert _spy_option(thetadatadx_mod) in members
+    assert thetadatadx_mod.Contract.stock("AAPL") in members
+    assert thetadatadx_mod.Contract.stock("MSFT") not in members
