@@ -303,16 +303,21 @@ impl<'a> FitReader<'a> {
                 *idx += 1;
                 *count = 0;
                 *negative = false;
-                // Zero-fill up to index SPACING-1, then set idx to SPACING.
+                // Zero-fill up to index SPACING-1, advancing idx to SPACING.
                 while *idx < SPACING {
                     if *idx < alloc.len() {
                         alloc[*idx] = 0;
                     }
                     *idx += 1;
                 }
-                // Wire spec: unconditionally reset to SPACING in case idx
-                // was already >= SPACING before the zero-fill loop.
-                *idx = SPACING;
+                // Align the next row at SPACING. A spec-conforming row ends
+                // exactly at SPACING after the zero-fill above. Guard against
+                // a hostile row that already advanced past SPACING: resetting
+                // `idx` downward would rewind it over already-decoded slots
+                // and silently corrupt them. Never move `idx` backward.
+                if *idx < SPACING {
+                    *idx = SPACING;
+                }
                 false
             }
             END => {
@@ -509,6 +514,44 @@ mod tests {
         assert_eq!(alloc[3], 0);
         assert_eq!(alloc[4], 0);
         assert_eq!(alloc[5], 99);
+    }
+
+    #[test]
+    fn row_separator_does_not_rewind_past_decoded_slots() {
+        // Hostile row: more than SPACING fields precede a ROW_SEP, so `idx`
+        // has already advanced beyond SPACING when the separator is read.
+        // Resetting `idx` down to SPACING here would rewind it over the slot
+        // holding the sixth value and let the trailing field overwrite it.
+        // Encode: 1,2,3,4,5,6 then ROW_SEP then 7 then END.
+        // 1, FIELD_SEP   → 0x1B
+        // 2, FIELD_SEP   → 0x2B
+        // 3, FIELD_SEP   → 0x3B
+        // 4, FIELD_SEP   → 0x4B
+        // 5, FIELD_SEP   → 0x5B
+        // 6, ROW_SEP     → 0x6C
+        // 7, END         → 0x7D
+        let data = [
+            pack(1, FIELD_SEP),
+            pack(2, FIELD_SEP),
+            pack(3, FIELD_SEP),
+            pack(4, FIELD_SEP),
+            pack(5, FIELD_SEP),
+            pack(6, ROW_SEP),
+            pack(7, END),
+        ];
+        let mut alloc = [0i32; 16];
+        let mut reader = FitReader::new(&data);
+        let n = reader.read_changes(&mut alloc);
+        // The first six slots keep their decoded values — none are clobbered.
+        assert_eq!(alloc[0], 1);
+        assert_eq!(alloc[1], 2);
+        assert_eq!(alloc[2], 3);
+        assert_eq!(alloc[3], 4);
+        assert_eq!(alloc[4], 5);
+        assert_eq!(alloc[5], 6, "decoded slot was rewound and overwritten");
+        // The trailing field lands in the next slot, not on top of slot 5.
+        assert_eq!(alloc[6], 7);
+        assert_eq!(n, 7);
     }
 
     #[test]

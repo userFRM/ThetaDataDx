@@ -281,6 +281,32 @@ fn auth_tls_config() -> Result<rustls::ClientConfig, Error> {
     Ok(config)
 }
 
+/// Maximum number of characters from an upstream response body carried into
+/// a surfaced error. Bounds the untrusted excerpt so it cannot flood logs
+/// or smuggle a large payload through the error chain.
+const MAX_BODY_EXCERPT_CHARS: usize = 256;
+
+/// Render a non-reversible marker for a session id.
+///
+/// The session id is a bearer token and must never appear verbatim in a
+/// surfaced or logged error, even when malformed. Returns a fixed marker
+/// carrying no token material.
+fn redacted_session_marker() -> &'static str {
+    "redacted"
+}
+
+/// Produce a bounded excerpt of an untrusted upstream body.
+///
+/// Keeps at most [`MAX_BODY_EXCERPT_CHARS`] characters and appends an
+/// ellipsis marker when truncated. Operates on a `char` boundary so the
+/// result is always valid UTF-8.
+fn bound_body_excerpt(body: &str) -> String {
+    match body.char_indices().nth(MAX_BODY_EXCERPT_CHARS) {
+        Some((cut, _)) => format!("{}...", &body[..cut]),
+        None => body.to_string(),
+    }
+}
+
 /// Authenticate against the Nexus API and return the session info.
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
@@ -405,9 +431,16 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
             .text()
             .await
             .unwrap_or_else(|_| "<unreadable>".to_string());
+        // The upstream body is untrusted and unbounded — it may carry
+        // arbitrary (or hostile) text. Carry only a bounded excerpt into
+        // the surfaced error so it cannot flood logs or smuggle a large
+        // payload through the error chain.
         return Err(Error::Auth {
             kind: crate::error::AuthErrorKind::ServerError,
-            message: format!("Nexus API returned HTTP {status}: {body_text}"),
+            message: format!(
+                "Nexus API returned HTTP {status}: {}",
+                bound_body_excerpt(&body_text)
+            ),
         });
     }
 
@@ -416,12 +449,16 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
         message: format!("failed to parse Nexus API response: {e}"),
     })?;
 
-    // Validate the session UUID is well-formed.
+    // Validate the session UUID is well-formed. The session id is a bearer
+    // token; even a malformed value can be structurally near-valid, so it
+    // must never be echoed verbatim into a surfaced or logged message.
+    // Carry only a non-reversible redaction marker, matching the redacted
+    // success path below.
     validate_uuid_format(&auth.session_id).map_err(|e| Error::Auth {
         kind: crate::error::AuthErrorKind::ServerError,
         message: format!(
-            "Nexus API returned invalid session UUID '{}': {e}",
-            auth.session_id
+            "Nexus API returned invalid session UUID ({}): {e}",
+            redacted_session_marker()
         ),
     })?;
 
@@ -440,6 +477,46 @@ mod tests {
     #[test]
     fn terminal_key_is_valid_uuid() {
         validate_uuid_format(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
+    }
+
+    #[test]
+    fn redacted_session_marker_carries_no_token_material() {
+        // A structurally near-valid session id must not survive into the
+        // marker used by the surfaced error.
+        let near_valid = "11111111-2222-3333-4444-55555555555X";
+        let marker = redacted_session_marker();
+        assert!(
+            !near_valid.contains(marker),
+            "marker overlaps token material: {marker}"
+        );
+        assert_eq!(marker, "redacted");
+    }
+
+    #[test]
+    fn bound_body_excerpt_truncates_oversized_body() {
+        let body = "x".repeat(MAX_BODY_EXCERPT_CHARS * 4);
+        let excerpt = bound_body_excerpt(&body);
+        assert!(excerpt.ends_with("..."), "missing truncation marker");
+        assert!(
+            excerpt.chars().count() <= MAX_BODY_EXCERPT_CHARS + 3,
+            "excerpt exceeds bound: {} chars",
+            excerpt.chars().count()
+        );
+    }
+
+    #[test]
+    fn bound_body_excerpt_passes_through_short_body() {
+        let body = "upstream is down";
+        assert_eq!(bound_body_excerpt(body), body);
+    }
+
+    #[test]
+    fn bound_body_excerpt_respects_char_boundaries() {
+        // Multi-byte characters must not be split mid-codepoint.
+        let body = "é".repeat(MAX_BODY_EXCERPT_CHARS * 2);
+        let excerpt = bound_body_excerpt(&body);
+        assert!(excerpt.ends_with("..."), "missing truncation marker");
+        // If a byte boundary had been used this would have panicked above.
     }
 
     #[test]
