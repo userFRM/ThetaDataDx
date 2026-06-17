@@ -30,7 +30,8 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
+use axum::extract::rejection::JsonRejection;
+use axum::extract::{FromRequest, Path, Query, Request, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -66,6 +67,47 @@ pub(crate) struct FlatfileRequestBody {
     /// On-disk format: `csv` (default) or `jsonl`.
     #[serde(default)]
     pub format: Option<String>,
+}
+
+// ── JSON body extractor with a canonical-envelope rejection ──────────────
+
+/// `axum::Json` wrapper whose extraction failure renders the server's
+/// canonical error envelope instead of axum's default plain-text 400.
+///
+/// A malformed flat-file POST body (bad syntax, wrong type, missing or
+/// wrong `Content-Type`) must fail the same way every other route family
+/// fails: `{"header":{"error_type":...,"error_msg":...},"response":[]}`.
+/// Clients drive retry / backoff off `header.error_type`, so a route that
+/// answers a bad body with a bare text 400 breaks that contract. This
+/// extractor maps the `JsonRejection` onto `error_response` and otherwise
+/// behaves exactly like `axum::Json<T>`.
+pub(crate) struct FlatfileJson<T>(pub(crate) T);
+
+impl<S, T> FromRequest<S> for FlatfileJson<T>
+where
+    axum::Json<T>: FromRequest<S, Rejection = JsonRejection>,
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::Json::<T>::from_request(req, state).await {
+            Ok(axum::Json(value)) => Ok(Self(value)),
+            Err(rejection) => Err(json_rejection_response(&rejection)),
+        }
+    }
+}
+
+/// Map a `JsonRejection` onto the canonical error envelope.
+///
+/// Pure over the rejection so the wire shape — status, `error_type`, and
+/// the presence of a diagnostic `error_msg` — is testable without driving
+/// a live request through the router. The status is carried straight from
+/// the rejection (a malformed body is `400`, a missing `Content-Type` is
+/// `415`); `bad_request` is the canonical type for a client-supplied body
+/// the server could not accept.
+fn json_rejection_response(rejection: &JsonRejection) -> Response {
+    error_response(rejection.status(), "bad_request", &rejection.body_text())
 }
 
 // ── Wire-friendly error response ─────────────────────────────────────────
@@ -158,7 +200,10 @@ async fn handle_get(
     serve_flatfile(state, sec_type, req_type, &params.date, format).await
 }
 
-async fn handle_post(state: State<AppState>, body: axum::Json<FlatfileRequestBody>) -> Response {
+async fn handle_post(
+    state: State<AppState>,
+    FlatfileJson(body): FlatfileJson<FlatfileRequestBody>,
+) -> Response {
     let sec_type = match parse_sec_type(&body.sec_type) {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
@@ -322,6 +367,113 @@ pub(crate) fn flatfile_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A malformed flat-file POST body must surface the server's
+    /// canonical error envelope, not axum's default plain-text 400.
+    /// Drive a real `JsonRejection` through the same extractor the route
+    /// uses and assert the response is the `{"header":{...},"response":[]}`
+    /// shape with `error_type=bad_request` and a `400` status.
+    #[tokio::test]
+    async fn malformed_post_body_returns_canonical_envelope() {
+        use axum::body::to_bytes;
+        use axum::extract::FromRequest;
+        use axum::http::Request as HttpRequest;
+        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+
+        // A truncated JSON object: valid `Content-Type`, unparseable body.
+        let request = HttpRequest::builder()
+            .method("POST")
+            .uri("/v3/flatfile/request")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{ \"sec_type\": "))
+            .unwrap();
+
+        let rejection = FlatfileJson::<FlatfileRequestBody>::from_request(request, &())
+            .await
+            .err()
+            .expect("a malformed body must be rejected");
+
+        assert_eq!(
+            rejection.status(),
+            StatusCode::BAD_REQUEST,
+            "a malformed JSON body is a client fault (400)"
+        );
+        assert_eq!(
+            rejection
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some(crate::handler::JSON_CONTENT_TYPE),
+            "the rejection must be served as JSON, not plain text"
+        );
+
+        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
+        let value: sonic_rs::Value =
+            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
+
+        let header = value.get("header").expect("envelope must carry a header");
+        assert_eq!(
+            header.get("error_type").as_str(),
+            Some("bad_request"),
+            "clients drive retry off header.error_type"
+        );
+        assert!(
+            header
+                .get("error_msg")
+                .as_str()
+                .is_some_and(|m| !m.is_empty()),
+            "the envelope must carry a non-empty diagnostic error_msg"
+        );
+        assert_eq!(
+            value
+                .get("response")
+                .and_then(|r| r.as_array())
+                .map(sonic_rs::Array::len),
+            Some(0),
+            "the error envelope's response array must be empty"
+        );
+    }
+
+    /// A POST body sent without a JSON `Content-Type` is rejected through
+    /// the same canonical envelope rather than axum's default text 415.
+    #[tokio::test]
+    async fn post_body_missing_content_type_returns_canonical_envelope() {
+        use axum::body::to_bytes;
+        use axum::extract::FromRequest;
+        use axum::http::Request as HttpRequest;
+        use sonic_rs::JsonValueTrait;
+
+        let request = HttpRequest::builder()
+            .method("POST")
+            .uri("/v3/flatfile/request")
+            .body(Body::from("{}"))
+            .unwrap();
+
+        let rejection = FlatfileJson::<FlatfileRequestBody>::from_request(request, &())
+            .await
+            .err()
+            .expect("a body without a JSON content-type must be rejected");
+
+        assert_eq!(
+            rejection
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some(crate::handler::JSON_CONTENT_TYPE),
+            "the rejection must be served as JSON, not plain text"
+        );
+
+        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
+        let value: sonic_rs::Value =
+            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
+        assert_eq!(
+            value
+                .get("header")
+                .and_then(|h| h.get("error_type"))
+                .as_str(),
+            Some("bad_request"),
+        );
+    }
 
     // Regression: concurrent identical requests must never share a
     // scratch path. Before the race fix two callers wrote into
