@@ -67,8 +67,8 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
-    self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
-    write_raw_frame_no_flush, Frame, FrameReadState,
+    self, is_drain_yield, read_frame_into_with_stall_timeout, write_raw_frame,
+    write_raw_frame_no_flush, FrameReadState,
 };
 use super::protocol::{self, build_credentials_payload, Contract};
 use super::reconnect_delay;
@@ -1046,8 +1046,11 @@ where
                 break 'session;
             }
         };
-        let frame = Frame::new(StreamMsgType::Credentials, cred_payload);
-        if let Err(e) = write_frame(&mut new_stream, &frame) {
+        // Write the credentials from the `Zeroizing` buffer directly rather than
+        // moving the cleartext into a `Frame`, so the secret bytes are wiped on
+        // drop instead of lingering in a frame-owned `Vec`.
+        if let Err(e) = write_raw_frame(&mut new_stream, StreamMsgType::Credentials, &cred_payload)
+        {
             tracing::warn!(error = %e, "failed to send credentials on reconnect");
             continue 'session;
         }
