@@ -1,17 +1,18 @@
-//! Public-API surface smoke for the callback-watchdog  deliverable.
+//! Public-API surface smoke for the callback-watchdog deliverable.
 //!
-//! The full live-wire watchdog soak — replicating the io_loop's
-//! consumer closure with the slow-callback timer plumbed in — runs
-//! in-crate (`crates/thetadatadx/src/fpss/streaming_soak_tests.rs`)
-//! where it can drive the Disruptor consumer wiring without standing
-//! up a production FPSS TLS connection. Two soak tests there pin
-//! down the contract:
+//! The behavioural watchdog tests drive the real drain primitive
+//! (`StreamingClient::poll_batch`, the single point every drain path
+//! funnels the user callback through) against an in-memory ring, so
+//! no production FPSS TLS connection is needed. They live in-crate in
+//! the `slow_callback_watchdog_tests` module of `src/fpss/mod.rs` and
+//! pin down the contract:
 //!
-//! - `slow_callback_threshold_counts_overbudget_invocations` —
-//!   100 events, every 10th sleeps 100 ms, threshold 50 ms,
-//!   `slow_callback_count == 10`.
-//! - `slow_callback_disabled_when_threshold_zero` — slow callback
-//!   plus threshold = 0 must NOT increment the counter.
+//! - `slow_callback_over_armed_threshold_is_counted` — a callback
+//!   that sleeps past an armed budget increments `slow_callback_count`.
+//! - `disabled_watchdog_never_counts_even_a_slow_callback` — a slow
+//!   callback with threshold = 0 must NOT increment the counter.
+//! - `fast_callback_under_armed_threshold_is_not_counted` — a
+//!   callback inside the budget is never counted.
 //!
 //! Standing up a `Client` handle for an integration test
 //! requires a live gRPC + valid credentials (`async connect`) — the

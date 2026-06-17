@@ -1842,6 +1842,52 @@ impl StreamingClient {
         }
     }
 
+    /// Invoke one user-callback dispatch under the panic boundary and,
+    /// when the slow-callback watchdog is armed, time its wall-clock
+    /// duration and count overruns.
+    ///
+    /// `threshold_ns` is the value snapshotted once per drain by the
+    /// caller. When it is `0` the watchdog is disabled and this is the
+    /// bare `catch_unwind` with no clock read — the steady-state hot
+    /// path. When it is non-zero the call is bracketed by
+    /// `Instant::now`; an elapsed time over the threshold increments
+    /// [`Self::slow_callback_count`] and emits a `tracing::warn!`,
+    /// rate-limited to the first overrun and every 1024th thereafter so
+    /// a persistently-slow callback cannot flood the log.
+    ///
+    /// The duration is measured even when the callback panics — a
+    /// callback that runs long and then unwinds is still an overrun the
+    /// operator wants to see. This is observability only: the watchdog
+    /// never cancels or unwinds the callback, it only records that the
+    /// budget was exceeded.
+    ///
+    /// Returns the `catch_unwind` result so the caller keeps ownership
+    /// of the panic-counting and delivery-counting decisions.
+    #[inline]
+    fn dispatch_timed(&self, threshold_ns: u64, call: impl FnOnce()) -> std::thread::Result<()> {
+        if threshold_ns == 0 {
+            // Watchdog disabled: no clock read, just the panic boundary.
+            return std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
+        }
+        let start = std::time::Instant::now();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
+        let elapsed_ns = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        if elapsed_ns > threshold_ns {
+            let prev = self.slow_callback_count.fetch_add(1, Ordering::Relaxed);
+            let count = prev + 1;
+            if count == 1 || count.is_multiple_of(1024) {
+                tracing::warn!(
+                    target: "thetadatadx::fpss::poller",
+                    slow_callback_count = count,
+                    elapsed_ns,
+                    threshold_ns,
+                    "user callback exceeded the slow-callback budget; drain continuing"
+                );
+            }
+        }
+        result
+    }
+
     /// Non-blocking single-batch drain through `on_event`.
     ///
     /// Returns a [`PollOutcome`] so a caller integrating the polling
@@ -1862,11 +1908,22 @@ impl StreamingClient {
             return PollOutcome::Shutdown;
         };
 
+        // Slow-callback watchdog: read the armed threshold ONCE per
+        // drain, not per event. `0` (the default) disables the guard so
+        // the steady-state hot path pays a single relaxed load and a
+        // branch — no `Instant::now()` is taken unless an operator has
+        // opted in. Snapshotting here keeps a concurrent
+        // `set_slow_callback_threshold` from re-reading the atomic on
+        // every event within this batch.
+        let slow_threshold_ns = self.slow_callback_threshold_ns.load(Ordering::Relaxed);
+
         // Drain anything buffered from a previous `next_event` call so
         // batch consumers see those events first.
         let mut delivered = 0usize;
         while let Some(event) = state.pending.pop_front() {
-            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| on_event(&event))).is_err()
+            if self
+                .dispatch_timed(slow_threshold_ns, || on_event(&event))
+                .is_err()
             {
                 self.panics.fetch_add(1, Ordering::Relaxed);
             } else {
@@ -1885,10 +1942,9 @@ impl StreamingClient {
                 for ring_event in &mut batch {
                     batch_len += 1;
                     if let Some(event) = ring_event.event.as_public() {
-                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            on_event(event);
-                        }))
-                        .is_err()
+                        if self
+                            .dispatch_timed(slow_threshold_ns, || on_event(event))
+                            .is_err()
                         {
                             let prev = self.panics.fetch_add(1, Ordering::Relaxed);
                             let count = prev + 1;
@@ -3623,6 +3679,101 @@ mod ring_occupancy_tests {
             client.recorded_consumer_thread_id(),
             Some(std::thread::current().id()),
             "next_event must record the draining thread so Drop detects a self-join"
+        );
+    }
+}
+
+#[cfg(test)]
+mod slow_callback_watchdog_tests {
+    use std::time::Duration;
+
+    use super::events::FpssEventInternal;
+    use super::ring::RingProducer;
+    use super::{StreamControl, StreamingClient};
+
+    /// Publish one synthetic control event through the test producer.
+    fn publish_one(producer: &mut impl RingProducer) -> bool {
+        producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(StreamControl::MarketOpen);
+            })
+            .is_ok()
+    }
+
+    /// A callback that sleeps past an armed threshold is counted as an
+    /// overrun. This is the load-bearing assertion that the watchdog is
+    /// wired into the shared drain at all — before the fix the counter
+    /// was permanently zero despite the documented promise.
+    #[test]
+    fn slow_callback_over_armed_threshold_is_counted() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+
+        // Arm a tiny budget, then run a callback that blows past it.
+        client.set_slow_callback_threshold(Duration::from_micros(1));
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+
+        client.poll_batch(|_event| {
+            std::thread::sleep(Duration::from_millis(5));
+        });
+
+        assert!(
+            client.slow_callback_count() >= 1,
+            "an over-budget callback must increment the overrun counter; got {}",
+            client.slow_callback_count()
+        );
+    }
+
+    /// With the watchdog disabled (threshold = 0, the default) a slow
+    /// callback is NOT counted: the counter stays zero so operators who
+    /// never opt in pay nothing and see nothing.
+    #[test]
+    fn disabled_watchdog_never_counts_even_a_slow_callback() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+
+        // Threshold left at its 0 default — the watchdog is off.
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+
+        client.poll_batch(|_event| {
+            std::thread::sleep(Duration::from_millis(5));
+        });
+
+        assert_eq!(
+            client.slow_callback_count(),
+            0,
+            "a disabled watchdog must never count, however slow the callback"
+        );
+    }
+
+    /// A callback that finishes well inside an armed budget is not an
+    /// overrun: the threshold must compare real elapsed time, not fire
+    /// on every dispatch.
+    #[test]
+    fn fast_callback_under_armed_threshold_is_not_counted() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+
+        // A generous budget no trivial callback can exceed.
+        client.set_slow_callback_threshold(Duration::from_secs(60));
+        for _ in 0..5 {
+            assert!(
+                publish_one(&mut producer),
+                "fresh ring must accept a publish"
+            );
+        }
+
+        let mut delivered = 0usize;
+        client.poll_batch(|_event| delivered += 1);
+
+        assert_eq!(delivered, 5, "every published event must be delivered");
+        assert_eq!(
+            client.slow_callback_count(),
+            0,
+            "a fast callback under the armed threshold must not be counted"
         );
     }
 }
