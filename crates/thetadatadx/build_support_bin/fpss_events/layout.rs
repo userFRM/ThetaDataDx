@@ -27,6 +27,57 @@ pub(super) fn c_field_layout(ty: &str) -> CFieldLayout {
     }
 }
 
+/// Physical field layout of the shared `ThetaDataDxContract` struct, in
+/// C declaration order. The `Contract` column type is opaque to
+/// [`c_field_layout`] (it contributes a single 40-byte/align-8 slot to the
+/// embedding event structs), so the contract's own internal fields are
+/// modelled here once and consumed by both the size and per-field offset
+/// helpers. Keeping this list as the single source means the asserted
+/// numbers are computed by the same `align_to` walk that places every other
+/// FPSS field, never hand-typed. Order and widths mirror the C mirror in
+/// `ffi_c.rs::render_contract_struct_c` and the Rust `#[repr(C)]` struct in
+/// `ffi_rust.rs::render_contract_struct_rust`.
+fn contract_fields() -> [(&'static str, CFieldLayout); 9] {
+    [
+        // `const char* symbol` — borrowed NUL-terminated string pointer.
+        ("symbol", CFieldLayout { size: 8, align: 8 }),
+        ("sec_type", CFieldLayout { size: 4, align: 4 }),
+        // Tagged-optional `bool has_*` flags + their payloads. C has no
+        // `Option<T>`, so presence rides a leading `bool`.
+        ("has_expiration", CFieldLayout { size: 1, align: 1 }),
+        ("expiration", CFieldLayout { size: 4, align: 4 }),
+        ("has_right", CFieldLayout { size: 1, align: 1 }),
+        // `char right` — `'C'` / `'P'` (NUL when `has_right` is false).
+        ("right", CFieldLayout { size: 1, align: 1 }),
+        ("has_strike", CFieldLayout { size: 1, align: 1 }),
+        ("strike", CFieldLayout { size: 8, align: 8 }),
+        ("strike_thousandths", CFieldLayout { size: 4, align: 4 }),
+    ]
+}
+
+/// Byte offset of each `ThetaDataDxContract` field, computed by the same
+/// `align_to` walk as every other FPSS struct so the emitted asserts pin the
+/// contract's internal layout directly rather than inferring it from the
+/// embedding events.
+pub(super) fn contract_field_offsets() -> Vec<(&'static str, usize)> {
+    let fields = contract_fields();
+    let mut offsets = Vec::with_capacity(fields.len());
+    let mut size = 0;
+    for (name, layout) in fields {
+        size = align_to(size, layout.align);
+        offsets.push((name, size));
+        size += layout.size;
+    }
+    offsets
+}
+
+/// Total size, in bytes, of the shared `ThetaDataDxContract` struct, computed
+/// from [`contract_fields`]. Must equal the opaque 40-byte slot
+/// [`c_field_layout`] reserves for an embedded `Contract` column.
+pub(super) fn contract_size() -> usize {
+    c_layout(contract_fields().into_iter().map(|(_, layout)| layout))
+}
+
 /// Expand a schema column list into the physical C field layout. The
 /// only column type that splits into >1 physical fields is `Vec<u8>`
 /// which becomes `(<name>: *const u8, <name>_len: size_t)`.
