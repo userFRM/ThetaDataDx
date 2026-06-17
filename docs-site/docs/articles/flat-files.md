@@ -42,7 +42,7 @@ client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20250303", "trade_quotes.csv",
 <template #typescript>
 
 ```typescript
-const rows = client.flatFiles.optionTradeQuote('20250303');
+const rows = await client.flatFiles.optionTradeQuote('20250303');
 const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
 ```
 
