@@ -1,7 +1,7 @@
-//! # thetadatadx-server -- Drop-in Rust replacement for the ThetaData Java Terminal
+//! # thetadatadx-server -- Drop-in Rust replacement for the ThetaData JVM terminal
 //!
 //! Runs a local HTTP REST server (default :25503) and WebSocket server
-//! (default :25520) that expose the same API as the Java terminal. Existing
+//! (default :25520) that expose the same API as the JVM terminal. Existing
 //! clients (Python SDK, Excel, curl, browsers) connect without code changes.
 //!
 //! ## Architecture
@@ -45,7 +45,7 @@ use crate::state::AppState;
 //  CLI arguments
 // ---------------------------------------------------------------------------
 
-/// Drop-in replacement for the ThetaData Java Terminal.
+/// Drop-in replacement for the ThetaData JVM terminal.
 #[derive(Parser, Debug)]
 #[command(name = "thetadatadx-server", version, about)]
 struct Args {
@@ -61,7 +61,7 @@ struct Args {
     #[arg(long)]
     password: Option<String>,
 
-    /// Path to TOML config file (same format as Java terminal's config.toml).
+    /// Path to TOML config file (same format as JVM terminal's config.toml).
     #[arg(long)]
     config: Option<String>,
 
@@ -69,11 +69,11 @@ struct Args {
     #[arg(long, default_value = "production")]
     fpss_region: String,
 
-    /// HTTP REST API port (default matches Java terminal: 25503).
+    /// HTTP REST API port (default matches JVM terminal: 25503).
     #[arg(long, default_value_t = 25503)]
     http_port: u16,
 
-    /// WebSocket server port (default matches Java terminal: 25520).
+    /// WebSocket server port (default matches JVM terminal: 25520).
     #[arg(long, default_value_t = 25520)]
     ws_port: u16,
 

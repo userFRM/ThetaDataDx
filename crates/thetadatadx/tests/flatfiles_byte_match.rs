@@ -1,10 +1,10 @@
-//! Byte-match the SDK's CSV output against the vendor jar's
+//! Byte-match the SDK's CSV output against the JVM terminal's
 //! whole-universe CSV for the same `(sec, req, date)`.
 //!
-//! The vendor reference files used here were produced by the legacy
-//! ThetaTerminal jar at `~/ThetaData/ThetaTerminal/downloads/`. CI does
-//! not check the fixtures into the repo (they are gigabyte-scale
-//! option-day CSVs); the test gates on a single env var:
+//! The reference files used here were captured from the JVM terminal
+//! (Theta Terminal) for the same query. CI does not check the fixtures
+//! into the repo (they are gigabyte-scale option-day CSVs); the test
+//! gates on a single env var:
 //!
 //! - Set `THETADATADX_FLATFILE_FIXTURES_PATH` to a directory containing
 //!   `OPTION-OPEN_INTEREST-20260428.csv` and `OPTION-EOD-20260428.csv`
@@ -285,10 +285,9 @@ async fn option_open_interest_csv_byte_matches_vendor() {
 /// only).
 ///
 /// When the reference CSV is missing, this test skips. To regenerate
-/// the fixture: run the legacy ThetaTerminal jar's daily-flatfile
-/// download for the same `(SecType, ReqType, date)` and drop the CSV
-/// into the directory pointed to by
-/// `THETADATADX_FLATFILE_FIXTURES_PATH`.
+/// the fixture: capture the JVM terminal's daily-flatfile download for
+/// the same `(SecType, ReqType, date)` and drop the CSV into the
+/// directory pointed to by `THETADATADX_FLATFILE_FIXTURES_PATH`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg_attr(
     not(feature = "live-tests"),

@@ -1,7 +1,7 @@
-//! Response formatting that matches the Java terminal's JSON output exactly.
+//! Response formatting that matches the JVM terminal's JSON output exactly.
 //!
 //! Uses `sonic_rs` (SIMD-accelerated) instead of `serde_json` for all
-//! serialization. The Java terminal wraps every REST response in:
+//! serialization. The JVM terminal wraps every REST response in:
 //!
 //! ```json
 //! {
@@ -18,7 +18,7 @@ use thetadatadx::*;
 //  JSON envelope
 // ---------------------------------------------------------------------------
 
-/// Wrap a response array in the Java terminal's standard envelope.
+/// Wrap a response array in the JVM terminal's standard envelope.
 pub fn ok_envelope(response: Vec<sonic_rs::Value>) -> sonic_rs::Value {
     sonic_rs::json!({
         "header": {
@@ -29,7 +29,7 @@ pub fn ok_envelope(response: Vec<sonic_rs::Value>) -> sonic_rs::Value {
     })
 }
 
-/// Error envelope matching the Java terminal's error format.
+/// Error envelope matching the JVM terminal's error format.
 ///
 /// Canonical shape across every route family (registry endpoints, flat
 /// files, rate-limit rejections):
@@ -145,7 +145,7 @@ fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike:
 //  Tick -> sonic_rs::Value conversions
 // ---------------------------------------------------------------------------
 
-/// Convert EOD ticks to JSON array matching the Java terminal format.
+/// Convert EOD ticks to JSON array matching the JVM terminal format.
 pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
@@ -953,7 +953,7 @@ mod tests {
     use thetadatadx::{GreeksAllTick, QuoteTick, TradeQuoteTick};
 
     /// The error envelope must carry `header.error_type` + `header.error_msg`
-    /// with an empty `response` array — the same shape the Java terminal
+    /// with an empty `response` array — the same shape the JVM terminal
     /// emits and the flat-file / handler fallback strings hand-write. The
     /// nested `error.message` form must never come back: clients parse one
     /// shape across every route family.

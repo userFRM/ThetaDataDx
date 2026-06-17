@@ -141,7 +141,7 @@ impl AppState {
         &self.inner.client
     }
 
-    /// MDDS connection status string matching the Java terminal.
+    /// MDDS connection status string matching the JVM terminal.
     pub fn mdds_status(&self) -> &'static str {
         if self.inner.mdds_connected.load(Ordering::Acquire) {
             "CONNECTED"
@@ -150,7 +150,7 @@ impl AppState {
         }
     }
 
-    /// FPSS connection status string matching the Java terminal.
+    /// FPSS connection status string matching the JVM terminal.
     pub fn fpss_status(&self) -> &'static str {
         if self.inner.fpss_connected.load(Ordering::Acquire) {
             "CONNECTED"

@@ -1,6 +1,6 @@
 //! WebSocket server with full FPSS bridge.
 //!
-//! Replicates the Java terminal's WebSocket behavior:
+//! Replicates the JVM terminal's WebSocket behavior:
 //!
 //! - Single WebSocket endpoint at `/v1/events`
 //! - Only one WebSocket client at a time (enforced via `AtomicBool`)
