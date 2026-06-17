@@ -37,7 +37,7 @@ describe('Util cross-language helpers (#424)', () => {
 
     // Sequence helpers — bidirectional round-trip across the i32
     // wire range, including the asymmetric `i32::MIN` boundary. The
-    // upstream Java terminal encodes trade sequences as i32; the SDK
+    // the JVM terminal encodes trade sequences as i32; the SDK
     // widens to i64 internally, but the meaningful round-trip is the
     // i32 range.
     for (const signed of [-1n, 0n, 1n, 2147483647n, -2147483648n]) {

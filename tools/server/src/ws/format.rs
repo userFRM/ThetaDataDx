@@ -46,7 +46,7 @@ fn try_serialize(msg: &sonic_rs::Value) -> Option<String> {
     }
 }
 
-/// Convert an `StreamEvent` to the Java terminal's WebSocket JSON format.
+/// Convert an `StreamEvent` to the JVM terminal's WebSocket JSON format.
 ///
 /// `peeked_contract` should be the `Arc<Contract>` carried on the event
 /// (see [`super::contract_map::lookup_event_contract`]). Passing it in
@@ -308,7 +308,7 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
         .and_then(|s| s.parse::<i32>().ok())
 }
 
-/// Convert a `Contract` to the JSON format the Java terminal uses.
+/// Convert a `Contract` to the JSON format the JVM terminal uses.
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     let mut obj = sonic_rs::Object::new();
     obj.insert("symbol", sonic_rs::Value::from(&*c.symbol));

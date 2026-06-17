@@ -89,6 +89,20 @@ SCAN_GLOBS = (
     "CHANGELOG.md",
     "README.md",
     "tools/server/README.md",
+    # GitHub release notes render verbatim on the Releases page, so a
+    # provenance leak here ships to every reader who opens a release.
+    ".github/release-notes/*.md",
+    # Published-crate manifests: `description` / `keywords` land on the
+    # crates.io listing page, and the whole manifest ships in the tarball.
+    "**/Cargo.toml",
+    # CI workflows echo release-notes and README text into published
+    # artifacts and the GitHub Releases body.
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+    # TypeScript binding tests are GitHub-visible and read as
+    # authoritative protocol notes, exactly like the Rust regression tests.
+    "sdks/typescript/__tests__/**/*.mjs",
+    "**/*.test.mjs",
 )
 
 
@@ -98,6 +112,16 @@ EXEMPT_PATH_FRAGMENTS = (
     "/node_modules/",
     "/target/",
     "/.git/",
+    # Vendored / third-party trees never carry our prose.
+    "/vendor/",
+    "/dist/",
+    "/build/",
+    # Build-support codegen that strips upstream provenance at build time.
+    # It is not packaged into any crate (absent from the `include` list)
+    # and intentionally contains the provenance filter terms it removes;
+    # scanning it would flag the very guard that protects the public
+    # surface.
+    "/build_support_bin/",
 )
 
 
@@ -126,6 +150,15 @@ FORBIDDEN_PATTERNS = (
     re.compile(r"reverse[- ]engineer", re.IGNORECASE),
     re.compile(r"jar\s+build", re.IGNORECASE),
     re.compile(r"verified-live\s+against\s+terminal", re.IGNORECASE),
+    # Jar-provenance: the act of citing the vendor jar, the terminal jar,
+    # the local extraction path it was pulled from, or any bare `.jar`
+    # mention. The wire format is described factually against the
+    # allow-listed `JVM terminal` / `Theta Terminal` parity reference,
+    # never against a jar artifact.
+    re.compile(r"\bvendor\s+jar\b", re.IGNORECASE),
+    re.compile(r"\bThetaTerminal\s+jar\b", re.IGNORECASE),
+    re.compile(r"ThetaTerminal/\S*(?:downloads|jar)", re.IGNORECASE),
+    re.compile(r"\.jar\b", re.IGNORECASE),
 )
 
 

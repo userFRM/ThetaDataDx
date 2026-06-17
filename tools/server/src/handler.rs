@@ -2,7 +2,7 @@
 //!
 //! A single handler function receives endpoint metadata via closure capture,
 //! validates query params, invokes the shared endpoint runtime in
-//! `thetadatadx`, and returns the Java terminal JSON envelope (or CSV when
+//! `thetadatadx`, and returns the JVM terminal JSON envelope (or CSV when
 //! `format=csv`).
 
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ use crate::validation;
 /// suffix, so the suffix must never come back.
 pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
 
-/// Build a JSON error response with the Java terminal error envelope format.
+/// Build a JSON error response with the JVM terminal error envelope format.
 ///
 /// The envelope is hand-built from string + array primitives, so
 /// serialisation cannot legitimately fail. If it does anyway, fall back to a
@@ -355,7 +355,7 @@ pub(crate) const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson; charset=utf-
 /// caller's pipeline fail far from the cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResponseFormat {
-    /// Java terminal JSON envelope (default).
+    /// JVM terminal JSON envelope (default).
     Json,
     /// RFC 4180 CSV with a header row.
     Csv,
@@ -529,7 +529,7 @@ pub async fn generic(
 //  System endpoints
 // ---------------------------------------------------------------------------
 
-/// GET /v3/system/status -- matches Java terminal system status.
+/// GET /v3/system/status -- matches JVM terminal system status.
 pub async fn system_status(State(state): State<AppState>) -> Response {
     let mut body = sonic_rs::json!({
         "status": state.mdds_status(),

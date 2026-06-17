@@ -3,9 +3,9 @@
 //! Builds a synthetic raw blob (header + INDEX + FIT-encoded DATA) in
 //! Rust against a hand-computed CSV expectation, then exercises the
 //! same `decode_to_file` driver the live byte-match path uses. The
-//! whole test runs in plain `cargo test` — no live wire, no env vars,
-//! no vendor jar — so CI gets a hard regression gate on every push
-//! whether or not the live byte-match step is wired up.
+//! whole test runs in plain `cargo test` with no live wire and no env
+//! vars, so CI gets a hard regression gate on every push whether or not
+//! the live byte-match step is wired up.
 //!
 //! Coverage: header parse, schema decoding, INDEX walk for an option
 //! contract, FIT block decode (absolute row + delta row), CSV row
