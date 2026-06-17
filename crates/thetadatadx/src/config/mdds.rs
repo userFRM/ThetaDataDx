@@ -1,19 +1,14 @@
 //! Historical (gRPC) sub-configuration.
 //!
-//! `concurrent_requests` is the throughput knob for large historical
-//! pulls (multi-day backfills, wide `strike_range`, `interval = 1s` /
-//! `tick`):
+//! Holds the per-channel gRPC tuning for the historical transport:
+//! message-size ceiling, keepalive cadence, HTTP/2 flow-control
+//! windows, connect/request deadlines, and the buffered-response warn
+//! threshold.
 //!
-//! | Workload                                        | `concurrent_requests` |
-//! |-------------------------------------------------|-----------------------|
-//! | One-shot single-day single-strike query         | `1`                   |
-//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             |
-//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         |
-//! | Server-side tier caps                           | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |
-//!
-//! `concurrent_requests` is clamped to the resolved subscription
-//! tier cap at connect time (a setting of `32` on a PRO tier opens
-//! 8 channels and emits a `tracing::warn!`).
+//! Channel-pool concurrency is **not** a tuning knob here: it is
+//! resolved internally from the subscription tier returned by Nexus
+//! auth at connect time, so the live pool always stays inside the
+//! server-side per-tier ceiling without any caller input.
 //!
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
@@ -31,13 +26,6 @@ pub struct HistoricalConfig {
     /// Whether to use TLS for the historical connection.
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
-
-    /// Max concurrent in-flight gRPC requests.
-    ///
-    /// The JVM terminal caps this at `2^subscription_tier` (Free=1, Value=2,
-    /// Standard=4, Pro=8). Set to 0 to auto-detect from the subscription tier
-    /// returned by Nexus auth.
-    pub concurrent_requests: usize,
 
     /// Max inbound gRPC message size in bytes.
     ///
@@ -121,25 +109,6 @@ pub struct HistoricalConfig {
     /// effectively disables it too (no realistic response reaches
     /// that size).
     pub warn_on_buffered_threshold_bytes: usize,
-
-    /// Bypass the subscription-tier clamp on `concurrent_requests`.
-    ///
-    /// **Test-only escape hatch.** ThetaData enforces a server-side
-    /// cap on concurrent in-flight gRPC requests per subscription
-    /// tier (Free=1 / Value=2 / Standard=4 / Pro=8). The SDK normally
-    /// clamps `concurrent_requests` to this cap at connect time so
-    /// the user gets a clear `tracing::warn!` rather than opaque
-    /// upstream rejections on the (N+1)-th channel. Setting this to
-    /// `true` skips the clamp — only useful for tests that need to
-    /// reproduce the over-provisioning failure mode against a stubbed
-    /// auth response.
-    ///
-    /// **Do not enable in production.** The server will reject
-    /// channels above the tier cap; the SDK's clamp is the friendly
-    /// boundary that surfaces the problem locally instead of letting
-    /// it leak into per-RPC retry storms.
-    #[doc(hidden)]
-    pub override_tier_clamp: bool,
 }
 
 impl HistoricalConfig {
@@ -150,7 +119,6 @@ impl HistoricalConfig {
             host: "mdds-01.thetadata.us".to_string(),
             port: 443,
             tls: true,
-            concurrent_requests: 0,
             max_message_size: 4 * 1024 * 1024,
             keepalive_secs: 30,
             keepalive_timeout_secs: 10,
@@ -169,7 +137,6 @@ impl HistoricalConfig {
             // operator-visible "you are on the wrong API for this
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
-            override_tier_clamp: false,
         }
     }
 }

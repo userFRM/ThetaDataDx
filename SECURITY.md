@@ -76,10 +76,10 @@ FPSS credential length fields are read as unsigned integers (matching Java's
 
 ### Concurrent Request Limiting
 
-HistoricalClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of
-in-flight gRPC requests. The default is dynamically derived from the user's subscription
-tier (`2^tier`), matching the Java terminal's concurrency model. This prevents runaway
-request storms from overwhelming the upstream MDDS server or triggering server-side rate
+The SDK caps the number of in-flight historical requests with an internal semaphore. The cap
+is derived automatically from the account's subscription tier at connect time and is not
+user-configurable. This respects the server-side per-tier concurrency limit and prevents
+runaway request storms from overwhelming the upstream server or triggering server-side rate
 limiting.
 
 ### Unknown Compression Rejection

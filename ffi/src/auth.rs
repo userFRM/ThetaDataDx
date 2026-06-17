@@ -2538,49 +2538,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_port(
     })
 }
 
-// ── Historical pool sizing ───────────────────────────────────────────────
-
-/// Set the number of concurrent in-flight gRPC requests on a config
-/// handle.
-///
-/// `n = 0` (default) auto-detects from the Nexus subscription tier
-/// (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
-/// the tier cap are clamped at connect time with a `tracing::warn!`.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_concurrent_requests(
-    config: *mut ThetaDataDxConfig,
-    n: u32,
-) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.historical.concurrent_requests = n as usize;
-    })
-}
-
-/// Read the configured concurrent in-flight gRPC request count. Writes
-/// the value into `*out_n` (`0` = auto-detect from the subscription
-/// tier). A stored value above `u32::MAX` saturates to `u32::MAX`.
-/// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_concurrent_requests(
-    config: *const ThetaDataDxConfig,
-    out_n: *mut u32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_n.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        let value = u32::try_from(config.inner.historical.concurrent_requests).unwrap_or(u32::MAX);
-        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
-        unsafe {
-            *out_n = value;
-        }
-        0
-    })
-}
+// ── Historical tuning ────────────────────────────────────────────────────
 
 /// Set the `warn_on_buffered_threshold_bytes` ceiling on a config
 /// handle. Streaming endpoints log a `tracing::warn!` when a
@@ -2762,36 +2720,6 @@ mod pool_sizing_tests {
     //! `HistoricalConfig` to confirm the value round-tripped.
 
     #[test]
-    fn concurrent_requests_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        assert!(!cfg.is_null());
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut current: u32 = 99;
-            super::thetadatadx_config_set_concurrent_requests(cfg, 8);
-            assert_eq!((*cfg).inner.historical.concurrent_requests, 8);
-            assert_eq!(
-                super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
-                0
-            );
-            assert_eq!(current, 8);
-            super::thetadatadx_config_set_concurrent_requests(cfg, 0);
-            assert_eq!((*cfg).inner.historical.concurrent_requests, 0);
-            assert_eq!(
-                super::thetadatadx_config_get_concurrent_requests(cfg, &mut current),
-                0
-            );
-            assert_eq!(current, 0);
-            // Null-pointer guard on the getter returns -1.
-            assert_eq!(
-                super::thetadatadx_config_get_concurrent_requests(std::ptr::null(), &mut current),
-                -1
-            );
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
     fn flush_mode_round_trips() {
         let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
@@ -2926,7 +2854,7 @@ mod pool_sizing_tests {
         // documented FFI contract — the call must return without
         // crashing. The test exercises that null-tolerance branch.
         unsafe {
-            super::thetadatadx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
+            super::thetadatadx_config_set_request_timeout_secs(std::ptr::null_mut(), 4);
         }
     }
 }
@@ -3090,9 +3018,10 @@ mod reconnect_setter_tests {
     #[test]
     fn reconnect_setters_compose_with_pool_sizing_setters() {
         // Cross-binding interleaved-survival contract: reconnect setter
-        // calls and pool-sizing setter calls on the same `ThetaDataDxConfig`
-        // must land in `inner` independently and persist. Mirrors the
-        // Python `test_reconnect_setter_state_survives_interleaved_calls`,
+        // calls and historical tuning setter calls on the same
+        // `ThetaDataDxConfig` must land in `inner` independently and
+        // persist. Mirrors the Python
+        // `test_reconnect_setter_state_survives_interleaved_calls`,
         // TypeScript `Pool-sizing setter state survives interleaved
         // reconnect setter calls`, and C++ `Reconnect setters compose
         // with pool-sizing setters` cases.
@@ -3100,8 +3029,8 @@ mod reconnect_setter_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Apply pool-sizing knobs.
-            super::thetadatadx_config_set_concurrent_requests(cfg, 8);
+            // Apply a historical tuning knob.
+            super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 8 * 1024 * 1024);
 
             // Apply reconnect knobs.
             super::thetadatadx_config_set_reconnect_policy(cfg, 0);
@@ -3109,9 +3038,9 @@ mod reconnect_setter_tests {
             super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(cfg, 3);
             super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 60);
 
-            // Pool-sizing mutations survived the reconnect setter sequence.
+            // Historical tuning mutations survived the reconnect setter sequence.
             let mdds = &(*cfg).inner.historical;
-            assert_eq!(mdds.concurrent_requests, 8);
+            assert_eq!(mdds.warn_on_buffered_threshold_bytes, 8 * 1024 * 1024);
 
             // Reconnect mutations landed on `Auto(limits)`.
             let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy else {

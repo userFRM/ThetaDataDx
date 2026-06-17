@@ -4,9 +4,9 @@
 
 / — ThetaDataDx: SDK for ThetaData market data — historical, streaming, and bulk flat files in Rust, Python, TypeScript, and C++.
 /articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
-/articles/concurrent-requests — Concurrent Requests: How many historical requests run in parallel per subscription tier, and how to use that budget.
+/articles/concurrent-requests — Concurrent Requests: How many historical requests run in parallel per subscription tier.
 /articles/conditions — Trade & Quote Conditions: Condition code mapping for the condition fields on trade and quote rows.
-/articles/configuration — Configuration: Environments, retries, timeouts, concurrency, and the streaming knobs.
+/articles/configuration — Configuration: Environments, retries, timeouts, and the streaming knobs.
 /articles/data-issues — Data Issues?: A short checklist before filing a data problem.
 /articles/error-codes — Error Codes: The typed error surface across all four SDKs and the server's error envelope.
 /articles/exchanges — Exchanges: Exchange code mapping for the exchange fields on trade and quote rows.

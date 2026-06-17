@@ -24,9 +24,8 @@ This gate closes that gap by construction:
 * Exit non-zero with ``file:line`` for every mismatch.
 
 A field whose default is genuinely environment-dependent (no single
-literal — e.g. ``concurrent_requests = 0`` meaning "auto-detect from the
-subscription tier") is registered with an explicit skip reason rather
-than forced into a false match.
+literal) is registered with an explicit skip reason rather than forced
+into a false match.
 
 Run::
 
@@ -744,18 +743,7 @@ def build_surfaces() -> list[Surface]:
             "streaming.keepalive_interval_secs", _re(r"^\s*streaming_keepalive_interval_secs:")
         ),
         SurfaceField("streaming.keepalive_retries", _re(r"^\s*streaming_keepalive_retries:")),
-        SurfaceField("historical.concurrent_requests", _re(r"^\s*concurrent_requests:")),
     ]
-    # `concurrent_requests` has no single-literal default: the
-    # constructor seeds `0`, which is the "auto-detect from the
-    # subscription tier returned by Nexus auth" sentinel rather than a
-    # caller-facing fixed value. Every surface documents it as
-    # "0 = auto-detect", not "Default 0"; the gate registers the field
-    # so the skip is explicit rather than silently absent, but does not
-    # demand a literal match against the sentinel.
-    pyi.skips["historical.concurrent_requests"] = (
-        "default 0 is the auto-detect-from-tier sentinel, not a fixed literal"
-    )
     surfaces.append(pyi)
 
     return surfaces
@@ -892,7 +880,6 @@ impl Default for RetryPolicy {
 impl MddsConfig {
     pub fn production_defaults() -> Self {
         Self {
-            concurrent_requests: 0,
             max_message_size: 4 * 1024 * 1024,
             keepalive_secs: 30,
             keepalive_timeout_secs: 10,
@@ -900,7 +887,6 @@ impl MddsConfig {
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
-            override_tier_clamp: false,
         }
     }
 }

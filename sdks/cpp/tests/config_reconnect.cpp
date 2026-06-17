@@ -84,14 +84,16 @@ TEST_CASE("Reconnect setters under Manual policy are silent no-ops",
     REQUIRE_NOTHROW(cfg.set_reconnect_stable_window_secs(120));
 }
 
-TEST_CASE("Reconnect setters compose with pool-sizing setters",
+TEST_CASE("Reconnect setters compose with historical tuning setters",
           "[config][reconnect][offline]") {
-    // Interleaved reconnect setter and pool-sizing setter calls on
-    // the same `thetadatadx::Config` must not interfere with each other.
+    // Interleaved reconnect setter and historical tuning setter calls
+    // on the same `thetadatadx::Config` must not interfere with each
+    // other.
     auto cfg = thetadatadx::Config::production();
     cfg.set_reconnect_policy(0);
     cfg.set_reconnect_max_attempts(7);
     cfg.set_reconnect_max_rate_limited_attempts(77);
     cfg.set_reconnect_stable_window_secs(120);
-    REQUIRE_NOTHROW(cfg.set_concurrent_requests(4));
+    REQUIRE_NOTHROW(cfg.set_warn_on_buffered_threshold_bytes(8 * 1024 * 1024));
+    REQUIRE(cfg.get_warn_on_buffered_threshold_bytes() == 8u * 1024u * 1024u);
 }

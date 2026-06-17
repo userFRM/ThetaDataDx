@@ -99,32 +99,7 @@ impl Config {
         guard.clone()
     }
 
-    // ── historical pool sizing ───────────────────────────────────────────
-
-    /// Set the number of concurrent in-flight gRPC requests.
-    ///
-    /// `0` (default) auto-detects from the Nexus subscription tier
-    /// (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
-    /// the tier cap are clamped at connect time with a warn.
-    #[napi(js_name = "setConcurrentRequests")]
-    pub fn set_concurrent_requests(&self, n: u32) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.historical.concurrent_requests = n as usize;
-        Ok(())
-    }
-
-    /// Current `concurrent_requests` setting (`0` = auto-detect).
-    #[napi(getter, js_name = "concurrentRequests")]
-    pub fn concurrent_requests(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.historical.concurrent_requests).unwrap_or(u32::MAX))
-    }
+    // ── historical tuning ────────────────────────────────────────────────
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
     /// historical responses. Endpoints whose decoded total exceeds this
