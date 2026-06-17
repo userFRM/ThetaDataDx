@@ -17,7 +17,8 @@ pub(super) fn lookup_event_contract(event: &StreamEvent) -> Option<Arc<Contract>
         StreamEvent::Data(StreamData::Quote { contract, .. })
         | StreamEvent::Data(StreamData::Trade { contract, .. })
         | StreamEvent::Data(StreamData::OpenInterest { contract, .. })
-        | StreamEvent::Data(StreamData::Ohlcvc { contract, .. }) => Some(Arc::clone(contract)),
+        | StreamEvent::Data(StreamData::Ohlcvc { contract, .. })
+        | StreamEvent::Data(StreamData::MarketValue { contract, .. }) => Some(Arc::clone(contract)),
         _ => None,
     }
 }

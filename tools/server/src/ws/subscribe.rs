@@ -485,6 +485,7 @@ const ACCEPTED_REQ_TYPES: &[&str] = &[
     "TRADE",
     "OHLC",
     "OPEN_INTEREST",
+    "MARKET_VALUE",
     "FULL_TRADES",
     "FULL_OPEN_INTEREST",
 ];
@@ -543,8 +544,10 @@ fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
 /// Translate a validated subscribe command into the FPSS subscriptions
 /// to install (or remove).
 ///
-/// - `QUOTE` / `TRADE` / `OPEN_INTEREST` map to one per-contract
-///   subscription per contract side.
+/// - `QUOTE` / `TRADE` / `OPEN_INTEREST` / `MARKET_VALUE` map to one
+///   per-contract subscription per contract side. `MARKET_VALUE` is the
+///   calculated per-contract market-value feed and has no full-stream
+///   form on the wire.
 /// - `OHLC` maps to the per-contract Trade stream: OHLCVC bars are
 ///   derived from trades, so the bar feed flows once the trade
 ///   subscription is installed. Previously this arm silently returned
@@ -585,6 +588,11 @@ fn subscription_plan(
         // underlying Trade feed is what makes the OHLC events flow.
         "OHLC" => Ok(per_contract(SubscriptionKind::Trade)),
         "OPEN_INTEREST" => Ok(per_contract(SubscriptionKind::OpenInterest)),
+        // Market value is a calculated per-contract feed with no
+        // full-stream form on the wire (like `QUOTE`); there is no
+        // `FULL_MARKET_VALUE` token, so a full market-value subscribe
+        // falls through to the `unknown req_type` error below.
+        "MARKET_VALUE" => Ok(per_contract(SubscriptionKind::MarketValue)),
         "FULL_TRADES" => Ok(full(FullSubscriptionKind::Trades)),
         // Open interest is an option-only concept; stocks and indices carry
         // none, so a security-type-wide open-interest stream over them would
@@ -747,6 +755,36 @@ mod tests {
                 "{req} maps to {kind:?}"
             );
         }
+    }
+
+    /// `req_type=MARKET_VALUE` is accepted and installs the per-contract
+    /// market-value subscription. It is a first-class per-contract stream,
+    /// not an `unknown req_type` ERROR.
+    #[test]
+    fn plan_maps_market_value_per_contract() {
+        let plan = subscription_plan("MARKET_VALUE", "OPTION", &stock_contracts()).unwrap();
+        assert_eq!(plan.len(), 1);
+        assert!(matches!(
+            &plan[0],
+            Subscription::Contract {
+                kind: SubscriptionKind::MarketValue,
+                ..
+            }
+        ));
+        assert!(
+            ACCEPTED_REQ_TYPES.contains(&"MARKET_VALUE"),
+            "MARKET_VALUE must be advertised in the accepted vocabulary"
+        );
+    }
+
+    /// Market value has no full-stream form on the wire, so there is no
+    /// `FULL_MARKET_VALUE` token: a full market-value subscribe is
+    /// rejected with the accepted-vocabulary diagnostic, mirroring the
+    /// other per-contract-only kinds.
+    #[test]
+    fn plan_rejects_full_market_value() {
+        let err = subscription_plan("FULL_MARKET_VALUE", "OPTION", &[]).unwrap_err();
+        assert!(err.contains("'FULL_MARKET_VALUE'"), "echoes the value: {err}");
     }
 
     /// OHLCVC bars are derived from trades: `req_type=OHLC` installs the
