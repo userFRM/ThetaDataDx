@@ -152,7 +152,7 @@ Lifecycle and session events share the callback. The ones worth handling:
 | `market_open` / `market_close` | Session boundary notices. |
 | `disconnected` / `reconnecting` / `reconnected` | Automatic-reconnect progress; see [Reconnection & Monitoring](/streaming/reliability). |
 | `reconnects_exhausted` | The retry budget is spent; the session is down for good until you intervene. |
-| `server_error` / `error` | Server-reported or protocol-level error with a message payload. |
+| `server_error` / `parse_error` | Server-reported (`ServerError`) or protocol-level parse (`ParseError`) error with a message payload. |
 | `ping`, `restart`, `reconnected_server`, `unknown_frame`, `unknown_control` | Heartbeats, server restarts, and forward-compatibility fallbacks. |
 
 Unrecognized future event types arrive as `unknown_*` rather than being dropped, so a callback written today keeps working against newer servers.

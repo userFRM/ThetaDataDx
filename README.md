@@ -106,7 +106,6 @@ with client.streaming(on_event) as session:
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const client = Client.connectFromFile('creds.txt');
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;
@@ -116,28 +115,34 @@ const formatContract = (contract: {
   .filter((value) => value != null)
   .join(' ');
 
-client.stream.startStreaming((event) => {
-  if (event.kind === 'trade' && event.trade) {
-    const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
-    console.log(
-      `${formatContract(contract)} trade price=${price} size=${size} ` +
-      `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
-    );
-  } else if (event.kind === 'quote' && event.quote) {
-    const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
-    console.log(
-      `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
-      `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
-      `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
-    );
-  }
-});
+async function main() {
+  const client = await Client.connectFromFile('creds.txt');
 
-const leg = { expiration: '20260619', strike: '550', right: 'C' };
-client.stream.subscribeMany([
-  Contract.option('SPY', leg).quote(),
-  Contract.option('SPY', leg).trade(),
-]);
+  await client.stream.startStreaming((event) => {
+    if (event.kind === 'trade' && event.trade) {
+      const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
+      console.log(
+        `${formatContract(contract)} trade price=${price} size=${size} ` +
+        `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
+      );
+    } else if (event.kind === 'quote' && event.quote) {
+      const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
+      console.log(
+        `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
+        `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
+        `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
+      );
+    }
+  });
+
+  const leg = { expiration: '20260619', strike: '550', right: 'C' };
+  client.stream.subscribeMany([
+    Contract.option('SPY', leg).quote(),
+    Contract.option('SPY', leg).trade(),
+  ]);
+}
+
+await main();
 ```
 
 ### C++
