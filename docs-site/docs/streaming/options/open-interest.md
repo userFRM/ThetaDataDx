@@ -59,7 +59,7 @@ client.stream.unsubscribe(sub)
 ```typescript
 import { Contract } from 'thetadatadx';
 
-await client.stream.startStreaming((event) => {
+client.stream.startStreaming((event) => {
   if (event.kind === 'open_interest') {
     const e = event.openInterest!;
     console.log(e.contract.symbol, e.openInterest);
