@@ -46,14 +46,25 @@ pub struct WakeFd {
 
 #[cfg(unix)]
 impl WakeFd {
-    /// Wrap a previously-allocated write-end FD.
+    /// Adopt a previously-allocated write-end FD, taking ownership of it.
     ///
     /// The caller retains responsibility for the matching read-end FD
     /// (set it on the event loop with `loop.add_reader(read_fd, ...)`).
     /// `write_fd` should be opened with `O_NONBLOCK` so a backed-up
     /// pipe never blocks the I/O thread that signals it.
+    ///
+    /// # Safety
+    ///
+    /// This transfers ownership of `write_fd` to the returned `WakeFd`,
+    /// which `close(2)`s it on `Drop` — the same ownership contract as
+    /// [`std::os::fd::FromRawFd`]. The caller must guarantee that
+    /// `write_fd` is an open file descriptor that nothing else will close
+    /// or use after this call: it must not be borrowed, aliased by another
+    /// owning handle, or otherwise live past the `WakeFd`. Violating this
+    /// risks a double-close or operating on a descriptor that has been
+    /// recycled to an unrelated resource.
     #[must_use]
-    pub fn from_raw_write_fd(write_fd: RawFd) -> Self {
+    pub unsafe fn from_raw_write_fd(write_fd: RawFd) -> Self {
         Self {
             write_fd,
             signaled: AtomicBool::new(false),
@@ -194,8 +205,15 @@ impl WakeFd {
     /// Callers of the async event-loop bindings on non-Unix raise a
     /// clear runtime error at the binding entry; this stub exists so
     /// the Rust signatures remain cross-platform.
+    ///
+    /// # Safety
+    ///
+    /// `unsafe` to keep one signature across platforms; the stub never
+    /// closes or operates on `write_fd`, so no live descriptor can be
+    /// double-closed here. The Unix impl carries the load-bearing
+    /// ownership-transfer contract.
     #[must_use]
-    pub fn from_raw_write_fd(write_fd: i32) -> Self {
+    pub unsafe fn from_raw_write_fd(write_fd: i32) -> Self {
         Self {
             write_fd,
             signaled: AtomicBool::new(false),
@@ -259,7 +277,9 @@ mod tests {
     #[test]
     fn signal_writes_a_single_byte_until_rearm() {
         let (read_fd, write_fd) = make_pipe();
-        let wake = Arc::new(WakeFd::from_raw_write_fd(write_fd));
+        // SAFETY: `write_fd` is a freshly allocated, exclusively owned pipe
+        // write-end; ownership transfers to the `WakeFd`, which closes it.
+        let wake = Arc::new(unsafe { WakeFd::from_raw_write_fd(write_fd) });
 
         wake.signal();
         wake.signal();
@@ -294,7 +314,9 @@ mod tests {
     fn drop_closes_write_fd() {
         let (read_fd, write_fd) = make_pipe();
         {
-            let _wake = WakeFd::from_raw_write_fd(write_fd);
+            // SAFETY: `write_fd` is a freshly allocated, exclusively owned pipe
+            // write-end; ownership transfers to the `WakeFd`, which closes it.
+            let _wake = unsafe { WakeFd::from_raw_write_fd(write_fd) };
         }
         // Reading from the pipe should return EOF (0) now that the
         // write-end is closed.

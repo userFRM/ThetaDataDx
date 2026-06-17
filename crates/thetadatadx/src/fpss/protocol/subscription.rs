@@ -101,6 +101,25 @@ impl SubscriptionKind {
     }
 }
 
+/// Identity of a subscribe frame awaiting its server `REQ_RESPONSE`.
+///
+/// A subscribe is tracked in `active_subs` / `active_full_subs` the instant
+/// the frame is handed to the I/O thread, but the server answers
+/// asynchronously and may reject it (`Error` / `MaxStreamsReached` /
+/// `InvalidPerms`). The wire carries no contract or security type back in the
+/// `REQ_RESPONSE` — only the `req_id` allocated at send time — so the sender
+/// records that identity here, keyed by `req_id`, and the reader consults it
+/// when the response lands to remove a rejected entry from the tracked set.
+/// Without this correlation a rejected subscription would be re-replayed on
+/// every reconnect and over-reported by `active_subscriptions()`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PendingSub {
+    /// A per-contract subscribe keyed by `(kind, contract)`.
+    Contract(SubscriptionKind, Contract),
+    /// A full-stream subscribe keyed by `(kind, sec_type)`.
+    Full(SubscriptionKind, SecType),
+}
+
 // ---------------------------------------------------------------------------
 // Fluent Subscription value
 // ---------------------------------------------------------------------------
