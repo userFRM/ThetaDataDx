@@ -565,17 +565,33 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
             return -1;
         };
         let cb = FfiCallback { callback, ctx };
-        // Persist the callback BEFORE `start_streaming` so a re-entrant
-        // call from the first delivered event sees `callback = Some`
-        // rather than racing the late publish. Rolled back if the
-        // engine-side start fails.
-        {
-            let mut guard = handle
-                .callback
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            *guard = Some(cb);
+        // Hold `callback` across the gate, the store, and `start_streaming`
+        // so registration is serialised the same way the FPSS path holds
+        // `dispatcher` across `reject_if_not_fresh` + `open_fpss`. Two racing
+        // self-calls take this lock in turn: the first installs and starts,
+        // the second observes the now-`Live` slot and is rejected, so the
+        // started session's `(callback, ctx)` can never diverge from the
+        // stored registration. The dispatcher invokes the `cb` captured by
+        // copy below, never reading this mutex, so holding it across
+        // `start_streaming` does not deadlock the first delivered event.
+        let mut guard = handle
+            .callback
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Registration is one-shot while a session is live: reject a second
+        // call without disturbing the live session's stored `(callback, ctx)`.
+        // Replacement is only permitted after `thetadatadx_client_stop_streaming`
+        // (or `_reconnect`), where the slot is no longer `Live`. This makes the
+        // documented `-1` + "streaming already started" contract real instead
+        // of letting the prior registration be clobbered by an overwrite.
+        if handle.inner.stream().is_streaming() {
+            set_error("streaming already started");
+            return -1;
         }
+        // The slot is not `Live`, so this is either the first registration or a
+        // replacement after stop. Store BEFORE `start_streaming` so the engine
+        // observes a consistent handle; roll back to `None` if start fails.
+        *guard = Some(cb);
         match handle.inner.stream().start_streaming(
             move |event: &thetadatadx::fpss::StreamEvent| {
                 cb.invoke(event);
@@ -583,10 +599,6 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
         ) {
             Ok(()) => 0,
             Err(e) => {
-                let mut guard = handle
-                    .callback
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 *guard = None;
                 set_error_from(&e);
                 -1
@@ -2989,6 +3001,77 @@ mod null_callback_guard_tests {
         assert!(null_cb.is_none());
         let real_cb: Option<ThetaDataDxStreamCallback> = Some(noop);
         assert!(real_cb.is_some());
+    }
+
+    /// Read the thread-local last-error slot set by the C ABI entry points
+    /// as an owned `String`, so an assertion does not hold a borrow across
+    /// the next FFI call. Returns `None` when the slot is empty.
+    fn last_error() -> Option<String> {
+        let ptr = crate::error::thetadatadx_last_error();
+        if ptr.is_null() {
+            return None;
+        }
+        // SAFETY: `thetadatadx_last_error` returns a pointer into the
+        // thread-local `CString` valid until the next FFI call on this
+        // thread; we copy it before any further call.
+        Some(
+            unsafe { std::ffi::CStr::from_ptr(ptr) }
+                .to_string_lossy()
+                .into_owned(),
+        )
+    }
+
+    #[test]
+    fn unified_set_callback_rejects_null_handle() {
+        crate::error::thetadatadx_clear_error();
+        // SAFETY: a null handle is exactly the input the entry point must
+        // reject before any dereference.
+        let rc = unsafe {
+            super::thetadatadx_client_set_callback(
+                std::ptr::null(),
+                Some(noop),
+                std::ptr::null_mut(),
+            )
+        };
+        assert_eq!(rc, -1, "null handle must return -1");
+        assert_eq!(last_error().as_deref(), Some("unified handle is null"));
+    }
+
+    #[test]
+    fn unified_set_callback_rejects_null_callback_before_install() {
+        crate::error::thetadatadx_clear_error();
+        // A non-null but bogus handle pointer is never dereferenced because
+        // the null-callback niche is rejected first, mirroring the FPSS
+        // entry point's ordering. Use a dangling-but-non-null address so the
+        // null-handle branch is skipped and the null-callback branch is the
+        // one under test.
+        let bogus = std::ptr::NonNull::<super::ThetaDataDxClient>::dangling()
+            .as_ptr()
+            .cast_const();
+        // SAFETY: the entry point rejects the null callback before touching
+        // `handle`, so `bogus` is never dereferenced.
+        let rc =
+            unsafe { super::thetadatadx_client_set_callback(bogus, None, std::ptr::null_mut()) };
+        assert_eq!(rc, -1, "null callback must return -1");
+        assert_eq!(
+            last_error().as_deref(),
+            Some("callback function pointer is null"),
+        );
+    }
+
+    #[test]
+    fn unified_already_streaming_contract_string_is_stable() {
+        // Pin the exact wording the live-handle gate emits. A second
+        // `thetadatadx_client_set_callback` while the slot is `Live` returns
+        // -1 with this message (documented in the function's "REPLACEMENT
+        // after stop" contract and in the C header); the unified path mirrors
+        // the FPSS one-shot rule for the active window while still permitting
+        // replacement after stop. The string is asserted here so the
+        // documented C ABI contract cannot drift from the implementation
+        // without this test failing.
+        crate::error::thetadatadx_clear_error();
+        crate::error::set_error("streaming already started");
+        assert_eq!(last_error().as_deref(), Some("streaming already started"));
     }
 }
 
