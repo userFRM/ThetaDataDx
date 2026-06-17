@@ -317,6 +317,13 @@ impl Default for ReconnectConfig {
 pub mod bounds {
     use std::ops::RangeInclusive;
 
+    /// Allowed range (ms) for [`super::ReconnectConfig::wait_ms`] and its
+    /// exponential ceiling [`super::ReconnectConfig::wait_max_ms`]. Both ends
+    /// of the generic-transient ladder must be a positive delay so a `0` base
+    /// or `0` cap cannot collapse the ladder into a 0 ms reconnect busy-loop;
+    /// capped at ten minutes to match the server-restart cadence band.
+    pub const WAIT_MS: RangeInclusive<u64> = 1..=600_000;
+
     /// Allowed range (ms) for [`super::ReconnectConfig::wait_rate_limited_ms`].
     /// The rate-limit cooldown is upstream-instructed; it must be a positive
     /// delay and is capped at one hour so a typo cannot strand a client.

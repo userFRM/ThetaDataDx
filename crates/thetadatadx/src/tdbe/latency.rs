@@ -12,7 +12,7 @@
 
 #![allow(dead_code)]
 
-use crate::tdbe::time::{civil_to_epoch_days, eastern_offset_ms};
+use crate::tdbe::time::{civil_to_epoch_days, eastern_offset_ms, is_valid_yyyymmdd};
 
 /// Compute wire-to-application latency in nanoseconds.
 ///
@@ -24,21 +24,31 @@ use crate::tdbe::time::{civil_to_epoch_days, eastern_offset_ms};
 ///
 /// # Returns
 ///
-/// Latency in nanoseconds. May be negative if clocks are skewed (exchange
-/// timestamp ahead of local wall clock).
-// Reason: epoch timestamps may exceed i64::MAX in the far future; wrapping is acceptable
-// for the valid date range of market data (1970--2100).
-#[allow(clippy::cast_possible_wrap)]
+/// `Some(latency_ns)` for a real calendar `event_date`. The latency may be
+/// negative if clocks are skewed (exchange timestamp ahead of local wall
+/// clock). Returns `None` when `event_date` is not a valid YYYYMMDD calendar
+/// date, so a malformed or sentinel date can never feed unvalidated arithmetic.
 #[must_use]
-pub fn latency_ns(exchange_ms_of_day: i32, event_date: i32, received_at_ns: u64) -> i64 {
-    let exchange_epoch_ns = exchange_epoch_ns(exchange_ms_of_day, event_date);
-    received_at_ns as i64 - exchange_epoch_ns
+pub fn latency_ns(exchange_ms_of_day: i32, event_date: i32, received_at_ns: u64) -> Option<i64> {
+    let exchange_epoch_ns = exchange_epoch_ns(exchange_ms_of_day, event_date)?;
+    // Reason: epoch timestamps may exceed i64::MAX in the far future; wrapping is
+    // acceptable for the valid date range of market data (1970--2100).
+    #[allow(clippy::cast_possible_wrap)]
+    Some(received_at_ns as i64 - exchange_epoch_ns)
 }
 
-/// Convert `event_date` (YYYYMMDD) + `ms_of_day` (Eastern Time) to epoch nanoseconds.
-// Reason: date components are from valid YYYYMMDD integers; casts are safe for the valid range.
+/// Convert `event_date` (YYYYMMDD) + `ms_of_day` (Eastern Time) to epoch
+/// nanoseconds, or `None` when `date_yyyymmdd` is not a real calendar date.
+///
+/// The date is validated through [`is_valid_yyyymmdd`] before any arithmetic so
+/// an impossible date (`0`, `20260230`, …) cannot multiply through into a bogus
+/// epoch.
+// Reason: date components are from a validated YYYYMMDD integer; casts are safe for the valid range.
 #[allow(clippy::cast_sign_loss)]
-fn exchange_epoch_ns(ms_of_day: i32, date_yyyymmdd: i32) -> i64 {
+fn exchange_epoch_ns(ms_of_day: i32, date_yyyymmdd: i32) -> Option<i64> {
+    if !is_valid_yyyymmdd(date_yyyymmdd) {
+        return None;
+    }
     let year = date_yyyymmdd / 10_000;
     let month = ((date_yyyymmdd % 10_000) / 100) as u32;
     let day = (date_yyyymmdd % 100) as u32;
@@ -56,7 +66,7 @@ fn exchange_epoch_ns(ms_of_day: i32, date_yyyymmdd: i32) -> i64 {
     // exchange_epoch_ms = midnight_utc_ms + ms_of_day - offset_ms
     // (offset_ms is negative, e.g. -5h for EST, so subtracting it adds hours)
     let exchange_epoch_ms = midnight_utc_ms + i64::from(ms_of_day) - offset_ms;
-    exchange_epoch_ms * 1_000_000
+    Some(exchange_epoch_ms * 1_000_000)
 }
 
 #[cfg(test)]
@@ -76,7 +86,7 @@ mod tests {
         let received_at_ns = (midnight_utc_ns + utc_offset_ns) as u64;
 
         // If received_at_ns == exchange epoch time, latency should be ~0.
-        let lat = latency_ns(34_200_000, 20240115, received_at_ns);
+        let lat = latency_ns(34_200_000, 20240115, received_at_ns).expect("valid date");
         assert!(
             lat.abs() < 1_000_000, // less than 1ms rounding
             "expected ~0 latency, got {lat} ns"
@@ -93,7 +103,7 @@ mod tests {
         let utc_offset_ns = (13 * 3600 + 30 * 60) as i64 * 1_000_000_000;
         let received_at_ns = (midnight_utc_ns + utc_offset_ns) as u64;
 
-        let lat = latency_ns(34_200_000, 20240615, received_at_ns);
+        let lat = latency_ns(34_200_000, 20240615, received_at_ns).expect("valid date");
         assert!(lat.abs() < 1_000_000, "expected ~0 latency, got {lat} ns");
     }
 
@@ -105,7 +115,7 @@ mod tests {
         let utc_offset_ns = (14 * 3600 + 30 * 60) as i64 * 1_000_000_000;
         let received_at_ns = (midnight_utc_ns + utc_offset_ns) as u64 + 100_000_000; // +100ms
 
-        let lat = latency_ns(34_200_000, 20240115, received_at_ns);
+        let lat = latency_ns(34_200_000, 20240115, received_at_ns).expect("valid date");
         // Should be ~100ms = 100_000_000 ns
         assert!(
             (lat - 100_000_000).abs() < 1_000_000,
@@ -121,10 +131,26 @@ mod tests {
         let utc_offset_ns = (14 * 3600 + 30 * 60) as i64 * 1_000_000_000;
         let received_at_ns = (midnight_utc_ns + utc_offset_ns) as u64 - 50_000_000; // -50ms
 
-        let lat = latency_ns(34_200_000, 20240115, received_at_ns);
+        let lat = latency_ns(34_200_000, 20240115, received_at_ns).expect("valid date");
         assert!(
             (lat + 50_000_000).abs() < 1_000_000,
             "expected ~-50ms latency, got {lat} ns"
+        );
+    }
+
+    #[test]
+    fn latency_rejects_impossible_dates() {
+        // Sentinel and out-of-range dates must short-circuit to None rather
+        // than multiplying an unvalidated value into a bogus epoch.
+        for bad_date in [0, -1, 20260230, 19990431] {
+            assert!(
+                latency_ns(34_200_000, bad_date, 0).is_none(),
+                "expected None for invalid date {bad_date}"
+            );
+        }
+        assert!(
+            latency_ns(34_200_000, 20240115, 0).is_some(),
+            "a real calendar date must still compute"
         );
     }
 }
