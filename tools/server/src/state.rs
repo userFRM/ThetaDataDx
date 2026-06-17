@@ -30,12 +30,35 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-/// Per-client channel capacity. Matches the old `broadcast::channel(4096)`.
+/// Default per-client channel capacity. Matches the old `broadcast::channel(4096)`.
 ///
 /// At ~10k events/sec peak (market open), 4096 gives ~400ms of headroom
 /// before a slow WebSocket consumer starts dropping events.  Each slot is
 /// an `Arc<str>` (~16 bytes), so 4096 slots cost ~64KB per client.
+///
+/// An operator can override this with the `THETADATADX_WS_CLIENT_CAPACITY`
+/// env var (see [`ws_client_capacity`]) — a larger buffer trades memory for
+/// more headroom against a slow consumer on a high-rate stream.
 const WS_CLIENT_CAPACITY: usize = 4096;
+
+/// Environment variable that overrides the per-client WS channel capacity.
+const ENV_WS_CLIENT_CAPACITY: &str = "THETADATADX_WS_CLIENT_CAPACITY";
+
+/// Resolve the per-client WS channel capacity from the environment, falling
+/// back to [`WS_CLIENT_CAPACITY`] when `THETADATADX_WS_CLIENT_CAPACITY` is
+/// unset, unparseable, or zero. A zero-capacity bounded `mpsc::channel`
+/// would reject every `try_send`, so it is treated as invalid and ignored.
+fn ws_client_capacity() -> usize {
+    ws_client_capacity_from(std::env::var(ENV_WS_CLIENT_CAPACITY).ok().as_deref())
+}
+
+/// Pure core of [`ws_client_capacity`], split out so the override and the
+/// fallback-on-invalid behaviour can be tested without touching env state.
+fn ws_client_capacity_from(raw: Option<&str>) -> usize {
+    raw.and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(WS_CLIENT_CAPACITY)
+}
 
 /// Connected WS clients. Each gets its own bounded mpsc sender so the FPSS
 /// callback can fan out a single `Arc<str>` (serialized once) without cloning
@@ -145,7 +168,7 @@ impl AppState {
 
     /// Register a new WS client, returning the receiver half of its channel.
     pub async fn register_ws_client(&self) -> mpsc::Receiver<Arc<str>> {
-        let (tx, rx) = mpsc::channel(WS_CLIENT_CAPACITY);
+        let (tx, rx) = mpsc::channel(ws_client_capacity());
         self.inner.ws_clients.write().await.push(tx);
         rx
     }
@@ -273,8 +296,33 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::ct_eq;
+    use super::{ct_eq, ws_client_capacity_from, WS_CLIENT_CAPACITY};
     use std::sync::Arc;
+
+    /// Unset env falls back to the compiled-in default capacity.
+    #[test]
+    fn ws_capacity_defaults_when_env_unset() {
+        assert_eq!(ws_client_capacity_from(None), WS_CLIENT_CAPACITY);
+    }
+
+    /// A valid override is read verbatim.
+    #[test]
+    fn ws_capacity_reads_env_override() {
+        assert_eq!(ws_client_capacity_from(Some("8192")), 8192);
+        assert_eq!(ws_client_capacity_from(Some("  256  ")), 256);
+    }
+
+    /// Unparseable or zero values fall back to the default rather than
+    /// producing a useless zero-capacity channel.
+    #[test]
+    fn ws_capacity_invalid_falls_back_to_default() {
+        assert_eq!(ws_client_capacity_from(Some("0")), WS_CLIENT_CAPACITY);
+        assert_eq!(
+            ws_client_capacity_from(Some("not-a-number")),
+            WS_CLIENT_CAPACITY
+        );
+        assert_eq!(ws_client_capacity_from(Some("")), WS_CLIENT_CAPACITY);
+    }
 
     /// Stand-in for the `Inner.ws_session` slot so the begin/end
     /// semantics can be pinned without constructing a live

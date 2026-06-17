@@ -784,7 +784,10 @@ mod tests {
     #[test]
     fn plan_rejects_full_market_value() {
         let err = subscription_plan("FULL_MARKET_VALUE", "OPTION", &[]).unwrap_err();
-        assert!(err.contains("'FULL_MARKET_VALUE'"), "echoes the value: {err}");
+        assert!(
+            err.contains("'FULL_MARKET_VALUE'"),
+            "echoes the value: {err}"
+        );
     }
 
     /// OHLCVC bars are derived from trades: `req_type=OHLC` installs the
@@ -830,8 +833,14 @@ mod tests {
     fn plan_rejects_full_open_interest_for_non_option() {
         for sec_type in ["STOCK", "INDEX"] {
             let err = subscription_plan("FULL_OPEN_INTEREST", sec_type, &[]).unwrap_err();
-            assert!(err.contains("OPTION"), "names the only valid sec_type: {err}");
-            assert!(err.contains(sec_type), "echoes the rejected sec_type: {err}");
+            assert!(
+                err.contains("OPTION"),
+                "names the only valid sec_type: {err}"
+            );
+            assert!(
+                err.contains(sec_type),
+                "echoes the rejected sec_type: {err}"
+            );
         }
     }
 

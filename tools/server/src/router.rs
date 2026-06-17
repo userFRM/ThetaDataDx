@@ -19,12 +19,14 @@
 //!    runtime's task slots. Requests past the cap QUEUE on the layer's
 //!    semaphore (they are not rejected) — see the doc on
 //!    [`GLOBAL_CONCURRENCY_LIMIT`].
-//! 3. `tower_governor::GovernorLayer` enforces a per-IP rate limit
-//!    (20 rps, burst 40) on every route — **only on non-loopback binds**.
-//!    On `127.0.0.1` / `::1` every local client shares one bucket, so a
-//!    parallel backtest or bulk pull rate-limits itself as a group; the
-//!    legacy terminal imposes no such limit, and a DoS guard has no
-//!    purpose against the local machine. The shutdown endpoint keeps an
+//! 3. `tower_governor::GovernorLayer` enforces a per-IP rate limit on
+//!    every route — **only when the operator opts in**. The terminal this
+//!    server replaces does no per-IP rate limiting, so the default must
+//!    not either: with neither rate-limit env var set, the general
+//!    governor layer is never attached, regardless of bind address. An
+//!    operator exposing the server as a relay opts in by setting
+//!    `THETADATADX_RATE_LIMIT_PER_SECOND` and/or
+//!    `THETADATADX_RATE_LIMIT_BURST_SIZE`. The shutdown endpoint keeps an
 //!    independent, tighter `route_layer` (~3 attempts per hour per IP) on
 //!    every bind so token-guessing costs real wall-clock time.
 //!
@@ -90,10 +92,15 @@ const GLOBAL_CONCURRENCY_LIMIT: usize = 256;
 /// client.
 const BODY_LIMIT_BYTES: usize = 64 * 1024;
 
-/// General per-IP quota: 20 requests per second with a burst of 40. Tuned
-/// for backtest fetches (bursty metadata pulls followed by idle time).
-const GENERAL_PER_SECOND: u64 = 20;
-const GENERAL_BURST_SIZE: u32 = 40;
+/// Fallback general per-IP quota applied only when the operator opts into
+/// rate limiting by setting one of the two rate-limit env vars but not the
+/// other: 20 requests per second with a burst of 40. Tuned for backtest
+/// fetches (bursty metadata pulls followed by idle time). When NEITHER env
+/// var is set, no general governor is attached at all — the terminal this
+/// server replaces does no per-IP rate limiting, so the default must not
+/// either.
+pub(crate) const GENERAL_PER_SECOND: u64 = 20;
+pub(crate) const GENERAL_BURST_SIZE: u32 = 40;
 
 /// Shutdown endpoint quota: ~3 attempts per IP per hour.
 ///
@@ -152,28 +159,67 @@ pub(crate) fn governor_error_response(error: GovernorError) -> axum::response::R
     }
 }
 
-/// Whether `bind` is a loopback address (`127.0.0.0/8`, `::1`).
+/// Opt-in per-IP rate-limit setting: `(per_second, burst_size)`.
 ///
-/// Drives the per-IP rate-limiter decision: loopback binds skip the
-/// general `GovernorLayer` because every local client shares the same
-/// peer IP and would throttle each other as a group. Unparseable values
-/// (hostnames) conservatively count as non-loopback so the limiter stays
-/// on when the reachability of the bind is unknown.
-pub(crate) fn is_loopback_bind(bind: &str) -> bool {
-    bind.parse::<std::net::IpAddr>()
-        .map(|ip| ip.is_loopback())
-        .unwrap_or(false)
+/// The general `GovernorLayer` (on both the HTTP general routes and the WS
+/// upgrade) is attached only when this is `Some`. It is `Some` only when the
+/// operator sets at least one of the two rate-limit env vars; otherwise the
+/// server runs with no general per-IP limit, matching the terminal it
+/// replaces.
+pub type RateLimit = (u64, u32);
+
+/// Environment variable names for the opt-in per-IP rate limit.
+pub(crate) const ENV_RATE_LIMIT_PER_SECOND: &str = "THETADATADX_RATE_LIMIT_PER_SECOND";
+pub(crate) const ENV_RATE_LIMIT_BURST_SIZE: &str = "THETADATADX_RATE_LIMIT_BURST_SIZE";
+
+/// Resolve the opt-in per-IP rate limit from the process environment.
+///
+/// The terminal this server replaces does no per-IP rate limiting, so the
+/// default is OFF: with NEITHER `THETADATADX_RATE_LIMIT_PER_SECOND` nor
+/// `THETADATADX_RATE_LIMIT_BURST_SIZE` set, this returns `None` and no
+/// general governor is attached anywhere. Operators exposing the server as
+/// a relay opt in by setting one or both.
+///
+/// When at least one is set the limiter is enabled; a value that is absent
+/// or unparseable falls back to the documented default constant for that
+/// field ([`GENERAL_PER_SECOND`] / [`GENERAL_BURST_SIZE`]), so a single env
+/// var is enough to turn the limiter on with sane companion settings.
+pub fn resolve_rate_limit() -> Option<RateLimit> {
+    resolve_rate_limit_from(
+        std::env::var(ENV_RATE_LIMIT_PER_SECOND).ok().as_deref(),
+        std::env::var(ENV_RATE_LIMIT_BURST_SIZE).ok().as_deref(),
+    )
+}
+
+/// Pure core of [`resolve_rate_limit`], split out so the opt-in / partial-set
+/// semantics can be tested without mutating process-global env state.
+pub(crate) fn resolve_rate_limit_from(
+    per_second: Option<&str>,
+    burst_size: Option<&str>,
+) -> Option<RateLimit> {
+    // Default-OFF: neither knob present means no governor anywhere.
+    if per_second.is_none() && burst_size.is_none() {
+        return None;
+    }
+    let per_second = per_second
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(GENERAL_PER_SECOND);
+    let burst_size = burst_size
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(GENERAL_BURST_SIZE);
+    Some((per_second, burst_size))
 }
 
 /// Build the full REST API router with routes dynamically generated from
 /// the endpoint registry plus hand-written system routes.
 ///
-/// `rate_limit_general` mounts the per-IP general rate limiter; pass
-/// `false` for loopback binds (see [`is_loopback_bind`]). The tighter
-/// shutdown-route limiter is mounted unconditionally.
+/// `rate_limit` mounts the per-IP general rate limiter only when `Some`
+/// (see [`resolve_rate_limit`]); the terminal this server replaces does no
+/// per-IP rate limiting, so the default `None` attaches no general governor.
+/// The tighter shutdown-route limiter is mounted unconditionally.
 ///
 /// Default port: 25503 (matching ThetaData v3 terminal).
-pub fn build(state: AppState, rate_limit_general: bool) -> Router {
+pub fn build(state: AppState, rate_limit: Option<RateLimit>) -> Router {
     let mut app = Router::new();
     let mut registered = 0usize;
 
@@ -235,17 +281,17 @@ pub fn build(state: AppState, rate_limit_general: bool) -> Router {
         .layer(ConcurrencyLimitLayer::new(GLOBAL_CONCURRENCY_LIMIT))
         .layer(DefaultBodyLimit::max(BODY_LIMIT_BYTES));
 
-    // Global per-IP governor (outermost rate limit), DoS guard for
-    // non-loopback binds only. On loopback every local client shares one
-    // bucket and a parallel backtest throttles itself; the legacy
-    // terminal imposes no per-IP limit there. The shutdown route's
-    // tighter governor above stays active on every bind.
-    if rate_limit_general {
+    // Global per-IP governor (outermost rate limit), an opt-in DoS guard.
+    // The terminal this server replaces does no per-IP rate limiting, so
+    // the default attaches no general governor; an operator exposing the
+    // server as a relay opts in via the rate-limit env vars. The shutdown
+    // route's tighter governor above stays active on every bind regardless.
+    if let Some((per_second, burst_size)) = rate_limit {
         let global_governor = Arc::new(
             GovernorConfigBuilder::default()
                 .key_extractor(PeerIpKeyExtractor)
-                .per_second(GENERAL_PER_SECOND)
-                .burst_size(GENERAL_BURST_SIZE)
+                .per_second(per_second)
+                .burst_size(burst_size)
                 .finish()
                 .expect("general governor config invariants hold at build time"),
         );
@@ -290,11 +336,95 @@ pub fn build(state: AppState, rate_limit_general: bool) -> Router {
 mod tests {
     use super::*;
 
+    use std::net::SocketAddr;
+
+    use axum::body::Body;
+    use axum::extract::ConnectInfo;
+    use axum::http::Request;
+    use axum::routing::get;
+    use axum::Router;
+    use tower::ServiceExt;
+
     async fn body_string(resp: axum::response::Response) -> String {
         let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
             .await
             .expect("body collect");
         String::from_utf8(bytes.to_vec()).expect("body utf8")
+    }
+
+    /// Build a minimal router that mounts the general governor exactly as
+    /// `build()` does — same `GovernorConfigBuilder`, `PeerIpKeyExtractor`,
+    /// and `governor_error_response` — over a trivial `200 OK` route, so the
+    /// opt-in / default-off wiring can be exercised at the wire level without
+    /// constructing a live `AppState`.
+    fn governor_probe_router(rate_limit: Option<RateLimit>) -> Router {
+        let app = Router::new().route("/probe", get(|| async { StatusCode::OK }));
+        let Some((per_second, burst_size)) = rate_limit else {
+            return app;
+        };
+        let governor = Arc::new(
+            GovernorConfigBuilder::default()
+                .key_extractor(PeerIpKeyExtractor)
+                .per_second(per_second)
+                .burst_size(burst_size)
+                .finish()
+                .expect("general governor config invariants hold at build time"),
+        );
+        app.layer(GovernorLayer::new(governor).error_handler(governor_error_response))
+    }
+
+    /// Fire one `/probe` request carrying a peer `ConnectInfo` so the
+    /// `PeerIpKeyExtractor` resolves a key, returning the response status.
+    async fn probe_once(app: &Router, peer: SocketAddr) -> StatusCode {
+        let mut req = Request::builder()
+            .uri("/probe")
+            .body(Body::empty())
+            .expect("request builds");
+        req.extensions_mut().insert(ConnectInfo(peer));
+        app.clone()
+            .oneshot(req)
+            .await
+            .expect("router responds")
+            .status()
+    }
+
+    /// Default-OFF: with no rate limit resolved, a burst far exceeding the
+    /// old 20 rps / burst 40 ceiling is never `429`'d — the server imposes
+    /// no per-IP limit, matching the terminal it replaces.
+    #[tokio::test]
+    async fn no_governor_when_rate_limit_unset_never_429s_a_burst() {
+        let app = governor_probe_router(None);
+        let peer: SocketAddr = "203.0.113.7:9000".parse().unwrap();
+        for _ in 0..100 {
+            assert_eq!(
+                probe_once(&app, peer).await,
+                StatusCode::OK,
+                "default-off server must not rate-limit any request"
+            );
+        }
+    }
+
+    /// Opt-in: with a tuned ceiling, traffic up to the burst passes and the
+    /// next same-IP request in the same instant is rejected with `429`.
+    #[tokio::test]
+    async fn governor_enforces_tuned_ceiling_when_rate_limit_set() {
+        // burst_size 3 with a low refill: the 4th immediate request from the
+        // same peer must be shed.
+        let app = governor_probe_router(Some((1, 3)));
+        let peer: SocketAddr = "203.0.113.8:9000".parse().unwrap();
+
+        for n in 0..3 {
+            assert_eq!(
+                probe_once(&app, peer).await,
+                StatusCode::OK,
+                "request {n} within the burst must pass"
+            );
+        }
+        assert_eq!(
+            probe_once(&app, peer).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "request past the tuned burst must be rate-limited"
+        );
     }
 
     /// 429 rejections carry the canonical envelope, the bare JSON
@@ -356,28 +486,45 @@ mod tests {
         assert!(body.contains("limiter offline"), "{body}");
     }
 
+    /// Default-OFF: with neither env var set the limiter resolves to
+    /// `None`, so no general governor is attached on any bind — the
+    /// terminal this server replaces imposes no per-IP rate limit.
     #[test]
-    fn loopback_binds_are_detected() {
-        assert!(is_loopback_bind("127.0.0.1"));
-        assert!(is_loopback_bind("127.0.0.53"));
-        assert!(is_loopback_bind("::1"));
+    fn rate_limit_is_off_when_neither_env_var_is_set() {
+        assert_eq!(resolve_rate_limit_from(None, None), None);
     }
 
+    /// Both env vars set: the operator's tuned pair is used verbatim.
     #[test]
-    fn non_loopback_binds_keep_the_limiter() {
-        assert!(!is_loopback_bind("0.0.0.0"));
-        assert!(!is_loopback_bind("192.168.2.21"));
-        assert!(!is_loopback_bind("10.0.0.7"));
-        assert!(!is_loopback_bind("::"));
+    fn rate_limit_uses_both_operator_values_when_set() {
+        assert_eq!(resolve_rate_limit_from(Some("5"), Some("9")), Some((5, 9)));
     }
 
-    /// Unparseable binds (hostnames) conservatively count as
-    /// non-loopback: the limiter stays on when the reachability of the
-    /// bind cannot be determined from the string.
+    /// Only one of the pair set still turns the limiter ON; the absent
+    /// field falls back to its documented default constant.
     #[test]
-    fn unparseable_binds_default_to_limited() {
-        assert!(!is_loopback_bind("localhost"));
-        assert!(!is_loopback_bind(""));
-        assert!(!is_loopback_bind("example.internal"));
+    fn rate_limit_partial_set_falls_back_to_defaults() {
+        assert_eq!(
+            resolve_rate_limit_from(Some("7"), None),
+            Some((7, GENERAL_BURST_SIZE))
+        );
+        assert_eq!(
+            resolve_rate_limit_from(None, Some("11")),
+            Some((GENERAL_PER_SECOND, 11))
+        );
+    }
+
+    /// A present-but-unparseable value falls back to its default rather
+    /// than disabling the limiter the operator asked for.
+    #[test]
+    fn rate_limit_unparseable_value_falls_back_to_default() {
+        assert_eq!(
+            resolve_rate_limit_from(Some("not-a-number"), Some("9")),
+            Some((GENERAL_PER_SECOND, 9))
+        );
+        assert_eq!(
+            resolve_rate_limit_from(Some("5"), Some("oops")),
+            Some((5, GENERAL_BURST_SIZE))
+        );
     }
 }
