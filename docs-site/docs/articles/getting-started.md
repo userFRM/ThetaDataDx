@@ -45,7 +45,7 @@ Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Wind
 npm install thetadatadx
 ```
 
-Requires Node.js 18+. Pre-built native binaries install automatically per platform.
+Requires Node.js 20+. Pre-built native binaries install automatically per platform.
 
 </template>
 
