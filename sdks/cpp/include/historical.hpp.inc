@@ -3,6 +3,9 @@
     /// List all available stock ticker symbols.
     std::vector<std::string> stock_list_symbols(const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> stock_list_symbols_async(EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, options = std::move(options)]() {
             return this->stock_list_symbols(options);
@@ -12,6 +15,9 @@
     /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
     std::vector<std::string> stock_list_dates(const std::string& request_type, const std::string& symbol, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> stock_list_dates_async(std::string request_type, std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, request_type = std::move(request_type), symbol = std::move(symbol), options = std::move(options)]() {
             return this->stock_list_dates(request_type, symbol, options);
@@ -23,12 +29,18 @@
 
     std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> stock_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->stock_snapshot_ohlc(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> stock_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->stock_snapshot_ohlc(symbols, options);
@@ -40,12 +52,18 @@
 
     std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> stock_snapshot_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->stock_snapshot_trade(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> stock_snapshot_trade_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->stock_snapshot_trade(symbols, options);
@@ -57,12 +75,18 @@
 
     std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> stock_snapshot_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->stock_snapshot_quote(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> stock_snapshot_quote_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->stock_snapshot_quote(symbols, options);
@@ -74,12 +98,18 @@
 
     std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<MarketValueTick>> stock_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->stock_snapshot_market_value(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<MarketValueTick>> stock_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->stock_snapshot_market_value(symbols, options);
@@ -89,6 +119,9 @@
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
     std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<EodTick>> stock_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->stock_history_eod(symbol, start_date, end_date, options);
@@ -98,6 +131,9 @@
     /// Fetch intraday OHLC bars for a stock on a single date.
     std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> stock_history_ohlc_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->stock_history_ohlc(symbol, date, options);
@@ -107,6 +143,9 @@
     /// Fetch all trades for a stock on a given date.
     std::vector<TradeTick> stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> stock_history_trade_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->stock_history_trade(symbol, date, options);
@@ -116,6 +155,9 @@
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
     std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> stock_history_quote_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->stock_history_quote(symbol, date, options);
@@ -125,6 +167,9 @@
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
     std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeQuoteTick>> stock_history_trade_quote_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->stock_history_trade_quote(symbol, date, options);
@@ -134,6 +179,9 @@
     /// Fetch the trade at a specific time of day across a date range.
     std::vector<TradeTick> stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> stock_at_time_trade_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return this->stock_at_time_trade(symbol, start_date, end_date, time_of_day, options);
@@ -143,6 +191,9 @@
     /// Fetch the quote at a specific time of day across a date range.
     std::vector<QuoteTick> stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> stock_at_time_quote_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return this->stock_at_time_quote(symbol, start_date, end_date, time_of_day, options);
@@ -152,6 +203,9 @@
     /// List all available option underlying symbols.
     std::vector<std::string> option_list_symbols(const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> option_list_symbols_async(EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, options = std::move(options)]() {
             return this->option_list_symbols(options);
@@ -161,6 +215,9 @@
     /// List available dates for an option contract by request type.
     std::vector<std::string> option_list_dates(const std::string& request_type, const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> option_list_dates_async(std::string request_type, std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, request_type = std::move(request_type), symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_list_dates(request_type, symbol, expiration, options);
@@ -170,6 +227,9 @@
     /// List available expiration dates for an option underlying.
     std::vector<std::string> option_list_expirations(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> option_list_expirations_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->option_list_expirations(symbol, options);
@@ -179,6 +239,9 @@
     /// List available strike prices for an option at a given expiration.
     std::vector<std::string> option_list_strikes(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> option_list_strikes_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_list_strikes(symbol, expiration, options);
@@ -188,6 +251,9 @@
     /// List all option contracts for a symbol on a given date.
     std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OptionContract>> option_list_contracts_async(std::string request_type, std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, request_type = std::move(request_type), symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->option_list_contracts(request_type, symbol, date, options);
@@ -197,6 +263,9 @@
     /// Get the latest OHLC snapshot for an option contract.
     std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> option_snapshot_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_ohlc(symbol, expiration, options);
@@ -206,6 +275,9 @@
     /// Get the latest trade snapshot for an option contract.
     std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> option_snapshot_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_trade(symbol, expiration, options);
@@ -215,6 +287,9 @@
     /// Get the latest NBBO quote snapshot for an option contract.
     std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> option_snapshot_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_quote(symbol, expiration, options);
@@ -224,6 +299,9 @@
     /// Get the latest open interest snapshot for an option contract.
     std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OpenInterestTick>> option_snapshot_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_open_interest(symbol, expiration, options);
@@ -233,6 +311,9 @@
     /// Get the latest market value snapshot for an option contract.
     std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<MarketValueTick>> option_snapshot_market_value_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_market_value(symbol, expiration, options);
@@ -242,6 +323,9 @@
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
     std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<IvTick>> option_snapshot_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_greeks_implied_volatility(symbol, expiration, options);
@@ -251,6 +335,9 @@
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     std::vector<GreeksAllTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksAllTick>> option_snapshot_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_greeks_all(symbol, expiration, options);
@@ -260,6 +347,9 @@
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksFirstOrderTick>> option_snapshot_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_greeks_first_order(symbol, expiration, options);
@@ -269,6 +359,9 @@
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksSecondOrderTick>> option_snapshot_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_greeks_second_order(symbol, expiration, options);
@@ -278,6 +371,9 @@
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksThirdOrderTick>> option_snapshot_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return this->option_snapshot_greeks_third_order(symbol, expiration, options);
@@ -287,6 +383,9 @@
     /// Fetch end-of-day option data for a contract over a date range.
     std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<EodTick>> option_history_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->option_history_eod(symbol, expiration, start_date, end_date, options);
@@ -296,6 +395,9 @@
     /// Fetch intraday OHLC bars for an option contract.
     std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> option_history_ohlc_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_ohlc(symbol, expiration, date, options);
@@ -305,6 +407,9 @@
     /// Fetch all trades for an option contract on a given date.
     std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> option_history_trade_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade(symbol, expiration, date, options);
@@ -314,6 +419,9 @@
     /// Fetch NBBO quotes for an option contract on a given date.
     std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> option_history_quote_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_quote(symbol, expiration, date, options);
@@ -323,6 +431,9 @@
     /// Fetch combined trade + quote ticks for an option contract.
     std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeQuoteTick>> option_history_trade_quote_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_quote(symbol, expiration, date, options);
@@ -332,6 +443,9 @@
     /// Fetch open interest history for an option contract.
     std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OpenInterestTick>> option_history_open_interest_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_open_interest(symbol, expiration, date, options);
@@ -341,6 +455,9 @@
     /// Fetch end-of-day Greeks history for an option contract.
     std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksEodTick>> option_history_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->option_history_greeks_eod(symbol, expiration, start_date, end_date, options);
@@ -350,6 +467,9 @@
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksAllTick>> option_history_greeks_all_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_greeks_all(symbol, expiration, date, options);
@@ -359,6 +479,9 @@
     /// Fetch all Greeks on each trade for an option contract.
     std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeGreeksAllTick>> option_history_trade_greeks_all_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_greeks_all(symbol, expiration, date, options);
@@ -368,6 +491,9 @@
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksFirstOrderTick>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_greeks_first_order(symbol, expiration, date, options);
@@ -377,6 +503,9 @@
     /// Fetch first-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_trade_greeks_first_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_greeks_first_order(symbol, expiration, date, options);
@@ -386,6 +515,9 @@
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksSecondOrderTick>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_greeks_second_order(symbol, expiration, date, options);
@@ -395,6 +527,9 @@
     /// Fetch second-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_trade_greeks_second_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_greeks_second_order(symbol, expiration, date, options);
@@ -404,6 +539,9 @@
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<GreeksThirdOrderTick>> option_history_greeks_third_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_greeks_third_order(symbol, expiration, date, options);
@@ -413,6 +551,9 @@
     /// Fetch third-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_greeks_third_order(symbol, expiration, date, options);
@@ -422,6 +563,9 @@
     /// Fetch implied volatility history (intraday, sampled by interval).
     std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<IvTick>> option_history_greeks_implied_volatility_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_greeks_implied_volatility(symbol, expiration, date, options);
@@ -431,6 +575,9 @@
     /// Fetch implied volatility on each trade for an option contract.
     std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeGreeksImpliedVolatilityTick>> option_history_trade_greeks_implied_volatility_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
             return this->option_history_trade_greeks_implied_volatility(symbol, expiration, date, options);
@@ -440,6 +587,9 @@
     /// Fetch the trade at a specific time of day across a date range for an option.
     std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<TradeTick>> option_at_time_trade_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return this->option_at_time_trade(symbol, expiration, start_date, end_date, time_of_day, options);
@@ -449,6 +599,9 @@
     /// Fetch the quote at a specific time of day across a date range for an option.
     std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<QuoteTick>> option_at_time_quote_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return this->option_at_time_quote(symbol, expiration, start_date, end_date, time_of_day, options);
@@ -458,6 +611,9 @@
     /// List all available index symbols.
     std::vector<std::string> index_list_symbols(const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> index_list_symbols_async(EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, options = std::move(options)]() {
             return this->index_list_symbols(options);
@@ -467,6 +623,9 @@
     /// List available dates for an index symbol.
     std::vector<std::string> index_list_dates(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<std::string>> index_list_dates_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->index_list_dates(symbol, options);
@@ -478,12 +637,18 @@
 
     std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> index_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->index_snapshot_ohlc(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> index_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->index_snapshot_ohlc(symbols, options);
@@ -495,12 +660,18 @@
 
     std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<PriceTick>> index_snapshot_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->index_snapshot_price(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<PriceTick>> index_snapshot_price_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->index_snapshot_price(symbols, options);
@@ -512,12 +683,18 @@
 
     std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<MarketValueTick>> index_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), options = std::move(options)]() {
             return this->index_snapshot_market_value(symbol, options);
         });
     }
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<MarketValueTick>> index_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbols = std::move(symbols), options = std::move(options)]() {
             return this->index_snapshot_market_value(symbols, options);
@@ -527,6 +704,9 @@
     /// Fetch end-of-day index data for a date range.
     std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<EodTick>> index_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->index_history_eod(symbol, start_date, end_date, options);
@@ -536,6 +716,9 @@
     /// Fetch intraday OHLC bars for an index.
     std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> index_history_ohlc_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->index_history_ohlc(symbol, start_date, end_date, options);
@@ -545,6 +728,9 @@
     /// Fetch intraday price history for an index.
     std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<PriceTick>> index_history_price_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
             return this->index_history_price(symbol, date, options);
@@ -554,6 +740,9 @@
     /// Fetch the index price at a specific time of day across a date range.
     std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<IndexPriceAtTimeTick>> index_at_time_price_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return this->index_at_time_price(symbol, start_date, end_date, time_of_day, options);
@@ -563,6 +752,9 @@
     /// Check whether the market is open today.
     std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<CalendarDay>> calendar_open_today_async(EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, options = std::move(options)]() {
             return this->calendar_open_today(options);
@@ -572,6 +764,9 @@
     /// Get calendar information for a specific date.
     std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<CalendarDay>> calendar_on_date_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, date = std::move(date), options = std::move(options)]() {
             return this->calendar_on_date(date, options);
@@ -581,6 +776,9 @@
     /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
     std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<CalendarDay>> calendar_year_async(std::string year, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, year = std::move(year), options = std::move(options)]() {
             return this->calendar_year(year, options);
@@ -590,6 +788,9 @@
     /// Fetch end-of-day interest rate history.
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<InterestRateTick>> interest_rate_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->interest_rate_history_eod(symbol, start_date, end_date, options);
@@ -599,6 +800,9 @@
     /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
     std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
+    /// \warning The future borrows the object it was called on; do not let it
+    /// outlive that object. Call on a named `HistoricalClient` (or chain the
+    /// result), never on the temporary returned by `client.historical()`.
     std::future<std::vector<OhlcTick>> stock_history_ohlc_range_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return this->stock_history_ohlc_range(symbol, start_date, end_date, options);
