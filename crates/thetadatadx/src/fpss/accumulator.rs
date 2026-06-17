@@ -74,7 +74,27 @@ impl OhlcvcAccumulator {
         size: i32,
         price_type: i32,
         date: i32,
+        records_back: i32,
     ) {
+        // A nonzero `records_back` marks an out-of-order correction: the print
+        // refers to a trade already reported `records_back` records earlier in
+        // the stream, so its volume and count are already inside the running
+        // bar. Re-adding `size`/`count` would double-count the correction, so
+        // a correction only adjusts the price extremes (and the close) without
+        // advancing volume or count. A correction never opens a fresh bar: it
+        // cannot legitimately reference a print on a date the accumulator has
+        // not seen, so it is folded into the current bar when initialized.
+        if self.initialized && date == self.date && records_back != 0 {
+            let adjusted_price = change_price_type(price, price_type, self.price_type);
+            if adjusted_price > self.high {
+                self.high = adjusted_price;
+            }
+            if adjusted_price < self.low {
+                self.low = adjusted_price;
+            }
+            self.close = adjusted_price;
+            return;
+        }
         // A trade on a new date opens a fresh bar. Without this, an already-
         // initialized accumulator merges the new date's trade onto the prior
         // date's open/high/low and cumulative volume/count while the emitted
@@ -162,7 +182,7 @@ mod tests {
     fn ohlcvc_accumulator_first_trade_initializes() {
         let mut acc = OhlcvcAccumulator::new();
         assert!(!acc.initialized);
-        acc.process_trade(34200000, 15025, 100, 8, 20240315);
+        acc.process_trade(34200000, 15025, 100, 8, 20240315, 0);
         assert!(acc.initialized);
         assert_eq!(acc.open, 15025);
         assert_eq!(acc.high, 15025);
@@ -175,9 +195,9 @@ mod tests {
     #[test]
     fn ohlcvc_accumulator_updates() {
         let mut acc = OhlcvcAccumulator::new();
-        acc.process_trade(34200000, 15025, 100, 8, 20240315);
-        acc.process_trade(34200100, 15100, 200, 8, 20240315);
-        acc.process_trade(34200200, 14950, 50, 8, 20240315);
+        acc.process_trade(34200000, 15025, 100, 8, 20240315, 0);
+        acc.process_trade(34200100, 15100, 200, 8, 20240315, 0);
+        acc.process_trade(34200200, 14950, 50, 8, 20240315, 0);
         assert_eq!(acc.open, 15025);
         assert_eq!(acc.high, 15100);
         assert_eq!(acc.low, 14950);
@@ -192,7 +212,7 @@ mod tests {
         acc.init_from_server(
             34200000, 15000, 15100, 14900, 15050, 1000_i64, 10_i64, 8, 20240315,
         );
-        acc.process_trade(34200300, 15200, 50, 8, 20240315);
+        acc.process_trade(34200300, 15200, 50, 8, 20240315, 0);
         assert_eq!(acc.high, 15200);
         assert_eq!(acc.low, 14900);
         assert_eq!(acc.volume, 1050);
@@ -202,8 +222,8 @@ mod tests {
     #[test]
     fn ohlcvc_accumulator_no_overflow_on_high_volume() {
         let mut acc = OhlcvcAccumulator::new();
-        acc.process_trade(34200000, 15025, i32::MAX, 8, 20240315);
-        acc.process_trade(34200100, 15100, i32::MAX, 8, 20240315);
+        acc.process_trade(34200000, 15025, i32::MAX, 8, 20240315, 0);
+        acc.process_trade(34200100, 15100, i32::MAX, 8, 20240315, 0);
         // Would overflow i32 (2 * 2_147_483_647 = 4_294_967_294), fine in i64
         assert_eq!(acc.volume, 2 * i64::from(i32::MAX));
         assert_eq!(acc.count, 2);
@@ -238,8 +258,8 @@ mod tests {
     fn ohlcvc_accumulator_rolls_on_date_change() {
         let mut acc = OhlcvcAccumulator::new();
         // Day 1: two trades accumulate.
-        acc.process_trade(57_600_000, 15_025, 100, 8, 20240315);
-        acc.process_trade(57_600_100, 15_100, 200, 8, 20240315);
+        acc.process_trade(57_600_000, 15_025, 100, 8, 20240315, 0);
+        acc.process_trade(57_600_100, 15_100, 200, 8, 20240315, 0);
         assert_eq!(acc.date, 20240315);
         assert_eq!(acc.volume, 300);
         assert_eq!(acc.count, 2);
@@ -247,7 +267,7 @@ mod tests {
         // Day 2: the first trade on the new date opens a fresh bar. Open,
         // high, low, close all reset to this trade's price; volume and count
         // restart from this trade alone; the date advances.
-        acc.process_trade(34_200_000, 14_950, 50, 8, 20240318);
+        acc.process_trade(34_200_000, 14_950, 50, 8, 20240318, 0);
         assert_eq!(acc.date, 20240318);
         assert_eq!(acc.open, 14_950);
         assert_eq!(acc.high, 14_950);
@@ -256,6 +276,54 @@ mod tests {
         assert_eq!(acc.volume, 50, "new-date volume must not include day 1");
         assert_eq!(acc.count, 1, "new-date count must not include day 1");
         assert_eq!(acc.ms_of_day, 34_200_000);
+    }
+
+    /// An out-of-order correction (`records_back != 0`) reprices a print that
+    /// is already inside the running bar. Its size and trade are already part
+    /// of `volume`/`count`, so a correction must NOT advance either; doing so
+    /// double-counts the print. The correction may still pull the price
+    /// extremes and the close, since the corrected price can be a new high,
+    /// low, or last.
+    #[test]
+    fn ohlcvc_accumulator_correction_does_not_double_count() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.process_trade(34_200_000, 15_025, 100, 8, 20240315, 0);
+        acc.process_trade(34_200_100, 15_100, 200, 8, 20240315, 0);
+        assert_eq!(acc.volume, 300);
+        assert_eq!(acc.count, 2);
+
+        // A correction one record back at a new extreme: volume/count are
+        // unchanged, but high and close track the corrected price.
+        acc.process_trade(34_200_200, 15_200, 200, 8, 20240315, 1);
+        assert_eq!(acc.volume, 300, "correction must not re-add volume");
+        assert_eq!(acc.count, 2, "correction must not re-add count");
+        assert_eq!(acc.high, 15_200, "corrected price can set a new high");
+        assert_eq!(acc.close, 15_200, "corrected price updates the close");
+        assert_eq!(acc.low, 15_025);
+
+        // A subsequent fresh print (records_back == 0) resumes accumulation
+        // from the un-corrupted running totals.
+        acc.process_trade(34_200_300, 14_900, 50, 8, 20240315, 0);
+        assert_eq!(
+            acc.volume, 350,
+            "fresh print after a correction adds normally"
+        );
+        assert_eq!(acc.count, 3);
+        assert_eq!(acc.low, 14_900);
+    }
+
+    /// A correction folds into an already-open bar even when it carries a low
+    /// price: it adjusts the low without resetting open/volume/count, so a
+    /// correction can never masquerade as a bar reset.
+    #[test]
+    fn ohlcvc_accumulator_correction_adjusts_low_without_reset() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.process_trade(34_200_000, 15_025, 100, 8, 20240315, 0);
+        acc.process_trade(34_200_100, 15_100, 200, 8, 20240315, 2);
+        assert_eq!(acc.open, 15_025, "correction must not reset the open");
+        assert_eq!(acc.high, 15_100);
+        assert_eq!(acc.volume, 100, "correction must not add to volume");
+        assert_eq!(acc.count, 1, "correction must not add to count");
     }
 
     #[test]
@@ -305,12 +373,12 @@ mod tests {
     #[test]
     fn ohlcvc_accumulator_rescale_matches_java_wrap() {
         let mut acc = OhlcvcAccumulator::new();
-        acc.process_trade(34200000, 71_396_865, 1, 4, 20240315);
+        acc.process_trade(34200000, 71_396_865, 1, 4, 20240315, 0);
         assert_eq!(acc.price_type, 4);
         assert_eq!(acc.high, 71_396_865);
         // Tick at price_type=8 needs *10^4 to rescale into pricetype=4 and
         // wraps to +1_004_078_864, which exceeds the prior high.
-        acc.process_trade(34200100, 71_396_865, 1, 8, 20240315);
+        acc.process_trade(34200100, 71_396_865, 1, 8, 20240315, 0);
         assert_eq!(acc.high, 1_004_078_864);
         assert_eq!(acc.close, 1_004_078_864);
         // Low stays at the original (smaller) value.
