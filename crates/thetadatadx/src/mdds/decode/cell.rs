@@ -67,7 +67,9 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
             Ok(Some(n32))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(crate::tdbe::time::timestamp_to_date(ts.epoch_ms)))
+            crate::tdbe::time::try_timestamp_to_date(ts.epoch_ms)
+                .map(Some)
+                .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })
         }
         Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s)?)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
@@ -114,7 +116,9 @@ pub(crate) fn row_number(
             Ok(Some(n32))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
+            crate::tdbe::time::try_timestamp_to_ms_of_day(ts.epoch_ms)
+                .map(Some)
+                .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -345,7 +349,9 @@ pub(crate) fn row_eod_number(
             .map_err(|_| DecodeError::NumericOverflow { raw: n.to_string() }),
         Some(proto::data_value::DataType::Price(p)) => Ok(Some(p.value)),
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
+            crate::tdbe::time::try_timestamp_to_ms_of_day(ts.epoch_ms)
+                .map(Some)
+                .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -378,9 +384,11 @@ pub(crate) fn row_eod_number_i64(
     match dv.data_type.as_ref() {
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => Ok(Some(i64::from(p.value))),
-        Some(proto::data_value::DataType::Timestamp(ts)) => Ok(Some(i64::from(
-            crate::tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms),
-        ))),
+        Some(proto::data_value::DataType::Timestamp(ts)) => {
+            crate::tdbe::time::try_timestamp_to_ms_of_day(ts.epoch_ms)
+                .map(|ms| Some(i64::from(ms)))
+                .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })
+        }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
@@ -431,7 +439,9 @@ pub(crate) fn row_eod_date(
             Ok(Some(p.value))
         }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
-            Ok(Some(crate::tdbe::time::timestamp_to_date(ts.epoch_ms)))
+            crate::tdbe::time::try_timestamp_to_date(ts.epoch_ms)
+                .map(Some)
+                .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
