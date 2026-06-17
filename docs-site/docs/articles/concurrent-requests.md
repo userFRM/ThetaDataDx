@@ -41,5 +41,3 @@ With a Pro subscription, eight of those requests run concurrently and the rest w
 Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request, so split the request first ([Request Sizing](/articles/request-sizing)), then let your tier's slots work through the pieces.
 
 One more queue exists upstream: if the servers themselves report exhaustion, the SDK retries with backoff before surfacing an error. Long-running bulk jobs should still expect occasional retries during peak hours; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
-</content>
-</invoke>
