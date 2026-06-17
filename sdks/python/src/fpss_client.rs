@@ -846,7 +846,11 @@ impl StreamingClient {
             };
             py.detach(move || inner.restore_subscriptions(&per_contract, &full_stream))
         };
-        outcome.map_err(|e| PyRuntimeError::new_err(format!("reconnect succeeded but {e}")))
+        // Route the partial-restore failure through the typed-exception
+        // mapper so a `PartialReconnect` surfaces as `StreamError` — the
+        // same leaf the unified `StreamView.reconnect` raises — rather
+        // than a bare `RuntimeError` that `except StreamError` misses.
+        outcome.map_err(to_py_err)
     }
 
     /// Block until every superseded streaming session's event ring
