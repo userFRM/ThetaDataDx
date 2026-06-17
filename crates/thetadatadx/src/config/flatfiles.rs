@@ -124,6 +124,16 @@ impl Default for FlatFilesConfig {
 pub mod bounds {
     /// Allowed range for [`super::FlatFilesConfig::max_attempts`].
     pub const MAX_ATTEMPTS: std::ops::RangeInclusive<u32> = 1..=100;
+
+    /// Allowed range (secs) for [`super::FlatFilesConfig::connect_timeout_secs`].
+    /// A connect timeout must be positive (a `0` timeout fails every connect
+    /// instantly); capped at five minutes.
+    pub const CONNECT_TIMEOUT_SECS: std::ops::RangeInclusive<u64> = 1..=300;
+
+    /// Allowed range (secs) for [`super::FlatFilesConfig::read_timeout_secs`].
+    /// A read timeout must be positive; capped at one hour for large
+    /// flat-file pulls.
+    pub const READ_TIMEOUT_SECS: std::ops::RangeInclusive<u64> = 1..=3_600;
 }
 
 #[cfg(test)]

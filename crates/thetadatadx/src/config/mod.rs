@@ -61,8 +61,8 @@ pub use fpss::{
 pub use mdds::HistoricalConfig;
 pub use metrics::MetricsConfig;
 pub use reconnect::{
-    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig, ReconnectPolicy,
-    RATE_LIMITED_JITTER_WINDOW,
+    bounds as reconnect_bounds, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig,
+    ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
 };
 pub use retry::RetryPolicy;
 pub use runtime::RuntimeConfig;
@@ -376,6 +376,75 @@ impl DirectConfig {
                 ),
             ));
         }
+        // Reconnect cadence trio: the rate-limited and server-restart floors
+        // must be positive delays, and the replay pace must stay within band.
+        // A `0` cadence would busy-loop the reconnect driver; bands are
+        // band-checked up front the same way the streaming knobs are.
+        if !reconnect_bounds::WAIT_RATE_LIMITED_MS.contains(&self.reconnect.wait_rate_limited_ms) {
+            return Err(Error::config_out_of_range(
+                "reconnect.wait_rate_limited_ms",
+                to_i64(self.reconnect.wait_rate_limited_ms),
+                to_i64(*reconnect_bounds::WAIT_RATE_LIMITED_MS.start()),
+                to_i64(*reconnect_bounds::WAIT_RATE_LIMITED_MS.end()),
+            ));
+        }
+        if !reconnect_bounds::WAIT_SERVER_RESTART_MS
+            .contains(&self.reconnect.wait_server_restart_ms)
+        {
+            return Err(Error::config_out_of_range(
+                "reconnect.wait_server_restart_ms",
+                to_i64(self.reconnect.wait_server_restart_ms),
+                to_i64(*reconnect_bounds::WAIT_SERVER_RESTART_MS.start()),
+                to_i64(*reconnect_bounds::WAIT_SERVER_RESTART_MS.end()),
+            ));
+        }
+        if !reconnect_bounds::REPLAY_PACE_MS.contains(&self.reconnect.replay_pace_ms) {
+            return Err(Error::config_out_of_range(
+                "reconnect.replay_pace_ms",
+                to_i64(self.reconnect.replay_pace_ms),
+                to_i64(*reconnect_bounds::REPLAY_PACE_MS.start()),
+                to_i64(*reconnect_bounds::REPLAY_PACE_MS.end()),
+            ));
+        }
+        // Auto-reconnect per-class attempt budgets: every class budget must
+        // be at least one attempt so the driver can make forward progress and
+        // within band so a typo cannot spin effectively forever. Only the
+        // `Auto` policy carries budgets; `Manual` / `Custom` have none to
+        // check.
+        if let ReconnectPolicy::Auto(limits) = &self.reconnect.policy {
+            for (field, value) in [
+                ("reconnect.max_attempts", limits.max_attempts),
+                (
+                    "reconnect.max_rate_limited_attempts",
+                    limits.max_rate_limited_attempts,
+                ),
+                (
+                    "reconnect.max_server_restart_attempts",
+                    limits.max_server_restart_attempts,
+                ),
+            ] {
+                if !reconnect_bounds::ATTEMPT_BUDGET.contains(&value) {
+                    return Err(Error::config_out_of_range(
+                        field,
+                        i64::from(value),
+                        i64::from(*reconnect_bounds::ATTEMPT_BUDGET.start()),
+                        i64::from(*reconnect_bounds::ATTEMPT_BUDGET.end()),
+                    ));
+                }
+            }
+        }
+        // Historical retry policy: the backoff ceiling cannot sit below the
+        // initial delay (mirrors the flatfiles `max_backoff >= initial_backoff`
+        // invariant), or the exponential ladder would start above its own cap.
+        if self.retry.max_delay < self.retry.initial_delay {
+            return Err(Error::config_invalid(
+                "retry.max_delay",
+                format!(
+                    "max_delay ({:?}) must be >= initial_delay ({:?})",
+                    self.retry.max_delay, self.retry.initial_delay
+                ),
+            ));
+        }
         // Validate ring_size eagerly so a bad config fails fast rather
         // than waiting for the connect attempt. Re-validation happens
         // at `StreamingClient::connect` for callers that bypass `validate`.
@@ -400,6 +469,25 @@ impl DirectConfig {
                     "max_backoff ({:?}) must be >= initial_backoff ({:?})",
                     self.flatfiles.max_backoff, self.flatfiles.initial_backoff
                 ),
+            ));
+        }
+        // Flat-file HTTP timeouts must be positive: a `0` connect or read
+        // timeout aborts every request instantly. Band-checked up front like
+        // the streaming timeouts.
+        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.flatfiles.connect_timeout_secs) {
+            return Err(Error::config_out_of_range(
+                "flatfiles.connect_timeout_secs",
+                to_i64(self.flatfiles.connect_timeout_secs),
+                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.start()),
+                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.end()),
+            ));
+        }
+        if !flatfiles_bounds::READ_TIMEOUT_SECS.contains(&self.flatfiles.read_timeout_secs) {
+            return Err(Error::config_out_of_range(
+                "flatfiles.read_timeout_secs",
+                to_i64(self.flatfiles.read_timeout_secs),
+                to_i64(*flatfiles_bounds::READ_TIMEOUT_SECS.start()),
+                to_i64(*flatfiles_bounds::READ_TIMEOUT_SECS.end()),
             ));
         }
         Ok(self)
@@ -1642,6 +1730,48 @@ mod tests {
         config.streaming.ring_size = 100; // not a power of two
         let err = config.validate().expect_err("must reject non-power-of-two");
         assert!(err.to_string().contains("ring_size"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_reconnect_rate_limited_cadence() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.wait_rate_limited_ms = 0;
+        let err = config.validate().expect_err("must reject zero cadence");
+        assert!(err.to_string().contains("wait_rate_limited_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_reconnect_attempt_budget() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.policy = ReconnectPolicy::Auto(ReconnectAttemptLimits {
+            max_attempts: 0,
+            ..ReconnectAttemptLimits::default()
+        });
+        let err = config
+            .validate()
+            .expect_err("must reject zero attempt budget");
+        assert!(err.to_string().contains("max_attempts"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_flatfiles_connect_timeout() {
+        let mut config = DirectConfig::production_defaults();
+        config.flatfiles.connect_timeout_secs = 0;
+        let err = config
+            .validate()
+            .expect_err("must reject zero connect timeout");
+        assert!(err.to_string().contains("connect_timeout_secs"));
+    }
+
+    #[test]
+    fn validate_rejects_inverted_retry_delays() {
+        let mut config = DirectConfig::production_defaults();
+        config.retry.initial_delay = std::time::Duration::from_secs(60);
+        config.retry.max_delay = std::time::Duration::from_secs(1);
+        let err = config
+            .validate()
+            .expect_err("must reject inverted retry ladder");
+        assert!(err.to_string().contains("max_delay"));
     }
 
     #[test]

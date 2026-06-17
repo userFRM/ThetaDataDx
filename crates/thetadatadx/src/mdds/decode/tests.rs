@@ -1451,6 +1451,25 @@ fn parse_calendar_days_v3_errors_on_unknown_type_text() {
 }
 
 #[test]
+fn parse_calendar_days_v3_errors_on_null_type_cell() {
+    // `type` is the sole source of both `is_open` and `status`. A present-
+    // but-null cell on a rows-present response cannot be classified, so it is
+    // a typed decode error rather than a silent closed-day fill.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_260_413), dv_null()])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::TypeMismatch {
+            column: 1,
+            expected: "Text",
+            observed: "Null",
+        }
+    );
+}
+
+#[test]
 fn parse_calendar_days_v3_errors_on_invalid_open_time_text() {
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into(), "open".into()],

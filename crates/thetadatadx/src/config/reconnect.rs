@@ -310,6 +310,35 @@ impl Default for ReconnectConfig {
     }
 }
 
+/// Validation bounds for the wired reconnect cadence and auto-reconnect
+/// attempt budgets. Bands are chosen to keep the production defaults
+/// comfortably inside their range while rejecting the degenerate `0` /
+/// runaway values that would otherwise validate clean.
+pub mod bounds {
+    use std::ops::RangeInclusive;
+
+    /// Allowed range (ms) for [`super::ReconnectConfig::wait_rate_limited_ms`].
+    /// The rate-limit cooldown is upstream-instructed; it must be a positive
+    /// delay and is capped at one hour so a typo cannot strand a client.
+    pub const WAIT_RATE_LIMITED_MS: RangeInclusive<u64> = 1..=3_600_000;
+
+    /// Allowed range (ms) for [`super::ReconnectConfig::wait_server_restart_ms`].
+    /// A flat cadence between pool-bounce retries: positive, at most ten
+    /// minutes.
+    pub const WAIT_SERVER_RESTART_MS: RangeInclusive<u64> = 1..=600_000;
+
+    /// Allowed range (ms) for [`super::ReconnectConfig::replay_pace_ms`].
+    /// `0` is permitted (pause removed; bursts still flush individually);
+    /// capped at one minute.
+    pub const REPLAY_PACE_MS: RangeInclusive<u64> = 0..=60_000;
+
+    /// Allowed range for each [`super::ReconnectAttemptLimits`] per-class
+    /// attempt budget (`max_attempts`, `max_rate_limited_attempts`,
+    /// `max_server_restart_attempts`). At least one attempt; an upper cap
+    /// that still spans multi-hour outages at the slowest cadence.
+    pub const ATTEMPT_BUDGET: RangeInclusive<u32> = 1..=100_000;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
