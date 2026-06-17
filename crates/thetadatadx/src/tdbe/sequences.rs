@@ -138,18 +138,20 @@ impl SequenceTracker {
 
         let sequence = if let Some(last) = self.last {
             let absolute = if raw == 0 && last.raw == -1 {
+                // True cycle wrap: -1 -> 0 advances to the next cycle's base.
+                // This is the only crossing that increments the cycle count;
+                // the unsigned axis used by `signed_to_unsigned` places raw 0
+                // at the start of a fresh cycle.
                 is_overflow = true;
                 self.overflow_count += 1;
                 self.overflow_count * SEQUENCE_RANGE as u64
             } else if raw < 0 && last.raw >= 0 && last.raw >= SEQUENCE_MAX - 1000 {
+                // Sign-bit crossing: MAX -> MIN. On the unsigned axis this is
+                // mid-cycle (position 2^31-1 -> 2^31), contiguous, NOT a cycle
+                // boundary. Stay on the current cycle and do not increment the
+                // cycle count; the true wrap is the -1 -> 0 branch above.
                 is_overflow = true;
-                self.overflow_count += 1;
-                let base = if self.overflow_count > 0 {
-                    (self.overflow_count - 1) * SEQUENCE_RANGE as u64
-                } else {
-                    0
-                };
-                base + (SEQUENCE_RANGE + raw) as u64
+                self.overflow_count * SEQUENCE_RANGE as u64 + signed_to_unsigned(raw)
             } else if raw >= last.raw {
                 last.absolute.saturating_add((raw - last.raw) as u64)
             } else {
@@ -323,13 +325,64 @@ mod tests {
     }
 
     #[test]
-    fn tracker_overflow_detection() {
+    fn tracker_sign_bit_crossing_is_not_a_cycle() {
+        // The MAX -> MIN sign-bit crossing is mid-cycle on the unsigned axis:
+        // it is flagged as an overflow event but does not advance the cycle
+        // count, and it introduces no phantom gap.
         let mut tracker = SequenceTracker::new();
         tracker.process(SEQUENCE_MAX - 1);
-        tracker.process(SEQUENCE_MAX);
-        let update = tracker.process(SEQUENCE_MIN);
-        assert!(update.is_overflow);
-        assert_eq!(tracker.overflow_count(), 1);
+        let at_max = tracker.process(SEQUENCE_MAX);
+        let crossing = tracker.process(SEQUENCE_MIN);
+        assert!(crossing.is_overflow);
+        assert!(!crossing.is_gap);
+        assert_eq!(crossing.missing_count, 0);
+        assert_eq!(tracker.overflow_count(), 0);
+        // The absolute advances by exactly one step across the crossing.
+        assert_eq!(crossing.sequence.absolute(), at_max.sequence.absolute() + 1);
+    }
+
+    #[test]
+    fn tracker_full_cycle_no_phantom_gap() {
+        // Drive both per-cycle boundaries contiguously: the sign-bit crossing
+        // (MAX -> MIN) and the true wrap (-1 -> 0). The cycle count must reach
+        // exactly 1 across one full cycle, with no spurious gap or
+        // missing-message count at either boundary. Regression for
+        // double-counting the sign-bit crossing, which inflated the absolute
+        // by SEQUENCE_RANGE and reported a ~4.29-billion phantom gap per cycle.
+        let mut tracker = SequenceTracker::new();
+
+        // Approach and step over the sign-bit crossing, contiguously.
+        tracker.process(SEQUENCE_MAX - 1);
+        let at_max = tracker.process(SEQUENCE_MAX);
+        let crossing = tracker.process(SEQUENCE_MIN);
+        assert!(crossing.is_overflow);
+        assert!(!crossing.is_gap);
+        assert_eq!(crossing.missing_count, 0);
+        assert_eq!(crossing.sequence.absolute(), at_max.sequence.absolute() + 1);
+        // The sign-bit crossing is mid-cycle: no cycle increment yet.
+        assert_eq!(tracker.overflow_count(), 0);
+
+        // Continue contiguously to -1 (one before the true wrap). Anchored at
+        // raw 0 so the absolute axis is sign-correct, then walk the final
+        // pre-wrap values.
+        tracker.process(-3);
+        tracker.process(-2);
+        let minus_one = tracker.process(-1);
+
+        // The true wrap (-1 -> 0) is the sole cycle-advancing boundary: it
+        // increments the cycle count and stays contiguous on the absolute
+        // axis (no phantom gap, no missing messages).
+        let overflow_before = tracker.overflow_count();
+        let gaps_before = tracker.gap_count();
+        let missing_before = tracker.missing_messages();
+        let wrap = tracker.process(0);
+        assert!(wrap.is_overflow);
+        assert!(!wrap.is_gap);
+        assert_eq!(wrap.missing_count, 0);
+        assert_eq!(wrap.sequence.absolute(), minus_one.sequence.absolute() + 1);
+        assert_eq!(tracker.overflow_count(), overflow_before + 1);
+        assert_eq!(tracker.gap_count(), gaps_before);
+        assert_eq!(tracker.missing_messages(), missing_before);
     }
 
     #[test]

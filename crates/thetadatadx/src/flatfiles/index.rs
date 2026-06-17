@@ -243,6 +243,17 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
         }
     };
 
+    // The entry-size prefix frames the contract-identity block exactly; the
+    // location triple that follows is outside it. A cursor that has not
+    // consumed every framed byte means the layout drifted from what we
+    // decoded, so reject rather than silently skip the remainder.
+    let consumed = e.position() as usize;
+    if consumed != entry_size {
+        return Err(Error::decode_codec(format!(
+            "flatfiles INDEX: entry framed {entry_size} bytes but decoded {consumed}"
+        )));
+    }
+
     // Location: i32 volume, i64 start, i64 end. Volume is unused by the
     // SDK; we drop it but consume the bytes to advance the cursor.
     let _volume = read_i32(cur)?;
@@ -405,6 +416,27 @@ mod tests {
         assert_eq!(entry.right, None);
         assert_eq!(entry.block_start, 0);
         assert_eq!(entry.block_end, 100);
+    }
+
+    #[test]
+    fn over_framed_entry_size_is_rejected() {
+        // entry_size claims more bytes than the contract block decodes;
+        // the parser must reject rather than skip the unframed remainder.
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(b"SPY");
+        e.extend_from_slice(&20_260_428i32.to_be_bytes()); // 8 bytes decoded
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&((e.len() + 4) as u16).to_be_bytes()); // over-framed
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&[0u8; 4]); // padding inside the frame
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Stock);
+        assert!(iter.next().unwrap().is_err());
     }
 
     /// Build an INDEX byte stream for one option entry.

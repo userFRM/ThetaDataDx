@@ -136,7 +136,9 @@ struct RetryInfoProto {
 ///
 /// Any malformed layer — non-proto payload, missing detail — degrades
 /// to `None` rather than invalidating the status it travels with.
-/// Negative durations are rejected.
+/// Negative durations are rejected, as is a `nanos` field outside the
+/// canonical `[0, 1e9)` range — an out-of-range fractional component would
+/// otherwise inflate the resulting delay past its intended value.
 fn decode_retry_delay(raw: &[u8]) -> Option<std::time::Duration> {
     use prost::Message;
     if raw.is_empty() {
@@ -149,7 +151,7 @@ fn decode_retry_delay(raw: &[u8]) -> Option<std::time::Duration> {
         }
         let info = RetryInfoProto::decode(any.value.as_slice()).ok()?;
         let proto_delay = info.retry_delay?;
-        if proto_delay.seconds < 0 || proto_delay.nanos < 0 {
+        if proto_delay.seconds < 0 || proto_delay.nanos < 0 || proto_delay.nanos >= 1_000_000_000 {
             return None;
         }
         let secs = u64::try_from(proto_delay.seconds).ok()?;
@@ -309,6 +311,19 @@ mod tests {
             Status::from_tonic(&status).retry_delay(),
             None,
             "a negative server hint must be discarded, not wrapped"
+        );
+    }
+
+    #[test]
+    fn out_of_range_nanos_is_rejected() {
+        // A nanos field at or above 1e9 is outside the canonical Duration
+        // range; carrying it through would inflate the delay (here by ~1.5s).
+        let details = retry_info_details(0, 1_500_000_000);
+        let status = tonic::Status::with_details(tonic::Code::Unavailable, "down", details.into());
+        assert_eq!(
+            Status::from_tonic(&status).retry_delay(),
+            None,
+            "an out-of-range fractional component must be discarded, not added"
         );
     }
 
