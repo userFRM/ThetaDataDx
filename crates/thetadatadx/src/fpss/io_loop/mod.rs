@@ -52,7 +52,7 @@ static FPSS_DRAIN_YIELDS: LazyLock<Counter> =
 static FPSS_RECONNECTS: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.reconnects"));
 
-use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
+use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
 use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
@@ -77,6 +77,9 @@ use super::ring::{
 };
 
 type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
+/// Maps an in-flight subscribe's `req_id` to the tracked entry it created,
+/// so a rejecting `REQ_RESPONSE` can untrack exactly that subscription.
+type PendingSubs = Arc<Mutex<HashMap<i32, super::protocol::PendingSub>>>;
 type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
@@ -159,6 +162,11 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub host_shuffle_seed: u64,
     pub active_subs: ActiveSubs,
     pub active_full_subs: ActiveFullSubs,
+    /// In-flight subscribe registry keyed by `req_id`. A subscribe records
+    /// its tracked identity here when the frame is sent; the reader removes
+    /// the entry when the server's `REQ_RESPONSE` lands, and on a rejection
+    /// also drops the matching tracked subscription so it is not re-replayed.
+    pub pending_subs: PendingSubs,
     pub dropped: Arc<AtomicU64>,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
@@ -196,6 +204,63 @@ fn host_index(hosts: &[(String, u16)], addr: &str) -> Option<usize> {
         .position(|(host, port)| format!("{host}:{port}") == addr)
 }
 
+/// Reconcile the tracked-subscription set against a server `REQ_RESPONSE`.
+///
+/// The `req_id` is the only correlation key the wire carries back, so the
+/// pending registry — populated when the subscribe frame was sent — is the
+/// authority on which tracked entry this response answers. A `Subscribed`
+/// outcome leaves the subscription tracked (it is live and must be replayed
+/// on reconnect); a rejection (`Error` / `MaxStreamsReached` / `InvalidPerms`)
+/// removes the matching entry from `active_subs` / `active_full_subs` so the
+/// reconnect replay does not re-attempt it forever and
+/// `active_subscriptions()` does not over-report it. Either way the pending
+/// entry is consumed.
+///
+/// A response whose `req_id` is unknown (the uncorrelated `-1` sentinel, or an
+/// id from a span longer than the 31-bit counter cycle) leaves the tracked set
+/// untouched: with no correlation, untracking would risk dropping a healthy
+/// subscription, so the conservative choice is to keep it.
+fn apply_req_response(
+    req_id: i32,
+    result: StreamResponseType,
+    pending_subs: &PendingSubs,
+    active_subs: &ActiveSubs,
+    active_full_subs: &ActiveFullSubs,
+) {
+    let pending = pending_subs
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(&req_id);
+
+    let Some(pending) = pending else {
+        return;
+    };
+
+    if matches!(result, StreamResponseType::Subscribed) {
+        return;
+    }
+
+    match pending {
+        super::protocol::PendingSub::Contract(kind, contract) => {
+            active_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retain(|(k, c)| !(*k == kind && *c == contract));
+        }
+        super::protocol::PendingSub::Full(kind, sec_type) => {
+            active_full_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retain(|(k, s)| !(*k == kind && *s == sec_type));
+        }
+    }
+    tracing::debug!(
+        req_id,
+        result = ?result,
+        "untracked rejected subscription; it will not be replayed on reconnect"
+    );
+}
+
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 pub(in crate::fpss) fn io_loop<P>(args: IoLoopArgs<P>)
@@ -227,6 +292,7 @@ where
         host_shuffle_seed,
         active_subs,
         active_full_subs,
+        pending_subs,
         dropped,
         connect_timeout,
         read_timeout,
@@ -392,6 +458,26 @@ where
                         &mut delta_state,
                         derive_ohlcvc,
                     );
+
+                    // Correlate a subscription response to the subscribe it
+                    // answers (by `req_id`) before publishing it. A rejecting
+                    // response untracks the offending subscription so it is
+                    // neither re-replayed on the next reconnect nor over-
+                    // reported by `active_subscriptions()`; an accepting one
+                    // simply clears the pending entry and keeps it tracked.
+                    if let Some(FpssEventInternal::Control(StreamControl::ReqResponse {
+                        req_id,
+                        result,
+                    })) = &primary
+                    {
+                        apply_req_response(
+                            *req_id,
+                            *result,
+                            &pending_subs,
+                            &active_subs,
+                            &active_full_subs,
+                        );
+                    }
 
                     if let Some(evt) = primary {
                         if producer
@@ -1024,6 +1110,14 @@ where
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
 
+        // A new session invalidates every previously allocated `req_id`, so
+        // any pending correlations from the prior session can never be
+        // answered — drop them before the replay re-registers fresh ones.
+        pending_subs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
         for (kind, contract) in &subs_snapshot {
@@ -1040,12 +1134,27 @@ where
                 }
             };
             let code = kind.subscribe_code();
+            // A replay write failure means the freshly reconnected socket is
+            // already broken; continuing would leave this contract silently
+            // unsubscribed until the next disconnect. Re-enter the reconnect
+            // loop instead so recovery is driven the same way every other
+            // mid-replay I/O failure is, rather than swallowed in a warning.
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, contract = %contract, req_id, "failed to re-subscribe on reconnect");
-            } else {
-                tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
+                tracing::warn!(error = %e, contract = %contract, req_id, "re-subscribe write failed; treating socket as broken and reconnecting");
+                continue 'session;
             }
-            pacer.frame_written(writer, &shutdown);
+            pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(
+                    req_id,
+                    super::protocol::PendingSub::Contract(*kind, contract.clone()),
+                );
+            tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
+            if let Err(e) = pacer.frame_written(writer, &shutdown) {
+                tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
+                continue 'session;
+            }
             if shutdown.load(Ordering::Relaxed) {
                 break 'session;
             }
@@ -1055,18 +1164,30 @@ where
             let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "failed to re-subscribe full-type on reconnect");
-            } else {
-                tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
+                tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "re-subscribe write failed; treating socket as broken and reconnecting");
+                continue 'session;
             }
-            pacer.frame_written(writer, &shutdown);
+            pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(req_id, super::protocol::PendingSub::Full(*kind, *sec_type));
+            tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
+            if let Err(e) = pacer.frame_written(writer, &shutdown) {
+                tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
+                continue 'session;
+            }
             if shutdown.load(Ordering::Relaxed) {
                 break 'session;
             }
         }
         if !subs_snapshot.is_empty() || !full_subs_snapshot.is_empty() {
+            // The trailing flush covers the final partial burst the pacer did
+            // not flush. A failure here means the socket broke after the last
+            // write, so escalate to reconnect rather than continuing onto a
+            // session whose replay never reached the server.
             if let Err(e) = writer.flush() {
-                tracing::warn!(error = %e, "failed to flush re-subscribe batch on reconnect");
+                tracing::warn!(error = %e, "re-subscribe batch flush failed; treating socket as broken and reconnecting");
+                continue 'session;
             }
         }
 
@@ -1249,18 +1370,25 @@ impl ReplayPacer {
     }
 
     /// Account one written frame; on a full burst, flush + pause.
-    fn frame_written<W: Write>(&mut self, writer: &mut W, shutdown: &AtomicBool) {
+    ///
+    /// Returns `Err` if the burst flush fails: a failed flush means the
+    /// reconnected socket is broken, so the caller re-enters the reconnect
+    /// loop rather than pacing out a replay the server never received.
+    fn frame_written<W: Write>(
+        &mut self,
+        writer: &mut W,
+        shutdown: &AtomicBool,
+    ) -> std::io::Result<()> {
         self.written_in_burst += 1;
         if self.written_in_burst < self.burst_size {
-            return;
+            return Ok(());
         }
         self.written_in_burst = 0;
-        if let Err(e) = writer.flush() {
-            tracing::warn!(error = %e, "failed to flush re-subscribe burst on reconnect");
-        }
+        writer.flush()?;
         if !self.pace.is_zero() {
             sleep_until_or_shutdown(replay_pause(self.pace), shutdown);
         }
+        Ok(())
     }
 }
 
@@ -1581,7 +1709,9 @@ mod tests {
         let mut pacer = ReplayPacer::new(50, 20);
         let start = Instant::now();
         for _ in 0..125 {
-            pacer.frame_written(&mut writer, &shutdown);
+            pacer
+                .frame_written(&mut writer, &shutdown)
+                .expect("counting writer never fails to flush");
         }
         let elapsed = start.elapsed();
         assert_eq!(writer.flushes, 2, "one flush per completed burst");
@@ -1617,7 +1747,9 @@ mod tests {
         let mut pacer = ReplayPacer::new(0, 0);
         let start = Instant::now();
         for _ in 0..8 {
-            pacer.frame_written(&mut writer, &shutdown);
+            pacer
+                .frame_written(&mut writer, &shutdown)
+                .expect("counting writer never fails to flush");
         }
         assert_eq!(writer.flushes, 8, "burst size 0 must clamp to 1");
         assert!(
@@ -1790,5 +1922,139 @@ mod tests {
                  path keeps looping instead of tearing down the I/O thread"
             );
         }
+    }
+
+    /// A rejecting `REQ_RESPONSE` (here `MaxStreamsReached`) must untrack the
+    /// exact subscription it answers, correlated by `req_id`. After the
+    /// rejection the contract is gone from `active_subs` — so it is absent
+    /// both from `active_subscriptions()` and from the reconnect-replay set,
+    /// which is a clone of `active_subs`. A second, accepted subscription on a
+    /// different `req_id` stays tracked and replayable.
+    #[test]
+    fn rejected_req_response_untracks_sub_and_is_not_replayed() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let rejected = Contract::stock("AAAA");
+        let accepted = Contract::stock("BBBB");
+
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
+            (SubscriptionKind::Trade, rejected.clone()),
+            (SubscriptionKind::Trade, accepted.clone()),
+        ]));
+        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        pending_subs.lock().unwrap().insert(
+            10,
+            PendingSub::Contract(SubscriptionKind::Trade, rejected.clone()),
+        );
+        pending_subs.lock().unwrap().insert(
+            11,
+            PendingSub::Contract(SubscriptionKind::Trade, accepted.clone()),
+        );
+
+        // req_id 10 is rejected: the server hit the account stream cap.
+        apply_req_response(
+            10,
+            StreamResponseType::MaxStreamsReached,
+            &pending_subs,
+            &active_subs,
+            &active_full_subs,
+        );
+        // req_id 11 is accepted: stays tracked.
+        apply_req_response(
+            11,
+            StreamResponseType::Subscribed,
+            &pending_subs,
+            &active_subs,
+            &active_full_subs,
+        );
+
+        let tracked = active_subs.lock().unwrap().clone();
+        assert!(
+            !tracked.iter().any(|(_, c)| *c == rejected),
+            "a rejected subscription must be removed from active_subs"
+        );
+        assert!(
+            tracked.iter().any(|(_, c)| *c == accepted),
+            "an accepted subscription must remain tracked"
+        );
+
+        // The reconnect replay snapshots `active_subs`; the rejected contract
+        // is therefore not in the replay set and will not be re-attempted.
+        let replay_snapshot = active_subs.lock().unwrap().clone();
+        assert!(
+            !replay_snapshot.iter().any(|(_, c)| *c == rejected),
+            "rejected subscription must not appear in the reconnect replay set"
+        );
+
+        // Both responses consumed their pending entries.
+        assert!(
+            pending_subs.lock().unwrap().is_empty(),
+            "pending registry must be drained once both responses land"
+        );
+    }
+
+    /// An unknown `req_id` (the `-1` uncorrelated sentinel, or any id with no
+    /// pending entry) must leave the tracked set untouched: without a
+    /// correlation, untracking would risk dropping a healthy subscription.
+    #[test]
+    fn uncorrelated_req_response_leaves_tracked_set_intact() {
+        use super::super::protocol::SubscriptionKind;
+        use std::collections::HashMap;
+
+        let contract = Contract::stock("CCCC");
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
+            SubscriptionKind::Trade,
+            contract.clone(),
+        )]));
+        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+
+        apply_req_response(
+            -1,
+            StreamResponseType::Error,
+            &pending_subs,
+            &active_subs,
+            &active_full_subs,
+        );
+
+        assert_eq!(
+            active_subs.lock().unwrap().len(),
+            1,
+            "an uncorrelated rejection must not drop a tracked subscription"
+        );
+    }
+
+    /// A rejecting `REQ_RESPONSE` for a full-stream subscribe untracks the
+    /// matching `(kind, sec_type)` entry from `active_full_subs`.
+    #[test]
+    fn rejected_full_stream_req_response_untracks_full_sub() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use crate::tdbe::types::enums::SecType;
+        use std::collections::HashMap;
+
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: ActiveFullSubs =
+            Arc::new(Mutex::new(vec![(SubscriptionKind::Trade, SecType::Option)]));
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        pending_subs.lock().unwrap().insert(
+            7,
+            PendingSub::Full(SubscriptionKind::Trade, SecType::Option),
+        );
+
+        apply_req_response(
+            7,
+            StreamResponseType::InvalidPerms,
+            &pending_subs,
+            &active_subs,
+            &active_full_subs,
+        );
+
+        assert!(
+            active_full_subs.lock().unwrap().is_empty(),
+            "a rejected full-stream subscription must be removed from active_full_subs"
+        );
     }
 }

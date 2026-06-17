@@ -851,6 +851,7 @@ struct SpawnArgs<'a, P> {
     authenticated: Arc<AtomicBool>,
     active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>>,
+    pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
     ring_cursors: Arc<RingCursors>,
@@ -927,6 +928,15 @@ pub struct StreamingClient {
     /// Active full-type (full-stream) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
         Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>>,
+    /// In-flight subscribes keyed by `req_id`, awaiting a server
+    /// `REQ_RESPONSE`. A subscribe records its tracked identity here when the
+    /// frame is sent; the I/O thread removes the entry when the response
+    /// lands, and on a rejection also drops the matching entry from
+    /// `active_subs` / `active_full_subs` so a server-rejected subscription is
+    /// neither replayed on reconnect nor over-reported by
+    /// `active_subscriptions()`.
+    pub(in crate::fpss) pending_subs:
+        Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>>,
     /// The server address the initial connect landed on. Snapshot;
     /// see `last_connected_addr()` for the live session address.
     server_addr: String,
@@ -1293,6 +1303,8 @@ impl StreamingClient {
                 )>,
             >,
         > = Arc::new(Mutex::new(Vec::new()));
+        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>> =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         // Slow-callback observability — opt-in via
@@ -1389,6 +1401,7 @@ impl StreamingClient {
             authenticated,
             active_subs,
             active_full_subs,
+            pending_subs,
             dropped,
             panics,
             ring_cursors,
@@ -1444,6 +1457,7 @@ impl StreamingClient {
             authenticated,
             active_subs,
             active_full_subs,
+            pending_subs,
             dropped,
             panics,
             ring_cursors,
@@ -1465,6 +1479,7 @@ impl StreamingClient {
         let io_hosts = hosts.to_vec();
         let io_active_subs = Arc::clone(&active_subs);
         let io_active_full_subs = Arc::clone(&active_full_subs);
+        let io_pending_subs = Arc::clone(&pending_subs);
         let io_dropped = Arc::clone(&dropped);
         let io_next_req_id = Arc::clone(&next_req_id);
         let io_last_event_at_ns = Arc::clone(&last_event_at_ns);
@@ -1498,6 +1513,7 @@ impl StreamingClient {
                     host_shuffle_seed,
                     active_subs: io_active_subs,
                     active_full_subs: io_active_full_subs,
+                    pending_subs: io_pending_subs,
                     dropped: io_dropped,
                     connect_timeout,
                     read_timeout,
@@ -1547,6 +1563,7 @@ impl StreamingClient {
             next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
+            pending_subs,
             server_addr,
             last_event_at_ns,
             connected_addr,
@@ -2106,6 +2123,19 @@ impl StreamingClient {
     /// scope). Dispatches to the per-contract or full-stream
     /// payload builder by enum variant.
     ///
+    /// # Overlapping subscriptions
+    ///
+    /// Do not hold both a full-stream subscription and a per-contract
+    /// subscription of the same kind for the same security type at once —
+    /// for example a full-stream option-trade subscription
+    /// ([`protocol::SecTypeExt::full_trades`] on [`SecType::Option`]) together
+    /// with a per-contract trade subscription
+    /// ([`Contract::trade`]) on an individual option. The server broadcasts a
+    /// contract that matches both on each feed independently, and this client
+    /// does not de-duplicate across the two scopes, so a matching contract is
+    /// delivered twice and any derived OHLCVC double-counts its volume. Pick
+    /// one scope per kind and security type.
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -2222,6 +2252,18 @@ impl StreamingClient {
             // the same subscribe frame multiple times on reconnect.
             subs.push((kind_for_track, sec_type));
         }
+        drop(subs);
+
+        // Only a subscribe awaits a `REQ_RESPONSE` worth correlating; an
+        // unsubscribe removed its entry above and has nothing to untrack.
+        // Record the pending full-stream subscribe by `req_id` so a server
+        // rejection drops exactly this entry from the replay set.
+        if !unsubscribe {
+            self.pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(req_id, protocol::PendingSub::Full(kind_for_track, sec_type));
+        }
         Ok(())
     }
 
@@ -2250,6 +2292,18 @@ impl StreamingClient {
                 subs.push((kind, contract.clone()));
             }
         }
+
+        // Record the in-flight subscribe keyed by its `req_id` so the I/O
+        // thread can correlate the asynchronous server `REQ_RESPONSE` back to
+        // this contract. A rejection then untracks exactly this entry rather
+        // than leaving a permanently over-reported, forever-replayed sub.
+        self.pending_subs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(
+                req_id,
+                protocol::PendingSub::Contract(kind, contract.clone()),
+            );
 
         tracing::debug!(
             req_id,
@@ -2543,6 +2597,8 @@ impl StreamingClient {
         let active_full_subs: Arc<
             Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType)>>,
         > = Arc::new(Mutex::new(Vec::new()));
+        let pending_subs: Arc<Mutex<std::collections::HashMap<i32, protocol::PendingSub>>> =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let ring_cursors = Arc::new(RingCursors::new());
@@ -2658,6 +2714,7 @@ impl StreamingClient {
             next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
+            pending_subs,
             server_addr: "test://self-join".to_owned(),
             last_event_at_ns: Arc::new(AtomicI64::new(0)),
             connected_addr: Arc::new(Mutex::new("test://self-join".to_owned())),
@@ -2723,6 +2780,7 @@ impl StreamingClient {
             next_req_id: Arc::new(AtomicI64::new(1)),
             active_subs: Arc::new(Mutex::new(Vec::new())),
             active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            pending_subs: Arc::new(Mutex::new(std::collections::HashMap::new())),
             server_addr: "test://ring-occupancy".to_owned(),
             last_event_at_ns: Arc::new(AtomicI64::new(0)),
             connected_addr: Arc::new(Mutex::new("test://ring-occupancy".to_owned())),

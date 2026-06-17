@@ -75,7 +75,14 @@ impl OhlcvcAccumulator {
         price_type: i32,
         date: i32,
     ) {
-        if self.initialized {
+        // A trade on a new date opens a fresh bar. Without this, an already-
+        // initialized accumulator merges the new date's trade onto the prior
+        // date's open/high/low and cumulative volume/count while the emitted
+        // `Ohlcvc.date` stays stale — silently corrupting the derived bar
+        // across a session boundary when no server bar or clear intervenes.
+        // Falling through to the uninitialized branch re-seeds open/high/low/
+        // close, volume, count, price_type, and date from this single trade.
+        if self.initialized && date == self.date {
             self.ms_of_day = ms_of_day;
             let adjusted_price = change_price_type(price, price_type, self.price_type);
             self.volume += i64::from(size);
@@ -220,6 +227,35 @@ mod tests {
         );
         assert_eq!(acc.volume, 2_225_611_194_i64);
         assert_eq!(acc.count, 2_286_840_317_i64);
+    }
+
+    /// A trade carrying a new date must roll the accumulator to a fresh bar
+    /// rather than merging onto the prior date's open/high/low + cumulative
+    /// volume/count. Without the roll, the emitted `date` stays stale and the
+    /// new session's first bar inherits the previous day's totals (derive
+    /// path, no intervening server bar or clear).
+    #[test]
+    fn ohlcvc_accumulator_rolls_on_date_change() {
+        let mut acc = OhlcvcAccumulator::new();
+        // Day 1: two trades accumulate.
+        acc.process_trade(57_600_000, 15_025, 100, 8, 20240315);
+        acc.process_trade(57_600_100, 15_100, 200, 8, 20240315);
+        assert_eq!(acc.date, 20240315);
+        assert_eq!(acc.volume, 300);
+        assert_eq!(acc.count, 2);
+
+        // Day 2: the first trade on the new date opens a fresh bar. Open,
+        // high, low, close all reset to this trade's price; volume and count
+        // restart from this trade alone; the date advances.
+        acc.process_trade(34_200_000, 14_950, 50, 8, 20240318);
+        assert_eq!(acc.date, 20240318);
+        assert_eq!(acc.open, 14_950);
+        assert_eq!(acc.high, 14_950);
+        assert_eq!(acc.low, 14_950);
+        assert_eq!(acc.close, 14_950);
+        assert_eq!(acc.volume, 50, "new-date volume must not include day 1");
+        assert_eq!(acc.count, 1, "new-date count must not include day 1");
+        assert_eq!(acc.ms_of_day, 34_200_000);
     }
 
     #[test]
