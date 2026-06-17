@@ -30,6 +30,7 @@ use pyo3::types::PyList;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
+use crate::async_runtime::spawn_awaitable;
 use crate::errors::to_py_err;
 use crate::record_batch_to_pyarrow_table;
 use crate::run_blocking;
@@ -200,6 +201,22 @@ impl FlatFilesNamespace {
         })?;
         Ok(FlatFileRowList { rows })
     }
+
+    fn pull_decoded_async<'py>(
+        &self,
+        py: Python<'py>,
+        sec: SecType,
+        req: ReqType,
+        date: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = Arc::clone(&self.client);
+        let date_owned = date.to_string();
+        spawn_awaitable(
+            py,
+            async move { client.flatfile_request_decoded(sec, req, &date_owned).await },
+            |py, rows| Ok(Py::new(py, FlatFileRowList { rows })?.into_any()),
+        )
+    }
 }
 
 #[pymethods]
@@ -247,6 +264,71 @@ impl FlatFilesNamespace {
         let sec = parse_flatfile_sec_type(sec_type)?;
         let req = parse_flatfile_req_type(req_type)?;
         self.pull_decoded(py, sec, req, date)
+    }
+
+    // ── Awaitable terminals ─────────────────────────────────────────
+    //
+    // Each `*_async` method is the awaitable twin of the sync method
+    // above. A flat-file pull is a full-day blob download — seconds of
+    // network plus a decode pass. The sync methods drive that to
+    // completion on the calling thread, which is correct for a plain
+    // `Client` call but would stall a running asyncio event loop when
+    // reached through `AsyncClient.flat_files`. The awaitable terminals
+    // resolve the download off the event loop so other coroutines keep
+    // running while the day's data arrives, then yield the same
+    // `FlatFileRowList`. Pick the suffix that matches your call site:
+    // sync `flat_files.option_eod(date)` on a `Client`, awaitable
+    // `await flat_files.option_eod_async(date)` inside a coroutine.
+
+    /// Awaitable option-trade-quote flat file for `date` (YYYYMMDD).
+    fn option_trade_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.pull_decoded_async(py, SecType::Option, ReqType::TradeQuote, date)
+    }
+
+    /// Awaitable option-open-interest flat file for `date` (YYYYMMDD).
+    fn option_open_interest_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.pull_decoded_async(py, SecType::Option, ReqType::OpenInterest, date)
+    }
+
+    /// Awaitable option-EOD flat file for `date` (YYYYMMDD).
+    fn option_eod_async<'py>(&self, py: Python<'py>, date: &str) -> PyResult<Bound<'py, PyAny>> {
+        self.pull_decoded_async(py, SecType::Option, ReqType::Eod, date)
+    }
+
+    /// Awaitable stock-trade-quote flat file for `date` (YYYYMMDD).
+    fn stock_trade_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.pull_decoded_async(py, SecType::Stock, ReqType::TradeQuote, date)
+    }
+
+    /// Awaitable stock-EOD flat file for `date` (YYYYMMDD).
+    fn stock_eod_async<'py>(&self, py: Python<'py>, date: &str) -> PyResult<Bound<'py, PyAny>> {
+        self.pull_decoded_async(py, SecType::Stock, ReqType::Eod, date)
+    }
+
+    /// Awaitable generic dispatcher. `sec_type` and `req_type` accept the
+    /// same strings as `request(...)`, e.g. `"OPTION"` / `"QUOTE"`.
+    fn request_async<'py>(
+        &self,
+        py: Python<'py>,
+        sec_type: &str,
+        req_type: &str,
+        date: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let sec = parse_flatfile_sec_type(sec_type)?;
+        let req = parse_flatfile_req_type(req_type)?;
+        self.pull_decoded_async(py, sec, req, date)
     }
 }
 
@@ -304,5 +386,45 @@ impl crate::Client {
                 .await
         })?;
         Ok(final_path.to_string_lossy().into_owned())
+    }
+
+    /// Awaitable twin of [`flatfile_to_path`](Self::flatfile_to_path).
+    ///
+    /// Writes the requested format straight to `path` without decoding
+    /// into rows, resolving the blob download off the calling thread so a
+    /// running event loop keeps servicing other coroutines while the
+    /// day's file streams to disk. Yields the final on-disk path.
+    #[pyo3(signature = (sec_type, req_type, date, path, format=None))]
+    fn flatfile_to_path_async<'py>(
+        &self,
+        py: Python<'py>,
+        sec_type: &str,
+        req_type: &str,
+        date: &str,
+        path: &str,
+        format: Option<&str>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let sec = parse_flatfile_sec_type(sec_type)?;
+        let req = parse_flatfile_req_type(req_type)?;
+        let fmt = parse_flatfile_format(format)?;
+        let client = Arc::clone(&self.client);
+        let date_owned = date.to_string();
+        let path_owned = std::path::PathBuf::from(path);
+        spawn_awaitable(
+            py,
+            async move {
+                client
+                    .flatfile_request(sec, req, &date_owned, &path_owned, fmt)
+                    .await
+            },
+            |py, final_path| {
+                Ok(final_path
+                    .to_string_lossy()
+                    .into_owned()
+                    .into_pyobject(py)?
+                    .into_any()
+                    .unbind())
+            },
+        )
     }
 }

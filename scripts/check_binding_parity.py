@@ -1286,6 +1286,7 @@ FLATFILES_NAMESPACE_EXEMPT_MEMBERS: frozenset[str] = frozenset(
     {
         "handle_",
         "pull_decoded",
+        "pull_decoded_async",
         "thetadatadx_flatfile_request_decoded",
         "thetadatadx_flatfile_request_to_path",
         "to_path",
@@ -1480,8 +1481,18 @@ def _check_method_rows(
     flatfiles_members |= ts_methods.get("FlatFilesNamespace", set())
     flatfiles_members |= cpp_methods.get(_cpp_class_for("FlatFilesNamespace"), set())
     for member in sorted(flatfiles_members - FLATFILES_NAMESPACE_EXEMPT_MEMBERS):
-        camel = _snake_to_camel(member)
-        if camel in enrolled_flatfiles_methods or member in enrolled_flatfiles_methods:
+        # A Python `<fetch>_async` member is the awaitable twin of its sync
+        # fetch, not a distinct fetch contract: the TypeScript fetch methods
+        # are already `async` (Promise) and C++ exposes a `std::future`
+        # companion, so the async surface rides the same enrolled row rather
+        # than carrying its own. Strip a trailing `_async` and require the
+        # base to be an enrolled fetch (mirroring how the historical `_async`
+        # members are matched by their base endpoint). This does not weaken
+        # the scan: an `_async` member whose base is not an enrolled fetch
+        # still trips below.
+        base = member[: -len("_async")] if member.endswith("_async") else member
+        camel = _snake_to_camel(base)
+        if camel in enrolled_flatfiles_methods or base in enrolled_flatfiles_methods:
             continue
         errors.append(
             f"  FlatFilesNamespace.{member}: fetch method present on the "

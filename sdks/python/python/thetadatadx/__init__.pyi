@@ -1276,6 +1276,21 @@ class Client:
         auto-appended if absent).
         """
         ...
+    def flatfile_to_path_async(
+        self,
+        sec_type: str,
+        req_type: str,
+        date: str,
+        path: str,
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Awaitable twin of :py:meth:`flatfile_to_path`.
+
+        Resolves the blob download off the calling thread so a running
+        event loop keeps servicing other coroutines while the file streams
+        to disk. Yields the final on-disk path.
+        """
+        ...
 
     def __repr__(self) -> str:
         """Return a representation including historical and streaming state."""
@@ -1749,6 +1764,15 @@ class FlatFilesNamespace:
     Each method maps one ``(SecType, ReqType)`` pair to a
     :class:`FlatFileRowList`. The wildcard :py:meth:`request` dispatches
     dynamically by string identifiers.
+
+    Every fetch carries an ``*_async`` twin returning an awaitable. A
+    flat-file pull is a full-day blob download that takes seconds; the
+    plain methods run that to completion on the calling thread, which is
+    right for a :class:`Client` call but would stall a running event loop
+    when reached through :py:attr:`AsyncClient.flat_files`. Inside a
+    coroutine, ``await flat_files.option_eod_async(date)`` resolves the
+    download without blocking the loop and yields the same
+    :class:`FlatFileRowList`.
     """
 
     def option_trade_quote(self, date: str) -> FlatFileRowList:
@@ -1786,6 +1810,32 @@ class FlatFilesNamespace:
             InvalidParameterError: If the ``(sec_type, req_type)`` pair is
                 not one the flat-file distribution serves.
         """
+        ...
+
+    def option_trade_quote_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable option-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_open_interest_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable option-open-interest flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def option_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable option-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_trade_quote_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable stock-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def stock_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def request_async(
+        self, sec_type: str, req_type: str, date: str
+    ) -> Awaitable[FlatFileRowList]:
+        """Awaitable twin of :py:meth:`request`, resolved off the event loop."""
         ...
 
 
