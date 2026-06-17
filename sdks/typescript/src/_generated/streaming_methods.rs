@@ -17,22 +17,7 @@ impl StreamView {
     /// blocked by a slow callback, so the upstream connection
     /// stays healthy regardless of callback speed.
     #[napi(js_name = "startStreaming")]
-    pub fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {
-        // Hold the JS callback in a `Mutex<Option<Arc<...>>>` so
-        // `stopStreaming` / `shutdown` can drop it (releasing the
-        // napi-rs reference back to V8) and so a subsequent
-        // `startStreaming` / `reconnect` cycle replaces the previous
-        // registration cleanly.
-        let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        // Reject double-registration with a clear napi error. The
-        // underlying `Client::start_streaming` would also error,
-        // but matching the napi binding's own state first gives a
-        // language-idiomatic message.
-        if cb_guard.is_some() {
-            return Err(napi::Error::from_reason(
-                "streaming already started -- call stopStreaming() before startStreaming() again",
-            ));
-        }
+    pub async fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {
         // Bind the callback behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
@@ -40,43 +25,82 @@ impl StreamView {
         // 3.x — the outer `Arc` is the canonical way to share the
         // handle between the closure and the stored copy on `self`.
         let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
+        {
+            // Reserve the registration slot before yielding to the
+            // blocking handshake. Holding the `Mutex<Option<Arc<...>>>`
+            // guard across an `.await` is not allowed (the guard is
+            // `!Send`), so we take the lock in this inner scope, reject a
+            // double-registration, and store the handle eagerly. A
+            // handshake failure below clears the slot again. This keeps
+            // the double-registration check correct even though two
+            // `startStreaming` calls could otherwise both pass it while
+            // the first is still awaiting.
+            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            // Reject double-registration with a clear napi error. The
+            // underlying `Client::start_streaming` would also error,
+            // but matching the napi binding's own state first gives a
+            // language-idiomatic message.
+            if cb_guard.is_some() {
+                return Err(napi::Error::from_reason(
+                    "streaming already started -- call stopStreaming() before startStreaming() again",
+                ));
+            }
+            *cb_guard = Some(Arc::clone(&callback_arc));
+        }
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.client
-            .stream()
-            .start_streaming(move |event: &fpss::StreamEvent| {
-                // Convert to the typed `StreamEvent` napi object on the
-                // dispatcher thread, then hand the value
-                // to `ThreadsafeFunction::call`. napi-rs' internal
-                // `uv_async_t` queue routes the call onto the Node
-                // main thread, which is the only thread allowed to
-                // execute V8 (libuv invariant). The FPSS TLS reader
-                // thread itself never touches V8: the streaming ring
-                // sits between the reader and the consumer that runs
-                // this closure, so a slow JS callback at most fills
-                // the ring and bumps `droppedEventCount()` — it
-                // cannot back-pressure the TLS reader and trigger a
-                // vendor-side disconnect.
-                let buffered = fpss_event_to_buffered(event);
-                let typed = buffered_event_to_typed(buffered);
-                // `Blocking` so the dispatcher waits if the
-                // napi tsfn queue is full instead of silently
-                // discarding the event. The streaming ring already absorbs
-                // FPSS-side bursts; the only path where the tsfn
-                // queue fills is a stalled Node event loop, and a
-                // bounded blocking back-pressure is preferable to a
-                // double-drop (ring + tsfn).
-                //
-                // `ErrorStrategy::Fatal` (the `false` const generic on
-                // `TsfnCallback`) means we pass `T` directly, not
-                // `Result<T, _>` — exceptions in the JS callback are
-                // the JS side's problem, surfaced through Node's own
-                // `uncaughtException`.
-                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-            })
-            .map_err(to_napi_err)?;
+        // The FPSS connect and authentication handshake are network-bound
+        // and run synchronously inside `start_streaming`. Move that work
+        // onto a blocking worker so the single libuv thread stays free to
+        // service timers, IO, and queued promises for the whole handshake.
+        // The dispatcher closure and the `Arc<thetadatadx::Client>` are
+        // both `Send + 'static`, so the closure satisfies the
+        // `spawn_blocking` bound.
+        let client = Arc::clone(&self.client);
+        let result = tokio::task::spawn_blocking(move || {
+            client
+                .stream()
+                .start_streaming(move |event: &fpss::StreamEvent| {
+                    // Convert to the typed `StreamEvent` napi object on the
+                    // dispatcher thread, then hand the value
+                    // to `ThreadsafeFunction::call`. napi-rs' internal
+                    // `uv_async_t` queue routes the call onto the Node
+                    // main thread, which is the only thread allowed to
+                    // execute V8 (libuv invariant). The FPSS TLS reader
+                    // thread itself never touches V8: the streaming ring
+                    // sits between the reader and the consumer that runs
+                    // this closure, so a slow JS callback at most fills
+                    // the ring and bumps `droppedEventCount()` — it
+                    // cannot back-pressure the TLS reader and trigger a
+                    // vendor-side disconnect.
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = buffered_event_to_typed(buffered);
+                    // `Blocking` so the dispatcher waits if the
+                    // napi tsfn queue is full instead of silently
+                    // discarding the event. The streaming ring already absorbs
+                    // FPSS-side bursts; the only path where the tsfn
+                    // queue fills is a stalled Node event loop, and a
+                    // bounded blocking back-pressure is preferable to a
+                    // double-drop (ring + tsfn).
+                    //
+                    // `ErrorStrategy::Fatal` (the `false` const generic on
+                    // `TsfnCallback`) means we pass `T` directly, not
+                    // `Result<T, _>` — exceptions in the JS callback are
+                    // the JS side's problem, surfaced through Node's own
+                    // `uncaughtException`.
+                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("start_streaming task panicked: {e}")))?;
 
-        *cb_guard = Some(callback_arc);
+        if let Err(e) = result {
+            // The handshake failed — release the slot we reserved above so
+            // a later `startStreaming` retry sees a clean registration.
+            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            *cb_guard = None;
+            return Err(to_napi_err(e));
+        }
         Ok(())
     }
 
@@ -128,7 +152,7 @@ impl StreamView {
     /// the explicit handoff and avoid retaining captured references
     /// past a teardown the caller has already observed.
     #[napi(js_name = "reconnect")]
-    pub fn reconnect(&self) -> napi::Result<()> {
+    pub async fn reconnect(&self) -> napi::Result<()> {
         // `reconnect` re-registers the previously installed callback
         // on a fresh FPSS connection. Require a prior
         // `startStreaming(callback)` so the napi surface stays
@@ -147,18 +171,25 @@ impl StreamView {
         };
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.client
-            .stream()
-            .reconnect_streaming(move |event: &fpss::StreamEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                let typed = buffered_event_to_typed(buffered);
-                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-            })
-            .map_err(to_napi_err)?;
-
-        // Keep the previously stored handle in place — `reconnect_streaming`
-        // re-uses the same `ThreadsafeFunction`. No state shape change.
-        Ok(())
+        // The reconnect re-runs the FPSS connect and authentication
+        // handshake plus a paced subscription restore — all network-bound.
+        // Move it onto a blocking worker so the single libuv thread stays
+        // free for timers, IO, and queued promises. The stored callback
+        // handle stays in place; `reconnect_streaming` re-uses the same
+        // `ThreadsafeFunction`, so there is no state shape change.
+        let client = Arc::clone(&self.client);
+        tokio::task::spawn_blocking(move || {
+            client
+                .stream()
+                .reconnect_streaming(move |event: &fpss::StreamEvent| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = buffered_event_to_typed(buffered);
+                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
+        .map_err(to_napi_err)
     }
 
     /// Stop streaming while keeping the historical client usable.

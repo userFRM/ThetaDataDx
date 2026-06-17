@@ -103,7 +103,7 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
 /// ```ts
 /// import { Credentials, Client } from "thetadatadx";
 /// const creds = Credentials.fromFile("creds.txt");
-/// const client = Client.connect(creds);
+/// const client = await Client.connect(creds);
 /// ```
 #[napi]
 #[derive(Clone)]
@@ -536,17 +536,29 @@ impl Client {
     /// ```ts
     /// import { Credentials, Client } from "thetadatadx";
     /// const creds = Credentials.fromFile("creds.txt");
-    /// const client = Client.connect(creds);
+    /// const client = await Client.connect(creds);
     /// ```
-    #[napi(factory)]
-    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
+    ///
+    /// The gRPC channel open plus the authentication handshake are
+    /// network-bound, so this is `async`: the work runs on the runtime
+    /// off the libuv thread and napi-rs returns a `Promise<Client>`,
+    /// leaving the Node event loop free to service timers, IO, and queued
+    /// promises for the whole handshake. A plain `async` associated
+    /// function is used rather than a `#[napi(factory)]` because a factory
+    /// must return its instance synchronously.
+    #[napi]
+    pub async fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
         let cfg = config_or_production(config);
-        let client = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::Client::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds.inner,
-                cfg,
-            ))
+        // Seed the process-global runtime from this client's config before
+        // spawning onto it, then run the connect handshake off the libuv
+        // thread. The credentials are cloned so the spawned future owns
+        // `'static` data and does not borrow the napi argument.
+        let rt = runtime_from_config(&cfg.runtime);
+        let creds = creds.inner.clone();
+        let client = rt
+            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(Client {
             client: Arc::new(client),
@@ -558,15 +570,19 @@ impl Client {
     /// password). Convenience wrapper over `Credentials.fromFile` +
     /// `connect`. Pass an optional `Config` to override the
     /// production-default endpoint.
-    #[napi(factory, js_name = "connectFromFile")]
-    pub fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
+    ///
+    /// `async` for the same reason as [`Client::connect`]: the gRPC channel
+    /// open plus authentication handshake run off the libuv thread and the
+    /// method returns a `Promise<Client>`.
+    #[napi(js_name = "connectFromFile")]
+    pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let client = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::Client::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, cfg,
-            ))
+        let rt = runtime_from_config(&cfg.runtime);
+        let client = rt
+            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(Client {
             client: Arc::new(client),
@@ -778,7 +794,7 @@ impl StreamView {
 ///
 /// ```ts
 /// import { HistoricalClient } from "thetadatadx";
-/// const historical = HistoricalClient.connectFromFile("creds.txt");
+/// const historical = await HistoricalClient.connectFromFile("creds.txt");
 /// const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
@@ -810,15 +826,23 @@ impl HistoricalClient {
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
     /// reused or mutated afterward without affecting this client.
-    #[napi(factory)]
-    pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<HistoricalClient> {
+    ///
+    /// `async` for the same reason as [`Client::connect`]: the channel open
+    /// plus authentication handshake run off the libuv thread and the
+    /// method returns a `Promise<HistoricalClient>`, so the Node event loop
+    /// is never frozen for the handshake.
+    #[napi]
+    pub async fn connect(
+        creds: &Credentials,
+        config: Option<&Config>,
+    ) -> napi::Result<HistoricalClient> {
         let cfg = config_or_production(config);
-        let client = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::Client::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds.inner,
-                cfg,
-            ))
+        let rt = runtime_from_config(&cfg.runtime);
+        let creds = creds.inner.clone();
+        let client = rt
+            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(HistoricalClient {
             client: Arc::new(client),
@@ -829,18 +853,20 @@ impl HistoricalClient {
     /// password). Convenience wrapper over `Credentials.fromFile` +
     /// `connect`. Historical only. Pass an optional
     /// `Config` to override the production-default endpoint.
-    #[napi(factory, js_name = "connectFromFile")]
-    pub fn connect_from_file(
+    ///
+    /// `async` for the same reason as [`HistoricalClient::connect`].
+    #[napi(js_name = "connectFromFile")]
+    pub async fn connect_from_file(
         path: String,
         config: Option<&Config>,
     ) -> napi::Result<HistoricalClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let cfg = config_or_production(config);
-        let client = runtime_from_config(&cfg.runtime)
-            .block_on(thetadatadx::Client::connect(
-                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
-                &creds, cfg,
-            ))
+        let rt = runtime_from_config(&cfg.runtime);
+        let client = rt
+            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(HistoricalClient {
             client: Arc::new(client),

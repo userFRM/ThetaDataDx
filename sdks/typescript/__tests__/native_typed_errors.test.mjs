@@ -52,10 +52,10 @@ const TEST_CREDS_PATH = process.env.THETADATADX_TEST_CREDS ?? '/home/theta-gamma
 
 // Build a client from the credentials file, or return `null` when none
 // is available / the connect fails — the caller skips in that case.
-function tryConnect(mod) {
+async function tryConnect(mod) {
   if (!existsSync(TEST_CREDS_PATH)) return null;
   try {
-    return mod.Client.connectFromFile(TEST_CREDS_PATH);
+    return await mod.Client.connectFromFile(TEST_CREDS_PATH);
   } catch {
     return null;
   }
@@ -118,14 +118,14 @@ function validEodTick(right) {
 }
 
 describe('typed errors on static / factory entrypoints (native)', () => {
-  it('Client.connectFromFile on a missing path throws ThetaDataError', async () => {
+  it('Client.connectFromFile on a missing path rejects with ThetaDataError', async () => {
     const mod = await loadWrapped();
     if (!mod) return;
 
-    assert.throws(
-      () => mod.Client.connectFromFile('/definitely/missing-creds.txt'),
+    await assert.rejects(
+      mod.Client.connectFromFile('/definitely/missing-creds.txt'),
       (err) => err instanceof mod.ThetaDataError,
-      'a static factory failure must reclassify to the typed hierarchy, not a plain Error',
+      'a static connect failure must reclassify to the typed hierarchy, not a plain Error',
     );
   });
 
@@ -294,7 +294,7 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
   it('flatFiles.request with an unknown sec_type throws InvalidParameterError', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const client = tryConnect(mod);
+    const client = await tryConnect(mod);
     if (!client) {
       t.skip('no credentials available to build a client for the FLATFILES surface');
       return;
@@ -310,7 +310,7 @@ describe('FLATFILES enum-parse input-validation parity (native)', () => {
   it('flatFileToPath with an unknown req_type throws InvalidParameterError', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const client = tryConnect(mod);
+    const client = await tryConnect(mod);
     if (!client) {
       t.skip('no credentials available to build a client for the FLATFILES surface');
       return;
@@ -354,7 +354,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     it(`stockSnapshotQuote rejects ${label} timeoutMs as InvalidParameterError`, async (t) => {
       const mod = await loadWrapped();
       if (!mod) return;
-      const client = tryConnect(mod);
+      const client = await tryConnect(mod);
       if (!client) {
         t.skip('no credentials available to build a client for the endpoint surface');
         return;
@@ -371,7 +371,7 @@ describe('timeoutMs input-validation parity (native)', () => {
   it('stockListSymbols rejects a negative timeoutMs on the string-list path', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const client = tryConnect(mod);
+    const client = await tryConnect(mod);
     if (!client) {
       t.skip('no credentials available to build a client for the endpoint surface');
       return;
@@ -387,7 +387,7 @@ describe('timeoutMs input-validation parity (native)', () => {
   it('stockSnapshotQuote accepts a valid whole-millisecond timeoutMs', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const client = tryConnect(mod);
+    const client = await tryConnect(mod);
     if (!client) {
       t.skip('no credentials available to build a client for the endpoint surface');
       return;
@@ -432,7 +432,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
     it(`optionListContracts rejects ${label} maxDte as InvalidParameterError`, async (t) => {
       const mod = await loadWrapped();
       if (!mod) return;
-      const client = tryConnect(mod);
+      const client = await tryConnect(mod);
       if (!client) {
         t.skip('no credentials available to build a client for the endpoint surface');
         return;
@@ -448,7 +448,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
     it(`optionSnapshotQuote rejects ${label} strikeRange as InvalidParameterError`, async (t) => {
       const mod = await loadWrapped();
       if (!mod) return;
-      const client = tryConnect(mod);
+      const client = await tryConnect(mod);
       if (!client) {
         t.skip('no credentials available to build a client for the endpoint surface');
         return;
@@ -465,7 +465,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
   it('optionListContracts accepts a valid non-negative whole maxDte', async (t) => {
     const mod = await loadWrapped();
     if (!mod) return;
-    const client = tryConnect(mod);
+    const client = await tryConnect(mod);
     if (!client) {
       t.skip('no credentials available to build a client for the endpoint surface');
       return;

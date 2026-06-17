@@ -38,7 +38,7 @@ describe('client.stream slow-callback watchdog', () => {
       return;
     }
 
-    const client = mod.Client.connectFromFile(credsPath);
+    const client = await mod.Client.connectFromFile(credsPath);
 
     // Pre-stream: the FPSS client does not exist yet, so the count is 0.
     // The threshold setter is a no-op in this state and must not throw.
@@ -49,7 +49,7 @@ describe('client.stream slow-callback watchdog', () => {
     assert.equal(client.stream.slowCallbackCount(), 0n);
 
     let received = 0n;
-    client.stream.startStreaming(() => {
+    await client.stream.startStreaming(() => {
       received += 1n;
     });
     // Configure a 1 ms budget on the live session.
@@ -58,7 +58,7 @@ describe('client.stream slow-callback watchdog', () => {
     assert.equal(typeof postStart, 'bigint');
     assert.ok(postStart >= 0n);
 
-    client.stream.reconnect();
+    await client.stream.reconnect();
     const postReconnect = client.stream.slowCallbackCount();
     assert.equal(typeof postReconnect, 'bigint');
     // reconnect rebuilds the FPSS client and zeroes the counter; assert

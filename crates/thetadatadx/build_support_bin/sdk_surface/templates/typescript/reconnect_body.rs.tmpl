@@ -16,16 +16,23 @@
         };
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        self.client
-            .stream()
-            .reconnect_streaming(move |event: &fpss::StreamEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                let typed = buffered_event_to_typed(buffered);
-                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-            })
-            .map_err(to_napi_err)?;
-
-        // Keep the previously stored handle in place — `reconnect_streaming`
-        // re-uses the same `ThreadsafeFunction`. No state shape change.
-        Ok(())
+        // The reconnect re-runs the FPSS connect and authentication
+        // handshake plus a paced subscription restore — all network-bound.
+        // Move it onto a blocking worker so the single libuv thread stays
+        // free for timers, IO, and queued promises. The stored callback
+        // handle stays in place; `reconnect_streaming` re-uses the same
+        // `ThreadsafeFunction`, so there is no state shape change.
+        let client = Arc::clone(&self.client);
+        tokio::task::spawn_blocking(move || {
+            client
+                .stream()
+                .reconnect_streaming(move |event: &fpss::StreamEvent| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = buffered_event_to_typed(buffered);
+                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+                })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
+        .map_err(to_napi_err)
     }

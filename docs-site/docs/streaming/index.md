@@ -71,9 +71,9 @@ Prefer the `with client.streaming(...)` context manager; it pairs `stop_streamin
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const client = Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 
-client.stream.startStreaming((event) => {
+await client.stream.startStreaming((event) => {
   if (event.kind === 'quote') {
     const q = event.quote!;
     console.log(q.contract.symbol, q.bid, q.ask);

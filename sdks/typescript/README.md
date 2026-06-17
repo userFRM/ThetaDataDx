@@ -37,7 +37,7 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ```typescript
 import { Client } from 'thetadatadx';
 
-const client = Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
@@ -66,7 +66,7 @@ Real-time quotes and trades flow through the same client. Register a callback wi
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const client = Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;
@@ -76,7 +76,7 @@ const formatContract = (contract: {
   .filter((value) => value != null)
   .join(' ');
 
-client.stream.startStreaming((event) => {
+await client.stream.startStreaming((event) => {
   if (event.kind === 'trade' && event.trade) {
     const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
     console.log(
@@ -143,7 +143,7 @@ import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetada
 The streaming callback receives a discriminated `StreamEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
 
 ```typescript
-client.stream.startStreaming((event: StreamEvent) => {
+await client.stream.startStreaming((event: StreamEvent) => {
   switch (event.kind) {
     case 'trade':         /* event.trade is Trade */                break;
     case 'quote':         /* event.quote is Quote */                break;
@@ -169,7 +169,7 @@ Whole-universe daily snapshots for one `(security type, request type, date)` at 
 import { Client } from 'thetadatadx';
 import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
-const client = Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 
 const rows = await client.flatFiles.optionTradeQuote('20260428');
 console.log(rows.len());

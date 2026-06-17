@@ -132,7 +132,7 @@ for t in rows:
 ```typescript
 import { Client } from 'thetadatadx';
 
-const client = Client.connectFromFile('creds.txt');
+const client = await Client.connectFromFile('creds.txt');
 
 const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
