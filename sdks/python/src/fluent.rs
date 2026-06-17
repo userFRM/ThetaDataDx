@@ -19,6 +19,9 @@
 //! `client.subscribe(sub)` path on the Rust core dispatches on the
 //! enum without any string parsing.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -223,6 +226,17 @@ impl PyContract {
 
     fn __eq__(&self, other: &Self) -> bool {
         self.inner == other.inner
+    }
+
+    fn __hash__(&self) -> isize {
+        // Hash the same value `__eq__` compares so equal contracts hash
+        // equal, keeping `Contract` usable as a dict key / set member.
+        // `protocol::Contract` derives `Hash` over exactly the fields
+        // its derived equality compares, so delegating here keeps the
+        // hash/eq invariant consistent by construction.
+        let mut hasher = DefaultHasher::new();
+        self.inner.hash(&mut hasher);
+        hasher.finish() as isize
     }
 }
 

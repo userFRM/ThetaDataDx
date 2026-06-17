@@ -303,8 +303,16 @@ class Contract:
         """Return a representation of the contract."""
         ...
 
+    def __str__(self) -> str:
+        """Return the contract's wire-format string."""
+        ...
+
     def __eq__(self, other: object) -> bool:
         """Return whether ``other`` is a contract with the same identity."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with ``__eq__``, so equal contracts can share a dict key or set slot."""
         ...
 
 
