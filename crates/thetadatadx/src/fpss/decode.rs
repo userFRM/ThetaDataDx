@@ -1963,4 +1963,64 @@ mod tests {
             other => panic!("expected Data(Quote) for in-range price_type, got {other:?}"),
         }
     }
+
+    /// A non-conformant peer that streams ever-incrementing contract ids
+    /// within a single session (no START/STOP boundary) must not grow the
+    /// delta-decode maps without limit. Feeding well past the per-session
+    /// cap keeps every map bounded at or below the cap.
+    #[test]
+    fn delta_state_bounds_unbounded_distinct_contract_ids() {
+        let mut delta_state = DeltaState::new();
+        let mut out: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
+
+        // Trade frame: 1 contract_id + 8 data fields (dev-server format).
+        let n = DeltaState::SESSION_CONTRACT_CAP + 5_000;
+        for id in 0..n as i32 {
+            let payload = encode_fit_row(&[id, 34_200_000, 0, 50, 6, 5_500_000, 57, 6, 20_250_428]);
+            let res = delta_state.decode_tick(
+                StreamMsgType::Trade as u8,
+                &payload,
+                TRADE_FIELDS,
+                &mut out,
+            );
+            assert!(res.is_some(), "every distinct-id absolute tick decodes");
+        }
+
+        let (prev, ohlcvc, field_counts) = delta_state.state_sizes();
+        let cap = DeltaState::SESSION_CONTRACT_CAP;
+        assert!(
+            prev <= cap,
+            "prev map must stay bounded by the session cap: {prev} > {cap}"
+        );
+        assert!(
+            field_counts <= cap,
+            "field_counts map must stay bounded by the session cap: {field_counts} > {cap}"
+        );
+        // `decode_tick` never inserts into `ohlcvc`, and the reset clears it
+        // alongside the other maps, so it stays empty here.
+        assert_eq!(ohlcvc, 0, "ohlcvc untouched by trade decode");
+    }
+
+    /// A normal session that stays under the cap retains every distinct
+    /// contract id: the bound never trips and no baseline is reset.
+    #[test]
+    fn delta_state_normal_session_retains_all_contracts() {
+        let mut delta_state = DeltaState::new();
+        let mut out: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
+
+        let n = 500i32; // a generous live universe, well under the cap.
+        for id in 0..n {
+            let payload = encode_fit_row(&[id, 34_200_000, 0, 50, 6, 5_500_000, 57, 6, 20_250_428]);
+            delta_state
+                .decode_tick(StreamMsgType::Trade as u8, &payload, TRADE_FIELDS, &mut out)
+                .expect("absolute tick decodes");
+        }
+
+        let (prev, _ohlcvc, field_counts) = delta_state.state_sizes();
+        assert_eq!(prev, n as usize, "every distinct id retained in prev");
+        assert_eq!(
+            field_counts, n as usize,
+            "every distinct id retained in field_counts"
+        );
+    }
 }
