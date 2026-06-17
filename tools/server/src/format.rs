@@ -64,7 +64,7 @@ pub fn list_envelope(items: &[String]) -> sonic_rs::Value {
     ok_envelope(response)
 }
 
-/// Convert a shared endpoint output into the Java-terminal JSON envelope.
+/// Convert a shared endpoint output into the JVM terminal JSON envelope.
 pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
     let response = match output {
         EndpointOutput::StringList(items) => {

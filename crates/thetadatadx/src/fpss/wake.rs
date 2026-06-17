@@ -75,7 +75,7 @@ impl WakeFd {
     /// event ready. Idempotent under load — at most one wake byte is in
     /// the pipe at any time.
     ///
-    /// Called from the event-dispatch consumer thread on every successful
+    /// Called from the streaming event-delivery thread on every successful
     /// `queue.push`. The first call after an empty pipe writes one
     /// byte; subsequent calls see `signaled == true` and short-circuit
     /// without touching the pipe FD until [`Self::rearm`] clears the

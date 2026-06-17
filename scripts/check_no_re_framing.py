@@ -16,10 +16,13 @@ provenance of how the wire format was learned: named internal Java
 identifiers, jar-build verification notes, and the reverse-engineering /
 decompilation vocabulary itself.
 
-This gate scans the publicly-rendered source trees — the Rust crate
-source (including generated `.rs`), the FFI source, and the Python and
-TypeScript binding source — for that framing and fails with `file:line`
-on any hit.
+This gate scans the entire publicly-rendered tree — every text file with
+a known public-facing extension anywhere in the repository — for that
+framing and fails with `file:line` on any hit. Walking the whole tree
+(rather than a hand-picked glob list) is deliberate: a hand-picked list
+goes stale every time a new source directory or binding lands, and the
+provenance leak this gate exists to stop has slipped through exactly that
+gap before. Only build output and vendored trees are excluded.
 
 Run::
 
@@ -51,63 +54,43 @@ from typing import Iterable
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-# Globs describing the publicly-rendered source, relative to the repo
-# root. Every file here either compiles into a published crate or ships
-# its doc comments to docs.rs. Generated `.rs` is included on purpose:
-# the checked-in generated tick classes render exactly like hand-written
-# source, so they must clear the same bar.
-#
-# The non-`.rs` schema descriptors below ride the crate `include` list in
-# `crates/thetadatadx/Cargo.toml`, so their comments land in the crates.io
-# tarball exactly like source. The `examples/` and `tests/` trees are not
-# packaged but are GitHub-visible, and their doc comments are read as
-# authoritative protocol notes — they clear the same bar.
-SCAN_GLOBS = (
-    "crates/thetadatadx/src/**/*.rs",
-    "ffi/src/**/*.rs",
-    "sdks/python/src/**/*.rs",
-    "sdks/typescript/src/**/*.rs",
-    "sdks/typescript/src/**/*.ts",
-    # Schema / surface descriptors shipped via the crate `include` list.
-    "crates/thetadatadx/tick_schema.toml",
-    "crates/thetadatadx/endpoint_surface.toml",
-    "crates/thetadatadx/sdk_surface.toml",
-    "crates/thetadatadx/fpss_event_schema.toml",
-    "crates/thetadatadx/data/*.toml",
-    "sdks/parity.toml",
-    # GitHub-visible examples and regression tests.
-    "crates/thetadatadx/examples/**/*.rs",
-    "crates/thetadatadx/tests/**/*.rs",
-    "crates/thetadatadx/tests/**/*.toml",
-    # Publicly-rendered prose. The docs site re-publishes these straight
-    # from `main`, and the top-level Markdown is the first thing a reader
-    # sees on the repo. The same provenance bar applies: these render to
-    # every reader exactly like the crate doc comments, so a leak here
-    # ships just as widely. This is the surface the `.rs`-only scan missed.
-    "docs-site/docs/**/*.md",
-    "SECURITY.md",
-    "CHANGELOG.md",
-    "README.md",
-    "tools/server/README.md",
-    # GitHub release notes render verbatim on the Releases page, so a
-    # provenance leak here ships to every reader who opens a release.
-    ".github/release-notes/*.md",
-    # Published-crate manifests: `description` / `keywords` land on the
-    # crates.io listing page, and the whole manifest ships in the tarball.
-    "**/Cargo.toml",
-    # CI workflows echo release-notes and README text into published
-    # artifacts and the GitHub Releases body.
-    ".github/workflows/*.yml",
-    ".github/workflows/*.yaml",
-    # TypeScript binding tests are GitHub-visible and read as
-    # authoritative protocol notes, exactly like the Rust regression tests.
-    "sdks/typescript/__tests__/**/*.mjs",
-    "**/*.test.mjs",
+# Every text file with one of these extensions is scanned, anywhere in
+# the repository, unless it sits under an exempt path (below). This is the
+# whole publicly-rendered surface: Rust / FFI / binding source and its
+# doc comments (crates.io + docs.rs), C++ headers and source, Python and
+# its stubs, TypeScript and its declaration files, every flavour of
+# JavaScript module, every `.toml` manifest / schema descriptor, all
+# Markdown (top-level and the docs site), and the CI workflows whose text
+# is echoed into release artifacts. Walking by extension rather than by a
+# curated glob list means a new source directory or binding is covered the
+# moment it lands, with no edit to this gate.
+SCAN_EXTENSIONS = frozenset(
+    {
+        ".rs",
+        ".py",
+        ".pyi",
+        ".ts",
+        ".d.ts",
+        ".mjs",
+        ".cjs",
+        ".js",
+        ".hpp",
+        ".h",
+        ".inc",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".md",
+        ".toml",
+        ".yml",
+        ".yaml",
+    }
 )
 
 
-# Path fragments that exclude a candidate even when it matches a scan
-# glob: vendored deps and build output never carry our prose.
+# Path fragments that exclude a candidate from the walk: build output,
+# vendored deps, and version-control metadata never carry our public
+# prose. Everything else with a scanned extension is in scope.
 EXEMPT_PATH_FRAGMENTS = (
     "/node_modules/",
     "/target/",
@@ -125,6 +108,11 @@ EXEMPT_PATH_FRAGMENTS = (
 )
 
 
+# This gate's own source carries every forbidden pattern as a literal so
+# the regexes can be defined; scanning it would flag the guard itself.
+SELF_NAME = pathlib.Path(__file__).name
+
+
 # Reverse-engineering framing that must never appear in the rendered
 # source. Each entry is a compiled regex matched case-insensitively:
 #
@@ -139,7 +127,7 @@ EXEMPT_PATH_FRAGMENTS = (
 # terminal" (allow-listed below), so an explicit "Java terminal" hit is
 # a drift signal, not a parity reference.
 FORBIDDEN_PATTERNS = (
-    re.compile(r"java\s+terminal", re.IGNORECASE),
+    re.compile(r"java[\s\-_]+terminal", re.IGNORECASE),
     re.compile(r"\.toBytes\b"),
     re.compile(r"\.fromBytes\b"),
     re.compile(r"\bFITReader\.java\b"),
@@ -174,21 +162,41 @@ ALLOWLISTED_PHRASES = (
 
 def _is_exempt(rel_path: pathlib.Path) -> bool:
     parts = "/" + rel_path.as_posix() + "/"
-    return any(fragment in parts for fragment in EXEMPT_PATH_FRAGMENTS)
+    if any(fragment in parts for fragment in EXEMPT_PATH_FRAGMENTS):
+        return True
+    # The gate's own source carries the forbidden literals by necessity.
+    return rel_path.name == SELF_NAME
+
+
+def _is_scanned(rel_path: pathlib.Path) -> bool:
+    """True when the file's extension is in the public-facing scan set."""
+    name = rel_path.name
+    # `.d.ts` would otherwise read as a bare `.ts`; both are scanned, so
+    # the suffix check covers it, but spell it out for clarity.
+    if name.endswith(".d.ts"):
+        return ".d.ts" in SCAN_EXTENSIONS or ".ts" in SCAN_EXTENSIONS
+    return rel_path.suffix.lower() in SCAN_EXTENSIONS
+
+
+_EXEMPT_DIR_NAMES = frozenset(
+    fragment.strip("/") for fragment in EXEMPT_PATH_FRAGMENTS
+)
 
 
 def _iter_files(root: pathlib.Path) -> Iterable[pathlib.Path]:
-    seen: set[pathlib.Path] = set()
-    for pattern in SCAN_GLOBS:
-        for candidate in root.glob(pattern):
-            if not candidate.is_file():
-                continue
+    import os
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune excluded subtrees in place so the walk never descends
+        # into build output / vendored deps (e.g. `node_modules`).
+        dirnames[:] = sorted(d for d in dirnames if d not in _EXEMPT_DIR_NAMES)
+        for filename in sorted(filenames):
+            candidate = pathlib.Path(dirpath) / filename
             rel = candidate.relative_to(root)
             if _is_exempt(rel):
                 continue
-            if rel in seen:
+            if not _is_scanned(rel):
                 continue
-            seen.add(rel)
             yield candidate
 
 
@@ -227,9 +235,9 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str, str]]:
 
 
 def _selftest() -> int:
-    """Plant RE framing in a synthetic source file and confirm the gate fires.
+    """Plant RE framing in synthetic source files and confirm the gate fires.
 
-    Four cases:
+    Cases:
 
     * A file with `reverse-engineered the Java terminal` plus a jar-build
       provenance note — must be flagged.
@@ -237,6 +245,12 @@ def _selftest() -> int:
       a `jar build NNN` provenance comment — must be flagged. This is the
       class of leak that previously evaded the `.rs`-only scan and shipped
       in the crates.io tarball.
+    * A file outside the old hand-picked glob list (`tools/server/src`)
+      carrying a hyphenated `Java-terminal` — must be flagged. This proves
+      the whole-tree walk plus the hyphen/underscore/whitespace pattern
+      catches the spelling variants the curated scan missed.
+    * A C++ header (`sdks/cpp/include`) naming a decompiled `.java` source
+      — must be flagged, proving non-Rust extensions are in scope.
     * A clean file that names only the allow-listed "JVM terminal" /
       "Theta Terminal" parity reference — must pass.
     * A clean file whose factual wire description shares a line with the
@@ -253,6 +267,16 @@ def _selftest() -> int:
         'doc = """OHLC tick -- 9 fields.\n'
         "Wire layout verified-live against terminal jar build `202605221`.\n"
         '"""\n'
+    )
+    # Hyphenated spelling in a tree outside the old curated glob list.
+    leaky_hyphen = (
+        "/// Convert a shared endpoint output into the Java-terminal envelope.\n"
+        "/// The java_terminal underscore spelling must trip too.\n"
+    )
+    # Non-Rust extension: a decompiled identifier named in a C++ header.
+    leaky_cpp = (
+        "// Field order mirrors `Contract.java` from the decompiled layout.\n"
+        "struct OhlcTick { double open; };\n"
     )
     clean = (
         "//! Matches the JVM terminal byte-for-byte on the wire.\n"
@@ -274,6 +298,14 @@ def _selftest() -> int:
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_path.write_text(leaky_schema, encoding="utf-8")
 
+        hyphen_path = root / "tools" / "server" / "src" / "hyphen.rs"
+        hyphen_path.parent.mkdir(parents=True, exist_ok=True)
+        hyphen_path.write_text(leaky_hyphen, encoding="utf-8")
+
+        cpp_path = root / "sdks" / "cpp" / "include" / "tick.hpp"
+        cpp_path.parent.mkdir(parents=True, exist_ok=True)
+        cpp_path.write_text(leaky_cpp, encoding="utf-8")
+
         clean_path = root / "ffi" / "src" / "clean.rs"
         clean_path.parent.mkdir(parents=True, exist_ok=True)
         clean_path.write_text(clean, encoding="utf-8")
@@ -293,6 +325,19 @@ def _selftest() -> int:
             print(
                 "selftest FAILED: the planted jar-build line in the shipped "
                 "schema descriptor was not flagged"
+            )
+            return 1
+        hyphen_hits = [h for h in hits if h[0].name == "hyphen.rs"]
+        if not any("terminal" in m.lower() for (_, _, m, _) in hyphen_hits):
+            print(
+                "selftest FAILED: the hyphen/underscore `Java-terminal` "
+                "spelling outside the old glob list was not flagged"
+            )
+            return 1
+        if not [h for h in hits if h[0].name == "tick.hpp"]:
+            print(
+                "selftest FAILED: a decompiled `.java` reference in a C++ "
+                "header was not flagged"
             )
             return 1
         if any(rel.name == "clean.rs" for (rel, _, _, _) in hits):
