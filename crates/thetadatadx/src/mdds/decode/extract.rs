@@ -84,6 +84,23 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
 /// resolve to the schema-side name. Returns an empty `Vec` when no
 /// column matches (with a `warn` emitted on non-empty tables).
 ///
+/// Unlike the strict single-cell `row_*` decoders, this extractor
+/// stringifies `Number` and `Price` cells rather than rejecting them.
+/// That tolerance is load-bearing for the served `list_*` endpoints:
+/// `list_dates` / `list_expirations` carry `YYYYMMDD` values as
+/// `Number` cells and `list_strikes` carries the strike as a `Number`
+/// or `Price` cell, yet every binding presents these lists as
+/// `Vec<String>` with a numeric-aware sort (see [`sorted_list_values`]).
+/// Rejecting numeric cells here would break those endpoints on every
+/// call, so the coercion is intentional rather than a swallowed drift.
+///
+/// To keep an unexpected numeric cell observable (a text column that
+/// the server starts publishing as numeric is still worth knowing about
+/// without failing the request), each coercion emits a `tracing::trace!`
+/// naming the requested header and the observed wire variant. `trace`
+/// rather than `warn` because numeric cells are the *expected* shape on
+/// the numeric list endpoints, so a higher level would be pure noise.
+///
 /// `Price` cells with `price_type` outside
 /// `0..=crate::tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
 /// and emit a rate-unlimited `tracing::warn!`.
@@ -102,10 +119,28 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
                 .and_then(|dv| dv.data_type.as_ref())
                 .and_then(|dt| match dt {
                     proto::data_value::DataType::Text(s) => Some(s.clone()),
-                    proto::data_value::DataType::Number(n) => Some(n.to_string()),
+                    proto::data_value::DataType::Number(n) => {
+                        tracing::trace!(
+                            target: "thetadatadx::mdds::decode::extract",
+                            requested = header,
+                            column_kind = "Text",
+                            observed = "Number",
+                            "coercing Number cell to string in text column",
+                        );
+                        Some(n.to_string())
+                    }
                     proto::data_value::DataType::Price(p) => {
                         match crate::tdbe::types::price::Price::with_value_and_type(p.value, p.r#type) {
-                            Ok(price) => Some(format!("{}", price.to_f64())),
+                            Ok(price) => {
+                                tracing::trace!(
+                                    target: "thetadatadx::mdds::decode::extract",
+                                    requested = header,
+                                    column_kind = "Text",
+                                    observed = "Price",
+                                    "coercing Price cell to string in text column",
+                                );
+                                Some(format!("{}", price.to_f64()))
+                            }
                             Err(err) => {
                                 tracing::warn!(
                                     target: "thetadatadx::mdds::decode::extract",
@@ -196,6 +231,11 @@ pub fn sorted_list_values(mut values: Vec<String>) -> Vec<String> {
             .all(|v| v.parse::<f64>().is_ok_and(f64::is_finite));
     if all_numeric {
         values.sort_by(|a, b| {
+            // The `all_numeric` gate already proved every element parses
+            // as a finite `f64`, and `values` is not mutated between that
+            // check and this sort, so the `unwrap_or` fallbacks are
+            // unreachable; they keep the comparator total without
+            // re-introducing the gate's invariant as a `expect`.
             let a: f64 = a.parse().unwrap_or(f64::MAX);
             let b: f64 = b.parse().unwrap_or(f64::MAX);
             a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
@@ -260,6 +300,39 @@ mod tests {
             vec![Some("AAPL".to_string()), Some("MSFT".to_string())],
             "alias-aware lookup must return the column even when only \
              the server-side name is present"
+        );
+    }
+
+    /// A `Number` cell in a text-requested column is coerced to its
+    /// decimal string, not dropped to `None`. This tolerance is
+    /// load-bearing for the numeric list endpoints (`list_dates`,
+    /// `list_expirations`, `list_strikes`) which publish their values
+    /// as `Number` cells yet return `Vec<String>`. The coercion path is
+    /// observable via `tracing::trace!`, so the drift is logged rather
+    /// than silently swallowed.
+    #[test]
+    fn extract_text_column_coerces_number_cell_to_string() {
+        let table = proto::DataTable {
+            headers: vec!["date".to_string()],
+            data_table: vec![
+                proto::DataValueList {
+                    values: vec![proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(20260413)),
+                    }],
+                },
+                proto::DataValueList {
+                    values: vec![proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(20260414)),
+                    }],
+                },
+            ],
+        };
+        let column = extract_text_column(&table, "date");
+        assert_eq!(
+            column,
+            vec![Some("20260413".to_string()), Some("20260414".to_string())],
+            "numeric list-endpoint cells must coerce to their decimal \
+             string, not drop to None"
         );
     }
 
