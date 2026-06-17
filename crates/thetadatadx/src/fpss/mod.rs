@@ -232,6 +232,15 @@ pub enum FpssError {
     #[error("dispatcher failed: {0}")]
     DispatcherFailed(String),
 
+    /// A drain method was entered while the staging state was already
+    /// held by another in-flight drain on the same client. The drain is
+    /// single-consumer by contract: a callback that re-enters a drain
+    /// method, or a second thread that drains concurrently, hits this
+    /// instead of blocking on the non-reentrant staging mutex. The call
+    /// performed no work; retry once the in-flight drain returns.
+    #[error("reentrant or concurrent drain rejected: {0}")]
+    ReentrantDrain(String),
+
     /// I/O error on the FPSS socket.
     #[error("io: {0}")]
     Io(String),
@@ -269,6 +278,10 @@ impl From<FpssError> for Error {
                 kind: FpssErrorKind::Disconnected,
                 message: format!("dispatcher failed: {message}"),
             },
+            FpssError::ReentrantDrain(message) => Error::Fpss {
+                kind: FpssErrorKind::ReentrantDrain,
+                message,
+            },
             FpssError::Config(message) => Error::Config {
                 kind: ConfigErrorKind::InvalidValue {
                     field: "fpss".to_string(),
@@ -298,6 +311,7 @@ impl From<Error> for FpssError {
                     }
                 }
                 FpssErrorKind::TooManyRequests => FpssError::RateLimited(message),
+                FpssErrorKind::ReentrantDrain => FpssError::ReentrantDrain(message),
             },
             Error::Auth { message, .. } => FpssError::AuthenticationFailed(message),
             Error::Io(io) => FpssError::Io(io.to_string()),
@@ -1770,11 +1784,22 @@ impl StreamingClient {
     /// explicit "empty right now" handling should use
     /// [`Self::try_next_event`] instead.
     ///
+    /// # Single-consumer contract
+    ///
+    /// The drain is single-consumer: do not re-enter `next_event` (or any
+    /// other drain method) from inside a callback driven by this client, and
+    /// do not drive two drains on the same client concurrently. A reentrant
+    /// or concurrent drain returns [`FpssError::ReentrantDrain`] rather than
+    /// blocking on the non-reentrant staging mutex, so misuse fails fast
+    /// instead of hard-hanging. The normal single-threaded drain always
+    /// acquires uncontended and is unaffected.
+    ///
     /// # Errors
     ///
     /// Returns [`FpssError::DispatcherFailed`] if the internal staging
     /// queue's mutex was poisoned by a panicking caller on a previous
-    /// invocation.
+    /// invocation, or [`FpssError::ReentrantDrain`] if the drain was
+    /// re-entered or driven concurrently.
     pub fn next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
         self.pin_consumer_once();
         let waiter = self.wait_strategy;
@@ -1791,10 +1816,17 @@ impl StreamingClient {
     /// when the ring is momentarily empty OR terminally shut down — use
     /// [`Self::next_event`] when you need to distinguish the two.
     ///
+    /// # Single-consumer contract
+    ///
+    /// Single-consumer like [`Self::next_event`]: a reentrant (from inside a
+    /// callback) or concurrent drain returns [`FpssError::ReentrantDrain`]
+    /// rather than blocking on the non-reentrant staging mutex.
+    ///
     /// # Errors
     ///
     /// Returns [`FpssError::DispatcherFailed`] if the staging mutex was
-    /// poisoned.
+    /// poisoned, or [`FpssError::ReentrantDrain`] if the drain was re-entered
+    /// or driven concurrently.
     pub fn try_next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
         match self.try_next_event_internal()? {
             TryNext::Event(event) => Ok(Some(event)),
@@ -1803,10 +1835,28 @@ impl StreamingClient {
     }
 
     fn try_next_event_internal(&self) -> Result<TryNext, FpssError> {
-        let mut guard = self
-            .poller_state
-            .lock()
-            .map_err(|e| FpssError::DispatcherFailed(format!("poller mutex poisoned: {e}")))?;
+        // `try_lock`, not `lock`: the staging mutex is non-reentrant, so a
+        // user callback that re-enters a drain method on this client (or a
+        // second thread draining concurrently) would hard-hang on a blocking
+        // acquire. The drain is single-consumer by contract; the happy path
+        // is always uncontended and acquires immediately. Contention can
+        // only mean a reentrant or concurrent drain, so fail fast with a
+        // typed outcome instead of deadlocking.
+        let mut guard = match self.poller_state.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => {
+                return Err(FpssError::ReentrantDrain(
+                    "next_event/try_next_event must not be re-entered from a callback or driven \
+                     concurrently"
+                        .to_string(),
+                ));
+            }
+            Err(std::sync::TryLockError::Poisoned(e)) => {
+                return Err(FpssError::DispatcherFailed(format!(
+                    "poller mutex poisoned: {e}"
+                )));
+            }
+        };
         let Some(mut state) = guard.take() else {
             return Ok(TryNext::Shutdown);
         };
@@ -1912,14 +1962,35 @@ impl StreamingClient {
     /// many events it carried) apart from terminal shutdown. Each
     /// `&StreamEvent` handed to `on_event` is a zero-copy borrow into the
     /// ring slot, valid only for that call.
+    ///
+    /// # Single-consumer contract
+    ///
+    /// The drain is single-consumer: do not re-enter `poll_batch`,
+    /// [`Self::next_event`], [`Self::try_next_event`], [`Self::for_each`],
+    /// or [`Self::for_each_scoped`] from inside `on_event`, and do not drive
+    /// two drains on the same client concurrently. A reentrant or concurrent
+    /// drain is rejected with [`PollOutcome::Busy`] (no events delivered)
+    /// rather than blocking on the non-reentrant staging mutex, so a
+    /// misuse fails fast instead of hard-hanging. The normal single-threaded
+    /// drain always acquires uncontended and is unaffected.
     pub fn poll_batch(&self, mut on_event: impl FnMut(&StreamEvent)) -> PollOutcome {
         // Arm the self-join guard from this drain path too: a caller
         // driving `poll_batch` in its own loop is the consumer thread,
         // and a `Drop` reached from inside `on_event` must detach its
         // join rather than block this thread on its own termination.
         self.record_consumer_thread();
-        let Ok(mut guard) = self.poller_state.lock() else {
-            return PollOutcome::Shutdown;
+        // `try_lock`, not `lock`: the staging mutex is non-reentrant, so a
+        // user `on_event` callback that re-enters a drain method on this
+        // client (or a second thread draining concurrently) would hard-hang
+        // on a blocking acquire. The drain is single-consumer by contract,
+        // so the happy path is always uncontended and acquires immediately;
+        // contention can only mean a reentrant or concurrent drain, which is
+        // reported as `Busy` rather than deadlocking. A poisoned mutex keeps
+        // its prior meaning: the producer side faulted, treat as shutdown.
+        let mut guard = match self.poller_state.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => return PollOutcome::Busy,
+            Err(std::sync::TryLockError::Poisoned(_)) => return PollOutcome::Shutdown,
         };
         let Some(mut state) = guard.take() else {
             return PollOutcome::Shutdown;
@@ -2016,6 +2087,11 @@ impl StreamingClient {
     /// Returns once [`Self::shutdown`] (or dropping the [`StreamingClient`])
     /// has fired AND every event already published into the ring has
     /// been delivered.
+    ///
+    /// Single-consumer: do not re-enter any drain method from inside
+    /// `on_event`, and do not run a second drain on the same client
+    /// concurrently. Such a reentrant or concurrent drain is rejected (see
+    /// [`PollOutcome::Busy`]) rather than blocking the consumer thread.
     pub fn for_each(&self, on_event: impl FnMut(&StreamEvent)) {
         // Identity batch scope: each batch drain runs directly, with no
         // wrapping. The inter-batch wait is the same three-phase strategy
@@ -2045,6 +2121,11 @@ impl StreamingClient {
     /// and returns its outcome; `scope` must call it exactly once and
     /// return its result. The loop terminates on
     /// [`PollOutcome::Shutdown`], identical to [`Self::for_each`].
+    ///
+    /// Single-consumer: do not re-enter any drain method from inside
+    /// `on_event`, and do not run a second drain on the same client
+    /// concurrently. A reentrant or concurrent drain is rejected (see
+    /// [`PollOutcome::Busy`]) rather than blocking the consumer thread.
     pub fn for_each_scoped<S>(&self, mut on_event: impl FnMut(&StreamEvent), mut scope: S)
     where
         S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
@@ -2058,9 +2139,13 @@ impl StreamingClient {
             let outcome = scope(&mut || self.poll_batch(&mut on_event));
             match outcome {
                 PollOutcome::Shutdown => return,
-                // Empty ring — wait OUTSIDE the scope so a held resource
-                // (e.g. the GIL) is released across the idle wait.
-                PollOutcome::Drained(0) => {
+                // Empty ring or a transient busy (another drain held the
+                // staging state) — wait OUTSIDE the scope so a held resource
+                // (e.g. the GIL) is released across the idle wait, then retry.
+                // `Busy` cannot arise from this loop's own poll (it holds no
+                // lock when it polls); it is handled defensively in case an
+                // `on_event` callback re-entered a drain.
+                PollOutcome::Drained(0) | PollOutcome::Busy => {
                     waiter.wait_for(0);
                 }
                 PollOutcome::Drained(_) => {}
@@ -2107,7 +2192,10 @@ impl StreamingClient {
         loop {
             match self.poll_batch(&mut on_event) {
                 PollOutcome::Shutdown => return,
-                PollOutcome::Drained(0) => strategy.wait_for(0),
+                // `Busy` cannot arise from this loop's own poll (it holds no
+                // lock when it polls); back off and retry defensively in case
+                // an `on_event` callback re-entered a drain.
+                PollOutcome::Drained(0) | PollOutcome::Busy => strategy.wait_for(0),
                 PollOutcome::Drained(_) => {}
             }
         }
@@ -2919,6 +3007,14 @@ impl StreamingClient {
 /// * [`PollOutcome::Shutdown`] — the [`StreamingClient`] has shut down AND
 ///   every published event has been drained. No further events will
 ///   ever arrive; stop polling.
+/// * [`PollOutcome::Busy`] — the staging state was already held by another
+///   in-flight drain (a callback re-entered the drain, or a second thread
+///   drained concurrently). The call did no work; the in-flight drain owns
+///   the events. Retry on a subsequent poll. The blocking
+///   [`StreamingClient::for_each`] family never surfaces this from their own
+///   loop — they hold no lock when they poll — so it only appears to a
+///   caller driving [`StreamingClient::poll_batch`] in a way that re-enters
+///   or races the drain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PollOutcome {
@@ -2928,6 +3024,11 @@ pub enum PollOutcome {
     /// Terminal: the session has shut down and the ring is fully
     /// drained. No further events will arrive.
     Shutdown,
+    /// A concurrent or reentrant drain already holds the staging state.
+    /// No events were delivered on this call; retry later. Distinct from
+    /// `Drained(0)` (live but momentarily empty) so a reentrant-drain
+    /// caller can tell "another drain owns this" from "nothing right now".
+    Busy,
 }
 
 /// Owning iterator for an [`StreamingClient`] reference.
@@ -3782,7 +3883,7 @@ mod ring_occupancy_tests {
 
     use super::events::FpssEventInternal;
     use super::ring::RingProducer;
-    use super::{HarnessPublishMode, PollOutcome, StreamControl, StreamingClient};
+    use super::{FpssError, HarnessPublishMode, PollOutcome, StreamControl, StreamingClient};
 
     /// Publish one synthetic control event through the test producer.
     fn publish_one(producer: &mut impl RingProducer) -> bool {
@@ -4009,6 +4110,88 @@ mod ring_occupancy_tests {
             Some(std::thread::current().id()),
             "next_event must record the draining thread so Drop detects a self-join"
         );
+    }
+
+    /// A callback that re-enters `poll_batch` on the same client must get a
+    /// typed `Busy` outcome rather than hard-hanging on the non-reentrant
+    /// staging mutex. The drain is single-consumer by contract; the test is
+    /// timeout-bounded by the suite wrapper, so a regression that restored
+    /// the blocking acquire would hang the process and be killed, not pass.
+    #[test]
+    fn reentrant_poll_batch_returns_busy_not_deadlock() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+
+        let mut reentrant_outcome: Option<PollOutcome> = None;
+        let outer = client.poll_batch(|_event| {
+            // Re-enter the drain from inside the callback. The outer drain
+            // already holds the staging state, so this must fail fast.
+            if reentrant_outcome.is_none() {
+                reentrant_outcome = Some(client.poll_batch(|_| {}));
+            }
+        });
+
+        assert_eq!(
+            outer,
+            PollOutcome::Drained(1),
+            "the outer drain still delivers its event normally"
+        );
+        assert_eq!(
+            reentrant_outcome,
+            Some(PollOutcome::Busy),
+            "a reentrant poll_batch must report Busy instead of deadlocking"
+        );
+    }
+
+    /// A callback that re-enters the event-at-a-time drain must get a typed
+    /// `ReentrantDrain` error rather than hard-hanging. Driving the reentry
+    /// through `poll_batch`'s callback exercises the shared staging-mutex
+    /// guard that both drain families hold.
+    #[test]
+    fn reentrant_next_event_returns_typed_error_not_deadlock() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        assert!(
+            publish_one(&mut producer),
+            "fresh ring must accept a publish"
+        );
+
+        let mut next_event_err: Option<FpssError> = None;
+        let mut try_next_err: Option<FpssError> = None;
+        client.poll_batch(|_event| {
+            if next_event_err.is_none() {
+                next_event_err = client.next_event().err();
+                try_next_err = client.try_next_event().err();
+            }
+        });
+
+        assert!(
+            matches!(next_event_err, Some(FpssError::ReentrantDrain(_))),
+            "a reentrant next_event must return ReentrantDrain, got {next_event_err:?}"
+        );
+        assert!(
+            matches!(try_next_err, Some(FpssError::ReentrantDrain(_))),
+            "a reentrant try_next_event must return ReentrantDrain, got {try_next_err:?}"
+        );
+    }
+
+    /// The single-consumer happy path is unchanged: an uncontended
+    /// `poll_batch` still acquires the staging mutex and delivers every
+    /// published event, exactly as before the reentrancy guard.
+    #[test]
+    fn uncontended_poll_batch_happy_path_unchanged() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        for _ in 0..5 {
+            assert!(publish_one(&mut producer), "ring must accept the publish");
+        }
+
+        let mut delivered = 0usize;
+        let outcome = client.poll_batch(|_event| delivered += 1);
+
+        assert_eq!(outcome, PollOutcome::Drained(5));
+        assert_eq!(delivered, 5);
     }
 }
 
