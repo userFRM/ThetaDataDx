@@ -127,7 +127,7 @@ curl 'http://127.0.0.1:25503/v3/stock/history/trade_quote?symbol=AAPL&date=2025-
 | `date` | date | yes | — | Date YYYYMMDD |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
-| `exclusive` | bool | no | `true` | When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. |
+| `exclusive` | bool | no | `false` | When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. |
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |
 | `start_date` | date | no | — | Start date YYYYMMDD |
 | `end_date` | date | no | — | End date YYYYMMDD |

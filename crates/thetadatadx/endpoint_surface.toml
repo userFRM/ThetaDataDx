@@ -307,7 +307,7 @@ description = "When true, quotes whose timestamp equals the trade timestamp are 
 param_type = "Bool"
 required = false
 binding = "builder"
-default = "true"
+default = "false"
 
 [param_groups.max_dte_filter]
 

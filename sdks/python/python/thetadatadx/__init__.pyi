@@ -582,6 +582,35 @@ class Ohlcvc:
 
 
 @final
+class MarketValue:
+    """A real-time MarketValue tick — a theoretical market value derived from the live bid/ask."""
+
+    contract: ContractRef
+    """The contract this market-value tick is for."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the market value was recorded."""
+    market_bid: float
+    """Quote bid after a size-imbalance and spread-aware adjustment, in dollars."""
+    market_ask: float
+    """Quote ask after a size-imbalance and spread-aware adjustment, in dollars."""
+    market_price: float
+    """Midpoint of ``market_bid`` and ``market_ask``, in dollars."""
+    date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"market_value"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
 class ContractAssigned:
     """The server assigned a numeric id to a subscribed contract."""
 

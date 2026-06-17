@@ -885,7 +885,7 @@ export declare class HistoricalClient {
    * Defaults (upstream):
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
+   * - `exclusive`: `false`
    * - `venue`: `"nqb"`
    */
   stockHistoryTradeQuote(symbol: string, date: string | Date, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
@@ -1177,7 +1177,7 @@ export declare class HistoricalClient {
    * - `right`: `"both"`
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
+   * - `exclusive`: `false`
    */
   optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
   /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1699,7 +1699,7 @@ export declare class HistoricalView {
    * Defaults (upstream):
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
+   * - `exclusive`: `false`
    * - `venue`: `"nqb"`
    */
   stockHistoryTradeQuote(symbol: string, date: string | Date, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
@@ -1991,7 +1991,7 @@ export declare class HistoricalView {
    * - `right`: `"both"`
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `true`
+   * - `exclusive`: `false`
    */
   optionHistoryTradeQuote(symbol: string, expiration: string | Date, date: string | Date, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
   /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */

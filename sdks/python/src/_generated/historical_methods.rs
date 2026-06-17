@@ -1580,7 +1580,7 @@ impl StockHistoryQuoteBuilder {
 /// Defaults (upstream):
 /// - `start_time`: `"09:30:00"`
 /// - `end_time`: `"16:00:00"`
-/// - `exclusive`: `true`
+/// - `exclusive`: `false`
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
@@ -6113,7 +6113,7 @@ impl OptionHistoryQuoteBuilder {
 /// - `right`: `"both"`
 /// - `start_time`: `"09:30:00"`
 /// - `end_time`: `"16:00:00"`
-/// - `exclusive`: `true`
+/// - `exclusive`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -15240,9 +15240,9 @@ impl HistoricalView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=false, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -15290,7 +15290,7 @@ impl HistoricalView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     /// - `venue`: `"nqb"`
     ///
     ///
@@ -18079,8 +18079,8 @@ impl HistoricalView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `exclusive`: `false`
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=false, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -18145,7 +18145,7 @@ impl HistoricalView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `true`
+    /// - `exclusive`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).

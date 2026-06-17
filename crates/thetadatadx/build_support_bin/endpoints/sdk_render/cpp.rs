@@ -84,6 +84,10 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out.push_str("            raw.has_timeout_ms = 1;\n");
     out.push_str("        }\n");
     out.push_str("    }\n");
+    out.push('\n');
+    out.push_str(include_str!(
+        "templates/cpp/ffi_options_no_copy_move.cpp.tmpl"
+    ));
     out.push_str("};\n\n");
     out.push_str("} // namespace detail\n");
     out
@@ -286,7 +290,7 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
 /// Keeping the C-ABI `thetadatadx_<endpoint>_stream` call sites out of the class body
 /// is also what stops the cross-binding parity collector — which scans class
 /// bodies for `name(` shapes — from mistaking a C-ABI call for a C++ method.
-/// The one inline member is the shared `extern "C"` trampoline
+/// The one inline member is the shared trampoline
 /// `stream_chunk_shim`: tick-agnostic (the erased handler carries the per-
 /// endpoint reinterpretation) and `thetadatadx_`-free, so it is safe inline. It
 /// swallows exceptions — a throw must never unwind across the C ABI into Rust,

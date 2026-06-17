@@ -1500,9 +1500,12 @@ using StreamEvent = ThetaDataDxStreamEvent;
 // thread never blocks on user code; on ring overflow events are dropped
 // and counted via `dropped_event_count()`.
 //
-// The StreamingClient owns the `std::function`. A free `extern "C"` shim retrieves
+// The StreamingClient owns the `std::function`. A static-member shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
-// the event reference. The shim converts `const ThetaDataDxStreamEvent*` (the C ABI
+// the event reference. The shim keeps C++ language linkage (a member cannot be
+// `extern "C"`) but matches the C-linkage `ThetaDataDxStreamCallback` typedef,
+// an assignment every mainstream ABI accepts. The shim converts
+// `const ThetaDataDxStreamEvent*` (the C ABI
 // payload type) to `const StreamEvent&` (the C++ alias) at the boundary.
 // Callback storage outlives the consumer thread because the destruction
 // path always routes through `thetadatadx_streaming_free`, which performs an internal
@@ -1743,9 +1746,12 @@ public:
 
 
 private:
-    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
-    // `std::function*` we registered alongside the callback. The event
-    // pointer is non-null and valid only for the duration of this call.
+    // Static-member shim that the dispatcher invokes. It keeps C++ language
+    // linkage (a member cannot be `extern "C"`) but its signature matches the
+    // C-linkage `ThetaDataDxStreamCallback` typedef, an assignment every
+    // mainstream ABI accepts. `ctx` is the `std::function*` we registered
+    // alongside the callback. The event pointer is non-null and valid only for
+    // the duration of this call.
     static void callback_shim(const ThetaDataDxStreamEvent* event, void* ctx) noexcept {
         auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
         if (fn == nullptr || event == nullptr) return;
@@ -2222,9 +2228,12 @@ private:
            std::unique_ptr<std::function<void(const StreamEvent&)>>* callback)
         : handle_(h), callback_(callback) {}
 
-    // Free C-ABI shim that the dispatcher invokes. `ctx` is the
-    // `std::function*` we registered alongside the callback. The event
-    // pointer is non-null and valid only for the duration of this call.
+    // Static-member shim that the dispatcher invokes. It keeps C++ language
+    // linkage (a member cannot be `extern "C"`) but its signature matches the
+    // C-linkage `ThetaDataDxStreamCallback` typedef, an assignment every
+    // mainstream ABI accepts. `ctx` is the `std::function*` we registered
+    // alongside the callback. The event pointer is non-null and valid only for
+    // the duration of this call.
     static void callback_shim(const ThetaDataDxStreamEvent* event, void* ctx) noexcept {
         auto* fn = static_cast<std::function<void(const StreamEvent&)>*>(ctx);
         if (fn == nullptr || event == nullptr) return;

@@ -125,6 +125,9 @@ CELLS = [
     # stock_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_trade_quote::with_exclusive
+    #   rationale: exclusive=true optional filter wiring
+    ("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -590,6 +593,9 @@ CELLS = [
     # option_history_trade_quote::with_right
     #   rationale: right=call optional filter wiring
     ("option_history_trade_quote", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_quote::with_exclusive
+    #   rationale: exclusive=true optional filter wiring
+    ("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
