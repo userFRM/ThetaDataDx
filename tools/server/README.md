@@ -48,6 +48,16 @@ The server starts:
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
+### Environment variables
+
+These runtime knobs are read from the environment, not from CLI flags. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `THETADATADX_RATE_LIMIT_PER_SECOND` | off | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on. |
+| `THETADATADX_RATE_LIMIT_BURST_SIZE` | off | Burst size for the per-IP rate limiter. If only one of the two rate-limit variables is set, the other falls back to `20` req/s / `40` burst. |
+| `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer drops events; invalid or zero values keep the default. |
+
 ## REST API
 
 All registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`, alongside the hand-written system routes.
@@ -134,7 +144,7 @@ Send JSON commands to manage subscriptions:
 
 ## Hardening
 
-- **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
+- **`POST /v3/system/shutdown`** requires a 128-bit random hex `X-Shutdown-Token` header (32 hex chars) printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
 - **Global per-IP rate limit on non-loopback binds** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40, rejected as `429` with the canonical error envelope and a `Retry-After` header. Loopback binds (`127.0.0.1`, `::1` — the default) disable the general limiter: every local client shares one peer-IP bucket, so parallel local workloads would throttle each other, which the legacy terminal never did. The shutdown-route limiter stays active on every bind. The server runs without a trusted reverse proxy, so forwarded-header extractors would let an attacker cycle fake IPs.
 - **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/server/http.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
@@ -145,9 +155,11 @@ Send JSON commands to manage subscriptions:
 Example — initiating a graceful shutdown from the same machine:
 
 ```bash
-# Server prints this line once at startup on stderr:
-#   thetadatadx-server: X-Shutdown-Token=<UUID>
-curl -X POST -H "X-Shutdown-Token: <UUID>" http://127.0.0.1:25503/v3/system/shutdown
+# Server prints these lines once at startup on stderr (TOKEN is a
+# 128-bit random hex string, 32 hex chars):
+#   Shutdown token: <TOKEN>
+#     curl -X POST http://127.0.0.1:25503/v3/system/shutdown -H 'X-Shutdown-Token: <TOKEN>'
+curl -X POST -H "X-Shutdown-Token: <TOKEN>" http://127.0.0.1:25503/v3/system/shutdown
 ```
 
 ## Architecture

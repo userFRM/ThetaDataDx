@@ -139,6 +139,29 @@ pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), V
     Ok(())
 }
 
+/// Reject any string containing a filesystem path separator or a parent
+/// reference.
+///
+/// Defense-in-depth for values that are later interpolated into a
+/// filesystem path (e.g. a flatfile artefact name keyed by `date`). A
+/// well-formed date or symbol never contains `/`, `\`, or `..`; rejecting
+/// them here means path safety does not depend solely on a downstream
+/// format validator running first. Runs after the control-char check, so
+/// null bytes are already gone by the time this sees the value.
+///
+/// # Errors
+/// Returns `ValidationError::invalid_content` when `value` contains `/`,
+/// `\`, or the `..` parent reference.
+pub fn ensure_no_path_separators(value: &str, field: &'static str) -> Result<(), ValidationError> {
+    if value.contains('/') || value.contains('\\') || value.contains("..") {
+        return Err(ValidationError::invalid_content(
+            field,
+            "contains a path separator",
+        ));
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 //  Field-specific validators
 // ---------------------------------------------------------------------------
@@ -188,13 +211,15 @@ pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), Val
 /// `thetadatadx::validate::validate_date` / `validate_expiration`.
 ///
 /// # Errors
-/// Returns a `ValidationError` when `value` exceeds [`MAX_DATE_LEN`] or
-/// contains control characters.
+/// Returns a `ValidationError` when `value` exceeds [`MAX_DATE_LEN`],
+/// contains control characters, or contains a filesystem path separator
+/// (the date is interpolated into a flatfile artefact path downstream).
 pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationError> {
     if value.len() > MAX_DATE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_DATE_LEN));
     }
     ensure_no_control_chars(value, field)?;
+    ensure_no_path_separators(value, field)?;
     Ok(())
 }
 
@@ -451,6 +476,19 @@ mod tests {
     fn date_accepts_iso_and_compact() {
         validate_date("20260420", "date").unwrap();
         validate_date("2026-04-20", "date").unwrap();
+    }
+
+    /// A `date` interpolated into a flatfile artefact path must never carry
+    /// a path separator or a parent reference, independent of any
+    /// downstream format validator.
+    #[test]
+    fn date_rejects_path_separators() {
+        for bad in ["../etc", "a/b", "a\\b", ".."] {
+            assert!(
+                validate_date(bad, "date").is_err(),
+                "must reject path-traversal date `{bad}`"
+            );
+        }
     }
 
     #[test]
