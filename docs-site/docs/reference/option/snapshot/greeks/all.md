@@ -12,8 +12,7 @@ description: "Get all Greeks snapshot for an option contract (from ThetaData ser
 Get all Greeks snapshot for an option contract (from ThetaData server).
 
 - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-- You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
-- Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+- Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
 <SdkTabs>

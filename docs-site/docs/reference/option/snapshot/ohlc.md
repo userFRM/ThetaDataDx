@@ -12,7 +12,6 @@ description: "Get the latest OHLC snapshot for an option contract."
 Get the latest OHLC snapshot for an option contract.
 
 - Retrieve a real-time last ohlc of an option contract for the trading day.
-- You might need to change the default expiration date to a different date if it is past the current date.
 
 <SdkTabs>
 

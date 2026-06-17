@@ -12,7 +12,6 @@ description: "Get the latest NBBO quote snapshot for an option contract."
 Get the latest NBBO quote snapshot for an option contract.
 
 - Retrieve a real-time last NBBO quote of an option contract.
-- You might need to change the default expiration date to a different date if it is past the current date.
 - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
 <SdkTabs>
