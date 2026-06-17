@@ -61,6 +61,13 @@ python = true       # returned by the `client.stream` getter
 typescript = true   # returned by the `client.stream` getter
 cpp = true          # returned by `client.stream()`; exposed as `thetadatadx::Stream`
 
+# `StreamingSession` carries no `[[method]]` rows by design: its public
+# surface is the inner `Client`'s, reached through `__getattr__` proxying,
+# so its OWN first-class methods are only the async-iterator and
+# context-manager dunders (no cross-binding contract). The
+# `STREAMING_SESSION_EXEMPT_METHODS` roster in the checker documents that
+# exemption and the reverse-orphan scan fires if a future first-class
+# session method ships without an enrolling row.
 [[class]]
 name = "StreamingSession"
 python = true
@@ -1515,6 +1522,61 @@ python = true
 typescript = true
 cpp = true
 
+# ── Subscription builders (the fluent per-contract / full-stream entry points) ──
+#
+# `Contract.quote() / .trade() / .openInterest() / .marketValue()` build a
+# per-contract subscription; `SecType.fullTrades() / .fullOpenInterest()`
+# build a full-stream subscription for the security type. Each binding
+# exposes the full set: Python (`impl PyContract` / `impl PySecType`),
+# TypeScript (`impl ContractRef` / `impl SecType`), and C++
+# (`class FluentContract` / `class FluentSecType`, routed via the alias
+# tables). The cross-binding `class` is the canonical pyclass name
+# (`Contract` / `SecType`); the per-binding resolvers route it to each
+# collector's struct key. Dropping or renaming a builder on any binding
+# trips the per-method gate.
+
+[[method]]
+class = "Contract"
+name = "quote"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Contract"
+name = "trade"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Contract"
+name = "openInterest"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Contract"
+name = "marketValue"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "SecType"
+name = "fullTrades"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "SecType"
+name = "fullOpenInterest"
+python = true
+typescript = true
+cpp = true
+
 # ─── Value-field TYPE parity ──────────────────────────────────────────
 #
 # Each row pins the declared Rust-side type of one field on one value
@@ -1541,22 +1603,38 @@ name = "strike"
 typescript = "Option<f64>"
 
 # The exact wire integer alongside dollars `strike`, pinned so the raw
-# representation cannot silently re-type to a float or drop on either
-# streaming-event payload.
+# representation cannot silently re-type to a float or drop on any
+# streaming-event payload. The `cpp` key pins the generated `#[repr(C)]`
+# `ThetaDataDxContract` member: the C ABI carries the raw `int32_t`
+# directly (the sibling `has_*` flags model optionality on the wire), so
+# the C side is no longer silently exempt from the unit-bearing field the
+# managed bindings decode.
 [[value_field]]
 class = "ContractRef"            # Python streaming event payload
 name = "strike_thousandths"
 python = "Option<i32>"
+cpp = "int32_t"
 
 [[value_field]]
 class = "Contract"               # TypeScript streaming event payload
 name = "strike_thousandths"
 typescript = "Option<i32>"
+cpp = "int32_t"
 
 [[value_field]]
 class = "ContractRef"
 name = "right"
 python = "Option<String>"
+
+# The TypeScript streaming-payload twin of `ContractRef.right`. Pins the
+# option-right character as the logical string on the TS event payload so
+# the identity triplet (strike / strike_thousandths / right) stays
+# symmetric with the Python `ContractRef` surface and cannot drift back to
+# a raw wire integer.
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "right"
+typescript = "Option<String>"
 
 # OptionContract list rows carry the logical right character on every
 # binding, including the hand-written C++ value struct. The `cpp` key
@@ -3196,3 +3274,45 @@ python = true
 typescript = true
 cpp = true
 ffi = true
+
+# ─── Client construction (connect) surface ([[connect]]) ──────────────
+#
+# The base construction entry point per standalone client: connect with
+# an in-memory `Credentials` + `Config`. The spelling differs per binding
+# — Python exposes a `#[new]` constructor (`Client(creds, config)`),
+# TypeScript / C++ a `connect` static factory, the C ABI a
+# `thetadatadx_<stem>_connect` symbol — so it cannot ride a `[[method]]`
+# row. `name` is the cross-binding client class identifier. C++
+# `StreamingClient` constructs through `from_file` / the RAII handle
+# rather than a static `connect`, so its `cpp` column is `false` while
+# the C ABI symbol and the Python / TypeScript construction all exist.
+# `AsyncClient` is the Python-only async wrapper over `Client`; it has no
+# C ABI / TypeScript / C++ twin, so it is gated on Python alone.
+
+[[connect]]
+name = "Client"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[connect]]
+name = "HistoricalClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[connect]]
+name = "StreamingClient"
+python = true
+typescript = true
+cpp = false  # C++ constructs via `from_file` / the RAII handle, not a static `connect`
+ffi = true
+
+[[connect]]
+name = "AsyncClient"
+python = true
+typescript = false  # Python-only async wrapper over `Client`
+cpp = false
+ffi = false

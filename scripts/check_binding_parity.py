@@ -265,6 +265,73 @@ def cpp_has(symbol: str, cpp: set[str]) -> bool:
     return False
 
 
+# Parity-toml `class` field → the Rust struct name the Python method
+# collector keys on. The collector harvests methods under the bare Rust
+# struct identifier (`impl PyContract`), while the cross-binding row uses
+# the canonical pyclass `name` (`Contract`). The fluent builders are the
+# load-bearing case: `Contract.quote()` lives on `impl PyContract`,
+# `SecType.fullTrades()` on `impl PySecType`. Routing the row through this
+# table lets a single canonical row resolve against the Python source.
+PY_CLASS_ALIASES: dict[str, str] = {
+    "Contract": "PyContract",
+    "SecType": "PySecType",
+    "Subscription": "PySubscription",
+}
+
+# Parity-toml `class` field → the Rust struct name the TypeScript method
+# collector keys on (lifted from `impl <Name>`). The per-contract fluent
+# builders live on the napi `ContractRef` impl, which the cross-binding
+# matrix tracks under the canonical `Contract` name (the `ContractRef`
+# class itself carries its own `[[class]]` row). The full-stream builders
+# live on `impl SecType`, already the canonical name.
+TS_CLASS_ALIASES: dict[str, str] = {
+    "Contract": "ContractRef",
+}
+
+
+def _py_class_for(class_name: str) -> str:
+    """Resolve a parity-toml `class` field to the Python collector's key.
+
+    Honors `PY_CLASS_ALIASES` so a row carrying the canonical pyclass name
+    (`Contract`) routes to the Rust struct the collector harvests
+    (`PyContract`).
+    """
+    return PY_CLASS_ALIASES.get(class_name, class_name)
+
+
+def _ts_class_for(class_name: str) -> str:
+    """Resolve a parity-toml `class` field to the TypeScript collector's key.
+
+    Honors `TS_CLASS_ALIASES` so a row carrying the canonical name
+    (`Contract`) routes to the napi impl the collector harvests
+    (`ContractRef`).
+    """
+    return TS_CLASS_ALIASES.get(class_name, class_name)
+
+
+def _py_methods_for(class_name: str, py_methods: dict[str, set[str]]) -> set[str]:
+    """Python method set for a parity-toml `class`, trying the aliased
+    struct key first and falling back to the bare canonical name.
+
+    The fallback keeps synthetic selftest matrices keyed by the canonical
+    name (`{"Contract": {"quote"}}`) resolving while the production
+    collector keys by the Rust struct (`PyContract`).
+    """
+    aliased = _py_class_for(class_name)
+    if aliased in py_methods:
+        return py_methods[aliased]
+    return py_methods.get(class_name, set())
+
+
+def _ts_methods_for(class_name: str, ts_methods: dict[str, set[str]]) -> set[str]:
+    """TypeScript method set for a parity-toml `class`, trying the aliased
+    impl key first and falling back to the bare canonical name."""
+    aliased = _ts_class_for(class_name)
+    if aliased in ts_methods:
+        return ts_methods[aliased]
+    return ts_methods.get(class_name, set())
+
+
 def _is_implicitly_tracked(name: str) -> bool:
     if name.endswith("Tick") or name.endswith("TickList") or name.endswith("TickListIter"):
         return True
@@ -1220,7 +1287,7 @@ def _check_method_rows(
         # property name stays bare (`config.flush_mode`); accept the
         # `get_`-prefixed fn name against the bare row, exactly as the C++
         # branch below accepts `get_<snake>`.
-        py_class_methods = py_methods.get(class_name, set())
+        py_class_methods = _py_methods_for(class_name, py_methods)
         declared_py = row.get("python", False)
         actual_py = snake in py_class_methods or f"get_{snake}" in py_class_methods
         if declared_py != actual_py:
@@ -1238,7 +1305,7 @@ def _check_method_rows(
         # camelCased fn-name spelling so a row's `name` can match
         # against either.
         declared_ts = row.get("typescript", False)
-        actual_ts = camel in ts_methods.get(class_name, set())
+        actual_ts = camel in _ts_methods_for(class_name, ts_methods)
         if declared_ts != actual_ts:
             verb = "missing" if declared_ts and not actual_ts else "unexpected"
             errors.append(
@@ -1304,7 +1371,60 @@ def _check_method_rows(
                 f"stays tracked."
             )
 
+    # Reverse-direction orphan scan for the `StreamingSession` async-session
+    # surface. `StreamingSession` is the Python-only `async with` /
+    # `async for` session handle (it carries a `[[class]]` row;
+    # `typescript`/`cpp` use a Promise iterator / RAII guard instead). Its
+    # public surface is intentionally the inner `Client`'s, reached through
+    # `__getattr__` proxying — its OWN first-class methods are only the
+    # async-iterator and context-manager dunders, which carry no
+    # cross-binding contract and are exempt by the roster below. This scan
+    # documents that exemption AND fires if a future first-class method
+    # (one the user calls directly on the session, not a proxied Client
+    # method) is added without an enrolling `[[method]]` row.
+    enrolled_session_methods = {
+        row["name"]
+        for row in method_rows
+        if row.get("class") == "StreamingSession" and row.get("name")
+    }
+    session_methods = py_methods.get("StreamingSession", set())
+    for name in sorted(session_methods - STREAMING_SESSION_EXEMPT_METHODS):
+        camel = _snake_to_camel(name)
+        if camel in enrolled_session_methods or name in enrolled_session_methods:
+            continue
+        errors.append(
+            f"  StreamingSession.{name}: first-class session method present "
+            f"on the Python pyclass but has no `[[method]]` row. Either enroll "
+            f"it (with the cross-binding shape) or add it to "
+            f"STREAMING_SESSION_EXEMPT_METHODS with the documented reason it "
+            f"carries no cross-binding contract."
+        )
+
     return errors
+
+
+# `StreamingSession`'s own methods that carry no cross-binding contract:
+# the async-iterator protocol (`__aiter__` / `__anext__`), the async and
+# sync context-manager entries (`__aenter__` / `__aexit__` / `__enter__` /
+# `__exit__`), and the attribute-proxy hook (`__getattr__`) that forwards
+# every data call to the inner `Client`. None of these are a method a user
+# calls by name expecting cross-binding symmetry, so they are exempt from
+# the `StreamingSession` orphan scan. (The cross-binding method collector
+# already filters the sync dunders; this roster names the full set
+# explicitly so the exemption is self-documenting.)
+STREAMING_SESSION_EXEMPT_METHODS: frozenset[str] = frozenset(
+    {
+        "__aiter__",
+        "__anext__",
+        "__aenter__",
+        "__aexit__",
+        "__enter__",
+        "__exit__",
+        "__getattr__",
+        "__next__",
+        "__iter__",
+    }
+)
 
 
 # ─── Core streaming observability-surface orphan check ──────────────
@@ -3182,7 +3302,221 @@ def _check_from_file_rows(
     return errors
 
 
+# ─── Client construction (connect) surface ([[connect]]) ──────────────
+#
+# The base construction entry point: connect to the servers with an
+# in-memory `Credentials` + `Config`. The `[[from_file]]` family above
+# pins the file-loading convenience; this family pins the construction
+# call itself, which `[[method]]` rows cannot express because its
+# spelling differs per binding:
+#   * Python — a `#[new]` constructor (`Client(creds, config)` /
+#     `HistoricalClient(...)` / `StreamingClient(...)`, plus the
+#     Python-only `AsyncClient(...)`). The method collector filters
+#     `new`/`__new__`, so the constructor needs its own detector.
+#   * TypeScript — a `connect` static factory (`Client.connect(...)`,
+#     async-shaped: it returns the connected client).
+#   * C++ — a `connect` static member (`Client::connect(...)`).
+#   * C ABI — a `thetadatadx_<stem>_connect` extern "C" symbol.
+#
+# The governed roster is the standalone clients reachable over a
+# `thetadatadx_<stem>_connect` C symbol. `AsyncClient` is Python-only
+# (it wraps `Client`); it has no C ABI / TS / C++ twin, so its row
+# carries no stem and is gated on Python alone.
+
+# Parity class name → C ABI symbol stem for the `thetadatadx_<stem>_connect`
+# extern "C" symbol. `AsyncClient` has no stem (Python-only); it is held
+# in the governed roster separately so its constructor is still scanned.
+CONNECT_FFI_STEMS: dict[str, str] = {
+    "Client": "client",
+    "HistoricalClient": "historical",
+    "StreamingClient": "streaming",
+}
+
+# Python-only governed client(s) with no C ABI stem. Tracked so the
+# constructor orphan scan still enrols them, but gated on Python alone.
+CONNECT_PY_ONLY: frozenset[str] = frozenset({"AsyncClient"})
+
+# Full governed roster (C-ABI-backed clients + Python-only twins).
+_CONNECT_GOVERNED: frozenset[str] = frozenset(CONNECT_FFI_STEMS) | CONNECT_PY_ONLY
+
+
+def _collect_python_connect_classes(py_src: pathlib.Path) -> set[str]:
+    """Governed client classes whose Python pyclass exposes a `#[new]`
+    constructor.
+
+    The cross-binding method collector filters `new`/`__new__`, so the
+    construction entry point needs its own scan. Walks every `impl <Path>`
+    block, and if its body carries a `#[new]` attribute records the bare
+    last-segment class name. Scoped to `_CONNECT_GOVERNED` so a `#[new]`
+    on `Credentials` / `Config` / a tick struct is not mistaken for a
+    client constructor.
+    """
+    out: set[str] = set()
+    if not py_src.is_dir():
+        return out
+    impl_re = re.compile(
+        r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
+    )
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            class_name = header.group(1)
+            if class_name not in _CONNECT_GOVERNED:
+                continue
+            body = _balanced_body(text, header.end())
+            if "#[new]" in body:
+                out.add(class_name)
+    return out
+
+
+def _collect_typescript_connect_classes(ts_methods: dict[str, set[str]]) -> set[str]:
+    """Governed client classes whose TypeScript napi class exposes a
+    `connect` static factory.
+
+    Reuses the collected `{class: {method, ...}}` map; the napi factory's
+    name is the bare `connect`. Scoped to the C-ABI-backed roster (the
+    Python-only `AsyncClient` is never a TS class).
+    """
+    return {
+        cls
+        for cls, methods in ts_methods.items()
+        if cls in CONNECT_FFI_STEMS and "connect" in methods
+    }
+
+
+def _collect_cpp_connect_classes(cpp_methods: dict[str, set[str]]) -> set[str]:
+    """Governed client classes whose C++ wrapper exposes a `connect`
+    static member.
+
+    Folds the C++ alias names back to the cross-binding identifier and
+    scopes to the C-ABI-backed roster.
+    """
+    reverse_alias = {v: k for k, v in CPP_ALIASES.items()}
+    out: set[str] = set()
+    for cls, methods in cpp_methods.items():
+        if "connect" in methods:
+            canonical = reverse_alias.get(cls, cls)
+            if canonical in CONNECT_FFI_STEMS:
+                out.add(canonical)
+    return out
+
+
+def _collect_ffi_connect_stems(ffi_src: pathlib.Path) -> set[str]:
+    """C ABI symbol stems whose `thetadatadx_<stem>_connect` extern "C"
+    symbol exists in `ffi/src/`.
+
+    The `_connect_from_file` convenience shares the `_connect` prefix, so
+    the regex anchors on a `(` immediately after `_connect` to match only
+    the base construction symbol, not `_connect_from_file`.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+?)_connect\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            out.add(m.group(1))
+    return out
+
+
+def _check_connect_rows(
+    rows: list[dict[str, Any]],
+    py_connect: set[str],
+    ts_connect: set[str],
+    cpp_connect: set[str],
+    ffi_stems: set[str],
+) -> list[str]:
+    """Per-client-class cross-binding gate for `[[connect]]` rows.
+
+    Each row declares a client class `name` plus the expected construction
+    presence in Python / TypeScript / C++ / the C ABI. A Python-only
+    governed client (`AsyncClient`) carries no C ABI stem; its `ffi`
+    column must be `false` and is gated on Python alone. The collected
+    sets are reconciled against the declared row names so a client that
+    constructs on ANY binding without a row trips the gate.
+    """
+    errors: list[str] = []
+    declared_names = {row.get("name") for row in rows if row.get("name")}
+    for row in rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[connect]] row missing `name`: {row!r}")
+            continue
+        if name not in _CONNECT_GOVERNED:
+            errors.append(
+                f"  [[connect]] row `{name}` is not a governed client; "
+                f"add it to CONNECT_FFI_STEMS (C-ABI-backed) or "
+                f"CONNECT_PY_ONLY (Python-only)."
+            )
+            continue
+        stem = CONNECT_FFI_STEMS.get(name)
+        ffi_present = stem in ffi_stems if stem is not None else False
+        checks = [
+            ("python", name in py_connect, f"`#[new]` constructor on the `{name}` pyclass"),
+            (
+                "typescript",
+                name in ts_connect,
+                f"`connect` static factory on the `{name}` napi class",
+            ),
+            ("cpp", name in cpp_connect, f"`connect(` static member on the `{name}` C++ class"),
+            (
+                "ffi",
+                ffi_present,
+                f"`thetadatadx_{stem}_connect` extern \"C\" symbol"
+                if stem is not None
+                else "no C ABI stem (Python-only client)",
+            ),
+        ]
+        for lang, actual, hint in checks:
+            declared = row.get(lang, False)
+            if declared != actual:
+                verb = "missing" if declared and not actual else "unexpected"
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb} -- expected {hint})"
+                )
+    # Reverse-direction orphan check: any client constructing on a binding
+    # but lacking a row is undocumented drift.
+    ffi_classes = {
+        cls for cls, stem in CONNECT_FFI_STEMS.items() if stem in ffi_stems
+    }
+    seen = py_connect | ts_connect | cpp_connect | ffi_classes
+    for client in sorted(seen - declared_names):
+        on = sorted(
+            lang
+            for lang, s in (
+                ("python", py_connect),
+                ("typescript", ts_connect),
+                ("cpp", cpp_connect),
+                ("ffi", ffi_classes),
+            )
+            if client in s
+        )
+        errors.append(
+            f"  {client}: constructs a connected client on {on} but has no "
+            f"[[connect]] row. Add one declaring its per-binding presence "
+            f"so the construction surface stays tracked."
+        )
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
+
+
+# Recognized suffixes for a dotted "documentation anchor" row — a row
+# whose struct prefix is NOT a field-bearing config struct
+# (`STRUCT_TO_PREFIX`). These rows record a cross-binding fact about a
+# whole class (a tick wrapper tracked by the `*Tick` catch-all, or a known
+# name divergence) rather than a per-field setter. The suffix must be one
+# of these AND the struct part must name a real binding class, or the row
+# is treated as a typo and fails the gate.
+ANCHOR_ROW_SUFFIXES: frozenset[str] = frozenset(
+    {
+        "cross_binding_anchor",
+        "cross_binding_name_divergence",
+    }
+)
 
 
 def _check_dotted_rows(
@@ -3191,12 +3525,24 @@ def _check_dotted_rows(
     ts_setters: set[str],
     cpp_setters: set[str],
     ffi_setters: set[str],
+    anchor_classes: set[str] | None = None,
 ) -> list[str]:
     """Per-field / per-setter granularity (issue #595).
 
     Returns a list of human-readable error strings. An empty list
     means every dotted row in `parity.toml` matches the actual binding
     state of each SDK.
+
+    `anchor_classes` is the universe of real binding class names (every
+    pyclass / TS class / C++ class plus the implicitly-tracked tick
+    wrappers). When provided, a dotted row whose struct prefix is not a
+    field-bearing config struct is validated as a documentation-anchor row:
+    its suffix must be in `ANCHOR_ROW_SUFFIXES` AND its struct part must
+    name a class in `anchor_classes`. A row that satisfies neither is a
+    probable typo (a misspelled struct, a stray dotted name) and fails the
+    gate, closing the silent-skip blind spot. When `anchor_classes` is
+    `None` (the selftest call shape), anchor rows are skipped as before so
+    synthetic per-field matrices stay hermetic.
     """
     errors: list[str] = []
     for row in rows:
@@ -3206,10 +3552,28 @@ def _check_dotted_rows(
         struct_name, suffix = name.split(".", 1)
         prefix = STRUCT_TO_PREFIX.get(struct_name)
         if prefix is None:
-            # Unknown struct — likely a "documentation anchor" row
-            # (e.g. `Error.cross_binding_name_divergence`,
-            # `GreeksEodTick.cross_binding_anchor`). Skip — these are
-            # not field-level bindings.
+            # Not a field-bearing config struct — this must be a
+            # documentation-anchor row (a whole-class cross-binding fact,
+            # e.g. `GreeksEodTick.cross_binding_anchor`). When the class
+            # universe is known, validate it so a typo cannot slip through
+            # silently; otherwise (selftest) skip as a non-field row.
+            if anchor_classes is None:
+                continue
+            if suffix not in ANCHOR_ROW_SUFFIXES:
+                errors.append(
+                    f"  {name}: dotted row on non-config struct uses an "
+                    f"unrecognized suffix `{suffix}`. A documentation-anchor "
+                    f"row must use one of {sorted(ANCHOR_ROW_SUFFIXES)}; a "
+                    f"field-level row must name a struct in STRUCT_TO_PREFIX. "
+                    f"This is almost certainly a typo."
+                )
+                continue
+            if struct_name not in anchor_classes:
+                errors.append(
+                    f"  {name}: anchor row names struct `{struct_name}`, which "
+                    f"is not a known binding class. Fix the spelling or remove "
+                    f"the row — a typo'd anchor silently asserts nothing."
+                )
             continue
         # Allow rows to override the auto-derived setter name. Used
         # when a single struct has a mix of prefixed / unprefixed
@@ -3362,6 +3726,55 @@ def _cpp_struct_field_type(hpp: pathlib.Path, struct: str, field: str) -> str | 
     return None
 
 
+# The generated C-ABI header fragment carrying the `#[repr(C)]` streaming
+# value structs. Its types are declared in the `typedef struct { ... }
+# <Name>;` C idiom, NOT the `struct <Name> { ... }` C++ idiom the wrapper
+# header uses, so it needs its own reader. The streaming contract payload
+# (`ThetaDataDxContract`) lives here and carries the unit-bearing wire
+# fields (`strike` dollars + `strike_thousandths` the raw integer).
+CPP_C_STRUCT_INC = REPO_ROOT / "sdks" / "cpp" / "include" / "fpss_event_structs.h.inc"
+
+# Parity-toml value `class` → the generated C-ABI struct that backs it,
+# for fields whose C-ABI shape is the source of truth rather than a C++
+# wrapper struct. The streaming contract payload is the cross-binding
+# `ContractRef` (Python) / `Contract` (TypeScript); both decode the same
+# `#[repr(C)] ThetaDataDxContract` on the C side.
+VALUE_FIELD_C_STRUCT_ALIASES: dict[str, str] = {
+    "ContractRef": "ThetaDataDxContract",
+    "Contract": "ThetaDataDxContract",
+}
+
+
+def _c_abi_struct_field_type(inc: pathlib.Path, struct: str, field: str) -> str | None:
+    """Declared C type of `field` on a `typedef struct { ... } <struct>;`
+    in the generated C-ABI header fragment.
+
+    The streaming value structs are emitted in the C `typedef struct`
+    idiom (the type name follows the closing brace), which
+    `_cpp_struct_field_type`'s `struct <Name> {` regex cannot read. This
+    reader matches the C form so a `cpp` key on a `[[value_field]]` row
+    whose class is C-ABI-backed (`ContractRef` / `Contract`) is validated
+    against the actual generated C struct member type — closing the gap
+    that let the C side silently skip a unit-bearing field the other
+    bindings pin. Returns `None` when the struct or field is absent.
+    """
+    if not inc.is_file():
+        return None
+    text = inc.read_text(encoding="utf-8")
+    struct_re = re.compile(
+        r"typedef\s+struct\s*\{(.*?)\}\s*" + re.escape(struct) + r"\s*;",
+        re.S,
+    )
+    field_re = re.compile(
+        r"([A-Za-z_][\w:<>\s\*&]*?)\s+" + re.escape(field) + r"\s*;",
+    )
+    for m in struct_re.finditer(text):
+        fm = field_re.search(m.group(1))
+        if fm:
+            return fm.group(1).strip()
+    return None
+
+
 def _check_value_field_rows(rows: list[dict[str, Any]]) -> list[str]:
     """Field-level TYPE parity for `[[value_field]]` rows.
 
@@ -3398,14 +3811,156 @@ def _check_value_field_rows(rows: list[dict[str, Any]]) -> list[str]:
                     f"actual `{actual or '<field missing>'}`"
                 )
         # C++ value structs declare their field types in the wrapper
-        # header, not a Rust crate, so they get their own reader.
+        # header, not a Rust crate, so they get their own reader. A class
+        # whose C-side shape is the generated `#[repr(C)]` struct (the
+        # streaming contract payload) is read from the C-ABI header
+        # fragment instead — the `typedef struct { ... } <Name>;` idiom the
+        # C++-struct reader cannot parse.
         declared_cpp = row.get("cpp")
         if declared_cpp is not None:
-            actual_cpp = _cpp_struct_field_type(CPP_HPP, _cpp_class_for(cls), field)
+            c_struct = VALUE_FIELD_C_STRUCT_ALIASES.get(cls)
+            if c_struct is not None:
+                actual_cpp = _c_abi_struct_field_type(CPP_C_STRUCT_INC, c_struct, field)
+            else:
+                actual_cpp = _cpp_struct_field_type(CPP_HPP, _cpp_class_for(cls), field)
             if actual_cpp != declared_cpp:
                 errors.append(
                     f"{cls}.{field}.cpp: declared type `{declared_cpp}`, "
                     f"actual `{actual_cpp or '<field missing>'}`"
+                )
+    return errors
+
+
+# ─── Value-field exhaustiveness (reverse-direction roster) ────────────
+#
+# The per-row `_check_value_field_rows` gate verifies each DECLARED field
+# resolves to the right type. It does not gate the reverse direction: a
+# unit- or identity-bearing field that lands on a binding value struct
+# without a `[[value_field]]` row trips nothing, because the row simply
+# does not exist (the exact `strike_thousandths` defect — the wire integer
+# shipped on the streaming payloads with zero matrix rows). Two
+# complementary scans close that blind spot without pinning every trivial
+# column:
+#
+#  1. A roster check: the load-bearing value classes each carry a fixed
+#     set of unit/identity-bearing fields that MUST be pinned. A missing
+#     entry trips, so dropping a row for one of these protected surfaces
+#     fails the gate.
+#  2. A vocabulary scan: any binding struct field whose NAME matches the
+#     unit/identity grammar (`strike` / `strike_thousandths` / `right` /
+#     `*_timestamp_ms`) on a class already in the matrix, but which has no
+#     `[[value_field]]` row under that name on ANY class, trips. A brand-new
+#     unit-bearing field name (a future `settlement_timestamp_ms`, a
+#     re-typed `strike_micros`) cannot ship untracked.
+#
+# Both scans are intentionally scoped to the unit/identity-bearing surface
+# the matrix exists to protect — the flat data columns (`price`, `size`,
+# the Greeks scalars) are projected from one schema source and stay in
+# lockstep by construction, so they are out of scope here.
+
+# Load-bearing value classes → the unit/identity-bearing fields that must
+# carry a `[[value_field]]` row. Keyed by the cross-binding class name the
+# matrix uses (`ContractRef` is the Python streaming payload, `Contract`
+# the TypeScript one). Each listed `(class, field)` must appear in the
+# matrix or the roster check trips.
+VALUE_FIELD_ROSTER: dict[str, tuple[str, ...]] = {
+    "ContractRef": ("strike", "strike_thousandths", "right"),
+    "Contract": ("strike", "strike_thousandths", "right"),
+    "OptionContract": ("right",),
+    "TradeTick": ("strike", "right"),
+    "EodTick": ("created_ms_of_day", "last_trade_ms_of_day"),
+}
+
+# The unit/identity-bearing field-name grammar the vocabulary scan
+# protects. A field whose name matches this — and which has no
+# `[[value_field]]` row under that name anywhere — is a new unit-bearing
+# surface that must be enrolled.
+_VALUE_FIELD_UNIT_NAME_RE = re.compile(
+    r"^(?:strike|strike_thousandths|right)$|_timestamp_ms$|^timestamp_ms$"
+)
+
+# Field-name aliases between the Python source spelling and the matrix /
+# TypeScript spelling. The Python keyword escape `lambda_` is the matrix
+# `lambda` on the TS side; neither is unit-bearing, so this is only here
+# to document the one cross-binding rename the scans must treat as equal
+# should the grammar ever widen to cover it.
+_VALUE_FIELD_NAME_ALIASES: dict[str, str] = {"lambda_": "lambda"}
+
+
+def _collect_value_struct_fields(
+    src_dir: pathlib.Path, struct: str
+) -> set[str]:
+    """Return the `pub` field names of `struct` across a binding crate.
+
+    Mirrors `_struct_field_type`'s struct-body scan but harvests every
+    field name rather than one field's type. Used by the reverse
+    exhaustiveness scan to enumerate a value struct's actual surface.
+    """
+    out: set[str] = set()
+    if not src_dir.is_dir():
+        return out
+    struct_re = re.compile(
+        r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
+        re.S,
+    )
+    field_re = re.compile(r"(?:#\[[^\]]*\]\s*)*pub\s+(\w+)\s*:", re.M)
+    for path in sorted(src_dir.rglob("*.rs")):
+        text = path.read_text(encoding="utf-8")
+        for m in struct_re.finditer(text):
+            for fm in field_re.finditer(m.group(1)):
+                out.add(fm.group(1))
+    return out
+
+
+def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
+    """Reverse-direction exhaustiveness for the `[[value_field]]` matrix.
+
+    Two scans (see the section header):
+
+      * roster — every `(class, field)` in `VALUE_FIELD_ROSTER` must have a
+        matrix row;
+      * vocabulary — every binding struct field matching the unit/identity
+        grammar on a matrix class must have a row under that name somewhere.
+
+    Returns human-readable error strings (empty when complete).
+    """
+    errors: list[str] = []
+    present_pairs: set[tuple[str, str]] = {
+        (row["class"], row["name"]) for row in rows
+    }
+    present_names: set[str] = {row["name"] for row in rows}
+
+    for cls, fields in VALUE_FIELD_ROSTER.items():
+        for field in fields:
+            if (cls, field) not in present_pairs:
+                errors.append(
+                    f"  {cls}.{field}: load-bearing unit/identity field has "
+                    f"no `[[value_field]]` row. Add one pinning its type on "
+                    f"the bindings that carry it (the matrix exists to keep "
+                    f"this surface honest)."
+                )
+
+    # Vocabulary scan: every class already in the matrix, every binding
+    # struct field whose name matches the unit grammar, must have a row
+    # under that name on some class.
+    matrix_classes = sorted({row["class"] for row in rows})
+    flagged: set[tuple[str, str]] = set()
+    for cls in matrix_classes:
+        for src_dir in (VALUE_FIELD_PY_SRC, VALUE_FIELD_TS_SRC):
+            for field in _collect_value_struct_fields(src_dir, cls):
+                canonical = _VALUE_FIELD_NAME_ALIASES.get(field, field)
+                if not _VALUE_FIELD_UNIT_NAME_RE.search(canonical):
+                    continue
+                if canonical in present_names or field in present_names:
+                    continue
+                if (cls, field) in flagged:
+                    continue
+                flagged.add((cls, field))
+                errors.append(
+                    f"  {cls}.{field}: unit/identity-bearing field present on "
+                    f"a binding value struct but no `[[value_field]]` row pins "
+                    f"the name anywhere. Enroll it so its type cannot drift "
+                    f"silently across bindings."
                 )
     return errors
 
@@ -3432,6 +3987,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     historical_base_rows: list[dict[str, Any]] = data.get("historical_base", [])
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
+    connect_rows: list[dict[str, Any]] = data.get("connect", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -3473,9 +4029,12 @@ def main(argv: list[str] | None = None) -> int:
             if actual != declared:
                 class_mismatches.append((name, lang, declared, actual))
 
-    # Field-level mismatches (dotted rows / #595).
+    # Field-level mismatches (dotted rows / #595). The class universe lets
+    # the dotted-row check validate documentation-anchor rows (an anchor on
+    # a typo'd / nonexistent struct fails instead of silently passing).
+    anchor_classes = py_classes | ts_classes | cpp_classes
     field_errors = _check_dotted_rows(
-        rows, py_setters, ts_setters, cpp_setters, ffi_setters
+        rows, py_setters, ts_setters, cpp_setters, ffi_setters, anchor_classes
     )
 
     # Method-level mismatches (per-method `[[method]]` rows on the
@@ -3504,6 +4063,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Value-field TYPE parity ([[value_field]] rows).
     value_field_errors = _check_value_field_rows(value_field_rows)
+
+    # Value-field exhaustiveness: the reverse direction of the per-row type
+    # check. A load-bearing class missing a pinned unit/identity field, or a
+    # new unit-bearing field name shipped on a binding value struct without
+    # any enrolling row, trips here — the `strike_thousandths` defect class.
+    value_field_roster_errors = _check_value_field_roster(value_field_rows)
 
     # Free-function (utility) parity ([[utility]] rows) — the offline
     # Greeks calculator (`all_greeks` / `implied_volatility`) is a free
@@ -3604,6 +4169,21 @@ def main(argv: list[str] | None = None) -> int:
     ffi_from_file_stems = _collect_ffi_from_file_stems(FFI_SRC)
     from_file_errors = _check_from_file_rows(
         from_file_rows, py_from_file, ts_from_file, cpp_from_file, ffi_from_file_stems
+    )
+
+    # Client construction surface ([[connect]] rows) — the base
+    # `Client(creds, config)` / `Client.connect(...)` / `Client::connect(...)`
+    # / `thetadatadx_<stem>_connect` entry point per standalone client. Its
+    # spelling differs per binding (Python `#[new]` constructor vs the
+    # `connect` factory elsewhere), so it cannot ride a `[[method]]` row;
+    # this family pins it across Python / TypeScript / C++ / the C ABI plus
+    # the Python-only `AsyncClient`.
+    py_connect = _collect_python_connect_classes(PY_SRC)
+    ts_connect = _collect_typescript_connect_classes(ts_class_methods)
+    cpp_connect = _collect_cpp_connect_classes(cpp_class_methods)
+    ffi_connect_stems = _collect_ffi_connect_stems(FFI_SRC)
+    connect_errors = _check_connect_rows(
+        connect_rows, py_connect, ts_connect, cpp_connect, ffi_connect_stems
     )
 
     # Public-surface vocabulary: no public client identifier may embed
@@ -3755,6 +4335,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {e}")
         print()
 
+    if value_field_roster_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(value_field_roster_errors)} "
+            f"value-field roster gap(s) (unit/identity field unpinned):"
+        )
+        for e in value_field_roster_errors:
+            print(e)
+        print()
+
     if utility_errors:
         had_errors = True
         print(
@@ -3816,6 +4406,17 @@ def main(argv: list[str] | None = None) -> int:
             f"`[[from_file]]` granularity):"
         )
         for e in from_file_errors:
+            print(e)
+        print()
+
+    if connect_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(connect_errors)} "
+            f"client construction mismatch(es) (per-client "
+            f"`[[connect]]` granularity):"
+        )
+        for e in connect_errors:
             print(e)
         print()
 
@@ -3897,6 +4498,7 @@ def main(argv: list[str] | None = None) -> int:
     n_hist_async = len(historical_async_rows)
     n_hist_base = len(historical_base_rows)
     n_from_file = len(from_file_rows)
+    n_connect = len(connect_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
@@ -3906,6 +4508,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_hist_async} historical-async rows + "
         f"{n_hist_base} historical-base rows + "
         f"{n_from_file} from-file rows + "
+        f"{n_connect} connect rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -4571,6 +5174,277 @@ def _run_selftest() -> int:
     _case("value_field positive — Rust + C++ types match the declared", _case_value_field_positive_matches)
     _case("value_field negative — Rust strike type drift trips", _case_value_field_rust_type_mismatch_trips)
     _case("value_field negative — C++ right-as-int trips", _case_value_field_cpp_type_mismatch_trips)
+
+    # ── Subscription-builder method resolution selftests ───────────
+
+    def _case_builder_method_py_ts_aliases_resolve() -> None:
+        """A `Contract` builder row resolves against the Python `PyContract`
+        struct key and the TypeScript `ContractRef` impl key."""
+        rows = [
+            {
+                "class": "Contract",
+                "name": "quote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        # Production collectors key Python by the Rust struct and TS by the
+        # napi impl — the row uses the canonical `Contract` name.
+        py_methods = {"PyContract": {"quote"}}
+        ts_methods = {"ContractRef": {"quote"}}
+        cpp_methods = {"FluentContract": {"quote"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"Contract builder must resolve through Py/TS aliases; got {errors!r}"
+        )
+
+    def _case_builder_method_sectype_full_stream_resolves() -> None:
+        """`SecType.fullTrades` resolves on `PySecType` (py) + `SecType` (ts)."""
+        rows = [
+            {
+                "class": "SecType",
+                "name": "fullTrades",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"PySecType": {"full_trades"}}
+        ts_methods = {"SecType": {"fullTrades"}}
+        cpp_methods = {"FluentSecType": {"full_trades"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"SecType full-stream builder must resolve; got {errors!r}"
+        )
+
+    def _case_builder_method_drop_trips() -> None:
+        """Dropping a builder on one binding trips the per-method gate."""
+        rows = [
+            {
+                "class": "Contract",
+                "name": "quote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"PyContract": {"quote"}}
+        ts_methods: dict[str, set[str]] = {"ContractRef": set()}  # dropped on TS
+        cpp_methods = {"FluentContract": {"quote"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any("typescript" in e and "missing" in e for e in errors), (
+            f"a dropped builder must trip the gate; got {errors!r}"
+        )
+
+    _case("builder method — Contract Py/TS aliases resolve", _case_builder_method_py_ts_aliases_resolve)
+    _case("builder method — SecType full-stream resolves", _case_builder_method_sectype_full_stream_resolves)
+    _case("builder method — dropped builder on TS trips", _case_builder_method_drop_trips)
+
+    # ── Client construction (connect) selftests ────────────────────
+
+    def _case_connect_positive_all_bound() -> None:
+        """A C-ABI-backed client present on every surface is silent."""
+        rows = [
+            {
+                "name": "Client",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_connect_rows(
+            rows, {"Client"}, {"Client"}, {"Client"}, {"client"}
+        )
+        assert errors == [], f"all-bound connect row must be silent; got {errors!r}"
+
+    def _case_connect_python_only_async_client() -> None:
+        """`AsyncClient` is Python-only — no stem, ffi=false, silent."""
+        rows = [
+            {
+                "name": "AsyncClient",
+                "python": True,
+                "typescript": False,
+                "cpp": False,
+                "ffi": False,
+            }
+        ]
+        errors = _check_connect_rows(rows, {"AsyncClient"}, set(), set(), set())
+        assert errors == [], (
+            f"Python-only AsyncClient connect row must be silent; got {errors!r}"
+        )
+
+    def _case_connect_missing_python_constructor_trips() -> None:
+        """Row claims a Python constructor but the pyclass has none — trips."""
+        rows = [
+            {
+                "name": "Client",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "ffi": True,
+            }
+        ]
+        errors = _check_connect_rows(
+            rows, set(), {"Client"}, {"Client"}, {"client"}
+        )
+        assert any("python" in e and "missing" in e for e in errors), (
+            f"a missing #[new] constructor must trip; got {errors!r}"
+        )
+
+    def _case_connect_orphan_untracked_trips() -> None:
+        """A client constructing on a binding with no row is undocumented."""
+        rows: list[dict[str, Any]] = []
+        errors = _check_connect_rows(
+            rows, {"Client"}, {"Client"}, set(), {"client"}
+        )
+        assert any("no [[connect]] row" in e for e in errors), (
+            f"an untracked connect surface must trip; got {errors!r}"
+        )
+
+    def _case_connect_ffi_stem_collector_skips_from_file() -> None:
+        """The FFI connect collector matches `_connect(` but not
+        `_connect_from_file`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi_dir = pathlib.Path(tmp) / "ffi"
+            ffi_dir.mkdir()
+            (ffi_dir / "c.rs").write_text(
+                'pub unsafe extern "C" fn thetadatadx_client_connect(a: i32) {}\n'
+                'pub unsafe extern "C" fn thetadatadx_client_connect_from_file(p: i32) {}\n',
+                encoding="utf-8",
+            )
+            stems = _collect_ffi_connect_stems(ffi_dir)
+            assert "client" in stems, f"base connect stem must be seen; got {stems!r}"
+            assert "client_connect_from" not in stems, (
+                f"from_file must not leak into the connect stems; got {stems!r}"
+            )
+
+    _case("connect positive — all-bound client silent", _case_connect_positive_all_bound)
+    _case("connect positive — Python-only AsyncClient silent", _case_connect_python_only_async_client)
+    _case("connect negative — missing #[new] constructor trips", _case_connect_missing_python_constructor_trips)
+    _case("connect negative — untracked connect surface trips", _case_connect_orphan_untracked_trips)
+    _case("connect — FFI stem collector skips _connect_from_file", _case_connect_ffi_stem_collector_skips_from_file)
+
+    # ── C-ABI value-field + roster selftests ───────────────────────
+
+    def _case_c_abi_struct_reader_reads_typedef_struct() -> None:
+        """The C-ABI reader parses `typedef struct {...} <Name>;`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            inc = pathlib.Path(tmp) / "structs.h.inc"
+            inc.write_text(
+                "typedef struct {\n"
+                "const char *symbol;\n"
+                "double strike;\n"
+                "int32_t strike_thousandths;\n"
+                "} ThetaDataDxContract;\n",
+                encoding="utf-8",
+            )
+            assert (
+                _c_abi_struct_field_type(inc, "ThetaDataDxContract", "strike_thousandths")
+                == "int32_t"
+            )
+            assert (
+                _c_abi_struct_field_type(inc, "ThetaDataDxContract", "strike") == "double"
+            )
+
+    def _case_value_field_roster_missing_trips() -> None:
+        """A load-bearing class missing its pinned field trips the roster."""
+        # `OptionContract.right` is in VALUE_FIELD_ROSTER; an empty matrix
+        # must surface it (plus the other roster entries) as a gap.
+        errors = _check_value_field_roster([])
+        assert any("OptionContract.right" in e for e in errors), (
+            f"roster gap must surface the unpinned field; got {errors!r}"
+        )
+
+    def _case_value_field_roster_complete_silent_on_roster() -> None:
+        """With every roster pair present, the roster scan adds nothing
+        for those pairs (vocabulary scan reads the live tree, so only the
+        roster half is asserted here against a synthetic matrix)."""
+        rows = [
+            {"class": cls, "name": field}
+            for cls, fields in VALUE_FIELD_ROSTER.items()
+            for field in fields
+        ]
+        errors = _check_value_field_roster(rows)
+        # No roster-half error should mention a roster pair.
+        for cls, fields in VALUE_FIELD_ROSTER.items():
+            for field in fields:
+                assert not any(
+                    f"{cls}.{field}: load-bearing" in e for e in errors
+                ), f"roster pair {cls}.{field} must not be flagged; got {errors!r}"
+
+    _case("value_field — C-ABI typedef-struct reader", _case_c_abi_struct_reader_reads_typedef_struct)
+    _case("value_field — roster gap trips on missing pin", _case_value_field_roster_missing_trips)
+    _case("value_field — roster silent when complete", _case_value_field_roster_complete_silent_on_roster)
+
+    # ── Dotted anchor-row typo selftests ───────────────────────────
+
+    def _case_anchor_row_valid_passes() -> None:
+        """A recognized anchor suffix on a real class passes."""
+        rows = [{"name": "GreeksEodTick.cross_binding_anchor", "python": True}]
+        errors = _check_dotted_rows(
+            rows, set(), set(), set(), set(), {"GreeksEodTick"}
+        )
+        assert errors == [], f"valid anchor must pass; got {errors!r}"
+
+    def _case_anchor_row_typod_struct_trips() -> None:
+        """An anchor on a nonexistent (typo'd) struct fails."""
+        rows = [{"name": "GreksEodTick.cross_binding_anchor", "python": True}]
+        errors = _check_dotted_rows(
+            rows, set(), set(), set(), set(), {"GreeksEodTick"}
+        )
+        assert any("not a known binding class" in e for e in errors), (
+            f"a typo'd anchor struct must trip; got {errors!r}"
+        )
+
+    def _case_anchor_row_bad_suffix_trips() -> None:
+        """A dotted row on a non-config struct with an unknown suffix fails."""
+        rows = [{"name": "GreeksEodTick.bogus_suffix", "python": True}]
+        errors = _check_dotted_rows(
+            rows, set(), set(), set(), set(), {"GreeksEodTick"}
+        )
+        assert any("unrecognized suffix" in e for e in errors), (
+            f"an unrecognized anchor suffix must trip; got {errors!r}"
+        )
+
+    def _case_anchor_row_skipped_without_universe() -> None:
+        """Without a class universe (selftest shape), anchor rows skip."""
+        rows = [{"name": "Whatever.cross_binding_anchor", "python": True}]
+        errors = _check_dotted_rows(rows, set(), set(), set(), set())
+        assert errors == [], (
+            f"anchor rows must skip when no universe is given; got {errors!r}"
+        )
+
+    _case("anchor row — valid suffix + real class passes", _case_anchor_row_valid_passes)
+    _case("anchor row — typo'd struct trips", _case_anchor_row_typod_struct_trips)
+    _case("anchor row — unrecognized suffix trips", _case_anchor_row_bad_suffix_trips)
+    _case("anchor row — skipped without class universe", _case_anchor_row_skipped_without_universe)
+
+    # ── StreamingSession exemption selftests ───────────────────────
+
+    def _case_streaming_session_dunders_exempt() -> None:
+        """The async-iterator / context dunders carry no contract — silent."""
+        rows: list[dict[str, Any]] = []
+        py_methods = {
+            "StreamingSession": {"__aiter__", "__anext__", "__aenter__", "__aexit__"}
+        }
+        errors = _check_method_rows(rows, py_methods, {}, {})
+        assert not any("StreamingSession" in e for e in errors), (
+            f"session dunders must be exempt; got {errors!r}"
+        )
+
+    def _case_streaming_session_first_class_method_trips() -> None:
+        """A first-class session method with no row trips the orphan scan."""
+        rows: list[dict[str, Any]] = []
+        py_methods = {"StreamingSession": {"drain_now"}}
+        errors = _check_method_rows(rows, py_methods, {}, {})
+        assert any("StreamingSession.drain_now" in e for e in errors), (
+            f"an unenrolled first-class session method must trip; got {errors!r}"
+        )
+
+    _case("StreamingSession — async/context dunders exempt", _case_streaming_session_dunders_exempt)
+    _case("StreamingSession — unenrolled first-class method trips", _case_streaming_session_first_class_method_trips)
 
     # ── Free-function (utility) parity selftests ───────────────────
 
