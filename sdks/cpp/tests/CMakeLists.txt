@@ -44,8 +44,8 @@ set(THETADATADX_CPP_TEST_SOURCES
     # FlatFilesConfig setters on thetadatadx::Config — cross-binding parity
     # with Python / TypeScript / FFI (issue #594).
     flatfiles_config.cpp
-    # v11 InterestRateTick schema fix — 2-field shape
-    # (date/rate, was 3 fields with a fictitious ms_of_day).
+    # InterestRateTick is a 2-field shape (date/rate); guards against a
+    # regression to a fictitious 3-field ms_of_day layout.
     interest_rate.cpp
     # Gate 3 - C++ doctest harness. Compiles + runs
     # `// @example` blocks extracted from the public headers.

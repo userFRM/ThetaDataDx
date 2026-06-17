@@ -19,7 +19,7 @@ fn render_kind_enum_c(schema: &Schema) -> String {
     out.push_str(
         "/* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.\n\
  * Check `event.kind` then read the matching `event.<variant>` field on\n\
- * `ThetaDataDxStreamEvent`. Values are stable across the v9.x C ABI but may\n\
+ * `ThetaDataDxStreamEvent`. Values are stable across the current C ABI but may\n\
  * renumber on a future major bump. */\n",
     );
     out.push_str("typedef enum {\n");

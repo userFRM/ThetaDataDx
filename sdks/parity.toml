@@ -1540,6 +1540,19 @@ class = "Contract"               # TypeScript streaming event payload
 name = "strike"
 typescript = "Option<f64>"
 
+# The exact wire integer alongside dollars `strike`, pinned so the raw
+# representation cannot silently re-type to a float or drop on either
+# streaming-event payload.
+[[value_field]]
+class = "ContractRef"            # Python streaming event payload
+name = "strike_thousandths"
+python = "Option<i32>"
+
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "strike_thousandths"
+typescript = "Option<i32>"
+
 [[value_field]]
 class = "ContractRef"
 name = "right"
@@ -1626,8 +1639,9 @@ typescript = "f64"
 # TypeScript carries precomputed `bool` fields on the `#[napi(object)]`
 # row (TS tick rows are plain data objects, also method-less). Only the
 # TypeScript half lands as a struct field this checker can read, so the
-# `[[value_field]]` rows below pin that half; the other three are pinned
-# by the shared-source drift gate.
+# `[[value_field]]` rows below pin that half; the Rust / Python / C++
+# shapes are pinned by the shared-source drift gate. All six flags are
+# anchored here so the matrix stays complete as flags are added.
 
 [[value_field]]
 class = "TradeTick"
@@ -1642,6 +1656,21 @@ typescript = "bool"
 [[value_field]]
 class = "TradeTick"
 name = "is_seller"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "trade_condition_no_last"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "price_condition_set_last"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "is_incremental_volume"
 typescript = "bool"
 
 # ─── `*_timestamp_ms` epoch accessors ─────────────────────────────────
@@ -3136,7 +3165,7 @@ ffi = true
 #   cpp         — `<Class>::from_file(path, config = Config::production())`
 #                 static member on the C++ wrapper.
 #   ffi         — the `thetadatadx_<stem>_connect_from_file(path, config)`
-#                 extern "C" symbol (`unified` / `mdds_client` / `fpss`).
+#                 extern "C" symbol (`client` / `historical` / `streaming`).
 #
 # The construction entry point is not a data method the `[[method]]`
 # rows cover, and its spelling differs per binding, so without this

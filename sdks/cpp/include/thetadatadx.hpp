@@ -128,19 +128,19 @@ using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
 // Every data variant carries an embedded `ThetaDataDxContract contract` as
 // the first member. On LP64 (x86_64 / aarch64 Linux, macOS),
 // `ThetaDataDxContract` is 40 bytes {
-//   const char *root          offset  0, size 8
+//   const char *symbol        offset  0, size 8
 //   int32_t sec_type          offset  8, size 4
-//   bool has_exp_date         offset 12, size 1
-//   int32_t exp_date          offset 16, size 4 (3 bytes pad after has_exp_date)
-//   bool has_is_call          offset 20, size 1
-//   bool is_call              offset 21, size 1
+//   bool has_expiration       offset 12, size 1
+//   int32_t expiration        offset 16, size 4 (3 bytes pad after has_expiration)
+//   bool has_right            offset 20, size 1
+//   char right                offset 21, size 1
 //   bool has_strike           offset 22, size 1
 //   double strike             offset 24, size 8 (1 byte pad after has_strike)
 //   int32_t strike_thousandths offset 32, size 4 (4 bytes tail pad)
 // }
 // Data variants carry no wire-internal `contract_id` field; identity
 // rides on `contract.symbol` (and the option-only `expiration` /
-// `strike` / `is_call` flags) instead. The numbers below are the exact
+// `strike` / `right` fields) instead. The numbers below are the exact
 // struct layout under `-O2` with the generated `fpss_event_structs.h.inc`
 // types on an LP64 host; CI re-validates the asserts on every build.
 

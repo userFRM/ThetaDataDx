@@ -34,7 +34,7 @@ fn render_kind_enum_rust(schema: &Schema) -> String {
     out.push_str("/// (Quote / Trade / OpenInterest / Ohlcvc) and one per control\n");
     out.push_str("/// variant (LoginSuccess / ContractAssigned / ...). Schema-driven\n");
     out.push_str("/// from `fpss_event_schema.toml`; values are stable for the\n");
-    out.push_str("/// lifetime of the v9.x C ABI but may renumber on a future major\n");
+    out.push_str("/// lifetime of the current C ABI but may renumber on a future major\n");
     out.push_str("/// bump.\n");
     out.push_str("#[repr(C)]\n");
     out.push_str("pub enum ThetaDataDxStreamEventKind {\n");
