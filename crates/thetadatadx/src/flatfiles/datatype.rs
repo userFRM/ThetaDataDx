@@ -13,7 +13,7 @@
 //!   to reconstruct a fractional price. The PRICE_TYPE column itself
 //!   carries the exponent N for the row.
 //! - `is_str` / `is_date` — informational; date columns are emitted as
-//!   plain integers (e.g. `20260428`), the way the vendor jar does.
+//!   plain integers (e.g. `20260428`), the way the JVM terminal does.
 //!
 //! No constants beyond the public-facing enum surface are reproduced here.
 //! The full vendor enum is large (~90 entries); this module ships the

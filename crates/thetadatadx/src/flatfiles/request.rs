@@ -139,7 +139,7 @@ fn error_is_transient(err: &Error) -> bool {
 ///
 /// **Output format**: a raw concatenation of every FLAT_FILE chunk
 /// payload, in receive order, **without** the framing headers. This is the
-/// same byte sequence the vendor jar accumulates internally before walking
+/// same byte sequence the JVM terminal accumulates internally before walking
 /// the index. The INDEX walker and per-`(SecType, ReqType)` FIT decoder
 /// are exposed via [`crate::flatfiles::flatfile_request_decoded`];
 /// this function returns the raw bytes for callers that want to keep the
