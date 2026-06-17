@@ -96,6 +96,7 @@
 /server/websocket — Server — WebSocket Streaming: Subscribe to real-time events over the local WebSocket endpoint.
 /streaming/ — Streaming — Getting Started: Connect, register a callback, subscribe, and shut down cleanly — in every language.
 /streaming/events — Handling Events: The typed event catalogue and how to narrow events in each language.
+/streaming/indices/market-value — Index Market Value: Real-time calculated market value for an index.
 /streaming/indices/price — Index Price: Real-time price stream for an index.
 /streaming/options/full-open-interest — Option Full Open Interest: Open-interest updates for every option contract in one subscription.
 /streaming/options/full-trade — Option Full Trades: Every option trade across all underlyings in one subscription.

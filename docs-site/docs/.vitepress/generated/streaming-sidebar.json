@@ -12,6 +12,7 @@
     { "text": "Full Open Interest", "link": "/streaming/options/full-open-interest" }
   ]},
   { "text": "Indices", "collapsed": true, "items": [
-    { "text": "Price", "link": "/streaming/indices/price" }
+    { "text": "Price", "link": "/streaming/indices/price" },
+    { "text": "Market Value", "link": "/streaming/indices/market-value" }
   ]}
 ]
