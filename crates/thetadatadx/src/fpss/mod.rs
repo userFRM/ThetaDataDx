@@ -1243,10 +1243,11 @@ impl StreamingClient {
             keepalive,
             ping_interval,
         } = args;
-        // Send CREDENTIALS (code 0).
+        // Send CREDENTIALS (code 0). Write straight from the `Zeroizing` buffer
+        // rather than moving the cleartext into a `Frame`, so the secret bytes
+        // are wiped on drop instead of lingering in a frame-owned `Vec`.
         let cred_payload = build_credentials_payload(&creds.email, &creds.password)?;
-        let frame = Frame::new(StreamMsgType::Credentials, cred_payload);
-        write_frame(&mut stream, &frame)?;
+        framing::write_raw_frame(&mut stream, StreamMsgType::Credentials, &cred_payload)?;
         tracing::debug!("sent CREDENTIALS to {server_addr}");
 
         // Wait for METADATA (success) or DISCONNECTED (failure). Blocks until

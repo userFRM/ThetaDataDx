@@ -360,7 +360,7 @@ pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE
 ///
 /// All calculations follow the standard Black-Scholes-Merton model.
 /// Use [`all_greeks`] to compute the full Greek surface from a quoted option
-/// price, or [`implied_volatility`] for the Newton-Raphson IV solve alone.
+/// price, or [`implied_volatility`] for the bisection IV solve alone.
 pub mod greeks {
     /// Error returned by the offline analytics surface ([`all_greeks`],
     /// [`implied_volatility`], [`parse_right`], [`parse_right_strict`]) for

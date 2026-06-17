@@ -11,6 +11,7 @@ use crate::tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 use super::contract::Contract;
 use crate::error::Error;
 use crate::fpss::framing::MAX_PAYLOAD_LEN;
+use zeroize::Zeroizing;
 
 // ---------------------------------------------------------------------------
 // Credentials payload
@@ -36,7 +37,19 @@ use crate::fpss::framing::MAX_PAYLOAD_LEN;
 /// length is `3 + username.len() + password.len()`; oversized credentials are
 /// rejected here so the caller gets a typed configuration error instead of a
 /// frame-construction panic.
-pub fn build_credentials_payload(username: &str, password: &str) -> Result<Vec<u8>, Error> {
+///
+/// # Secret handling
+///
+/// The returned buffer holds the cleartext password and is wrapped in
+/// [`zeroize::Zeroizing`] so its backing allocation is wiped on drop. This
+/// keeps the credentials buffer on the same zeroize discipline as the rest of
+/// the auth path ([`crate::auth`] holds the password in `Zeroizing`), so no
+/// transient between the credentials struct and the socket leaves cleartext in
+/// freed heap memory.
+pub fn build_credentials_payload(
+    username: &str,
+    password: &str,
+) -> Result<Zeroizing<Vec<u8>>, Error> {
     let user_bytes = username.as_bytes();
     let pass_bytes = password.as_bytes();
 
@@ -73,7 +86,7 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Result<Vec<u
     buf.extend_from_slice(&user_len.to_be_bytes());
     buf.extend_from_slice(user_bytes);
     buf.extend_from_slice(pass_bytes);
-    Ok(buf)
+    Ok(Zeroizing::new(buf))
 }
 
 // ---------------------------------------------------------------------------
