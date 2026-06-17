@@ -7,7 +7,7 @@
 
 /* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.
 * Check `event.kind` then read the matching `event.<variant>` field on
-* `ThetaDataDxStreamEvent`. Values are stable across the v9.x C ABI but may
+* `ThetaDataDxStreamEvent`. Values are stable across the current C ABI but may
 * renumber on a future major bump. */
 typedef enum {
     THETADATADX_FPSS_CONNECTED = 0,

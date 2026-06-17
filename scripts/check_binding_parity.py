@@ -3090,7 +3090,7 @@ def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
     """C ABI symbol stems whose `thetadatadx_<stem>_connect_from_file` extern "C"
     symbol exists in `ffi/src/`.
 
-    Returns the bare stems (`unified` / `mdds_client` / `fpss`); the
+    Returns the bare stems (`client` / `historical` / `streaming`); the
     checker maps each parity class name to its stem via
     `FROM_FILE_FFI_STEMS`.
     """

@@ -9,7 +9,7 @@
 /// (Quote / Trade / OpenInterest / Ohlcvc) and one per control
 /// variant (LoginSuccess / ContractAssigned / ...). Schema-driven
 /// from `fpss_event_schema.toml`; values are stable for the
-/// lifetime of the v9.x C ABI but may renumber on a future major
+/// lifetime of the current C ABI but may renumber on a future major
 /// bump.
 #[repr(C)]
 pub enum ThetaDataDxStreamEventKind {
