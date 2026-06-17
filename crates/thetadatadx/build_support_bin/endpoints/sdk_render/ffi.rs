@@ -297,7 +297,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
             writeln!(out, ",\n    {}: *const c_char", param.name).unwrap();
         }
     }
-    out.push_str(",\n    callback: ThetaDataDxTickChunkCallback,\n    ctx: *mut c_void,\n");
+    out.push_str(",\n    callback: Option<ThetaDataDxTickChunkCallback>,\n    ctx: *mut c_void,\n");
     out.push_str("    options: *const ThetaDataDxEndpointRequestOptions,\n");
     out.push_str(") -> i32 {\n");
     // Reuse the panic boundary with an `i32` sentinel: a clean drain returns
@@ -328,6 +328,15 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            set_error(&message);\n");
     out.push_str("            return empty;\n");
     out.push_str("        }\n\n");
+    // A C caller can pass a null function pointer; modelling the parameter
+    // as `Option` lets the null bit pattern be represented and rejected here,
+    // before the sink is built, instead of being stored and invoked on a
+    // runtime worker thread where a call through address 0 would fault the
+    // process beyond the reach of the `ffi_boundary!` unwind guard.
+    out.push_str("        let Some(callback) = callback else {\n");
+    out.push_str("            set_error(\"callback function pointer is null\");\n");
+    out.push_str("            return empty;\n");
+    out.push_str("        };\n");
     // Bundle (callback, ctx) into the `Send` wrapper so the per-chunk closure
     // — which the core primitive may invoke from a runtime worker thread —
     // can carry the opaque pointer across the boundary. The wrapper never
