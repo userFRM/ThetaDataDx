@@ -428,12 +428,24 @@ pub fn decode_frame(
                 Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
+                    // Only the 8-field and 16-field trade layouts have known
+                    // cell positions. Any other width would force one of the
+                    // two index sets onto a payload that does not match it,
+                    // reading never-populated slots as price / price_type /
+                    // date and silently emitting a wrong tick. Worse, the
+                    // width is cached per contract on the first absolute row,
+                    // so a single off-spec width would mis-decode every later
+                    // delta row for that contract. Treat it as a decode
+                    // failure and surface `Unparseable`, mirroring the
+                    // invalid-price_type handling, rather than continuing.
                     if n_data != 8 && n_data != TRADE_FIELDS {
+                        FPSS_TRADE_DECODE_FAILURES.increment(1);
                         tracing::warn!(
                             contract_id,
                             n_data,
-                            "unexpected trade field count (expected 8 or 16)"
+                            "unexpected trade field count (expected 8 or 16); marking unparseable"
                         );
+                        return (Some(FpssEventInternal::Unparseable), None);
                     }
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
@@ -1124,6 +1136,52 @@ mod tests {
             }
             other => panic!("expected Trade, got {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Off-spec trade width rejection
+    // -----------------------------------------------------------------------
+
+    /// A trade row whose data-field count is neither 8 nor 16 has no known
+    /// cell layout: forcing either index set onto it would read
+    /// never-populated slots as price / price_type / date and emit a
+    /// silently-wrong tick, and because the width is cached per contract it
+    /// would mis-decode every later row too. The decoder must reject the row
+    /// as `Unparseable` instead of continuing, mirroring how the
+    /// invalid-price_type path handles a bad trade.
+    #[test]
+    fn decode_frame_offspec_trade_width_is_unparseable_not_silently_wrong() {
+        // 10 data fields (+ contract_id = 11 FIT fields): a width the
+        // decoder has no layout for.
+        let fit_payload = encode_fit_row(&[
+            300, // contract_id
+            34200000, 12345, 50, 6, 5500000, 57, 6, 20250428, 1, 2,
+        ]);
+
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(300, Arc::new(Contract::stock("AAPL")));
+
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::Trade,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+
+        assert!(
+            secondary.is_none(),
+            "an off-spec trade width must not derive a secondary event"
+        );
+        assert!(
+            matches!(primary, Some(FpssEventInternal::Unparseable)),
+            "an off-spec trade width must decode as Unparseable, got {primary:?}"
+        );
     }
 
     // -----------------------------------------------------------------------

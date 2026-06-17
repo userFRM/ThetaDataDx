@@ -94,6 +94,10 @@ pub enum FpssErrorKind {
     Disconnected,
     /// Server sent `TOO_MANY_REQUESTS` -- back off.
     TooManyRequests,
+    /// A drain method was re-entered or driven concurrently while the
+    /// single-consumer staging state was already held. Transient: the
+    /// call did no work, retry once the in-flight drain returns.
+    ReentrantDrain,
 }
 
 impl std::fmt::Display for FpssErrorKind {
