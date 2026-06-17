@@ -1,10 +1,10 @@
-"""Gate 1 (issue #544): every `#[pyclass]` declared in the Python SDK's
-Rust source must end up registered on the compiled module.
+"""Every `#[pyclass]` declared in the Python SDK's Rust source must end
+up registered on the compiled module.
 
-Production user on v10.0.0 hit `ImportError` for `from thetadatadx import
-Contract` because the pyclass was defined but never registered via
-`m.add_class::<...>()`. This test parametrises one assertion per pyclass
-so the failure points at the missing name, not a generic "drift" message.
+A pyclass can be defined but never registered via `m.add_class::<...>()`,
+which surfaces to users as `ImportError` on `from thetadatadx import <X>`.
+This test parametrises one assertion per pyclass so the failure points at
+the missing name, not a generic "drift" message.
 
 False positives — types that are pyclasses for FFI-internal reasons but
 deliberately not exposed at the Python module level — go in

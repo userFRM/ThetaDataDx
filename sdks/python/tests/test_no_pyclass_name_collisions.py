@@ -1,4 +1,4 @@
-"""Regression guard for the v10.0.0 `Contract` collision (#557).
+"""Regression guard against `#[pyclass]` Python-name collisions.
 
 Two pyclasses registered under the same Python name silently shadow each
 other — `m.add_class` is last-write-wins, so whichever helper runs second
@@ -66,8 +66,8 @@ def test_no_pyclass_name_collisions() -> None:
     assert not collisions, (
         "Multiple #[pyclass] structs register the same Python name. "
         "pyo3's m.add_class is last-write-wins, so the second registration "
-        "silently shadows the first — see v10.0.0 #557 for the prior "
-        "Contract-collision incident. Fix by adding an explicit "
+        "silently shadows the first, dropping the earlier registration's "
+        "methods from the user-facing surface. Fix by adding an explicit "
         '`name = "..."` attribute to disambiguate.\n'
         f"Collisions: {collisions}"
     )

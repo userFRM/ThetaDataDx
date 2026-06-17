@@ -1729,9 +1729,14 @@ impl StreamView {
     /// client.stream.subscribe(option.trade())
     /// client.stream.subscribe(SecType.OPTION.full_trades())
     /// ```
-    fn subscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn subscribe(&self, py: Python<'_>, sub: &Bound<'_, PyAny>) -> PyResult<()> {
+        // `coerce_subscription` reads the Python object, so it runs with
+        // the GIL held; the subscribe is a blocking wire write, so the
+        // GIL is released across it. Never hold the GIL across blocking
+        // network I/O.
         let inner = fluent::coerce_subscription(sub)?;
-        self.client.stream().subscribe(inner).map_err(to_py_err)
+        py.detach(|| self.client.stream().subscribe(inner))
+            .map_err(to_py_err)
     }
 
     /// Bulk-subscribe a list / iterable of `Subscription` values.
@@ -1739,23 +1744,25 @@ impl StreamView {
     /// Stops at the first error and re-raises it; previously-installed
     /// subscriptions are NOT rolled back (the upstream streaming
     /// protocol does not support batched transactions).
-    fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn subscribe_many(&self, py: Python<'_>, subs: &Bound<'_, PyAny>) -> PyResult<()> {
+        // Coerce the list under the GIL, then release it across the
+        // blocking wire writes — never hold the GIL across network I/O.
         let list = fluent::coerce_subscription_list(subs)?;
-        self.client.stream().subscribe_many(list).map_err(to_py_err)
+        py.detach(|| self.client.stream().subscribe_many(list))
+            .map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
-    fn unsubscribe(&self, sub: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn unsubscribe(&self, py: Python<'_>, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        self.client.stream().unsubscribe(inner).map_err(to_py_err)
+        py.detach(|| self.client.stream().unsubscribe(inner))
+            .map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
-    fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn unsubscribe_many(&self, py: Python<'_>, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.client
-            .stream()
-            .unsubscribe_many(list)
+        py.detach(|| self.client.stream().unsubscribe_many(list))
             .map_err(to_py_err)
     }
 }
