@@ -491,11 +491,13 @@ pub fn decode_frame(
                         })
                     };
 
-                    // Extract for OHLCVC derivation (format-aware).
-                    let (ms_of_day, size, price, price_type, date) = if n_data <= 8 {
-                        (buf[0], buf[2], buf[4], buf[6], buf[7])
+                    // Extract for OHLCVC derivation (format-aware). The
+                    // 8-field layout carries no `records_back`, so every
+                    // 8-field print is a fresh trade (`records_back == 0`).
+                    let (ms_of_day, size, price, price_type, date, records_back) = if n_data <= 8 {
+                        (buf[0], buf[2], buf[4], buf[6], buf[7], 0)
                     } else {
-                        (buf[0], buf[7], buf[9], buf[14], buf[15])
+                        (buf[0], buf[7], buf[9], buf[14], buf[15], buf[13])
                     };
 
                     // Derive OHLCVC from trade only if enabled and the
@@ -503,7 +505,14 @@ pub fn decode_frame(
                     let ohlcvc_event = if derive_ohlcvc {
                         if let Some(acc) = delta_state.ohlcvc.get_mut(&contract_id) {
                             if acc.initialized {
-                                acc.process_trade(ms_of_day, price, size, price_type, date);
+                                acc.process_trade(
+                                    ms_of_day,
+                                    price,
+                                    size,
+                                    price_type,
+                                    date,
+                                    records_back,
+                                );
                                 let apt = acc.price_type;
                                 match (
                                     strict_fpss_price(acc.open, apt),

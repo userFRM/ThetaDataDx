@@ -7,6 +7,8 @@
 //! captured for replay onto the event bus once the Disruptor producer
 //! is live.
 
+use std::time::{Duration, Instant};
+
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::error::Error;
@@ -20,6 +22,25 @@ use super::super::protocol::parse_disconnect_reason;
 pub(in crate::fpss) enum LoginResult {
     Success(String),
     Disconnected(RemoveReason),
+}
+
+/// Upper bound on the number of pre-`Metadata` control frames buffered during
+/// a single handshake. A legitimate handshake emits a handful (`Connected`,
+/// an early `Ping`, a `Restart`); a peer that streams control frames without
+/// ever sending `Metadata` would otherwise grow `pending_control` without
+/// limit. Past this count the handshake is treated as a protocol violation.
+const MAX_HANDSHAKE_PENDING_CONTROL: usize = 64;
+
+/// Wall-clock budget for a single handshake, independent of the per-read
+/// socket timeout. A chatty peer that sends a control frame just before each
+/// read timeout would otherwise reset the per-read deadline forever; this
+/// caps the total time the reconnect thread can spend in one handshake.
+fn handshake_deadline(read_timeout: Duration) -> Instant {
+    // Generous relative to a single read so a legitimately slow but
+    // progressing handshake is never cut off, yet bounded so a chatty
+    // no-`Metadata` peer cannot wedge the reconnect thread.
+    let budget = (read_timeout.saturating_mul(5)).max(Duration::from_secs(15));
+    Instant::now() + budget
 }
 
 /// Wait for the server's login response (blocking).
@@ -42,19 +63,57 @@ pub(in crate::fpss) enum LoginResult {
 pub(in crate::fpss) fn wait_for_login(
     stream: &mut connection::FpssStream,
     pending_control: &mut Vec<StreamControl>,
+    read_timeout: Duration,
 ) -> Result<LoginResult, Error> {
-    wait_for_login_generic(stream, pending_control)
+    let deadline = handshake_deadline(read_timeout);
+    wait_for_login_generic(
+        stream,
+        pending_control,
+        deadline,
+        MAX_HANDSHAKE_PENDING_CONTROL,
+        Instant::now,
+    )
 }
 
 /// Read-generic variant of [`wait_for_login`] for unit-testable handshake
 /// coverage. Holds the full dispatch logic so both the TLS-backed entry
 /// point above and in-memory test harnesses can drive it against a
 /// buffer of pre-canned frames.
-fn wait_for_login_generic<R: std::io::Read>(
+///
+/// `deadline` is a wall-clock backstop and `max_pending_control` caps the
+/// number of pre-`Metadata` control frames. Together they bound a peer that
+/// streams control frames without ever completing the handshake: the
+/// per-read socket timeout alone cannot, because each frame resets it.
+/// `now` injects the clock so tests can drive the deadline deterministically.
+fn wait_for_login_generic<R, C>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
-) -> Result<LoginResult, Error> {
+    deadline: Instant,
+    max_pending_control: usize,
+    mut now: C,
+) -> Result<LoginResult, Error>
+where
+    R: std::io::Read,
+    C: FnMut() -> Instant,
+{
     loop {
+        if now() >= deadline {
+            return Err(Error::Fpss {
+                kind: crate::error::FpssErrorKind::Timeout,
+                message: "login handshake did not complete within the handshake deadline"
+                    .to_string(),
+            });
+        }
+
+        if pending_control.len() >= max_pending_control {
+            return Err(Error::Fpss {
+                kind: crate::error::FpssErrorKind::ProtocolError,
+                message: format!(
+                    "login handshake buffered {max_pending_control} control frames without METADATA"
+                ),
+            });
+        }
+
         let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
             kind: crate::error::FpssErrorKind::Disconnected,
             message: "connection closed during login handshake".to_string(),
@@ -135,6 +194,22 @@ mod tests {
         v
     }
 
+    /// Drive the handshake with bounds that never trip for the
+    /// dispatch/ordering tests: a far-future deadline and the production cap.
+    fn run_handshake<R: std::io::Read>(
+        stream: &mut R,
+        pending_control: &mut Vec<StreamControl>,
+    ) -> Result<LoginResult, Error> {
+        let deadline = Instant::now() + Duration::from_secs(3_600);
+        wait_for_login_generic(
+            stream,
+            pending_control,
+            deadline,
+            MAX_HANDSHAKE_PENDING_CONTROL,
+            Instant::now,
+        )
+    }
+
     /// A CONNECTED frame arriving BEFORE METADATA must be captured in
     /// `pending_control` so the io_loop can forward the buffered
     /// `StreamControl::Connected` to the event bus. Without this capture
@@ -148,7 +223,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         match result {
             LoginResult::Success(p) => assert_eq!(p, "test-perms"),
@@ -170,7 +245,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert!(
@@ -194,7 +269,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("Disconnected frame must produce LoginResult::Disconnected, not Err");
         assert!(matches!(result, LoginResult::Disconnected(_)));
         assert!(pending.is_empty());
@@ -265,7 +340,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1, "PING must surface as a typed control");
@@ -293,7 +368,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1);
@@ -310,7 +385,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 1);
@@ -330,7 +405,7 @@ mod tests {
         let mut cursor = std::io::Cursor::new(buf);
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
+        let result = run_handshake(&mut cursor, &mut pending)
             .expect("wait_for_login_generic must succeed when Metadata arrives");
         assert!(matches!(result, LoginResult::Success(_)));
         assert_eq!(pending.len(), 4);
@@ -338,5 +413,81 @@ mod tests {
         assert!(matches!(pending[1], StreamControl::Ping { .. }));
         assert!(matches!(pending[2], StreamControl::ReconnectedServer));
         assert!(matches!(pending[3], StreamControl::Restart));
+    }
+
+    /// A peer that streams control frames without ever sending METADATA must
+    /// not wedge the handshake. With the per-read socket timeout reset by
+    /// every frame, the wall-clock deadline is the only backstop: once it
+    /// passes, the handshake returns a timeout instead of looping forever.
+    #[test]
+    fn wait_for_login_chatty_no_metadata_hits_deadline() {
+        // A long buffer of PING frames and no METADATA: read_frame always has
+        // a frame to return, so only the deadline can stop the loop.
+        let mut buf = Vec::new();
+        for _ in 0..1_000 {
+            buf.extend_from_slice(&wire_frame(StreamMsgType::Ping, &[0x00]));
+        }
+        let mut cursor = std::io::Cursor::new(buf);
+
+        // A clock that jumps past the deadline after a few iterations,
+        // emulating wall-clock time advancing while the peer keeps talking.
+        let start = Instant::now();
+        let deadline = start + Duration::from_secs(10);
+        let mut ticks = 0u32;
+        let clock = move || {
+            ticks += 1;
+            if ticks > 3 {
+                deadline + Duration::from_secs(1)
+            } else {
+                start
+            }
+        };
+
+        let mut pending: Vec<StreamControl> = Vec::new();
+        let result = wait_for_login_generic(
+            &mut cursor,
+            &mut pending,
+            deadline,
+            MAX_HANDSHAKE_PENDING_CONTROL,
+            clock,
+        );
+        match result {
+            Err(Error::Fpss { kind, .. }) => {
+                assert!(matches!(kind, crate::error::FpssErrorKind::Timeout));
+            }
+            Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
+            Ok(_) => panic!("a chatty no-METADATA peer must trip the handshake deadline"),
+        }
+    }
+
+    /// A peer that floods control frames without METADATA must not grow
+    /// `pending_control` without bound: once the cap is reached the handshake
+    /// returns a protocol error rather than buffering forever.
+    #[test]
+    fn wait_for_login_caps_pending_control() {
+        let cap = 8usize;
+        // More control frames than the cap, and no METADATA.
+        let mut buf = Vec::new();
+        for _ in 0..(cap + 4) {
+            buf.extend_from_slice(&wire_frame(StreamMsgType::Connected, &[]));
+        }
+        let mut cursor = std::io::Cursor::new(buf);
+
+        // Far-future deadline so the cap, not the clock, is what stops it.
+        let deadline = Instant::now() + Duration::from_secs(3_600);
+        let mut pending: Vec<StreamControl> = Vec::new();
+        let result = wait_for_login_generic(&mut cursor, &mut pending, deadline, cap, Instant::now);
+        match result {
+            Err(Error::Fpss { kind, .. }) => {
+                assert!(matches!(kind, crate::error::FpssErrorKind::ProtocolError));
+            }
+            Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),
+            Ok(_) => panic!("flooding control frames past the cap must error"),
+        }
+        assert_eq!(
+            pending.len(),
+            cap,
+            "buffering must stop exactly at the cap, not past it"
+        );
     }
 }

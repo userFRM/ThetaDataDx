@@ -727,7 +727,31 @@ where
                             write_raw_frame_no_flush(writer, code, &payload)
                         };
                         if let Err(e) = result {
-                            tracing::warn!(error = %e, "failed to write frame");
+                            // A steady-state write failure means the socket's
+                            // write side is broken. Reading on never recovers
+                            // the queued subscribe/command that just failed, so
+                            // escalate to reconnect immediately rather than
+                            // deferring to the next read timeout. Mirror the
+                            // disconnect-and-break shape the read-error and
+                            // EOF branches use.
+                            tracing::warn!(error = %e, "frame write failed; treating socket as broken and reconnecting");
+                            if producer
+                                .try_publish(|slot| {
+                                    slot.event =
+                                        FpssEventInternal::Control(StreamControl::Disconnected {
+                                            reason: RemoveReason::Unspecified,
+                                        });
+                                })
+                                .is_err()
+                            {
+                                dropped.fetch_add(1, Ordering::Relaxed);
+                                tracing::warn!(
+                                    target: "thetadatadx::fpss::io_loop",
+                                    "ring full while publishing Disconnected (write error); dropped",
+                                );
+                            }
+                            authenticated.store(false, Ordering::Release);
+                            break 'inner RemoveReason::Unspecified;
                         }
                     }
                     Ok(IoCommand::Shutdown) => {
@@ -1029,7 +1053,11 @@ where
         }
 
         let mut reconnect_pending_control: Vec<StreamControl> = Vec::new();
-        let login_result = match wait_for_login(&mut new_stream, &mut reconnect_pending_control) {
+        let login_result = match wait_for_login(
+            &mut new_stream,
+            &mut reconnect_pending_control,
+            read_timeout,
+        ) {
             Ok(r) => r,
             Err(e) => {
                 tracing::warn!(error = %e, "login failed on reconnect");
@@ -1320,7 +1348,14 @@ where
                         write_raw_frame_no_flush(writer, code, &payload)
                     };
                     if let Err(e) = result {
-                        tracing::warn!(error = %e, "failed to write queued frame on reconnect");
+                        // The freshly reconnected socket is already broken if
+                        // the queued-command drain cannot write. Re-enter the
+                        // reconnect loop so recovery is driven the same way the
+                        // re-subscribe replay above handles a mid-flush
+                        // failure, rather than running a session whose queued
+                        // command never reached the server.
+                        tracing::warn!(error = %e, "queued-frame write failed on reconnect; treating socket as broken and reconnecting");
+                        continue 'session;
                     }
                 }
                 Ok(IoCommand::Shutdown) => {

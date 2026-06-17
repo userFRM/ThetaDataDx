@@ -1244,7 +1244,7 @@ impl StreamingClient {
         // the same sequence the post-METADATA `decode_frame` dispatch
         // emits.
         let mut pending_control: Vec<StreamControl> = Vec::new();
-        let login_result = wait_for_login(&mut stream, &mut pending_control)?;
+        let login_result = wait_for_login(&mut stream, &mut pending_control, read_timeout)?;
 
         let permissions = match login_result {
             LoginResult::Success(permissions) => {
