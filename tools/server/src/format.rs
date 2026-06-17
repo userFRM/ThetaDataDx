@@ -188,6 +188,7 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick]) -> Vec<sonic_rs::Value> {
                 "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
+                "vwap": t.vwap,
                 "date": t.date
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -204,10 +205,18 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
             let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "sequence": t.sequence,
-                "size": t.size,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
                 "condition": t.condition,
-                "price": t.price,
+                "size": t.size,
                 "exchange": t.exchange,
+                "price": t.price,
+                "condition_flags": t.condition_flags,
+                "price_flags": t.price_flags,
+                "volume_type": t.volume_type,
+                "records_back": t.records_back,
                 "date": t.date
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -697,8 +706,15 @@ pub fn iv_ticks_to_json(ticks: &[IvTick]) -> Vec<sonic_rs::Value> {
         .map(|t| {
             let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
+                "bid": t.bid,
+                "bid_implied_volatility": t.bid_implied_volatility,
+                "midpoint": t.midpoint,
                 "implied_volatility": t.implied_volatility,
+                "ask": t.ask,
+                "ask_implied_volatility": t.ask_implied_volatility,
                 "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
                 "date": t.date
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
