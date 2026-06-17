@@ -1250,6 +1250,69 @@ CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
 )
 
 
+# The flat-file fetch surface lives on the namespace returned by
+# `Client.flatFiles`. The forward `[[method]]` rows gate each declared fetch
+# method against the bindings; this roster anchors the reverse-direction scan
+# that catches a NEW fetch method added on a binding's namespace class without
+# an enrolling row. Names are the canonical camelCase row spelling (the scan
+# derives the per-binding form exactly as the forward check does). `request` is
+# the generic dispatcher; the five named methods are the served-dataset
+# conveniences. The blob-to-disk helper (`flatFileToPath`) is NOT a namespace
+# method — it lives on the unified client (or, on C++, on the namespace under a
+# different name) and is enrolled by its own row routed through
+# `METHOD_BINDING_OVERRIDES`, so it is intentionally absent from this roster.
+FLATFILES_NAMESPACE_METHODS: frozenset[str] = frozenset(
+    {
+        "optionTradeQuote",
+        "optionOpenInterest",
+        "optionEod",
+        "stockTradeQuote",
+        "stockEod",
+        "request",
+    }
+)
+
+
+# Names the per-binding method collectors harvest from the flat-file namespace
+# class body that are NOT cross-binding fetch methods and so carry no
+# `[[method]]` row of their own: the C++ collector picks up the `handle_` data
+# member and the FFI extern declarations called inside the inline method bodies,
+# and the Python collector picks up the module-private `pull_decoded` free fn.
+# `to_path` is the C++ spelling of the blob-to-disk helper — a real public
+# method, but enrolled by the `flatFileToPath` row routed through
+# `METHOD_BINDING_OVERRIDES`, not by a namespace row — so it is exempt from the
+# namespace reverse-orphan scan to avoid a double-count.
+FLATFILES_NAMESPACE_EXEMPT_MEMBERS: frozenset[str] = frozenset(
+    {
+        "handle_",
+        "pull_decoded",
+        "thetadatadx_flatfile_request_decoded",
+        "thetadatadx_flatfile_request_to_path",
+        "to_path",
+    }
+)
+
+
+# A few cross-binding methods do not share a single home class or a single
+# name-derivation rule across bindings; the forward `[[method]]` check resolves
+# one `(class, name)` per binding from the row, so those methods need an explicit
+# per-binding target. The blob-to-disk flat-file helper is the load-bearing case:
+# it is `Client.flatfile_to_path` (one word) on the Python pyclass,
+# `Client.flatFileToPath` on the TypeScript napi class, and `FlatFiles::to_path`
+# on the C++ class. Keyed by the canonical `(row_class, row_name)`, each entry
+# gives the binding-specific `(collector_class, member_name)` the forward check
+# must look up instead of deriving from the row. `collector_class` is the key the
+# per-binding collector uses (the C++ entry already names the resolved C++ class,
+# so it bypasses the alias table); `member_name` is the exact harvested spelling.
+METHOD_BINDING_OVERRIDES: dict[tuple[str, str], dict[str, tuple[str, str]]] = {
+    ("FlatFilesNamespace", "flatFileToPath"): {
+        "python": ("Client", "flatfile_to_path"),
+        "typescript": ("Client", "flatFileToPath"),
+        "cpp": ("FlatFiles", "to_path"),
+    },
+}
+
+
 def _check_method_rows(
     method_rows: list[dict[str, Any]],
     py_methods: dict[str, set[str]],
@@ -1281,21 +1344,33 @@ def _check_method_rows(
             continue
         snake = _camel_to_snake(camel)
 
+        # A handful of methods do not share a home class or a single
+        # name-derivation rule across bindings (the flat-file blob-to-disk
+        # helper is the load-bearing case). `METHOD_BINDING_OVERRIDES` supplies
+        # the binding-specific `(collector_class, member_name)` for those rows;
+        # absent an entry, every binding resolves from the row's `class` / `name`
+        # exactly as before.
+        override = METHOD_BINDING_OVERRIDES.get((class_name, camel))
+
         # Python: snake_case method declared on the pyclass. A `#[getter]`
         # readback accessor carries a `get_` prefix on its Rust fn name
         # (`fn get_flush_mode`) while pyo3 strips the prefix so the Python
         # property name stays bare (`config.flush_mode`); accept the
         # `get_`-prefixed fn name against the bare row, exactly as the C++
         # branch below accepts `get_<snake>`.
-        py_class_methods = _py_methods_for(class_name, py_methods)
+        if override and "python" in override:
+            py_lookup_class, py_member = override["python"]
+        else:
+            py_lookup_class, py_member = class_name, snake
+        py_class_methods = _py_methods_for(py_lookup_class, py_methods)
         declared_py = row.get("python", False)
-        actual_py = snake in py_class_methods or f"get_{snake}" in py_class_methods
+        actual_py = py_member in py_class_methods or f"get_{py_member}" in py_class_methods
         if declared_py != actual_py:
             verb = "missing" if declared_py and not actual_py else "unexpected"
             errors.append(
                 f"  {class_name}.{camel}.python: declared={declared_py}, "
-                f"actual={actual_py} ({verb} -- expected `fn {snake}` "
-                f"or `fn get_{snake}` inside `impl {class_name}` on the "
+                f"actual={actual_py} ({verb} -- expected `fn {py_member}` "
+                f"or `fn get_{py_member}` inside `impl {py_lookup_class}` on the "
                 f"Python pyclass)"
             )
 
@@ -1304,15 +1379,19 @@ def _check_method_rows(
         # The collector records both the `js_name` and the auto-
         # camelCased fn-name spelling so a row's `name` can match
         # against either.
+        if override and "typescript" in override:
+            ts_lookup_class, ts_member = override["typescript"]
+        else:
+            ts_lookup_class, ts_member = class_name, camel
         declared_ts = row.get("typescript", False)
-        actual_ts = camel in _ts_methods_for(class_name, ts_methods)
+        actual_ts = ts_member in _ts_methods_for(ts_lookup_class, ts_methods)
         if declared_ts != actual_ts:
             verb = "missing" if declared_ts and not actual_ts else "unexpected"
             errors.append(
                 f"  {class_name}.{camel}.typescript: declared={declared_ts}, "
                 f"actual={actual_ts} ({verb} -- expected "
-                f'`#[napi(js_name = "{camel}")]` (or bare `#[napi]` on '
-                f"`fn {snake}`) inside `impl {class_name}` under "
+                f'`#[napi(js_name = "{ts_member}")]` (or bare `#[napi]`) '
+                f"inside `impl {ts_lookup_class}` under "
                 f"sdks/typescript/src/)"
             )
 
@@ -1323,17 +1402,24 @@ def _check_method_rows(
         # (`get_flush_mode`), where Python exposes the field-shaped
         # property (`flush_mode`) and TypeScript the camelCase getter
         # (`flushMode`); accept the `get_`-prefixed C++ form so the
-        # per-language naming convention does not read as drift.
+        # per-language naming convention does not read as drift. An override
+        # entry already names the resolved C++ class, so it bypasses the alias
+        # table.
+        if override and "cpp" in override:
+            cpp_class, cpp_member = override["cpp"]
+        else:
+            cpp_class, cpp_member = _cpp_class_for(class_name), snake
         declared_cpp = row.get("cpp", False)
-        cpp_class = _cpp_class_for(class_name)
         cpp_class_methods = cpp_methods.get(cpp_class, set())
-        actual_cpp = snake in cpp_class_methods or f"get_{snake}" in cpp_class_methods
+        actual_cpp = (
+            cpp_member in cpp_class_methods or f"get_{cpp_member}" in cpp_class_methods
+        )
         if declared_cpp != actual_cpp:
             verb = "missing" if declared_cpp and not actual_cpp else "unexpected"
             errors.append(
                 f"  {class_name}.{camel}.cpp: declared={declared_cpp}, "
-                f"actual={actual_cpp} ({verb} -- expected `{snake}(` "
-                f"or `get_{snake}(` inside `class {cpp_class}` body in "
+                f"actual={actual_cpp} ({verb} -- expected `{cpp_member}(` "
+                f"or `get_{cpp_member}(` inside `class {cpp_class}` body in "
                 f"sdks/cpp/include/thetadatadx.hpp)"
             )
 
@@ -1370,6 +1456,40 @@ def _check_method_rows(
                 f"per-binding presence so the unified-client view surface "
                 f"stays tracked."
             )
+
+    # Reverse-direction orphan scan for the flat-file fetch namespace. A fetch
+    # method present on the namespace class in a binding but carrying no
+    # enrolling `FlatFilesNamespace` `[[method]]` row is undocumented drift: the
+    # bulk per-day flat-file surface stays symmetric only if every fetch method
+    # each binding exposes is enrolled. The scan walks the methods actually
+    # harvested on the namespace class per binding (Python / TypeScript key on
+    # `FlatFilesNamespace`, C++ on the aliased `FlatFiles`), maps each to its
+    # canonical camelCase row name, and flags any that is neither enrolled nor a
+    # non-public collector artifact (the C++ collector picks up the FFI extern
+    # declarations and the `handle_` member inside the class body; Python picks
+    # up the module-private `pull_decoded` free fn). The exempt roster names
+    # those artifacts explicitly so the scan fires only on a genuine new fetch
+    # method.
+    enrolled_flatfiles_methods = {
+        row["name"]
+        for row in method_rows
+        if row.get("class") == "FlatFilesNamespace" and row.get("name")
+    }
+    flatfiles_members: set[str] = set()
+    flatfiles_members |= py_methods.get("FlatFilesNamespace", set())
+    flatfiles_members |= ts_methods.get("FlatFilesNamespace", set())
+    flatfiles_members |= cpp_methods.get(_cpp_class_for("FlatFilesNamespace"), set())
+    for member in sorted(flatfiles_members - FLATFILES_NAMESPACE_EXEMPT_MEMBERS):
+        camel = _snake_to_camel(member)
+        if camel in enrolled_flatfiles_methods or member in enrolled_flatfiles_methods:
+            continue
+        errors.append(
+            f"  FlatFilesNamespace.{member}: fetch method present on the "
+            f"namespace class but has no `[[method]]` row. Either enroll it "
+            f"(with the cross-binding shape) or add it to "
+            f"FLATFILES_NAMESPACE_EXEMPT_MEMBERS with the documented reason it "
+            f"carries no cross-binding fetch contract."
+        )
 
     # Reverse-direction orphan scan for the `StreamingSession` async-session
     # surface. `StreamingSession` is the Python-only `async with` /
@@ -5123,6 +5243,119 @@ def _run_selftest() -> int:
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)
+
+    def _case_flatfiles_namespace_fetch_resolves() -> None:
+        """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the
+        `FlatFiles` class and against the snake/camel per-binding spellings."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "optionTradeQuote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
+        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
+        # The row says `FlatFilesNamespace`; the C++ class is `FlatFiles`.
+        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"flat-file fetch row must resolve across bindings; got {errors!r}"
+        )
+
+    def _case_flatfiles_to_path_override_resolves() -> None:
+        """The blob-to-disk helper resolves through `METHOD_BINDING_OVERRIDES`:
+        Python `Client.flatfile_to_path`, TS `Client.flatFileToPath`, C++
+        `FlatFiles::to_path` — three divergent home classes / names, one row."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "flatFileToPath",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"Client": {"flatfile_to_path"}}
+        ts_methods = {"Client": {"flatFileToPath"}}
+        cpp_methods = {"FlatFiles": {"to_path"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"to-path override must resolve each binding's home class; got {errors!r}"
+        )
+
+    def _case_flatfiles_to_path_override_drop_trips() -> None:
+        """Dropping the C++ `to_path` member trips the overridden row — the
+        override must still gate, not silently pass."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "flatFileToPath",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"Client": {"flatfile_to_path"}}
+        ts_methods = {"Client": {"flatFileToPath"}}
+        cpp_methods = {"FlatFiles": set()}  # `to_path` dropped on C++
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any("flatFileToPath" in e and ".cpp" in e for e in errors), (
+            f"dropped C++ to_path must trip the overridden row; got {errors!r}"
+        )
+
+    def _case_flatfiles_namespace_orphan_trips() -> None:
+        """A fetch method present on the namespace class with no enrolling row
+        trips the reverse-orphan scan."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "optionTradeQuote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        # `indexEod` is present on the namespace but carries no row.
+        py_methods = {"FlatFilesNamespace": {"option_trade_quote", "index_eod"}}
+        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote", "indexEod"}}
+        cpp_methods = {"FlatFiles": {"option_trade_quote", "index_eod"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any("index_eod" in e and "no `[[method]]` row" in e for e in errors), (
+            f"unenrolled namespace fetch method must trip the gate; got {errors!r}"
+        )
+
+    def _case_flatfiles_namespace_artifacts_exempt() -> None:
+        """Collector artifacts on the namespace class (C++ `handle_` / the FFI
+        externs, Python `pull_decoded`, the override-enrolled C++ `to_path`) do
+        NOT trip the reverse-orphan scan."""
+        rows = [
+            {"class": "FlatFilesNamespace", "name": n, "python": True, "typescript": True, "cpp": True}
+            for n in sorted(FLATFILES_NAMESPACE_METHODS)
+        ] + [
+            {"class": "FlatFilesNamespace", "name": "flatFileToPath", "python": True, "typescript": True, "cpp": True}
+        ]
+        py_methods = {
+            "FlatFilesNamespace": {_camel_to_snake(n) for n in FLATFILES_NAMESPACE_METHODS} | {"pull_decoded"},
+            "Client": {"flatfile_to_path"},
+        }
+        ts_methods = {"FlatFilesNamespace": set(FLATFILES_NAMESPACE_METHODS), "Client": {"flatFileToPath"}}
+        cpp_methods = {
+            "FlatFiles": {_camel_to_snake(n) for n in FLATFILES_NAMESPACE_METHODS}
+            | {"handle_", "to_path", "thetadatadx_flatfile_request_decoded", "thetadatadx_flatfile_request_to_path"},
+        }
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"namespace collector artifacts must stay exempt; got {errors!r}"
+        )
+
+    _case("flatfiles positive — namespace fetch row resolves via C++ alias", _case_flatfiles_namespace_fetch_resolves)
+    _case("flatfiles positive — to-path override resolves divergent homes", _case_flatfiles_to_path_override_resolves)
+    _case("flatfiles negative — dropped C++ to_path trips overridden row", _case_flatfiles_to_path_override_drop_trips)
+    _case("flatfiles negative — unenrolled namespace fetch method trips", _case_flatfiles_namespace_orphan_trips)
+    _case("flatfiles positive — namespace collector artifacts exempt", _case_flatfiles_namespace_artifacts_exempt)
 
     def _case_value_field_positive_matches() -> None:
         """Declared Rust + C++ field types match the sources — gate silent."""
