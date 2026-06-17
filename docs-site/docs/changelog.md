@@ -1460,7 +1460,7 @@ code does not change.
 ### Added
 
 - **Seven Architecture Decision Records** under `docs/architecture/`:
-  ADR-001 (Java terminal parity sourcing), ADR-002 (FPSS ring power-of-two
+  ADR-001 (JVM terminal parity sourcing), ADR-002 (FPSS ring power-of-two
   capacity), ADR-003 (MDDS `2^tier` concurrent-request mapping), ADR-004
   (Eastern-time DST cutover), ADR-005 (OCC-21 century scope, expires
   2099-12-31), ADR-006 (FPSS reconnect policy with rate-limit-aware backoff),
@@ -1681,7 +1681,7 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   vendor surface documented in the [v2 → v3 migration guide][v3-mig].
   The wire codec is unchanged — `Contract::to_bytes` /
   `Contract::from_bytes` still serialize the field as `root` per
-  `Contract.java` parity, and the FLATFILES decoder still resolves both
+  the contract codec parity, and the FLATFILES decoder still resolves both
   v2 (`root`) and v3 (`symbol`) response columns through the existing
   `decode::HEADER_ALIASES`. Per-language renames:
 
@@ -2014,13 +2014,13 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 ### Fixed
 
 - **`fpss::accumulator::change_price_type` now matches the JVM terminal's
-  `PriceCalcUtils.changePriceType` byte-for-byte.** v8.0.21 widened the
+  price-type rescale byte-for-byte.** v8.0.21 widened the
   multiplication through `i64` and returned the unscaled input on
-  overflow, which broke parity with the Java reference (Java `int * int`
-  silently wraps under two's-complement). The rescale now uses
-  `i32::wrapping_mul`, reproducing the JVM's exact wire bits in both
+  overflow, which broke parity with the JVM terminal (its `i32 * i32`
+  rescale silently wraps under two's-complement). The rescale now uses
+  `i32::wrapping_mul`, reproducing the JVM terminal's exact wire bits in both
   debug and release. Tests pin the wrapping result to manually-computed
-  Java-equivalent values (e.g. `2_148 * 10^6 → -2_146_967_296`).
+  reference values (e.g. `2_148 * 10^6 → -2_146_967_296`).
 - **`decode::row_number_i64` clamps `price_type` to `0..=19`** so the
   same wire cell decodes identically through `row_number_i64` and
   `row_price_f64` (the latter routes through `tdbe::Price::new`, which
@@ -2732,7 +2732,7 @@ Major release. Three headline groups land in one pass:
 ### Changed
 
 - **License switched to Apache-2.0** across every `Cargo.toml`, `package.json`, `pyproject.toml`, and the top-level `LICENSE`. `deny.toml` allowlist cleaned up accordingly.
-- **Top-level `README.md` rewritten** as a professional SDK landing page: tagline, highlights, per-SDK quickstart (Rust / Python / TypeScript / Go / C++), architecture diagram, Java parity note. Neutral technical framing throughout.
+- **Top-level `README.md` rewritten** as a professional SDK landing page: tagline, highlights, per-SDK quickstart (Rust / Python / TypeScript / Go / C++), architecture diagram, JVM terminal parity note. Neutral technical framing throughout.
 - **A consolidated parity-tracking checklist added** as the single source of truth for terminal parity — feature-by-feature table (parity / deviation / partial) covering wire protocol, authentication, control events, reconnection, FPSS streaming, tick decoding, Greeks, validation, and intentional improvements over the JVM terminal. Three earlier stand-alone parity notes folded in.
 - **Internal `docs/dev/` design notes removed** (no longer load-bearing).
 - **`DirectClient` renamed to `HistoricalClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::HistoricalClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `Client` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
@@ -2817,7 +2817,7 @@ Major release. Three headline groups land in one pass:
 - **FPSS TLS: SPKI pinning replaces `NoVerifier`** (#377) — `PinnedVerifier` parses the leaf cert via `x509-parser`, computes SHA-256 over the SubjectPublicKeyInfo DER bytes, and constant-time compares (`subtle::ConstantTimeEq`) against the captured `FPSS_SPKI_SHA256` (verified identical across prod `nj-a:20000` / `nj-b:20000`, dev `:20200`, stage `:20100` — single keypair across every FPSS environment). Rejects with `CertificateError::NotValidForName` on hostname mismatch (allowlist) or `RustlsError::General("FPSS SPKI pin mismatch: ...")` on pin mismatch. `verify_tls12_signature` / `verify_tls13_signature` delegate to rustls' proper signature verification. Previously any on-path attacker terminating TLS to `nj-a.thetadata.us:20000` could present any cert and harvest the plaintext `StreamMsgType::Credentials` frame.
 - **Password `Zeroizing<String>`** (#377) — `Credentials.password` wrapped in `zeroize::Zeroizing<String>`. Every clone (`Client`, `io_loop`, reconnect re-serialise) now wipes the backing buffer on drop. Core dump / `/proc/<pid>/mem` no longer recovers the password after `Credentials` drops. `Deref<Target = str>` means call-sites are unchanged.
 - **CSV formula injection defused on `thetadatadx-server` exports** (#377) — `escape_csv_field` now prefixes cells whose first byte is `=`, `+`, `-`, `@`, or `\t` with a single-quote `'` and encloses in CSV quotes. Defuses `=cmd|'/C calc'!A1`, `@SUM(A1:A10)`, `+1+cmd|...` etc from executing in Excel downloads. Regression test covers all five payload shapes.
-- **FPSS `io_loop`: Java-parity mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the Java terminal's reconnect behaviour.
+- **FPSS `io_loop`: JVM-terminal-parity mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the JVM terminal's reconnect behaviour.
 - **WS subscribe strike / expiration use `i32::try_from`** (#377) — client-supplied expiration / strike no longer silently narrow via `as i32`. Returns `REQ_RESPONSE { response: "ERROR", ... }` with a descriptive message on overflow. Validates `exp` against `[19000101, 21000101]` YYYYMMDD bounds and `strike > 0` before building the FPSS frame (#378).
 - **`validate_generic_named` sanitises parameter names in error messages** (#377 / follow-up) — ANSI escape sequences / control chars in a user-supplied param name can no longer escape into terminal-rendered log output. Names are passed through `sanitize_param_name` (ASCII alphanumeric + `_` + `-`).
 - **Shutdown token constant-time compare** (#377) — `tools/server/src/state.rs::validate_shutdown_token` swapped `==` for `subtle::ConstantTimeEq::ct_eq`. Timing oracle on UUID prefix closed.
@@ -2931,7 +2931,7 @@ Major release. Three headline groups land in one pass:
 - **Double string allocation on `Contract` clone** (#324) -- `Contract` now wraps its symbol in `Arc<str>` so cloning into per-subscription bookkeeping does not copy the byte buffer twice.
 - **JSON serialization moved off the FPSS I/O thread** (#324) -- `next_event` now returns typed structs and the serialization step is only paid at the FFI boundary when the caller asks for JSON, keeping the streaming hot path allocation-free.
 - **`parse_right` no longer panics on unrecognized input** (#324) -- the canonical right parser returns a structured error for unknown vocabulary instead of panicking, so a single malformed row can no longer take down the decoder.
-- **Unset `DataValue` oneof fails loud in every strict decoder** (#326) -- `parse_option_contracts_v3` (expiration, right), `parse_calendar_days_v3` (date, type, open, close), and the generator-emitted EOD helpers plus contract-id injected `expiration` / `right` used to treat a `DataValue` whose `data_type` oneof was unset as a legitimate null and coalesce to `0`. They now return `DecodeError::TypeMismatch { observed: "Unset" }`, matching `row_number` / `row_date` / `row_float` / `row_text` / `row_number_i64` / `row_price_f64` and the Java terminal's default arm. `NullValue` is still coalesced (legitimate null); only the wire-anomaly path changes.
+- **Unset `DataValue` oneof fails loud in every strict decoder** (#326) -- `parse_option_contracts_v3` (expiration, right), `parse_calendar_days_v3` (date, type, open, close), and the generator-emitted EOD helpers plus contract-id injected `expiration` / `right` used to treat a `DataValue` whose `data_type` oneof was unset as a legitimate null and coalesce to `0`. They now return `DecodeError::TypeMismatch { observed: "Unset" }`, matching `row_number` / `row_date` / `row_float` / `row_text` / `row_number_i64` / `row_price_f64` and the JVM terminal's default arm. `NullValue` is still coalesced (legitimate null); only the wire-anomaly path changes.
 - **Option contract wildcard rejection** (#284) -- before this release the SDK had no working path to the server's bulk-chain mode: `*` was rejected client-side by `validate_expiration`, and `0` was rejected server-side. The SDK vocabulary now covers the full cross-product the server accepts.
 - **Validator tier detection drift** (#289) -- dropped the static tier gate that classified legitimate server responses as SKIP. The runtime permission fallback still catches drift between docs and the wire (for example, `interest_rate_history_eod` being labelled `free` on docs but gated higher by the server).
 - **CI unbroken on `main`** (#299) -- fixed a `timeout_ms` TOML field mismatch and made the Go pin-test CRLF-robust.
@@ -3071,7 +3071,7 @@ Major release. Three headline groups land in one pass:
 
 - **`DirectConfig::derive_ohlcvc(bool)`** -- config-driven OHLCVC opt-out, replaces duplicate method. (#129)
 - **REST server drop-in replacement** -- `--email`/`--password`, `--config`, `--fpss-region` CLI args. `/v3/system/status` endpoint. Startup banner. (#128)
-- **Error suppression 5s after STOP** -- matches Java terminal behavior. (#124)
+- **Error suppression 5s after STOP** -- matches the JVM terminal's behavior. (#124)
 - **Auth retry on transient errors** -- 3 attempts, 2s delay, network errors only. (#125)
 - **Config validation** -- clamps queue_depth (16-1M), window_size (64-1024) with warnings. (#126)
 - **Password character warning** -- on INVALID_CREDENTIALS disconnect. (#127)
@@ -3089,7 +3089,7 @@ Major release. Three headline groups land in one pass:
 
 ### Added
 
-- **FPSS auto-reconnect** with configurable policy: `Auto` (default, matches Java terminal), `Manual`, `Custom(fn)`. New control events: `Reconnecting`, `Reconnected`. (#119)
+- **FPSS auto-reconnect** with configurable policy: `Auto` (default, matches the JVM terminal), `Manual`, `Custom(fn)`. New control events: `Reconnecting`, `Reconnected`. (#119)
 - **Trade/quote condition descriptions** with special-case annotations (e.g., `*update last if only trade`).
 
 ### Fixed
@@ -3226,7 +3226,7 @@ Major release. Three headline groups land in one pass:
 - **Builder pattern** -- all endpoints return chainable builders. Zero noise for simple calls, all optional proto params discoverable via autocomplete.
 - **`received_at_ns`** -- nanosecond receive timestamp on every FPSS event for latency measurement
 - **`tdbe::latency::latency_ns()`** -- DST-aware wire-to-application latency computation
-- **`FpssFlushMode`** -- `Batched` (default, matches Java) or `Immediate` (lowest latency)
+- **`FpssFlushMode`** -- `Batched` (default, matches the JVM terminal) or `Immediate` (lowest latency)
 - **Metrics** -- `metrics` crate integration. Counters/histograms on all gRPC, FPSS, and auth operations. Zero overhead when no backend installed.
 - **Config file** -- `DirectConfig::from_file()` behind `config-file` feature flag. TOML format matching v3 terminal.
 - **`DirectConfig::stage()`** -- staging FPSS servers (port 20100)
@@ -3267,7 +3267,7 @@ Major release. Three headline groups land in one pass:
 
 - **Timezone hardcoded UTC-4** -- was producing ms_of_day shifted +1 hour for all Nov-Mar historical data. Now DST-aware with 5 unit tests. (#32)
 - **EOD parser divergent alias system** -- unified to shared `find_header()`. (#34)
-- **reconnect_wait_ms** -- changed from 1000 to 2000 to match Java terminal. (#35)
+- **reconnect_wait_ms** -- changed from 1000 to 2000 to match the JVM terminal. (#35)
 - **C++ OptionContract use-after-free** -- root string was dangling after array free. Now deep-copies to `std::string`. (#39)
 - **Active subscriptions not cleared on explicit shutdown** -- `shutdown()` clears, involuntary disconnect preserves for reconnect. (#38)
 - Mermaid diagram syntax in architecture.md (#30)
@@ -3297,9 +3297,9 @@ v3 MDDS DataTable parsing (Timestamp cells), DST-aware timezone, gRPC flow contr
 ### Fixed
 
 - **Interval conversion**: MDDS server accepts preset shorthand (`1m`, `5m`, `1h`), not raw milliseconds. `normalize_interval()` now converts `"60000"` -> `"1m"`, `"300000"` -> `"5m"`, etc. Sub-second presets supported: `"100"` -> `"100ms"`, `"500"` -> `"500ms"`. Users can pass either milliseconds or shorthand directly.
-- **Default start_time/end_time**: the Java terminal defaults these to `"09:30:00"` and `"16:00:00"`. Our SDK left them as None, causing `"Invalid time format: Expected hh:mm:ss.SSS"` on trade/quote/greeks endpoints. Now defaults to RTH.
+- **Default start_time/end_time**: the JVM terminal defaults these to `"09:30:00"` and `"16:00:00"`. Our SDK left them as None, causing `"Invalid time format: Expected hh:mm:ss.SSS"` on trade/quote/greeks endpoints. Now defaults to RTH.
 - **extract_text_column**: now handles Number and Price DataTable values. `option_list_strikes` was returning 0 results because strikes come as Number values, not Text.
-- **FPSS TLS certificate**: ThetaData's FPSS servers have certificates expired since Jan 2024. Skip certificate verification for FPSS connections (matching Java terminal behavior).
+- **FPSS TLS certificate**: ThetaData's FPSS servers have certificates expired since Jan 2024. Skip certificate verification for FPSS connections (matching the JVM terminal's behavior).
 
 ### Added
 
@@ -3319,7 +3319,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Added
 
-- `subscribe_full_open_interest(sec_type)` -- full-stream open interest subscription (was missing, Java terminal has it)
+- `subscribe_full_open_interest(sec_type)` -- full-stream open interest subscription (was missing, the JVM terminal has it)
 - `unsubscribe_full_trades(sec_type)` -- full-stream trade unsubscribe (was missing)
 - `unsubscribe_full_open_interest(sec_type)` -- full-stream OI unsubscribe (was missing)
 - `reconnect_streaming(handler)` on `Client` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
@@ -3487,7 +3487,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - FPSS frame read: zero-alloc (reusable buffer)
 - FPSS decode: zero-alloc (tuple return, pre-allocated tick buffer)
-- Delta: wrapping_add (matches Java, no branch)
+- Delta: wrapping_add (matches the JVM terminal, no branch)
 - Required column validation (skip rows on missing headers, no garbage parse)
 - 43 criterion benchmarks across all modules
 
@@ -3520,13 +3520,13 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - **OHLCVC-from-trade derivation** — `OhlcvcAccumulator` derives OHLCVC bars from trade
   ticks in real time. Only emits `StreamEvent::Data(StreamData::Ohlcvc { .. })` after a
-  server-seeded initial bar, matching the Java terminal's behavior. Subsequent trades
+  server-seeded initial bar, matching the JVM terminal's behavior. Subsequent trades
   update open/high/low/close/volume/count incrementally.
 - **StreamEvent split: `StreamData` + `StreamControl`** — the monolithic `StreamEvent` enum is now
   a 3-variant wrapper: `Data(StreamData)` for market data (Quote, Trade, OpenInterest, Ohlcvc),
   `Control(StreamControl)` for lifecycle events (LoginSuccess, Disconnected, MarketOpen, etc.),
   and `RawData` for unparsed frames. This enables `match` arms that handle all data without
-  touching control flow, and vice versa — an intentional improvement not present in Java.
+  touching control flow, and vice versa — an intentional improvement beyond the JVM terminal.
 - **Streaming `_stream` endpoint variants** — `stock_history_trade_stream`,
   `stock_history_quote_stream`, `option_history_trade_stream`, `option_history_quote_stream`
   process gRPC response chunks via callback without materializing the full response in memory.
@@ -3539,29 +3539,29 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Fixed
 
-18 correctness and protocol-conformance fixes from a full audit against the Java terminal:
+18 correctness and protocol-conformance fixes from a full audit against the JVM terminal:
 
 **FPSS Protocol**
 
 1. **FPSS contract ID is FIT-decoded** — CONTRACT message contract IDs are now FIT-decoded
-   (matching the Java terminal), not read as raw big-endian i32. Previously produced wrong
+   (matching the JVM terminal), not read as raw big-endian i32. Previously produced wrong
    contract-to-symbol mappings.
 2. **Delta off-by-one fixed** — `apply_deltas` field indexing corrected; previous
    implementation could shift all fields by one position, corrupting tick data.
 3. **Delta state cleared on START/STOP** — per-contract delta accumulators are now reset
-   when the server sends START (market open) or STOP (market close), matching Java behavior.
+   when the server sends START (market open) or STOP (market close), matching the JVM terminal's behavior.
    Previously, stale deltas from the previous session leaked into the next session's ticks.
 4. **ROW_SEP unconditional reset** — ROW_SEP (0xC) now unconditionally resets the field
-   index to SPACING (5), matching the Java FIT reader. Previously this was conditional,
+   index to SPACING (5), matching the JVM terminal's FIT reader. Previously this was conditional,
    which could produce misaligned fields.
-5. **Credential sign-extension** — credential length fields are now read as unsigned,
-   matching Java's `readUnsignedShort()`. Previously, passwords longer than 127 bytes
+5. **Credential sign-extension** — credential length fields are now read as an unsigned
+   16-bit integer, matching the JVM terminal. Previously, passwords longer than 127 bytes
    could produce a negative length.
 6. **Flush only on PING** — the FPSS write buffer is now flushed only when sending PING
-   messages, matching Java's batching behavior. Previously, every write triggered a flush,
+   messages, matching the JVM terminal's batching behavior. Previously, every write triggered a flush,
    increasing syscall overhead and wire chattiness.
 7. **Ping 2000ms initial delay** — the first PING is now delayed by 2000ms after
-   authentication, matching the Java terminal's `Thread.sleep(2000)` before entering the
+   authentication, matching the JVM terminal's 2000 ms pause before entering the
    ping loop. Previously, pings started immediately.
 
 **MDDS / gRPC Protocol**
@@ -3570,11 +3570,11 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
    `null_value` variant (bool), matching the server's proto definition. Previously,
    null cells were silently dropped during deserialization.
 9. **`"client": "terminal"` in query_parameters** — all gRPC requests now include
-   `"client": "terminal"` in the `query_parameters` map, matching the Java terminal.
+   `"client": "terminal"` in the `query_parameters` map, matching the JVM terminal.
    Previously this field was omitted.
 10. **Dynamic concurrency from subscription tier** — `mdds_concurrent_requests` is now
     derived from the `AuthUser` response's subscription tier (`2^tier`), matching the
-    Java terminal's concurrency model. The config field still allows manual override.
+    JVM terminal's concurrency model. The config field still allows manual override.
 11. **Unknown compression returns error** — `decompress_response` now returns
     `Error::Decompress` for unrecognized compression algorithms instead of silently
     treating the data as uncompressed.
@@ -3582,8 +3582,8 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
     `DataTable` (with headers, zero rows) when the gRPC stream contains no data chunks,
     instead of returning `Error::NoData`. Callers can check `.data_table.is_empty()`.
 13. **gRPC flow control window** — the gRPC channel now configures
-    `initial_connection_window_size` and `initial_stream_window_size` to match the Java
-    terminal's Netty settings, preventing throughput bottlenecks on large responses.
+    `initial_connection_window_size` and `initial_stream_window_size` to match the JVM
+    terminal's flow-control settings, preventing throughput bottlenecks on large responses.
 
 **Auth / User Model**
 
@@ -3591,7 +3591,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
     `option_tier`, `index_tier`, and `futures_tier` fields from the Nexus auth response,
     enabling per-asset-class concurrency and permission checks.
 15. **Auth 401/404 handling** — Nexus HTTP responses with status 401 (Unauthorized) or
-    404 (Not Found) are now treated as invalid credentials, matching the Java terminal's
+    404 (Not Found) are now treated as invalid credentials, matching the JVM terminal's
     behavior. Previously these could surface as generic HTTP errors.
 
 **Observability**
@@ -3604,14 +3604,14 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 **Greeks**
 
 17. **6 Greeks formula fixes** — operator precedence corrections across 6 Greek functions
-    to match Java's evaluation order. All formulas now produce bit-identical results to
-    the Java terminal for the same inputs.
+    to match the JVM terminal's evaluation order. All formulas now produce bit-identical results to
+    the JVM terminal for the same inputs.
 18. **`Vera` DataType code (166)** — second-order Greek `Vera` added to the `DataType` enum,
     completing the full set of second-order Greeks (vanna, charm, vomma, veta, vera, sopdk).
 
 ### Security
 
-- **Contract wire format fix** — contract binary serialization now matches the Java terminal
+- **Contract wire format fix** — contract binary serialization now matches the JVM terminal
   exactly. Previous versions could produce incorrect wire bytes for option contracts, causing
   subscription failures or wrong contract assignments. This was a **protocol-level bug**;
   upgrading to 1.2.x is strongly recommended.
@@ -3706,7 +3706,7 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - **StreamingClient** for FPSS streaming — real-time quotes, trades, open interest, OHLC
   via TLS/TCP with heartbeat and manual reconnection
 - **Auth module** — Nexus API authentication (email/password → session UUID)
-- **FIT/FIE codec** — nibble-based tick compression/decompression (ported from Java)
+- **FIT/FIE codec** — nibble-based tick compression/decompression at JVM terminal parity
 - **Greeks calculator** — full Black-Scholes: 22 Greeks + IV bisection solver with
   precomputed shared intermediates and edge-case guards (t=0, v=0)
 - **All tick types** — TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick,
@@ -3724,7 +3724,7 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - **Go SDK** — CGo FFI bindings over the C ABI layer
 - **C++ SDK** — RAII C++ wrapper over the C header
 - **C FFI crate** (`thetadatadx-ffi`) — stable `extern "C"` ABI for all SDKs
-- **Documentation** — architecture (Mermaid), API reference, Java parity checklist
+- **Documentation** — architecture (Mermaid), API reference, JVM terminal parity checklist
 - **CI/CD** — GitHub Actions (fmt, clippy, test, FFI build, crates.io publish, PyPI publish, GitHub Release)
 - **Project infrastructure** — CHANGELOG, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT,
   clippy.toml, cliff.toml, rust-toolchain.toml, LICENSE

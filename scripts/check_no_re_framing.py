@@ -79,6 +79,16 @@ SCAN_GLOBS = (
     "crates/thetadatadx/examples/**/*.rs",
     "crates/thetadatadx/tests/**/*.rs",
     "crates/thetadatadx/tests/**/*.toml",
+    # Publicly-rendered prose. The docs site re-publishes these straight
+    # from `main`, and the top-level Markdown is the first thing a reader
+    # sees on the repo. The same provenance bar applies: these render to
+    # every reader exactly like the crate doc comments, so a leak here
+    # ships just as widely. This is the surface the `.rs`-only scan missed.
+    "docs-site/docs/**/*.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "README.md",
+    "tools/server/README.md",
 )
 
 
