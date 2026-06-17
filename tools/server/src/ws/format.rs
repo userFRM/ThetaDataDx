@@ -91,10 +91,18 @@ pub(super) fn fpss_event_to_ws_json(
                 StreamData::Trade {
                     ms_of_day,
                     sequence,
+                    ext_condition1,
+                    ext_condition2,
+                    ext_condition3,
+                    ext_condition4,
                     condition,
                     size,
                     exchange,
                     price,
+                    condition_flags,
+                    price_flags,
+                    volume_type,
+                    records_back,
                     date,
                     received_at_ns,
                     ..
@@ -103,10 +111,18 @@ pub(super) fn fpss_event_to_ws_json(
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "sequence": sequence,
+                        "ext_condition1": ext_condition1,
+                        "ext_condition2": ext_condition2,
+                        "ext_condition3": ext_condition3,
+                        "ext_condition4": ext_condition4,
                         "condition": condition,
                         "size": size,
                         "exchange": exchange,
                         "price": price,
+                        "condition_flags": condition_flags,
+                        "price_flags": price_flags,
+                        "volume_type": volume_type,
+                        "records_back": records_back,
                         "date": date,
                         "received_at_ns": received_at_ns,
                     }),
@@ -147,6 +163,25 @@ pub(super) fn fpss_event_to_ws_json(
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "open_interest": open_interest,
+                        "date": date,
+                        "received_at_ns": received_at_ns,
+                    }),
+                ),
+                StreamData::MarketValue {
+                    ms_of_day,
+                    market_bid,
+                    market_ask,
+                    market_price,
+                    date,
+                    received_at_ns,
+                    ..
+                } => (
+                    "MARKET_VALUE",
+                    sonic_rs::json!({
+                        "ms_of_day": ms_of_day,
+                        "market_bid": market_bid,
+                        "market_ask": market_ask,
+                        "market_price": market_price,
                         "date": date,
                         "received_at_ns": received_at_ns,
                     }),
@@ -324,6 +359,112 @@ mod tests {
             date: 0,
             received_at_ns: 0,
         })
+    }
+
+    fn make_trade(contract: Arc<Contract>) -> StreamEvent {
+        StreamEvent::Data(StreamData::Trade {
+            contract,
+            ms_of_day: 1,
+            sequence: 2,
+            ext_condition1: 3,
+            ext_condition2: 4,
+            ext_condition3: 5,
+            ext_condition4: 6,
+            condition: 7,
+            size: 8,
+            exchange: 9,
+            price: 10.5,
+            condition_flags: 11,
+            price_flags: 12,
+            volume_type: 13,
+            records_back: 14,
+            date: 20260617,
+            received_at_ns: 15,
+        })
+    }
+
+    fn make_market_value(contract: Arc<Contract>) -> StreamEvent {
+        StreamEvent::Data(StreamData::MarketValue {
+            contract,
+            ms_of_day: 1,
+            market_bid: 2.5,
+            market_ask: 3.5,
+            market_price: 3.0,
+            date: 20260617,
+            received_at_ns: 4,
+        })
+    }
+
+    /// The WS Trade frame must carry every wire column the `Trade` tick
+    /// defines, matching the REST trade formatter's keys. A truncated arm
+    /// silently drops the extended-condition, flag, volume-type, and
+    /// records-back columns that downstream consumers parse.
+    #[test]
+    fn trade_frame_carries_every_wire_column() {
+        let contract = Arc::new(Contract::stock("AAPL"));
+        let event = make_trade(Arc::clone(&contract));
+        let json = fpss_event_to_ws_json(&event, Some(&contract))
+            .expect("Trade serialization must succeed");
+
+        for key in [
+            "ms_of_day",
+            "sequence",
+            "ext_condition1",
+            "ext_condition2",
+            "ext_condition3",
+            "ext_condition4",
+            "condition",
+            "size",
+            "exchange",
+            "price",
+            "condition_flags",
+            "price_flags",
+            "volume_type",
+            "records_back",
+            "date",
+        ] {
+            assert!(
+                json.contains(&format!("\"{key}\":")),
+                "Trade frame must carry the `{key}` column: {json}"
+            );
+        }
+        assert!(
+            json.contains("\"header\":{\"type\":\"TRADE\"}"),
+            "Trade frame header type: {json}"
+        );
+    }
+
+    /// MARKET_VALUE is a first-class per-contract stream: its tick must
+    /// serialize with the calculated market bid/ask/price columns rather
+    /// than being swallowed by the catch-all `None` arm.
+    #[test]
+    fn market_value_frame_serializes_calculated_columns() {
+        let contract = Arc::new(Contract::stock("SPX"));
+        let event = make_market_value(Arc::clone(&contract));
+        let json = fpss_event_to_ws_json(&event, Some(&contract))
+            .expect("MARKET_VALUE serialization must succeed");
+
+        for key in [
+            "ms_of_day",
+            "market_bid",
+            "market_ask",
+            "market_price",
+            "date",
+            "received_at_ns",
+        ] {
+            assert!(
+                json.contains(&format!("\"{key}\":")),
+                "MARKET_VALUE frame must carry the `{key}` column: {json}"
+            );
+        }
+        assert!(
+            json.contains("\"header\":{\"type\":\"MARKET_VALUE\"}"),
+            "MARKET_VALUE frame header type: {json}"
+        );
+        assert!(
+            json.contains("\"symbol\":\"SPX\""),
+            "MARKET_VALUE frame must carry its contract: {json}"
+        );
     }
 
     /// The callback thread resolves the contract directly from the
