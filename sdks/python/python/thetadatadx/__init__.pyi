@@ -394,6 +394,255 @@ class SecType:
         ...
 
 
+# ─────────────────────────────────────────────────────────────────────
+# String-valued parameter enums
+# ─────────────────────────────────────────────────────────────────────
+#
+# Each class is a frozen, value-comparable handle whose members are the
+# only valid instances. The backing ``value`` is the lowercase wire token
+# the endpoints expect; ``str(member)`` returns that token and ``repr``
+# returns ``"<Class>.<token>"``. Instances are hashable and compare by
+# value, so they are usable as dict keys and in sets.
+
+
+@final
+class Right:
+    """Option right accepted by the contract and request builders."""
+
+    CALL: Right
+    """Call options."""
+    PUT: Right
+    """Put options."""
+    BOTH: Right
+    """Both calls and puts."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this right (e.g. ``"call"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"call"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"Right.call"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same right."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class Venue:
+    """Quote-venue selector for venue-scoped quote requests."""
+
+    NQB: Venue
+    """The national best bid and offer composite venue."""
+    UTP_CTA: Venue
+    """The combined UTP / CTA tape venue."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this venue (e.g. ``"nqb"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"nqb"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"Venue.nqb"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same venue."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class Interval:
+    """Aggregation interval for bar / OHLC historical requests."""
+
+    TICK: Interval
+    """Per-tick, no aggregation."""
+    MS_10: Interval
+    """10-millisecond bars."""
+    MS_100: Interval
+    """100-millisecond bars."""
+    MS_500: Interval
+    """500-millisecond bars."""
+    S_1: Interval
+    """1-second bars."""
+    S_5: Interval
+    """5-second bars."""
+    S_10: Interval
+    """10-second bars."""
+    S_15: Interval
+    """15-second bars."""
+    S_30: Interval
+    """30-second bars."""
+    M_1: Interval
+    """1-minute bars."""
+    M_5: Interval
+    """5-minute bars."""
+    M_10: Interval
+    """10-minute bars."""
+    M_15: Interval
+    """15-minute bars."""
+    M_30: Interval
+    """30-minute bars."""
+    H_1: Interval
+    """1-hour bars."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this interval (e.g. ``"1m"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"1m"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"Interval.1m"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same interval."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class RateType:
+    """Reference-rate selector for interest-rate requests."""
+
+    SOFR: RateType
+    """The Secured Overnight Financing Rate."""
+    TREASURY_M1: RateType
+    """1-month Treasury rate."""
+    TREASURY_M3: RateType
+    """3-month Treasury rate."""
+    TREASURY_M6: RateType
+    """6-month Treasury rate."""
+    TREASURY_Y1: RateType
+    """1-year Treasury rate."""
+    TREASURY_Y2: RateType
+    """2-year Treasury rate."""
+    TREASURY_Y3: RateType
+    """3-year Treasury rate."""
+    TREASURY_Y5: RateType
+    """5-year Treasury rate."""
+    TREASURY_Y7: RateType
+    """7-year Treasury rate."""
+    TREASURY_Y10: RateType
+    """10-year Treasury rate."""
+    TREASURY_Y20: RateType
+    """20-year Treasury rate."""
+    TREASURY_Y30: RateType
+    """30-year Treasury rate."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this rate (e.g. ``"sofr"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"sofr"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"RateType.sofr"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same rate type."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class RequestType:
+    """Per-row request kind for the flat-file and bar request builders."""
+
+    TRADE: RequestType
+    """Trade rows."""
+    QUOTE: RequestType
+    """Quote rows."""
+    EOD: RequestType
+    """End-of-day summary rows."""
+    OHLC: RequestType
+    """Open / high / low / close bar rows."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this request type (e.g. ``"trade"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"trade"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"RequestType.trade"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same request type."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class Version:
+    """Endpoint schema-version selector."""
+
+    LATEST: Version
+    """The latest schema version the server serves."""
+    V1: Version
+    """The pinned first schema version."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this version (e.g. ``"latest"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"latest"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"Version.latest"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same version."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
 @final
 class Subscription:
     """Typed market-data subscription (per-contract or full-stream)."""
@@ -1738,6 +1987,14 @@ class FlatFileRowList:
 
     def __len__(self) -> int:
         """Return the number of rows."""
+        ...
+
+    def __bool__(self) -> bool:
+        """Return whether the list holds at least one row."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"FlatFileRowList(128 rows)"``)."""
         ...
 
     def to_list(self) -> List[Any]:
