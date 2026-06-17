@@ -110,9 +110,9 @@ pub(crate) const GENERAL_BURST_SIZE: u32 = 40;
 /// setter instead sets the INTERVAL between token replenishments: one
 /// token per `SHUTDOWN_REPLENISH_PERIOD`. Combined with `burst_size(3)`,
 /// a single IP can issue at most three attempts before the bucket empties
-/// and must wait one full hour for each subsequent slot. UUID-v4 entropy
-/// already makes brute-force infeasible, but this pins an upper bound on
-/// guess rate regardless of token length.
+/// and must wait one full hour for each subsequent slot. The 128-bit
+/// random hex token already makes brute-force infeasible, but this pins
+/// an upper bound on guess rate regardless of token length.
 const SHUTDOWN_REPLENISH_PERIOD: Duration = Duration::from_secs(3600);
 const SHUTDOWN_BURST_SIZE: u32 = 3;
 
@@ -129,8 +129,8 @@ const SHUTDOWN_BURST_SIZE: u32 = 3;
 /// `{"header":{"error_type","error_msg"},"response":[]}` envelope as
 /// every other failure, plus a standards-compliant `Retry-After` header
 /// in seconds (RFC 9110) — the field every HTTP retry helper reads
-/// natively. Shared by the REST shutdown limiter, the general
-/// non-loopback limiter, and the WS upgrade limiter.
+/// natively. Shared by the REST shutdown limiter, the opt-in general
+/// per-IP limiter, and the WS upgrade limiter.
 pub(crate) fn governor_error_response(error: GovernorError) -> axum::response::Response {
     match error {
         GovernorError::TooManyRequests { wait_time, .. } => {

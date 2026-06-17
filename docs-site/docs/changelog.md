@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `pyo3` and `pyo3-async-runtimes` are upgraded to 0.29, clearing RUSTSEC-2026-0176 (an out-of-bounds read in the bound list and tuple iterators' `nth` / `nth_back`) and RUSTSEC-2026-0177 (a missing `Sync` bound in closure construction) in both the Python binding and the core crate's bench-only development dependency. With the upgrade in place the advisory deferrals are removed and the audit gate runs with an empty ignore list. The DataFrame export switches to the Arrow C Stream Interface so the binding's `pyo3` line is no longer pinned by `arrow-pyarrow`; the free-threaded CI target moves to CPython 3.14t, since `pyo3` 0.29 floors no-GIL support at 3.14.
 - The FPSS, historical, and flat-file client TLS configurations are built with an explicit `ring` crypto provider and explicit protocol versions rather than relying on a process-global default; the historical / authentication HTTP path is handed the same preconfigured provider, so `ring` is the sole crypto provider in the dependency graph and a connect no longer depends on an installed process default.
+- The server's general per-IP rate limiter is now opt-in and off by default on every bind regardless of address: operators enable it by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE` (previously it auto-enabled on non-loopback binds); the shutdown-route limiter stays active on every bind.
 
 ## [12.0.0] - 2026-06-04
 

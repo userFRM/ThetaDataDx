@@ -1730,8 +1730,27 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
         unsafe impl Sync for CallbackCtx {}
         impl CallbackCtx {
             fn invoke(&self, reason: i32, attempt: u32) -> i64 {
-                // SAFETY: `self.cb` is the caller-registered function pointer and `self.user_data` the matching context; the registration contract guarantees both stay valid and thread-safe while any client built from the config is alive.
-                unsafe { (self.cb)(reason, attempt, self.user_data) }
+                // The decision callback runs on the streaming I/O thread,
+                // not on a `ffi_boundary!`-guarded entry point, so a panic
+                // here would unwind across the C ABI on a foreign thread.
+                // Catch it and fall back to the stop decision (`-1`), the
+                // same defence the stream dispatcher applies per
+                // invocation, so a panicking decision callback ends the
+                // reconnect loop instead of aborting the process.
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    // SAFETY: `self.cb` is the caller-registered function pointer and `self.user_data` the matching context; the registration contract guarantees both stay valid and thread-safe while any client built from the config is alive.
+                    unsafe { (self.cb)(reason, attempt, self.user_data) }
+                }));
+                match result {
+                    Ok(delay_ms) => delay_ms,
+                    Err(_) => {
+                        tracing::error!(
+                            target: "thetadatadx::ffi",
+                            "reconnect decision callback panicked; stopping reconnect attempts",
+                        );
+                        -1
+                    }
+                }
             }
         }
         let ctx = CallbackCtx { cb, user_data };

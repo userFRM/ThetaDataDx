@@ -147,6 +147,11 @@ using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
 // Generated layout guards for the FPSS event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
 
+// Layout guards for the hand-written ABI structs (option contract,
+// subscription, arrow / flat-file byte buffers, string + array
+// wrappers) that no schema generator covers.
+#include "abi_struct_layout_asserts.hpp.inc"
+
 // OptionContract uses std::string for symbol to avoid use-after-free.
 // The C FFI ThetaDataDxOptionContract uses a raw char* that is freed with the array,
 // so we deep-copy the string during conversion.
