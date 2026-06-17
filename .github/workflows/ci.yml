@@ -582,6 +582,7 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           body_path: ${{ steps.release_notes.outputs.body_path }}
           files: |
             release-assets/*
