@@ -3061,6 +3061,7 @@ export interface Contract {
   expiration?: number
   right?: string
   strike?: number
+  strikeThousandths?: number
 }
 
 /** FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options). */

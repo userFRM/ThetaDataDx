@@ -145,7 +145,9 @@ impl Contract {
     /// assert_eq!(&*c.symbol, "SPY");
     /// assert_eq!(c.expiration, Some(20_260_417));
     /// assert_eq!(c.is_call, Some(true));
+    /// // Both strike surfaces lock together: raw thousandths and dollars.
     /// assert_eq!(c.strike_thousandths, Some(550_000));
+    /// assert_eq!(c.strike_dollars(), Some(550.0));
     /// # Ok::<(), thetadatadx::Error>(())
     /// ```
     ///

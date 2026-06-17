@@ -22,7 +22,7 @@ pub(super) fn c_field_layout(ty: &str) -> CFieldLayout {
         "i64" | "u64" | "f64" => CFieldLayout { size: 8, align: 8 },
         // String → `const char*` borrowed pointer.
         "String" => CFieldLayout { size: 8, align: 8 },
-        "Contract" => CFieldLayout { size: 32, align: 8 },
+        "Contract" => CFieldLayout { size: 40, align: 8 },
         other => panic!("unsupported FPSS C field type for size generation: {other}"),
     }
 }

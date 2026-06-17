@@ -53,6 +53,7 @@ typedef struct {\n\
     char right;\n\
     bool has_strike;\n\
     double strike;\n\
+    int32_t strike_thousandths;\n\
 } ThetaDataDxContract;\n\n"
 }
 

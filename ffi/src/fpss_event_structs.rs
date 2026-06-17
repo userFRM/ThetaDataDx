@@ -86,6 +86,10 @@ pub right: c_char,
 pub has_strike: bool,
 /// Option strike price in dollars (0.0 when `has_strike` is false).
 pub strike: f64,
+/// Option strike in thousandths of a dollar (a `$550.00` strike is
+/// `550000`; `0` when `has_strike` is false). The exact integer the
+/// wire carries — read this for an exact key, `strike` for dollars.
+pub strike_thousandths: i32,
 }
 
 /// Zeroed `ThetaDataDxContract` literal: null symbol, all-false presence flags, zero scalars.
@@ -98,6 +102,7 @@ has_right: false,
 right: 0,
 has_strike: false,
 strike: 0.0,
+strike_thousandths: 0,
 };
 
 /// FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).

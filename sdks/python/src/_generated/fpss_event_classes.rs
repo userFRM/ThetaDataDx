@@ -25,13 +25,14 @@ pub(crate) struct ContractRef {
 #[pyo3(get)] pub expiration: Option<i32>,
 #[pyo3(get)] pub right: Option<String>,
 #[pyo3(get)] pub strike: Option<f64>,
+#[pyo3(get)] pub strike_thousandths: Option<i32>,
 }
 #[pymethods]
 impl ContractRef {
 fn __repr__(&self) -> String {
 format!(
-"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike={:?})",
-self.symbol, self.sec_type, self.expiration, self.right, self.strike
+"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike={:?}, strike_thousandths={:?})",
+self.symbol, self.sec_type, self.expiration, self.right, self.strike, self.strike_thousandths
 )
 }
 }
@@ -39,8 +40,8 @@ impl ContractRef {
 /// Build from the core `thetadatadx::fpss::protocol::Contract` value
 /// carried by each data event. `sec_type` is the symbolic uppercase
 /// name (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"` /
-/// `"UNKNOWN"`). `strike` is dollars (the wire's fixed-point integer
-/// never crosses the binding boundary).
+/// `"UNKNOWN"`). `strike` is dollars; `strike_thousandths` is the
+/// exact wire integer (a `$550.00` strike is `550000`).
 pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {
 Self {
 symbol: c.symbol.to_string(),
@@ -48,6 +49,7 @@ sec_type: c.sec_type.as_str().to_string(),
 expiration: c.expiration,
 right: c.right().map(|r| r.as_char().to_string()),
 strike: c.strike_dollars(),
+strike_thousandths: c.strike_thousandths,
 }
 }
 }
