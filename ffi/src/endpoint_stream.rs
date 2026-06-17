@@ -19,7 +19,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -49,6 +49,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
@@ -79,7 +83,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -104,6 +108,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
@@ -134,7 +142,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -159,6 +167,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_trade", &args, move |rows, len| sink.emit(rows, len)).await
@@ -189,7 +201,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -214,6 +226,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -244,7 +260,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -269,6 +285,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_trade_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -303,7 +323,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -338,6 +358,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_at_time_trade", &args, move |rows, len| sink.emit(rows, len)).await
@@ -372,7 +396,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -407,6 +431,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_at_time_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -441,7 +469,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -476,6 +504,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
@@ -508,7 +540,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -538,6 +570,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
@@ -570,7 +606,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -600,6 +636,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade", &args, move |rows, len| sink.emit(rows, len)).await
@@ -632,7 +672,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -662,6 +702,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -694,7 +738,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -724,6 +768,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -756,7 +804,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -786,6 +834,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_open_interest", &args, move |rows, len| sink.emit(rows, len)).await
@@ -820,7 +872,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -855,6 +907,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_eod", &args, move |rows, len| sink.emit(rows, len)).await
@@ -887,7 +943,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -917,6 +973,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
@@ -949,7 +1009,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -979,6 +1039,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1011,7 +1075,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1041,6 +1105,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1073,7 +1141,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1103,6 +1171,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1135,7 +1207,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1165,6 +1237,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1197,7 +1273,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1227,6 +1303,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1259,7 +1339,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1289,6 +1369,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1321,7 +1405,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1351,6 +1435,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1383,7 +1471,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1413,6 +1501,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_implied_volatility", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1445,7 +1537,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1475,6 +1567,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_implied_volatility", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1511,7 +1607,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1551,6 +1647,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_at_time_trade", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1587,7 +1687,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1627,6 +1727,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_at_time_quote", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1659,7 +1763,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1689,6 +1793,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1721,7 +1829,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1751,6 +1859,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1781,7 +1893,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
 ,
     date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1806,6 +1918,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_price", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1840,7 +1956,7 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
 ,
     time_of_day: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1875,6 +1991,10 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_at_time_price", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1907,7 +2027,7 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1937,6 +2057,10 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "interest_rate_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
@@ -1969,7 +2093,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_stream(
 ,
     end_date: *const c_char
 ,
-    callback: ThetaDataDxTickChunkCallback,
+    callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> i32 {
@@ -1999,6 +2123,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_stream(
             return empty;
         }
 
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_ohlc_range", &args, move |rows, len| sink.emit(rows, len)).await
