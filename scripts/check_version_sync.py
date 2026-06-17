@@ -176,18 +176,23 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
-    # U4 closure: CMake project version must match the canonical
-    # crates Cargo version exactly.
+    # CMake project version must match the canonical crates Cargo
+    # version. CMake's `project(... VERSION ...)` only accepts a numeric
+    # `major.minor.patch`, so on a pre-release (e.g. `13.0.0-rc.1`) it
+    # carries the numeric base (`13.0.0`); compare against that base, not
+    # the full pre-release string. A normal release has no suffix, so the
+    # base equals the canonical version.
+    canonical_base = canonical.split("-", 1)[0]
     cmake_version = cmake_project_version(CMAKE_LISTS)
     if cmake_version is None:
         failures.append(
             f"{CMAKE_LISTS.relative_to(ROOT)}: could not parse "
             "`project(... VERSION ...)` value"
         )
-    elif cmake_version != canonical:
+    elif cmake_version != canonical_base:
         failures.append(
             f"{CMAKE_LISTS.relative_to(ROOT)} VERSION is "
-            f"{cmake_version}, expected {canonical}"
+            f"{cmake_version}, expected {canonical_base}"
         )
 
     # U5 closure: documentation pins must match the canonical major.

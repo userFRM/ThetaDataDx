@@ -51,9 +51,15 @@ SUB_LOCK_MANIFESTS = [
 
 
 def parse_semver(value: str) -> tuple[int, int, int]:
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", value)
+    # Accept an optional SemVer pre-release / build suffix (e.g.
+    # `13.0.0-rc.1`) so a release candidate can be bumped with the same
+    # tool. The numeric core is returned; the suffix rides through on the
+    # version strings the bump writes. Cargo and npm take `-rc.1` as-is;
+    # maturin normalises it to the PEP 440 form, and CMake (operator-set)
+    # carries the numeric core.
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.\-]+)?", value)
     if not match:
-        sys.exit(f"not a semver MAJOR.MINOR.PATCH: '{value}'")
+        sys.exit(f"not a semver MAJOR.MINOR.PATCH[-prerelease]: '{value}'")
     return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
