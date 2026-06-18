@@ -77,7 +77,21 @@ The [server binary](/server/) exposes the full surface as local HTTP REST and We
 
 </SdkTabs>
 
-## 2. Save credentials
+## 2. Authenticate
+
+You can sign in with an API key or with your account email and password. An API key is the simpler option: a cleaner sign-in that does not require storing your account password. Email and password still works.
+
+### API key
+
+Generate an API key from your [ThetaData user portal](https://www.thetadata.net/), then make it available to the SDK. The standard way is an environment variable:
+
+```bash
+export THETADATA_API_KEY="your_api_key"
+```
+
+`from_env_or_file("creds.txt")` reads `THETADATA_API_KEY` when it is set and falls back to the `creds.txt` file otherwise, so the same code works in both setups. You can also pass the key straight to the api-key constructor instead of using the environment variable. Per-SDK methods are shown in the [first request](#_3-first-request) below.
+
+### Email and password
 
 Create a `creds.txt` in your working directory: your ThetaData account email on line 1, password on line 2.
 
@@ -99,7 +113,10 @@ use thetadatadx::{Credentials, DirectConfig, Client};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-    let creds = Credentials::from_file("creds.txt")?;
+    // API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
+    let creds = Credentials::from_env_or_file("creds.txt")?;
+    // Or pass the key directly: Credentials::api_key(std::env::var("THETADATA_API_KEY")?)
+    // Email + password: Credentials::from_file("creds.txt")?
     let client = Client::connect(&creds, DirectConfig::production()).await?;
 
     let rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
@@ -115,9 +132,14 @@ async fn main() -> Result<(), thetadatadx::Error> {
 <template #python>
 
 ```python
+import os
+
 from thetadatadx import Config, Credentials, Client
 
-creds = Credentials.from_file("creds.txt")
+# API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
+creds = Credentials.from_env_or_file("creds.txt")
+# Or pass the key directly: Credentials.from_api_key(os.environ["THETADATA_API_KEY"])
+# Email + password: Credentials.from_file("creds.txt")
 client = Client(creds, Config.production())
 
 rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
@@ -130,9 +152,12 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client, Credentials } from 'thetadatadx';
 
-const client = await Client.connectFromFile('creds.txt');
+// API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
+const client = await Client.connect(Credentials.fromEnvOrFile('creds.txt'));
+// Or pass the key directly: Credentials.fromApiKey(process.env.THETADATA_API_KEY!)
+// Email + password: Client.connectFromFile('creds.txt')
 
 const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
@@ -149,7 +174,10 @@ for (const t of rows) {
 #include <iostream>
 
 int main() {
-    auto creds = thetadatadx::Credentials::from_file("creds.txt");
+    // API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
+    auto creds = thetadatadx::Credentials::from_env_or_file("creds.txt");
+    // Or pass the key directly: thetadatadx::Credentials::from_api_key(std::getenv("THETADATA_API_KEY"))
+    // Email + password: thetadatadx::Credentials::from_file("creds.txt")
     auto client = thetadatadx::HistoricalClient::connect(creds, thetadatadx::Config::production());
 
     auto rows = client.stock_history_eod("AAPL", "20250303", "20250306");
