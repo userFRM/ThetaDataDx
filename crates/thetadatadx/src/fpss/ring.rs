@@ -203,6 +203,17 @@ impl AdaptiveWaitStrategy {
             park_us: park_us.min(Self::MAX_PARK_US),
         }
     }
+
+    /// The [`WaitMode`] that selects this strategy's phase shape.
+    ///
+    /// The mode is the deterministic identity of the resolved strategy:
+    /// it decides whether the consumer ever parks, so a caller can assert
+    /// which preset a config or builder resolved to without observing
+    /// wall-clock timing.
+    #[cfg(test)]
+    pub(crate) fn mode(&self) -> WaitMode {
+        self.mode
+    }
 }
 
 impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
