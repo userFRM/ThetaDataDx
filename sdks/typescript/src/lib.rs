@@ -272,7 +272,7 @@ where
 /// JS shim parses this prefix off the error reason. The canonical leaf
 /// names match the Python `to_py_err` dispatch one-for-one.
 fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
     match e {
         thetadatadx::Error::Auth { kind, .. } => match kind {
             AuthErrorKind::InvalidCredentials => "InvalidCredentialsError",
@@ -309,9 +309,9 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             }
         }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
-            FpssErrorKind::TooManyRequests => "RateLimitError",
-            FpssErrorKind::Timeout => "DeadlineExceededError",
-            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => "NetworkError",
+            StreamErrorKind::TooManyRequests => "RateLimitError",
+            StreamErrorKind::Timeout => "DeadlineExceededError",
+            StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => "NetworkError",
             _ => "StreamError",
         },
         // FlatFiles availability + partial-reconnect failures are

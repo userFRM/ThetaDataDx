@@ -83,7 +83,7 @@ impl std::fmt::Display for TransportErrorKind {
 /// Classification of FPSS streaming failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum FpssErrorKind {
+pub enum StreamErrorKind {
     /// Could not connect to any FPSS server.
     ConnectionRefused,
     /// Operation timed out.
@@ -100,7 +100,7 @@ pub enum FpssErrorKind {
     ReentrantDrain,
 }
 
-impl std::fmt::Display for FpssErrorKind {
+impl std::fmt::Display for StreamErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
@@ -438,7 +438,7 @@ pub enum Error {
     #[error("FPSS error ({kind}): {message}")]
     Fpss {
         /// Concrete FPSS streaming failure category.
-        kind: FpssErrorKind,
+        kind: StreamErrorKind,
         /// Human-readable detail for logs and `Display`.
         message: String,
     },

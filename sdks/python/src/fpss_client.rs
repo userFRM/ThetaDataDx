@@ -364,7 +364,7 @@ impl StreamingClient {
         // thread keeps running while the handshake is in flight. The
         // builder snapshot and the resulting `Result` are pure Rust — no
         // Python object is touched inside the detached region. The
-        // `FpssError` is mapped to the typed Python exception AFTER the
+        // `StreamError` is mapped to the typed Python exception AFTER the
         // GIL is re-acquired, leaving the error surface unchanged.
         let client = py
             .detach(|| self.params.builder().build())

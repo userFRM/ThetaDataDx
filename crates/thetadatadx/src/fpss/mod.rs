@@ -13,7 +13,7 @@
 //! # use thetadatadx::fpss::{StreamingClient, StreamEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # use thetadatadx::fpss::protocol::Contract;
-//! # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
+//! # fn example() -> Result<(), thetadatadx::streaming::StreamError> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
 //!
@@ -126,12 +126,12 @@ use self::protocol::{
 ///
 /// The ping thread uses a blocking `send` for natural backpressure; the public
 /// subscribe / unsubscribe methods use a non-blocking `try_send` and surface a
-/// typed [`FpssErrorKind::Disconnected`] backpressure error rather than ever
+/// typed [`StreamErrorKind::Disconnected`] backpressure error rather than ever
 /// silently dropping a command.
 pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 
 // ---------------------------------------------------------------------------
-// FpssError — typed error enum returned by the FPSS public surface
+// StreamError — typed error enum returned by the FPSS public surface
 // ---------------------------------------------------------------------------
 
 /// Typed errors returned by the FPSS client public surface.
@@ -143,14 +143,14 @@ pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 ///
 /// # Conversions
 ///
-/// `From<FpssError> for Error` maps each `FpssError` variant into an
+/// `From<StreamError> for Error` maps each `StreamError` variant into an
 /// umbrella [`crate::Error`] variant according to the table below.
 /// `DispatcherFailed` does NOT have a dedicated umbrella variant; it
 /// is encoded as `Error::Fpss { kind: Disconnected }` with a
 /// `"dispatcher failed: "` prefix on the message, which the reverse
 /// direction recognises:
 ///
-/// | `FpssError`               | `Error`                                                         |
+/// | `StreamError`               | `Error`                                                         |
 /// |---------------------------|-----------------------------------------------------------------|
 /// | `ConnectionRefused(m)`    | `Error::Fpss { kind: ConnectionRefused, message: m }`           |
 /// | `Timeout(m)`              | `Error::Fpss { kind: Timeout, message: m }`                     |
@@ -162,7 +162,7 @@ pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 /// | `Io(m)`                   | `Error::Io(io::Error::other(m))`                                |
 /// | `DispatcherFailed(m)`     | `Error::Fpss { kind: Disconnected, message: "dispatcher failed: {m}" }` |
 ///
-/// Round-tripping `FpssError → Error → FpssError` preserves the
+/// Round-tripping `StreamError → Error → StreamError` preserves the
 /// variant for every row above (the prefixed message lets the
 /// `Disconnected → DispatcherFailed` decoder run) and preserves the
 /// message string verbatim. Two caveats:
@@ -172,28 +172,28 @@ pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 ///   `io::Error` reports `ErrorKind::Other`. A caller that
 ///   round-trips through `Error` and then inspects the recovered
 ///   `io::ErrorKind` will see `Other`, not whatever kind the original
-///   `FpssError::Io` was carrying in its string form.
+///   `StreamError::Io` was carrying in its string form.
 /// - `Config(m) → Error::Config { kind: InvalidValue { field: "fpss",
 ///   message } }` regenerates `field = "fpss"` unconditionally. A
 ///   caller that converted an `Error::Config { kind: InvalidValue {
-///   field: "<custom>", .. } }` into `FpssError::Config` loses the
+///   field: "<custom>", .. } }` into `StreamError::Config` loses the
 ///   original field name on the round trip.
 /// - `Disconnected(m)` with a user-supplied `m` that happens to start
 ///   with the literal `"dispatcher failed: "` prefix re-emerges as
 ///   `DispatcherFailed` — do not author messages with that prefix
 ///   manually.
 ///
-/// `From<Error> for FpssError` is **best-effort categorisation**. The
+/// `From<Error> for StreamError` is **best-effort categorisation**. The
 /// FPSS-shaped umbrella variants (`Error::Fpss`, `Error::Auth`,
 /// `Error::Config`, `Error::Io`, `Error::Tls`, `Error::Timeout`)
 /// preserve their human-readable message and route to the closest
-/// `FpssError` variant; everything else (gRPC, decode, transport)
-/// collapses to `FpssError::Protocol` with the `Display` string of the
+/// `StreamError` variant; everything else (gRPC, decode, transport)
+/// collapses to `StreamError::Protocol` with the `Display` string of the
 /// source error. Use this direction at SDK boundaries where the
 /// caller already knows the error originated on the FPSS surface.
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
-pub enum FpssError {
+pub enum StreamError {
     /// Could not connect to any FPSS server (TLS handshake failed, no
     /// route, DNS failure, etc.).
     #[error("connection refused: {0}")]
@@ -246,43 +246,43 @@ pub enum FpssError {
     Io(String),
 }
 
-impl From<FpssError> for Error {
-    fn from(e: FpssError) -> Self {
-        use crate::error::{AuthErrorKind, ConfigErrorKind, FpssErrorKind};
+impl From<StreamError> for Error {
+    fn from(e: StreamError) -> Self {
+        use crate::error::{AuthErrorKind, ConfigErrorKind, StreamErrorKind};
         match e {
-            FpssError::ConnectionRefused(message) => Error::Fpss {
-                kind: FpssErrorKind::ConnectionRefused,
+            StreamError::ConnectionRefused(message) => Error::Fpss {
+                kind: StreamErrorKind::ConnectionRefused,
                 message,
             },
-            FpssError::Timeout(message) => Error::Fpss {
-                kind: FpssErrorKind::Timeout,
+            StreamError::Timeout(message) => Error::Fpss {
+                kind: StreamErrorKind::Timeout,
                 message,
             },
-            FpssError::Protocol(message) => Error::Fpss {
-                kind: FpssErrorKind::ProtocolError,
+            StreamError::Protocol(message) => Error::Fpss {
+                kind: StreamErrorKind::ProtocolError,
                 message,
             },
-            FpssError::Disconnected(message) => Error::Fpss {
-                kind: FpssErrorKind::Disconnected,
+            StreamError::Disconnected(message) => Error::Fpss {
+                kind: StreamErrorKind::Disconnected,
                 message,
             },
-            FpssError::RateLimited(message) => Error::Fpss {
-                kind: FpssErrorKind::TooManyRequests,
+            StreamError::RateLimited(message) => Error::Fpss {
+                kind: StreamErrorKind::TooManyRequests,
                 message,
             },
-            FpssError::AuthenticationFailed(message) => Error::Auth {
+            StreamError::AuthenticationFailed(message) => Error::Auth {
                 kind: AuthErrorKind::InvalidCredentials,
                 message,
             },
-            FpssError::DispatcherFailed(message) => Error::Fpss {
-                kind: FpssErrorKind::Disconnected,
+            StreamError::DispatcherFailed(message) => Error::Fpss {
+                kind: StreamErrorKind::Disconnected,
                 message: format!("dispatcher failed: {message}"),
             },
-            FpssError::ReentrantDrain(message) => Error::Fpss {
-                kind: FpssErrorKind::ReentrantDrain,
+            StreamError::ReentrantDrain(message) => Error::Fpss {
+                kind: StreamErrorKind::ReentrantDrain,
                 message,
             },
-            FpssError::Config(message) => Error::Config {
+            StreamError::Config(message) => Error::Config {
                 kind: ConfigErrorKind::InvalidValue {
                     field: "fpss".to_string(),
                     message: message.clone(),
@@ -290,37 +290,37 @@ impl From<FpssError> for Error {
                 message,
                 source: None,
             },
-            FpssError::Io(message) => Error::Io(std::io::Error::other(message)),
+            StreamError::Io(message) => Error::Io(std::io::Error::other(message)),
         }
     }
 }
 
-impl From<Error> for FpssError {
+impl From<Error> for StreamError {
     fn from(e: Error) -> Self {
-        use crate::error::FpssErrorKind;
+        use crate::error::StreamErrorKind;
         match e {
             Error::Fpss { kind, message } => match kind {
-                FpssErrorKind::ConnectionRefused => FpssError::ConnectionRefused(message),
-                FpssErrorKind::Timeout => FpssError::Timeout(message),
-                FpssErrorKind::ProtocolError => FpssError::Protocol(message),
-                FpssErrorKind::Disconnected => {
+                StreamErrorKind::ConnectionRefused => StreamError::ConnectionRefused(message),
+                StreamErrorKind::Timeout => StreamError::Timeout(message),
+                StreamErrorKind::ProtocolError => StreamError::Protocol(message),
+                StreamErrorKind::Disconnected => {
                     if let Some(payload) = message.strip_prefix("dispatcher failed: ") {
-                        FpssError::DispatcherFailed(payload.to_string())
+                        StreamError::DispatcherFailed(payload.to_string())
                     } else {
-                        FpssError::Disconnected(message)
+                        StreamError::Disconnected(message)
                     }
                 }
-                FpssErrorKind::TooManyRequests => FpssError::RateLimited(message),
-                FpssErrorKind::ReentrantDrain => FpssError::ReentrantDrain(message),
+                StreamErrorKind::TooManyRequests => StreamError::RateLimited(message),
+                StreamErrorKind::ReentrantDrain => StreamError::ReentrantDrain(message),
             },
-            Error::Auth { message, .. } => FpssError::AuthenticationFailed(message),
-            Error::Io(io) => FpssError::Io(io.to_string()),
-            Error::Tls(t) => FpssError::ConnectionRefused(t.to_string()),
+            Error::Auth { message, .. } => StreamError::AuthenticationFailed(message),
+            Error::Io(io) => StreamError::Io(io.to_string()),
+            Error::Tls(t) => StreamError::ConnectionRefused(t.to_string()),
             Error::Timeout { duration_ms } => {
-                FpssError::Timeout(format!("deadline exceeded after {duration_ms}ms"))
+                StreamError::Timeout(format!("deadline exceeded after {duration_ms}ms"))
             }
-            Error::Config { message, .. } => FpssError::Config(message),
-            other => FpssError::Protocol(other.to_string()),
+            Error::Config { message, .. } => StreamError::Config(message),
+            other => StreamError::Protocol(other.to_string()),
         }
     }
 }
@@ -385,7 +385,7 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// ```rust,no_run
 /// # use thetadatadx::fpss::{StreamingClient, StreamEvent};
 /// # use thetadatadx::auth::Credentials;
-/// # fn example() -> Result<(), thetadatadx::fpss::FpssError> {
+/// # fn example() -> Result<(), thetadatadx::streaming::StreamError> {
 /// let creds = Credentials::new("user@example.com", "pw");
 /// let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
 ///
@@ -686,12 +686,12 @@ impl<'a> StreamingClientBuilder<'a> {
     ///
     /// # Errors
     ///
-    /// Returns [`FpssError::ConnectionRefused`] if no host accepts the
-    /// TLS handshake, [`FpssError::AuthenticationFailed`] on login
+    /// Returns [`StreamError::ConnectionRefused`] if no host accepts the
+    /// TLS handshake, [`StreamError::AuthenticationFailed`] on login
     /// failure, and other variants on protocol violations or
     /// configuration validation errors.
-    pub fn build(self) -> Result<StreamingClient, FpssError> {
-        StreamingClient::connect(self.into_args()).map_err(FpssError::from)
+    pub fn build(self) -> Result<StreamingClient, StreamError> {
+        StreamingClient::connect(self.into_args()).map_err(StreamError::from)
     }
 
     pub(crate) fn into_args(self) -> FpssConnectArgs<'a> {
@@ -1288,7 +1288,7 @@ impl StreamingClient {
                     });
                 }
                 return Err(Error::Fpss {
-                    kind: crate::error::FpssErrorKind::Disconnected,
+                    kind: crate::error::StreamErrorKind::Disconnected,
                     message: format!("server rejected login: {reason:?}"),
                 });
             }
@@ -1302,7 +1302,7 @@ impl StreamingClient {
             .sock
             .set_read_timeout(Some(io_read_slice))
             .map_err(|e| Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to set read timeout: {e}"),
             })?;
 
@@ -1541,7 +1541,7 @@ impl StreamingClient {
                 });
             })
             .map_err(|e| Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn fpss-io thread: {e}"),
             })?;
 
@@ -1560,7 +1560,7 @@ impl StreamingClient {
                 );
             })
             .map_err(|e| Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn fpss-ping thread: {e}"),
             })?;
 
@@ -1790,18 +1790,18 @@ impl StreamingClient {
     /// The drain is single-consumer: do not re-enter `next_event` (or any
     /// other drain method) from inside a callback driven by this client, and
     /// do not drive two drains on the same client concurrently. A reentrant
-    /// or concurrent drain returns [`FpssError::ReentrantDrain`] rather than
+    /// or concurrent drain returns [`StreamError::ReentrantDrain`] rather than
     /// blocking on the non-reentrant staging mutex, so misuse fails fast
     /// instead of hard-hanging. The normal single-threaded drain always
     /// acquires uncontended and is unaffected.
     ///
     /// # Errors
     ///
-    /// Returns [`FpssError::DispatcherFailed`] if the internal staging
+    /// Returns [`StreamError::DispatcherFailed`] if the internal staging
     /// queue's mutex was poisoned by a panicking caller on a previous
-    /// invocation, or [`FpssError::ReentrantDrain`] if the drain was
+    /// invocation, or [`StreamError::ReentrantDrain`] if the drain was
     /// re-entered or driven concurrently.
-    pub fn next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
+    pub fn next_event(&self) -> Result<Option<StreamEvent>, StreamError> {
         self.pin_consumer_once();
         let waiter = self.wait_strategy;
         loop {
@@ -1820,22 +1820,22 @@ impl StreamingClient {
     /// # Single-consumer contract
     ///
     /// Single-consumer like [`Self::next_event`]: a reentrant (from inside a
-    /// callback) or concurrent drain returns [`FpssError::ReentrantDrain`]
+    /// callback) or concurrent drain returns [`StreamError::ReentrantDrain`]
     /// rather than blocking on the non-reentrant staging mutex.
     ///
     /// # Errors
     ///
-    /// Returns [`FpssError::DispatcherFailed`] if the staging mutex was
-    /// poisoned, or [`FpssError::ReentrantDrain`] if the drain was re-entered
+    /// Returns [`StreamError::DispatcherFailed`] if the staging mutex was
+    /// poisoned, or [`StreamError::ReentrantDrain`] if the drain was re-entered
     /// or driven concurrently.
-    pub fn try_next_event(&self) -> Result<Option<StreamEvent>, FpssError> {
+    pub fn try_next_event(&self) -> Result<Option<StreamEvent>, StreamError> {
         match self.try_next_event_internal()? {
             TryNext::Event(event) => Ok(Some(event)),
             TryNext::Empty | TryNext::Shutdown => Ok(None),
         }
     }
 
-    fn try_next_event_internal(&self) -> Result<TryNext, FpssError> {
+    fn try_next_event_internal(&self) -> Result<TryNext, StreamError> {
         // `try_lock`, not `lock`: the staging mutex is non-reentrant, so a
         // user callback that re-enters a drain method on this client (or a
         // second thread draining concurrently) would hard-hang on a blocking
@@ -1846,14 +1846,14 @@ impl StreamingClient {
         let mut guard = match self.poller_state.try_lock() {
             Ok(guard) => guard,
             Err(std::sync::TryLockError::WouldBlock) => {
-                return Err(FpssError::ReentrantDrain(
+                return Err(StreamError::ReentrantDrain(
                     "next_event/try_next_event must not be re-entered from a callback or driven \
                      concurrently"
                         .to_string(),
                 ));
             }
             Err(std::sync::TryLockError::Poisoned(e)) => {
-                return Err(FpssError::DispatcherFailed(format!(
+                return Err(StreamError::DispatcherFailed(format!(
                     "poller mutex poisoned: {e}"
                 )));
             }
@@ -2681,13 +2681,13 @@ impl StreamingClient {
     fn check_connected(&self) -> Result<(), Error> {
         if self.shutdown.load(Ordering::Acquire) {
             return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
+                kind: crate::error::StreamErrorKind::Disconnected,
                 message: "client is shut down".to_string(),
             });
         }
         if !self.authenticated.load(Ordering::Acquire) {
             return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
+                kind: crate::error::StreamErrorKind::Disconnected,
                 message: "not authenticated".to_string(),
             });
         }
@@ -2970,7 +2970,7 @@ impl StreamingClient {
     /// Uses a non-blocking `try_send` so a public `&self` caller is never
     /// parked behind a saturated channel while holding the command lock. A
     /// full channel and a hung-up I/O thread both map to a typed
-    /// [`FpssErrorKind::Disconnected`] error: the command is reported to the
+    /// [`StreamErrorKind::Disconnected`] error: the command is reported to the
     /// caller, never silently dropped. A full channel means the application is
     /// issuing control-plane commands faster than the I/O thread can drain
     /// them; the caller can retry after the queue clears.
@@ -2981,14 +2981,14 @@ impl StreamingClient {
             .try_send(cmd)
             .map_err(|e| match e {
                 std_mpsc::TrySendError::Full(_) => Error::Fpss {
-                    kind: crate::error::FpssErrorKind::Disconnected,
+                    kind: crate::error::StreamErrorKind::Disconnected,
                     message: format!(
                         "command queue full ({CMD_CHANNEL_CAPACITY} pending); \
                          the I/O thread is draining slower than commands arrive — retry shortly"
                     ),
                 },
                 std_mpsc::TrySendError::Disconnected(_) => Error::Fpss {
-                    kind: crate::error::FpssErrorKind::Disconnected,
+                    kind: crate::error::StreamErrorKind::Disconnected,
                     message: "I/O thread has exited".to_string(),
                 },
             })
@@ -3038,7 +3038,7 @@ pub enum PollOutcome {
 /// invoking [`StreamingClient::next_event`]; surfaces typed errors as
 /// `Some(Err(_))` and terminates with `None` on clean shutdown.
 impl Iterator for &StreamingClient {
-    type Item = Result<StreamEvent, FpssError>;
+    type Item = Result<StreamEvent, StreamError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match StreamingClient::next_event(self) {
@@ -3884,7 +3884,7 @@ mod ring_occupancy_tests {
 
     use super::events::FpssEventInternal;
     use super::ring::RingProducer;
-    use super::{FpssError, HarnessPublishMode, PollOutcome, StreamControl, StreamingClient};
+    use super::{HarnessPublishMode, PollOutcome, StreamControl, StreamError, StreamingClient};
 
     /// Publish one synthetic control event through the test producer.
     fn publish_one(producer: &mut impl RingProducer) -> bool {
@@ -4159,8 +4159,8 @@ mod ring_occupancy_tests {
             "fresh ring must accept a publish"
         );
 
-        let mut next_event_err: Option<FpssError> = None;
-        let mut try_next_err: Option<FpssError> = None;
+        let mut next_event_err: Option<StreamError> = None;
+        let mut try_next_err: Option<StreamError> = None;
         client.poll_batch(|_event| {
             if next_event_err.is_none() {
                 next_event_err = client.next_event().err();
@@ -4169,11 +4169,11 @@ mod ring_occupancy_tests {
         });
 
         assert!(
-            matches!(next_event_err, Some(FpssError::ReentrantDrain(_))),
+            matches!(next_event_err, Some(StreamError::ReentrantDrain(_))),
             "a reentrant next_event must return ReentrantDrain, got {next_event_err:?}"
         );
         assert!(
-            matches!(try_next_err, Some(FpssError::ReentrantDrain(_))),
+            matches!(try_next_err, Some(StreamError::ReentrantDrain(_))),
             "a reentrant try_next_event must return ReentrantDrain, got {try_next_err:?}"
         );
     }
