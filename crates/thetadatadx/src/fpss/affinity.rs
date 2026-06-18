@@ -74,8 +74,21 @@ pub(crate) fn pin_consumer_thread(core: Option<usize>) {
 mod tests {
     use super::*;
 
+    // `LAST_PINNED_CORE` is a process-global singleton; the tests that
+    // reset and read it must serialise so they never observe each other's
+    // writes under `cargo test -- --test-threads=N`. Each test holds the
+    // guard for its full reset + call + assert sequence.
+    fn pin_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        use std::sync::{Mutex, OnceLock};
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
     #[test]
     fn none_does_not_record_a_pin() {
+        let _guard = pin_test_guard();
         LAST_PINNED_CORE.store(-1, Ordering::Relaxed);
         pin_consumer_thread(None);
         assert_eq!(LAST_PINNED_CORE.load(Ordering::Relaxed), -1);
@@ -86,6 +99,7 @@ mod tests {
         // Use a deliberately high core id: it is almost certainly absent
         // on CI, so this exercises the "record the attempt, then no-op
         // gracefully" path without depending on real affinity support.
+        let _guard = pin_test_guard();
         LAST_PINNED_CORE.store(-1, Ordering::Relaxed);
         pin_consumer_thread(Some(4096));
         assert_eq!(LAST_PINNED_CORE.load(Ordering::Relaxed), 4096);
