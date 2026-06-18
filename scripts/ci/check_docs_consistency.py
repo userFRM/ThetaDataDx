@@ -32,7 +32,7 @@ import sys
 import tomllib
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SURFACE = tomllib.loads((ROOT / "crates/thetadatadx/endpoint_surface.toml").read_text())
 ENDPOINTS = SURFACE["endpoints"]
 TEMPLATES = SURFACE["templates"]
@@ -129,7 +129,7 @@ def check_static_docs() -> None:
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the workspace
-    # major; the version-sync gate (`scripts/check_version_sync.py`)
+    # major; the version-sync gate (`scripts/ci/check_version_sync.py`)
     # enforces this against `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
@@ -480,8 +480,8 @@ def check_endpoint_option_surface() -> None:
 
 
 def check_tier_badges() -> None:
-    """Delegate to scripts/check_tier_badges.py so CI catches tier drift."""
-    checker = ROOT / "scripts/check_tier_badges.py"
+    """Delegate to scripts/ci/check_tier_badges.py so CI catches tier drift."""
+    checker = ROOT / "scripts/ci/check_tier_badges.py"
     if not checker.exists():
         fail(f"{checker.relative_to(ROOT)} missing")
     result = subprocess.run(
@@ -490,7 +490,7 @@ def check_tier_badges() -> None:
         check=False,
     )
     if result.returncode != 0:
-        fail("tier badge check failed (see scripts/check_tier_badges.py output above)")
+        fail("tier badge check failed (see scripts/ci/check_tier_badges.py output above)")
 
 
 def main() -> None:

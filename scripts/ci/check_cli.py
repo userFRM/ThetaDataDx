@@ -38,7 +38,7 @@ SLOW_MODE_TIMEOUT_MS = 180_000
 # shouldn't); the OS reaps the child via SIGKILL on expiry.
 SUBPROCESS_KILL_SECS = (SLOW_MODE_TIMEOUT_MS * 3) // 2000
 
-REPO = pathlib.Path(__file__).resolve().parents[1]
+REPO = pathlib.Path(__file__).resolve().parents[2]
 TDX = REPO / "target" / "release" / ("thetadatadx.exe" if os.name == "nt" else "thetadatadx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
@@ -46,7 +46,7 @@ ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 # `declared_min_tier` is informational only (printed on tier-permission
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; surfaces in the
-# per-cell JSON artifact and in scripts/validate_agreement.py output.
+# per-cell JSON artifact and in scripts/ci/check_agreement.py output.
 # `slow` selects `SLOW_MODE_TIMEOUT_MS` over `PER_CELL_TIMEOUT_MS` for
 # bulk-chain / all-strike cells whose payload doesn't fit in 60s.
 CELLS = [
@@ -280,7 +280,7 @@ def _json_row_count(parsed) -> int:
 def _canonicalize(value):
     """Light producer-side canonicalization for first_row values:
     lowercase dict keys, round floats to 6 decimals, recurse into dicts
-    and lists. The validator consumer (scripts/validate_agreement.py)
+    and lists. The validator consumer (scripts/ci/check_agreement.py)
     is the authoritative enforcer, so this is redundant validation;
     the consumer also handles sentinels (date==0, ms<0, strike==0,
     right="") and NaN/Inf, plus omit-equivalence stripping.
@@ -325,7 +325,7 @@ for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
         proc = subprocess.run(
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
             # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
-            # See scripts/validate_agreement.py for the canonical contract.
+            # See scripts/ci/check_agreement.py for the canonical contract.
             # --timeout-ms forwards the SDK-enforced deadline so the
             # subprocess exits cleanly with "Request deadline exceeded"
             # instead of being SIGKILLed by the subprocess kill-switch below.

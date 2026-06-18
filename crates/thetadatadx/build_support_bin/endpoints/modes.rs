@@ -62,7 +62,7 @@ pub(super) struct TestMode {
 ///
 /// Surfaces in three places:
 /// * inline `# rationale:` comment in the generated validator scripts so a
-///   reader of `scripts/validate_python.py` sees per-cell intent;
+///   reader of `scripts/ci/check_python.py` sees per-cell intent;
 /// * `rationale` field in the per-cell JSON artifact; and
 /// * `validate_agreement.py` failure output, so a FAIL line carries the
 ///   feature description not just the mode name.
@@ -118,7 +118,7 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
 /// Minimum subscription tier each endpoint requires.
 ///
 /// Derived at generator-run-time from the pinned upstream OpenAPI snapshot at
-/// `scripts/upstream_openapi.yaml` (parsed by the `upstream_openapi` helper), keyed
+/// `scripts/ci/data/upstream_openapi.yaml` (parsed by the `upstream_openapi` helper), keyed
 /// on the endpoint's `operationId`. Upstream is the sole source of truth for
 /// `x-min-subscription`, so docs-site `<TierBadge>` and this function agree
 /// as long as the snapshot is fresh.
@@ -135,9 +135,9 @@ fn endpoint_min_tier(name: &str) -> &'static str {
     let endpoint = spec.endpoint(name).unwrap_or_else(|| {
         panic!(
             "endpoint '{name}' is missing from the upstream OpenAPI snapshot \
-             at scripts/upstream_openapi.yaml; if this is a new endpoint, add \
+             at scripts/ci/data/upstream_openapi.yaml; if this is a new endpoint, add \
              it as an SDK-only override in `sdk_only_min_tier`, or refresh the \
-             snapshot with `python3 scripts/check_tier_badges.py --refresh-snapshot`."
+             snapshot with `python3 scripts/ci/check_tier_badges.py --refresh-snapshot`."
         )
     });
     match endpoint.min_subscription.as_str() {
@@ -158,7 +158,7 @@ fn endpoint_min_tier(name: &str) -> &'static str {
 /// through [`endpoint_min_tier`]'s snapshot lookup.
 fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
     Some(match name {
-        // Streaming endpoints (FPSS, covered by scripts/fpss_smoke.py, not the
+        // Streaming endpoints (FPSS, covered by scripts/dev/fpss_smoke.py, not the
         // live matrix validator). The value here is still used by
         // `test_modes_for` for display-only `min_tier` on test cells, but the
         // streaming surface is excluded from the matrix anyway.
@@ -307,7 +307,7 @@ pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
 /// Whether an option endpoint accepts `expiration=*` at the v3 server.
 ///
 /// Derived from the pinned upstream snapshot
-/// (`scripts/upstream_openapi.yaml`): upstream binds endpoints that reject
+/// (`scripts/ci/data/upstream_openapi.yaml`): upstream binds endpoints that reject
 /// wildcards to its `expiration_no_star` component parameter (they return
 /// `InvalidArgument -- Cannot specify '*' for the date` if we send `*`),
 /// and wildcard-accepting endpoints to `expiration`. See
@@ -365,8 +365,8 @@ pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static s
 ///     `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard`.
 ///   * **Calendar / rate**: one mode each.
 ///
-/// Stream endpoints are covered by `scripts/fpss_smoke.py` /
-/// `scripts/fpss_soak.py` and intentionally skipped here.
+/// Stream endpoints are covered by `scripts/dev/fpss_smoke.py` /
+/// `scripts/dev/fpss_soak.py` and intentionally skipped here.
 pub(super) fn test_modes_for(
     endpoint: &GeneratedEndpoint,
     fixtures: &TestFixtures,

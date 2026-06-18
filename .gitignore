@@ -18,7 +18,7 @@ build/
 .env
 .claude/worktrees/
 private/
-# Live validator per-cell artifacts (scripts/validate_agreement.py reads these).
+# Live validator per-cell artifacts (scripts/ci/check_agreement.py reads these).
 artifacts/
 todo.md
 out/

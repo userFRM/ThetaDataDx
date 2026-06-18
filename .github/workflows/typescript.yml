@@ -111,7 +111,7 @@ jobs:
         working-directory: sdks/typescript
         run: node scripts/run_doc_examples.mjs
       # H9: emit the public-surface shape manifest so the
-      # cross-language agreement validator (`scripts/validate_agreement.py`)
+      # cross-language agreement validator (`scripts/ci/check_agreement.py`)
       # can compare TypeScript field sets against the Python / CLI /
       # C++ runtime artifacts. Manifest is platform-independent —
       # only run on Linux to avoid duplicate uploads.
@@ -120,7 +120,7 @@ jobs:
         run: node sdks/typescript/scripts/emit_validator_manifest.mjs
       - name: Validator self-test (Python diff engine)
         if: matrix.os == 'ubuntu-latest'
-        run: python3 scripts/validate_agreement_test.py
+        run: python3 scripts/ci/tests/test_check_agreement.py
       - name: Upload TypeScript shape manifest
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7
@@ -134,7 +134,7 @@ jobs:
         run: |
           npm pack --json | tee ../../npm-pack.json
           tar tzf thetadatadx-*.tgz | head -50
-          python3 ../../scripts/inspect_artifacts.py thetadatadx-*.tgz
+          python3 ../../scripts/dev/inspect_artifacts.py thetadatadx-*.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}

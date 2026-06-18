@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test suite for `scripts/check_binding_parity.py` (Gate 2 / #595).
+"""Test suite for `scripts/ci/check_binding_parity.py` (Gate 2 / #595).
 
 Feeds synthetic Rust source + binding sources via tempdir directories
 and asserts positive (all-bound) and negative (missing-on-TS,
@@ -14,7 +14,7 @@ that interprets non-zero as failure.
 
 Run::
 
-    python3 scripts/test_check_binding_parity.py
+    python3 scripts/ci/tests/test_check_binding_parity.py
 
 The companion `--selftest` switch on the production script runs the
 same matrix in-process for a fast smoke-check before the full test
@@ -32,8 +32,8 @@ import sys
 # `_collect_rust_pub_fields` helpers are the SSOT for the parity
 # logic; importing keeps the tests in lockstep with any future
 # refactor of the gate.
-HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
+GATE_DIR = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(GATE_DIR))
 import check_binding_parity as cbp  # noqa: E402
 
 

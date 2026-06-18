@@ -33,7 +33,7 @@ is suppressed when the only reason a line matched was a vendor term.
 
 Run::
 
-    python3 scripts/check_public_surface_leak.py
+    python3 scripts/ci/check_public_surface_leak.py
 
 Exit codes:
 
@@ -42,7 +42,7 @@ Exit codes:
 
 Selftest::
 
-    python3 scripts/check_public_surface_leak.py --selftest
+    python3 scripts/ci/check_public_surface_leak.py --selftest
 
 The selftest plants `tdbe`/`tokio` in a synthetic shipped stub and
 confirms the gate flags it, then confirms a clean stub (and one that
@@ -57,7 +57,7 @@ import re
 import sys
 from typing import Iterable
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 # Globs describing the *shipped* user-facing surface, relative to the

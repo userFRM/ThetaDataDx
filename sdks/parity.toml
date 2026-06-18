@@ -2,7 +2,7 @@
 #
 # Every user-facing class registered on Python is declared here with
 # its current state in TypeScript (napi) and C++ (`thetadatadx.hpp`).
-# `scripts/check_binding_parity.py` parses this file and compares the
+# `scripts/ci/check_binding_parity.py` parses this file and compares the
 # actual binding state of each SDK to the declared state; mismatches
 # fail CI.
 #
@@ -304,7 +304,7 @@ cpp = true
 # `thetadatadx_config_set_reconnect_*` symbols). Dotted-name rows track
 # field-level parity; the parity script's class-existence check skips
 # dotted rows pending the per-field granularity tightening (issue
-# referenced in `scripts/check_binding_parity.py`).
+# referenced in `scripts/ci/check_binding_parity.py`).
 
 [[class]]
 name = "ReconnectConfig.policy"
@@ -412,7 +412,7 @@ cpp = true
 # `thetadatadx::Config::set_retry_*`); the dotted rows below track field-level
 # parity and the parity script's class-existence check skips dotted
 # rows pending the per-field granularity tightening (issue referenced
-# in `scripts/check_binding_parity.py`).
+# in `scripts/ci/check_binding_parity.py`).
 
 [[class]]
 name = "RetryPolicy.initial_delay_ms"
@@ -476,7 +476,7 @@ cpp = true          # `ThetaDataDxStreamParseError` C struct, `thetadatadx::Stre
 #     the SIP-exchange attribution field.
 #
 # Both ticks are implicitly tracked by the parity script's `*Tick`
-# catch-all (`scripts/check_binding_parity.py::_is_implicitly_tracked`)
+# catch-all (`scripts/ci/check_binding_parity.py::_is_implicitly_tracked`)
 # alongside every other generator-emitted tick wrapper. The rows
 # below are documentation anchors so the parity matrix records the
 # Additions; the script does not gate on dotted-name rows.
@@ -977,7 +977,7 @@ ffi = true
 #
 #   class       — the canonical class name (Python pyclass / TS napi
 #                 class / C++ class). For C++ alias names see
-#                 `scripts/check_binding_parity.py::CPP_ALIASES`
+#                 `scripts/ci/check_binding_parity.py::CPP_ALIASES`
 #                 (e.g. `Contract` -> `FluentContract`).
 #   name        — the canonical method name in camelCase. The parity
 #                 checker derives the snake_case form for Python +
@@ -2832,7 +2832,7 @@ cpp = true
 # shipped header, the `ffi/src` source, and the Rust registry are
 # cross-checked for agreement so a header/source/registry divergence trips
 # without duplicating the broader `.so`-vs-header completeness checker
-# (`scripts/check_c_abi_completeness.py`).
+# (`scripts/ci/check_c_abi_completeness.py`).
 
 [[historical_base]]
 name = "calendar_on_date"

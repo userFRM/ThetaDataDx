@@ -29,7 +29,7 @@ from thetadatadx import Credentials, Config, Client
 
 PER_CELL_TIMEOUT_MS = 60_000
 SLOW_MODE_TIMEOUT_MS = 180_000
-ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / "artifacts" / "validator_python.json"
+ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[2] / "artifacts" / "validator_python.json"
 
 client = Client(Credentials.from_file(sys.argv[1]), Config.production())
 
@@ -38,7 +38,7 @@ client = Client(Credentials.from_file(sys.argv[1]), Config.production())
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; it surfaces in the
 # per-cell JSON artifact and in the cross-language agreement disagreement
-# output (see scripts/validate_agreement.py). Each callable threads
+# output (see scripts/ci/check_agreement.py). Each callable threads
 # timeout_ms=PER_CELL_TIMEOUT_MS so the SDK enforces the budget.
 CELLS = [
     # stock_list_symbols::basic
@@ -1198,7 +1198,7 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
             continue
         # Exception messages can span multiple lines; escape them at the
         # producer so the agreement-table row stays on one line. See
-        # scripts/validate_agreement.py disagreement output.
+        # scripts/ci/check_agreement.py disagreement output.
         detail = str(exc).replace("\n", "\\n").replace("\r", "\\r")[:200]
         print(f"  {label:60s} FAIL  {exc}", flush=True)
         fail_count += 1

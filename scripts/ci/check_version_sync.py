@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 CANONICAL_CARGO = ROOT / "crates" / "thetadatadx" / "Cargo.toml"
 CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
 PY_INIT = ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.py"

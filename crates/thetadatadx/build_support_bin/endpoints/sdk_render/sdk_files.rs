@@ -189,11 +189,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: typescript::render_typescript_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "scripts/validate_cli.py",
+            relative_path: "scripts/ci/check_cli.py",
             contents: cli_validate::render_cli_validate(&parsed.endpoints, &fixtures),
         },
         GeneratedSourceFile {
-            relative_path: "scripts/validate_python.py",
+            relative_path: "scripts/ci/check_python.py",
             contents: python_validate::render_python_validate(&parsed.endpoints, &fixtures),
         },
         GeneratedSourceFile {

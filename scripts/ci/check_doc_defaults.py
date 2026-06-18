@@ -29,7 +29,7 @@ into a false match.
 
 Run::
 
-    python3 scripts/check_doc_defaults.py
+    python3 scripts/ci/check_doc_defaults.py
 
 Exit codes:
 
@@ -40,7 +40,7 @@ Exit codes:
 
 Selftest::
 
-    python3 scripts/check_doc_defaults.py --selftest
+    python3 scripts/ci/check_doc_defaults.py --selftest
 
 The selftest plants a wrong documented default in a synthetic tree,
 confirms the gate catches it, then confirms the gate passes once the
@@ -56,7 +56,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 CONFIG_DIR = pathlib.Path("crates/thetadatadx/src/config")
 

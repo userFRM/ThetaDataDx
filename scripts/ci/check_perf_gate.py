@@ -2,7 +2,7 @@
 """Gate per-binding performance on deterministic allocation counts.
 
 The Rust core already has a Criterion wall-clock regression gate
-(`scripts/check_bench_regression.py`). This companion gate watches a
+(`scripts/ci/check_bench_regression.py`). This companion gate watches a
 metric that a wall-clock gate cannot watch safely on shared CI runners:
 allocations per decoded row.
 
@@ -62,7 +62,7 @@ Each `metric_file` is a harness-written report keyed by the same
 
 Run from the repo root after the bench has written its metric file::
 
-    python3 scripts/check_perf_gate.py
+    python3 scripts/ci/check_perf_gate.py
 """
 
 from __future__ import annotations

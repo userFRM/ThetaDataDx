@@ -7,7 +7,7 @@ name: Perf Gate
 # decodes with the identical number of allocations on a 2-vCPU hosted
 # runner and on a developer workstation, so the gate runs on shared
 # hardware without flaking. The rationale is documented in full in the
-# header of `scripts/check_perf_gate.py`.
+# header of `scripts/ci/check_perf_gate.py`.
 #
 # Kept in its own workflow file (not folded into `ci.yml`) so the gate's
 # bench step and baseline evolve without colliding with other in-flight
@@ -57,4 +57,4 @@ jobs:
         # count over a fixed row count, no jitter), so the threshold is
         # tight; the floor keeps the gate meaningful if a baseline ever
         # approaches zero allocations per row.
-        run: python3 scripts/check_perf_gate.py --threshold 10
+        run: python3 scripts/ci/check_perf_gate.py --threshold 10

@@ -45,7 +45,7 @@ struct CellRecord {
     std::string mode;
     // rationale is the one-sentence cell description from the generator
     // (rationale_for_mode in build_support/endpoints/modes.rs); surfaces
-    // in scripts/validate_agreement.py disagreement output.
+    // in scripts/ci/check_agreement.py disagreement output.
     std::string rationale;
     std::string status;
     int row_count = 0;
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
                     rec.status = "FAIL";
                     // Runtime error messages can contain embedded newlines;
                     // escape them so the agreement-table row stays on one
-                    // line (see scripts/validate_agreement.py).
+                    // line (see scripts/ci/check_agreement.py).
                     std::string d = e.what();
                     for (size_t pos = 0; (pos = d.find('\n', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\n"); pos += 2; }
                     for (size_t pos = 0; (pos = d.find('\r', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\r"); pos += 2; }

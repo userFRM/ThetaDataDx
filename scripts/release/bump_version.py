@@ -2,7 +2,7 @@
 """Bump every user-visible version pin in lockstep.
 
 Usage:
-    scripts/bump_version.py 8.0.30
+    scripts/release/bump_version.py 8.0.30
 
 Reads the canonical version from ``crates/thetadatadx/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
@@ -14,7 +14,7 @@ sdks/typescript), and the three ``optionalDependencies`` pins inside
 ``cargo update --workspace`` against every manifest that carries its own
 lockfile.
 
-After the bump, ``scripts/check_version_sync.py`` runs to verify nothing
+After the bump, ``scripts/ci/check_version_sync.py`` runs to verify nothing
 got missed. Exits non-zero if anything is out of sync.
 
 This is the only supported way to bump the SDK version. Doing it by
@@ -30,7 +30,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 WORKSPACE_CARGOS = [
     ROOT / "crates" / "thetadatadx" / "Cargo.toml",
@@ -124,7 +124,7 @@ def cargo_update(manifest: Path) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        sys.exit("usage: scripts/bump_version.py <new-version>")
+        sys.exit("usage: scripts/release/bump_version.py <new-version>")
     target = argv[1]
     parse_semver(target)
     current = current_canonical()
@@ -150,9 +150,9 @@ def main(argv: list[str]) -> int:
     for manifest in SUB_LOCK_MANIFESTS:
         cargo_update(manifest)
 
-    print("verifying with scripts/check_version_sync.py ...")
+    print("verifying with scripts/ci/check_version_sync.py ...")
     subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "check_version_sync.py")],
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_version_sync.py")],
         cwd=ROOT,
         check=True,
     )

@@ -26,7 +26,7 @@ gap before. Only build output and vendored trees are excluded.
 
 Run::
 
-    python3 scripts/check_no_re_framing.py
+    python3 scripts/ci/check_no_re_framing.py
 
 Exit codes:
 
@@ -35,7 +35,7 @@ Exit codes:
 
 Selftest::
 
-    python3 scripts/check_no_re_framing.py --selftest
+    python3 scripts/ci/check_no_re_framing.py --selftest
 
 The selftest plants a `reverse-engineered the Java terminal` line in a
 synthetic source file and confirms the gate flags it, then confirms a
@@ -51,7 +51,7 @@ import re
 import sys
 from typing import Iterable
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 # Every text file with one of these extensions is scanned, anywhere in

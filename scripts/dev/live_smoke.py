@@ -20,7 +20,7 @@ import urllib.request
 from typing import Any
 
 
-REPO = pathlib.Path(__file__).resolve().parents[1]
+REPO = pathlib.Path(__file__).resolve().parents[2]
 HIST_SYMBOL = "AAPL"
 HIST_START = "20260401"
 HIST_END = "20260402"

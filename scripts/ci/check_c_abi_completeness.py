@@ -26,7 +26,7 @@ Exits non-zero on any gap. Run from the repo root.
 
 Usage:
     cargo build -p thetadatadx-ffi --release
-    python3 scripts/check_c_abi_completeness.py
+    python3 scripts/ci/check_c_abi_completeness.py
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ import subprocess
 import sys
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 FFI_SRC = REPO_ROOT / "ffi" / "src"
 CPP_INCLUDE = REPO_ROOT / "sdks" / "cpp" / "include"
 # Linux / macOS share the .so / .dylib output naming; the loader

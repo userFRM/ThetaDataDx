@@ -10,11 +10,11 @@ distribution channels; one slipped credential is permanent.
 Usage::
 
     # auto-discover artifacts in dist/ + sdks/typescript/
-    python3 scripts/inspect_artifacts.py
+    python3 scripts/dev/inspect_artifacts.py
 
     # inspect a specific wheel / tarball / directory
-    python3 scripts/inspect_artifacts.py dist/thetadatadx-10.0.0-py3-none-any.whl
-    python3 scripts/inspect_artifacts.py sdks/typescript/thetadatadx-10.0.0.tgz
+    python3 scripts/dev/inspect_artifacts.py dist/thetadatadx-10.0.0-py3-none-any.whl
+    python3 scripts/dev/inspect_artifacts.py sdks/typescript/thetadatadx-10.0.0.tgz
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import zipfile
 from typing import Iterable
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 # Patterns that absolutely must not appear in a distributed artifact.
