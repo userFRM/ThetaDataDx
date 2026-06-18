@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx",
-  "version": "13.0.0-rc.2",
+  "version": "13.0.0-rc.3",
   "description": "Native ThetaData market-data SDK for Node.js",
   "license": "Apache-2.0",
   "repository": {
@@ -31,9 +31,9 @@
     "@types/node": "20.19.42"
   },
   "optionalDependencies": {
-    "thetadatadx-darwin-arm64": "13.0.0-rc.2",
-    "thetadatadx-linux-x64-gnu": "13.0.0-rc.2",
-    "thetadatadx-win32-x64-msvc": "13.0.0-rc.2"
+    "thetadatadx-darwin-arm64": "13.0.0-rc.3",
+    "thetadatadx-linux-x64-gnu": "13.0.0-rc.3",
+    "thetadatadx-win32-x64-msvc": "13.0.0-rc.3"
   },
   "engines": {
     "node": ">= 20"

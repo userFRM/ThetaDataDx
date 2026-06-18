@@ -2284,7 +2284,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "13.0.0-rc.2"
+version = "13.0.0-rc.3"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -2327,7 +2327,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "13.0.0-rc.2"
+version = "13.0.0-rc.3"
 dependencies = [
  "arrow",
  "libc",

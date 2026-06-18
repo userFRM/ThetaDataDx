@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.3] - 2026-06-18
+
+### Removed
+
+- The discontinued Go SDK's lingering references are removed from the public surface. The OpenAPI reference document no longer lists or renders Go code samples, and the crate metadata and comments no longer mention Go. No other binding is affected and there are no API changes since rc.2.
+
+### Internal
+
+- The repository's automation scripts are reorganized into `ci`, `release`, and `dev` groups behind a single gate dispatcher, with the dormant Go codegen scaffolding removed. This is repository tooling only and does not change any published package.
+
 ## [13.0.0-rc.2] - 2026-06-18
 
 ### Added
@@ -3759,7 +3769,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...HEAD
+[13.0.0-rc.3]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...v13.0.0-rc.3
 [13.0.0-rc.2]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...v13.0.0-rc.2
 [13.0.0-rc.1]: https://github.com/userFRM/ThetaDataDx/compare/v12.0.0...v13.0.0-rc.1
 [12.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v11.0.1...v12.0.0
