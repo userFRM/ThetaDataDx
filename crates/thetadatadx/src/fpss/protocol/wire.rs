@@ -32,11 +32,16 @@ use zeroize::Zeroizing;
 ///
 /// # Errors
 ///
-/// Returns [`Error::Config`] (`InvalidValue`) if the assembled payload would
-/// exceed the [`MAX_PAYLOAD_LEN`] (255-byte) single-frame limit. The payload
-/// length is `3 + username.len() + password.len()`; oversized credentials are
-/// rejected here so the caller gets a typed configuration error instead of a
-/// frame-construction panic.
+/// Returns [`Error::Config`] (`InvalidValue`) if the username is 128 bytes or
+/// longer: the on-wire length field is a single byte widened to a short, so it
+/// can only faithfully represent 0..=127 bytes, and a larger length would emit
+/// a frame whose length field disagrees with the bytes that follow.
+///
+/// Also returns [`Error::Config`] (`InvalidValue`) if the assembled payload
+/// would exceed the [`MAX_PAYLOAD_LEN`] (255-byte) single-frame limit. The
+/// payload length is `3 + username.len() + password.len()`; oversized
+/// credentials are rejected here so the caller gets a typed configuration
+/// error instead of a frame-construction panic.
 ///
 /// # Secret handling
 ///
@@ -71,12 +76,28 @@ pub fn build_credentials_payload(
         ));
     }
 
-    // Match the wire's `putShort((byte)len)` behavior: the length is first
-    // narrowed to a byte (i8), then sign-extended to a short (i16). For
-    // lengths 0-127 this is identical to a plain u16 cast. For lengths
-    // 128-255 the sign extension sets the high byte to 0xFF. In practice
-    // usernames are always <128 bytes, but we match the exact wire
-    // encoding for correctness. The truncation to i8 is intentional.
+    // The username length travels the wire as a single byte that is then
+    // widened to a short, so it can only faithfully represent lengths
+    // 0..=127. A length of 128 or more would set the sign bit and widen to a
+    // 0xFF.. short, producing a length field that disagrees with the bytes
+    // that follow. Real usernames (emails) are far under this bound, so we
+    // fail closed on the unrepresentable range rather than emit a frame whose
+    // length field is wrong.
+    if user_bytes.len() >= 128 {
+        return Err(Error::config_invalid(
+            "auth.credentials",
+            format!(
+                "username is {} bytes; the FPSS credentials length field is a \
+                 single byte and can only represent 0..=127 bytes; shorten the \
+                 email",
+                user_bytes.len()
+            ),
+        ));
+    }
+
+    // With the 0..=127 invariant enforced above, the byte and short encodings
+    // coincide: narrowing to i8 then widening to i16 yields the same value as
+    // a plain u16 cast, so this reproduces the exact wire bytes.
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     let user_len = i16::from(user_bytes.len() as i8);
 
@@ -319,6 +340,72 @@ mod tests {
         let payload =
             build_credentials_payload(&username, &password).expect("at-limit creds must build");
         assert_eq!(payload.len(), MAX_PAYLOAD_LEN);
+    }
+
+    #[test]
+    fn credentials_payload_accepts_127_byte_username() {
+        // 127 is the largest username the single-byte length field can encode
+        // without the sign bit flipping. The length byte must read back as the
+        // true length, proving the encoding for the realistic (<128) range is
+        // unchanged.
+        let username = "u".repeat(127);
+        let password = "p"; // 3 + 127 + 1 = 131 bytes, well under the limit
+        let payload =
+            build_credentials_payload(&username, password).expect("127-byte username must build");
+        let user_len = u16::from_be_bytes([payload[1], payload[2]]);
+        assert_eq!(user_len, 127);
+        assert_eq!(&payload[3..130], username.as_bytes());
+        assert_eq!(&payload[130..], b"p");
+    }
+
+    #[test]
+    fn credentials_payload_rejects_128_byte_username() {
+        // 128 bytes would set the sign bit of the single-byte length field and
+        // widen to a 0xFF.. short, so it is rejected up front.
+        let username = "u".repeat(128);
+        let err =
+            build_credentials_payload(&username, "p").expect_err("128-byte username must error");
+        match err {
+            Error::Config {
+                kind: crate::error::ConfigErrorKind::InvalidValue { field, .. },
+                message,
+                ..
+            } => {
+                assert_eq!(field, "auth.credentials");
+                assert!(
+                    message.contains("127"),
+                    "message should name the representable bound: {message}"
+                );
+                assert!(
+                    message.contains("128"),
+                    "message should name the offending length: {message}"
+                );
+            }
+            other => panic!("expected Error::Config InvalidValue, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn credentials_payload_rejects_long_username() {
+        // A clearly oversized username (200 bytes) is rejected on the same
+        // single-byte length invariant, ahead of the total-payload check.
+        let username = "u".repeat(200);
+        let err =
+            build_credentials_payload(&username, "p").expect_err("200-byte username must error");
+        match err {
+            Error::Config {
+                kind: crate::error::ConfigErrorKind::InvalidValue { field, .. },
+                message,
+                ..
+            } => {
+                assert_eq!(field, "auth.credentials");
+                assert!(
+                    message.contains("200"),
+                    "message should name the offending length: {message}"
+                );
+            }
+            other => panic!("expected Error::Config InvalidValue, got {other:?}"),
+        }
     }
 
     #[test]
