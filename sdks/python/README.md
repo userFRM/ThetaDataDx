@@ -36,8 +36,13 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 ## Quick start
 
 > [!TIP]
-> Credentials can come from a `creds.txt` file (email on line 1, password on
-> line 2), an inline `Credentials("you@example.com", "password")`, or the
+> The cleaner way to sign in is an API key: generate one from your
+> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
+> and use `Credentials.from_env_or_file("creds.txt")`. It reads the key from the
+> environment when set and falls back to the file otherwise. To pass the key
+> directly, use `Credentials.from_api_key(key)` (or `Credentials.from_api_key_with_email(email, key)`).
+> Email and password still works: a `creds.txt` file (email on line 1, password
+> on line 2), an inline `Credentials("you@example.com", "password")`, or the
 > `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables.
 
 ```python
