@@ -1309,7 +1309,7 @@ impl Config {
 // DataFrame adapter -- zero-copy handoff to pyarrow via the Arrow C
 // Data Interface. `tick_classes.rs` is the primary return path for
 // all historical endpoints -- matches the typed-struct approach used
-// by Rust core, TypeScript, Go, and C++ FFI.
+// by Rust core, TypeScript, and C++ FFI.
 
 include!("_generated/tick_classes.rs");
 

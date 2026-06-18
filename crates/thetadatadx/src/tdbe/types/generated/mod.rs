@@ -17,7 +17,7 @@
 //! - [`tick`] — `#[repr(C, align(N))]` tick struct definitions, included
 //!   from `super::tick`.
 //! - [`tick_layout_asserts`] — compile-time layout asserts pinned against
-//!   the schema-derived figures the C / Go FFI mirrors and
+//!   the schema-derived figures the C FFI mirror and
 //!   `tick_layout_asserts.hpp.inc` rely on, included from `super::tick`.
 
 // The `*.rs` files are reached via `include!("generated/<name>.rs")`

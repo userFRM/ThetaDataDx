@@ -3,8 +3,8 @@
 // from `crates/thetadatadx/tick_schema.toml`.
 //
 // Per-tick `size_of` / `align_of` / `offset_of!` asserts. Pinned
-// against the Go FFI offset table emitted from the same schema, so
-// any drift between Rust struct layout and the C / Go FFI mirrors
+// against the C FFI offset table emitted from the same schema, so
+// any drift between Rust struct layout and the C FFI mirror
 // surfaces on `cargo test -p thetadatadx` before it lands on the FFI side.
 
 #[cfg(test)]

@@ -130,8 +130,8 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
          // from `crates/thetadatadx/tick_schema.toml`.\n\
          //\n\
          // Per-tick `size_of` / `align_of` / `offset_of!` asserts. Pinned\n\
-         // against the Go FFI offset table emitted from the same schema, so\n\
-         // any drift between Rust struct layout and the C / Go FFI mirrors\n\
+         // against the C FFI offset table emitted from the same schema, so\n\
+         // any drift between Rust struct layout and the C FFI mirror\n\
          // surfaces on `cargo test -p thetadatadx` before it lands on the FFI side.\n\
          \n\
          #[cfg(test)]\n\
@@ -249,8 +249,8 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
 
     // Field order MUST match the legacy `tick.rs` layout for FFI ABI
     // compatibility: `contract_id` triple comes BEFORE `QuoteTick.midpoint`.
-    // Reordering would silently shift offsets for already-compiled C / C++ /
-    // Go consumers even when total `size_of` stays the same.
+    // Reordering would silently shift offsets for already-compiled C / C++
+    // consumers even when total `size_of` stays the same.
     if def.contract_id {
         out.push_str("    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.\n");
         out.push_str("    pub expiration: i32,\n");

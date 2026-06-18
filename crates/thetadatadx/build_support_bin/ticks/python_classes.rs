@@ -1,7 +1,7 @@
 //! Emit `sdks/python/src/_generated/tick_classes.rs` — typed `#[pyclass]` structs,
 //! `<Tick>List` wrapper pyclasses, and list converters.
 //!
-//! Matches the typed-struct approach used by Rust core, TypeScript, Go,
+//! Matches the typed-struct approach used by Rust core, TypeScript,
 //! and C++ FFI. Primary return shape for all historical endpoint methods:
 //! every generated endpoint returns `Py<<TickName>List>`, a typed list
 //! wrapper whose terminal methods chain straight into Arrow / pandas /
@@ -24,7 +24,7 @@ pub(super) fn render_python_tick_classes(
     out.push_str(
         "// Typed pyclass structs per tick type + `<Tick>List` wrappers + list converters.\n",
     );
-    out.push_str("// Matches the typed-struct approach used by Rust core, TypeScript, Go,\n");
+    out.push_str("// Matches the typed-struct approach used by Rust core, TypeScript,\n");
     out.push_str("// and C++ FFI. Primary return shape for historical endpoint methods.\n");
     out.push_str("//\n");
     out.push_str("// Every historical endpoint returns `Py<<TickName>List>`; terminal\n");

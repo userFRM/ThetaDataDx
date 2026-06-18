@@ -239,7 +239,7 @@ jobs:
       # The FFI unwind-safety guard (`tests/panic_boundary.rs`) is gated
       # behind `testing-panic-boundary`. It verifies a panic crossing an
       # `extern "C"` boundary is caught and converted to an error code
-      # instead of aborting the process — the contract every C / C++ / Go /
+      # instead of aborting the process — the contract every C / C++ /
       # Python caller relies on. Without this step the guard compiles to
       # nothing and the boundary is unverified.
       - run: cargo test -p thetadatadx-ffi --locked --features testing-panic-boundary

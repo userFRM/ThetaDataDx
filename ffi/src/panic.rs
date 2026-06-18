@@ -9,7 +9,7 @@
 //! FFI error channel.
 
 /// Wrap an `extern "C"` fn body. Catches panics that would otherwise
-/// abort the host process (C / Go / Python) and converts them into a
+/// abort the host process (C / C++ / Python) and converts them into a
 /// well-defined error return plus a thread-local `last_error` entry.
 ///
 /// The wrapped block must return `T`. On panic, `default` is returned and

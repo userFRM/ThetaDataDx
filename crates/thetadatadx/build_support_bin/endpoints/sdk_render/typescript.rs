@@ -46,7 +46,7 @@ use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming
 use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{
     builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
-    to_camel_case, to_go_exported_name, ts_class_name, ts_class_vec_converter,
+    to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter,
 };
 
 /// napi classes that carry the historical endpoint surface. Both wrap an
@@ -138,7 +138,7 @@ fn render_typescript_historical_impl_block(
 
 /// `stock_history_eod` -> `StockHistoryEodOptions`.
 fn options_struct_name(endpoint: &GeneratedEndpoint) -> String {
-    format!("{}Options", to_go_exported_name(&endpoint.name))
+    format!("{}Options", to_pascal_case(&endpoint.name))
 }
 
 /// Emit the per-endpoint `#[napi(object)]` options struct: one optional

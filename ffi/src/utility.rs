@@ -526,7 +526,7 @@ fn static_cstr(s: &'static str) -> *const c_char {
 //    3. make the panic payload retrievable via `thetadatadx_last_error()`.
 //
 //  The symbols are only compiled in when the feature is enabled, so
-//  the shared library shipped to Go / C++ / Python consumers never
+//  the shared library shipped to C++ / Python consumers never
 //  carries a "panic-on-demand" entry point.
 // ═══════════════════════════════════════════════════════════════════════
 
