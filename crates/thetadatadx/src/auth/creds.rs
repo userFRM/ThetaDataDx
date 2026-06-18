@@ -290,6 +290,10 @@ impl Credentials {
     /// [`Credentials::from_file`] returns for `path`.
     pub fn from_env_or_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         if let Ok(key) = std::env::var(API_KEY_ENV) {
+            // Wrap the environment buffer so the key bytes are wiped on drop
+            // rather than lingering in freed heap; `api_key` keeps its own
+            // zeroized copy.
+            let key = Zeroizing::new(key);
             let trimmed = key.trim();
             if !trimmed.is_empty() {
                 return Ok(Self::api_key(trimmed));

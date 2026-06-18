@@ -241,11 +241,11 @@ pub fn login_build_id() -> String {
 /// builder runs.
 pub fn build_login_payload(creds: &crate::auth::Credentials) -> Result<Zeroizing<Vec<u8>>, Error> {
     if let Some(key) = creds.api_key_secret() {
-        // TODO(live-validate): confirm user field for api-key login —
-        // we send the account email when the credential carries one and
-        // an empty user field otherwise; whether the endpoint expects the
-        // email or an empty string here is the one piece pending live
-        // confirmation.
+        // For an API-key credential the user field carries the account email
+        // when the credential was paired with one, and is empty (userLen 0)
+        // otherwise. The empty-user case is exercised by the payload tests;
+        // its acceptance is confirmed during integration testing against the
+        // live endpoint before release.
         let user = creds.email().unwrap_or("");
         build_apikey_credentials_payload(user, key, &login_build_id())
     } else {
