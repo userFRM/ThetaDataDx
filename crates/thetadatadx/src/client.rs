@@ -1482,6 +1482,192 @@ impl Client {
     pub fn stream(&self) -> StreamSurface<'_> {
         StreamSurface(self)
     }
+
+    /// Flat-files surface — the bulk per-day whole-universe downloads
+    /// (option trade-quote / open-interest / EOD, stock trade-quote /
+    /// EOD), each returning decoded rows in memory, plus a generic
+    /// dispatcher and a write-to-disk entry.
+    ///
+    /// Lightweight borrowed view over the unified client's credentials
+    /// and flat-files retry config; constructing it is a pointer copy and
+    /// performs no connection work. This is the same access shape the
+    /// Python, TypeScript, and C++ bindings expose
+    /// (`client.flat_files().option_trade_quote(date)`), so a flat-file
+    /// pull reads the same across every binding. The lower-level
+    /// standalone free functions in [`crate::flatfiles`] remain available
+    /// for callers who want to pass credentials and config explicitly.
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::Client;
+    /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
+    /// let rows = client.flat_files().option_trade_quote("20240115").await?;
+    /// # let _ = rows;
+    /// # Ok(()) }
+    /// ```
+    #[must_use]
+    pub fn flat_files(&self) -> FlatFiles<'_> {
+        FlatFiles(self)
+    }
+}
+
+/// Borrowed view exposing the unified [`Client`]'s flat-files surface.
+///
+/// Returned by [`Client::flat_files`]. Holds a shared borrow of the
+/// client and forwards every call onto the same credentials and
+/// flat-files retry config the unified client owns — no duplicated state,
+/// no behavior change. Each method delegates to the matching inherent
+/// [`Client`] flat-file method, which in turn drives the
+/// `crate::flatfiles::*_with_config` engine. The view is `Copy`; take it
+/// per call site rather than storing it.
+///
+/// This is the Rust counterpart of the `FlatFiles` / `FlatFilesNamespace`
+/// handle on the Python, TypeScript, and C++ bindings: the method set
+/// (`option_trade_quote`, `option_open_interest`, `option_eod`,
+/// `stock_trade_quote`, `stock_eod`, the generic `request`, and
+/// `to_path`) mirrors them exactly, so flat files are reached the same
+/// way from every binding.
+#[derive(Clone, Copy)]
+pub struct FlatFiles<'a>(&'a Client);
+
+impl FlatFiles<'_> {
+    /// Decoded option trade-quote flat file for `date` (`YYYYMMDD`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on auth / server rejection, malformed wire bytes,
+    /// or local I/O failure.
+    pub async fn option_trade_quote(
+        &self,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(
+                crate::flatfiles::SecType::Option,
+                crate::flatfiles::ReqType::TradeQuote,
+                date,
+            )
+            .await
+    }
+
+    /// Decoded option open-interest flat file for `date` (`YYYYMMDD`).
+    ///
+    /// # Errors
+    ///
+    /// Same conditions as [`Self::option_trade_quote`].
+    pub async fn option_open_interest(
+        &self,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(
+                crate::flatfiles::SecType::Option,
+                crate::flatfiles::ReqType::OpenInterest,
+                date,
+            )
+            .await
+    }
+
+    /// Decoded option end-of-day flat file for `date` (`YYYYMMDD`).
+    ///
+    /// # Errors
+    ///
+    /// Same conditions as [`Self::option_trade_quote`].
+    pub async fn option_eod(
+        &self,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(
+                crate::flatfiles::SecType::Option,
+                crate::flatfiles::ReqType::Eod,
+                date,
+            )
+            .await
+    }
+
+    /// Decoded stock trade-quote flat file for `date` (`YYYYMMDD`).
+    ///
+    /// # Errors
+    ///
+    /// Same conditions as [`Self::option_trade_quote`].
+    pub async fn stock_trade_quote(
+        &self,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(
+                crate::flatfiles::SecType::Stock,
+                crate::flatfiles::ReqType::TradeQuote,
+                date,
+            )
+            .await
+    }
+
+    /// Decoded stock end-of-day flat file for `date` (`YYYYMMDD`).
+    ///
+    /// # Errors
+    ///
+    /// Same conditions as [`Self::option_trade_quote`].
+    pub async fn stock_eod(&self, date: &str) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(
+                crate::flatfiles::SecType::Stock,
+                crate::flatfiles::ReqType::Eod,
+                date,
+            )
+            .await
+    }
+
+    /// Generic dispatcher — pull and decode any served `(sec_type,
+    /// req_type)` flat file for `date` (`YYYYMMDD`).
+    ///
+    /// Useful when the call shape comes from config rather than a static
+    /// method choice. The underlying engine rejects a `(sec_type,
+    /// req_type)` pair the flat-file distribution does not serve with a
+    /// typed invalid-parameter error before any network round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on an unsupported `(sec_type, req_type)` pair, or
+    /// the same conditions as [`Self::option_trade_quote`].
+    pub async fn request(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.0
+            .flatfile_request_decoded(sec_type, req_type, date)
+            .await
+    }
+
+    /// Pull a flat-file blob for `(sec_type, req_type, date)` and write
+    /// the requested `format` directly to `output_path`, skipping the
+    /// typed-row decode.
+    ///
+    /// Useful when the caller only wants the vendor byte-format CSV /
+    /// JSONL on disk and will load it into their own pipeline later. If
+    /// `output_path` lacks a file extension, the format's canonical
+    /// extension (`csv` / `jsonl`) is appended automatically. Returns the
+    /// final on-disk path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on an unsupported `(sec_type, req_type)` pair,
+    /// auth / server rejection, malformed wire bytes, or local I/O
+    /// failure.
+    pub async fn to_path(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.0
+            .flatfile_request(sec_type, req_type, date, output_path, format)
+            .await
+    }
 }
 
 /// Borrowed view exposing the unified [`Client`]'s streaming surface.
@@ -1913,6 +2099,59 @@ mod tests {
             SlotMarker::Live(_) => "Live",
             SlotMarker::Stopped => "Stopped",
         }
+    }
+
+    /// Compile-level proof that [`Client::flat_files`] returns a
+    /// [`FlatFiles`] view and that each method resolves against the right
+    /// argument and return types — mirroring the flat-files surface the
+    /// Python, TypeScript, and C++ bindings expose. No network call is
+    /// made: each method's returned future is fed into a type assertion
+    /// that pins its `Output`, so the signatures are checked at compile
+    /// time without ever polling the future.
+    #[allow(unused)]
+    fn flat_files_view_surface_compiles(client: &Client) {
+        use std::future::Future;
+
+        // Pin a future's `Output` to the decoded-rows result without
+        // awaiting it: constructing the call site is enough to type-check
+        // the method signature.
+        fn assert_rows<F>(_: F)
+        where
+            F: Future<Output = Result<Vec<crate::flatfiles::FlatFileRow>, Error>>,
+        {
+        }
+        fn assert_path<F>(_: F)
+        where
+            F: Future<Output = Result<std::path::PathBuf, Error>>,
+        {
+        }
+
+        let view: FlatFiles<'_> = client.flat_files();
+        // The view is `Copy` — taking it again is a pointer copy.
+        let copy: FlatFiles<'_> = view;
+
+        // Decoded terminals: `&str` date in, `Vec<FlatFileRow>` out.
+        assert_rows(view.option_trade_quote("20240115"));
+        assert_rows(view.option_open_interest("20240115"));
+        assert_rows(view.option_eod("20240115"));
+        assert_rows(view.stock_trade_quote("20240115"));
+        assert_rows(copy.stock_eod("20240115"));
+
+        // Generic decoded dispatcher: typed enums in.
+        assert_rows(view.request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::TradeQuote,
+            "20240115",
+        ));
+
+        // Write-to-disk: typed enums + path + format in, `PathBuf` out.
+        assert_path(view.to_path(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Eod,
+            "20240115",
+            std::path::Path::new("/tmp/out.csv"),
+            crate::flatfiles::FlatFileFormat::Csv,
+        ));
     }
 
     /// Walks Idle → Live → Stopped → Live → Stopped, asserting the
