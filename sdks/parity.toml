@@ -1008,9 +1008,13 @@ ffi = true
 # The unified `Client` exposes its data surfaces through three view
 # accessors — `historical`, `stream`, and `flatFiles` — each returning a
 # cheap handle clone over the inner client. They are symmetric across
-# Python (`#[getter]`), TypeScript (`#[napi(getter)]`), and C++ (a member
-# accessor), and the reverse-orphan scan below fails if any binding drops
-# or renames one without the matrix recording it.
+# Python (`#[getter]`), TypeScript (`#[napi(getter)]`), C++ (a member
+# accessor), and Rust (`Client::flat_files()` returning a borrowed
+# `FlatFiles` view), and the reverse-orphan scan below fails if any
+# binding drops or renames one without the matrix recording it. The
+# `flatFiles` row carries the Rust column so the Rust core accessor is
+# machine-checked alongside the other three; `historical` / `stream`
+# stay on the existing three-binding columns.
 
 [[method]]
 class = "Client"
@@ -1018,6 +1022,7 @@ name = "historical"
 python = true
 typescript = true
 cpp = true
+rust = true         # `Client::historical()` view accessor
 
 [[method]]
 class = "Client"
@@ -1025,6 +1030,7 @@ name = "stream"
 python = true
 typescript = true
 cpp = true
+rust = true         # `Client::stream()` view accessor
 
 [[method]]
 class = "Client"
@@ -1032,6 +1038,7 @@ name = "flatFiles"
 python = true
 typescript = true
 cpp = true
+rust = true         # `Client::flat_files()` view accessor
 
 # ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
 #
@@ -1041,13 +1048,18 @@ cpp = true
 # convenience methods cover exactly the `(SecType, ReqType)` pairs the flat-file
 # distribution serves (option trade_quote / open_interest / eod and stock
 # trade_quote / eod); `request` is the generic string-keyed dispatcher behind them.
-# The namespace class is named `FlatFilesNamespace` on Python and TypeScript and
-# `FlatFiles` on C++; the row carries the canonical name and the C++ alias table
-# routes it to the C++ class body. Per-language method spelling is snake_case on
-# the Python pyclass, camelCase on the TypeScript napi class, snake_case on the
-# C++ class — the per-binding resolvers derive each form from the row name. The
-# reverse-orphan scan over this namespace fails if a binding grows a fetch method
-# with no enrolling row, so a future dataset accessor cannot ship untracked.
+# The namespace class is named `FlatFilesNamespace` on Python and TypeScript,
+# `FlatFiles` on C++, and `FlatFiles` (the borrowed view returned by
+# `Client::flat_files()`) in the Rust core; the row carries the canonical name
+# and the per-binding class maps route it to each binding's class body. Per-
+# language method spelling is snake_case on the Python pyclass, camelCase on the
+# TypeScript napi class, snake_case on the C++ class, and snake_case on the Rust
+# view — the per-binding resolvers derive each form from the row name. Every row
+# carries the Rust column so the Rust `FlatFiles` view is machine-checked
+# alongside the other three bindings, closing the access-shape asymmetry where
+# Rust reached flat files only through standalone free functions. The reverse-
+# orphan scan over this namespace fails if a binding grows a fetch method with no
+# enrolling row, so a future dataset accessor cannot ship untracked.
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1055,6 +1067,7 @@ name = "optionTradeQuote"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1062,6 +1075,7 @@ name = "optionOpenInterest"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1069,6 +1083,7 @@ name = "optionEod"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1076,6 +1091,7 @@ name = "stockTradeQuote"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1083,6 +1099,7 @@ name = "stockEod"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1090,13 +1107,15 @@ name = "request"
 python = true
 typescript = true
 cpp = true
+rust = true
 
 # The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
 # wire format (csv / jsonl) without decoding into rows. Its home class and method
 # spelling diverge per binding: Python exposes it on the unified `Client` as
 # `flatfile_to_path` (one word), TypeScript on `Client` (and `HistoricalClient`)
-# as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`. A single row
-# pins all three; the per-binding home-class + name override below routes the
+# as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`, and the Rust
+# core as `FlatFiles::to_path` on the `Client::flat_files()` view. A single row
+# pins all four; the per-binding home-class + name override below routes the
 # canonical row to each binding's actual symbol so the divergence reads as
 # convention, not drift, and a drop on any binding trips the gate.
 [[method]]
@@ -1105,6 +1124,7 @@ name = "flatFileToPath"
 python = true
 typescript = true
 cpp = true
+rust = true         # `FlatFiles::to_path` on the `Client::flat_files()` view
 
 [[method]]
 class = "StreamView"

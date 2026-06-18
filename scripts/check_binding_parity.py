@@ -1310,8 +1310,62 @@ METHOD_BINDING_OVERRIDES: dict[tuple[str, str], dict[str, tuple[str, str]]] = {
         "python": ("Client", "flatfile_to_path"),
         "typescript": ("Client", "flatFileToPath"),
         "cpp": ("FlatFiles", "to_path"),
+        # Rust exposes the blob-to-disk helper as `FlatFiles::to_path` on
+        # the view returned by `Client::flat_files()` — the same `to_path`
+        # spelling and home class as C++.
+        "rust": ("FlatFiles", "to_path"),
     },
 }
+
+
+# Parity-toml `class` field → the Rust struct the Rust method collector
+# keys on. The flat-file namespace is the borrowed `FlatFiles` view
+# returned by `Client::flat_files()`; the unified entry-point client is
+# `Client`. Both live in `crates/thetadatadx/src/client.rs`. A row class
+# absent from this table is not gated on the Rust column (Python /
+# TypeScript / C++ only), so the Rust column is opt-in per row — exactly
+# the surfaces where Rust must mirror the other bindings.
+RUST_METHOD_CLASS: dict[str, str] = {
+    "FlatFilesNamespace": "FlatFiles",
+    "Client": "Client",
+}
+
+
+def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
+    """Return `{rust_class: {method, ...}}` for the public methods on the
+    Rust view structs that mirror the cross-binding surface.
+
+    Parses every `impl FlatFiles<...> { ... }` and `impl Client { ... }`
+    block in `client.rs` and collects each `pub fn <name>` /
+    `pub async fn <name>` (snake_case). `#[cfg(...)]` / `#[doc(hidden)]`
+    gated methods are skipped — they are not part of the published surface
+    a binding must mirror. The harvested set is keyed by the bare Rust
+    struct name (`FlatFiles`, `Client`), which the forward check resolves
+    a parity row's class to via `RUST_METHOD_CLASS`.
+    """
+    out: dict[str, set[str]] = {}
+    if not client_rs.is_file():
+        return out
+    text = client_rs.read_text(encoding="utf-8")
+    # `pub fn <name>(` or `pub async fn <name>(`, capturing any leading
+    # attribute lines so cfg/doc-hidden gating can be honoured.
+    pub_fn_re = re.compile(
+        r"((?:#\[[^\]]*\]\s*)*)\bpub\s+(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
+    )
+    for struct in ("FlatFiles", "Client"):
+        # `impl FlatFiles<'_> {` / `impl Client {` — tolerate an optional
+        # generic / lifetime parameter list before the brace. Walk every
+        # matching impl block (there are several `impl Client` blocks).
+        impl_re = re.compile(rf"impl\s+{struct}\b[^{{]*\{{")
+        for header in impl_re.finditer(text):
+            body = _balanced_body(text, header.end())
+            for m in pub_fn_re.finditer(body):
+                attrs = m.group(1)
+                name = m.group(2)
+                if "cfg(" in attrs or "doc(hidden)" in attrs:
+                    continue
+                out.setdefault(struct, set()).add(name)
+    return out
 
 
 def _check_method_rows(
@@ -1319,6 +1373,7 @@ def _check_method_rows(
     py_methods: dict[str, set[str]],
     ts_methods: dict[str, set[str]],
     cpp_methods: dict[str, set[str]],
+    rust_methods: dict[str, set[str]] | None = None,
 ) -> list[str]:
     """Per-method cross-binding gate.
 
@@ -1423,6 +1478,38 @@ def _check_method_rows(
                 f"or `get_{cpp_member}(` inside `class {cpp_class}` body in "
                 f"sdks/cpp/include/thetadatadx.hpp)"
             )
+
+        # Rust: `pub fn <snake>` / `pub async fn <snake>` inside the
+        # matching `impl <Struct>` block in `client.rs`. Only rows whose
+        # class maps through `RUST_METHOD_CLASS` are gated on the Rust
+        # column — the surfaces where the Rust core must mirror the other
+        # bindings (the unified `Client` view accessors and the `FlatFiles`
+        # view fetch + path methods). An override entry already names the
+        # resolved Rust `(struct, member)`; otherwise the row's class is
+        # mapped to its Rust struct and the member is the snake_case name.
+        # The column is opt-in: a row that omits `rust` and whose class is
+        # not mapped is simply not Rust-gated, so this never weakens the
+        # existing Python / TypeScript / C++ checks.
+        rust_lookup_class: str | None
+        if override and "rust" in override:
+            rust_lookup_class, rust_member = override["rust"]
+        elif class_name in RUST_METHOD_CLASS:
+            rust_lookup_class, rust_member = RUST_METHOD_CLASS[class_name], snake
+        else:
+            rust_lookup_class, rust_member = None, snake
+        if rust_lookup_class is not None:
+            declared_rust = row.get("rust", False)
+            rust_class_methods = (rust_methods or {}).get(rust_lookup_class, set())
+            actual_rust = rust_member in rust_class_methods
+            if declared_rust != actual_rust:
+                verb = "missing" if declared_rust and not actual_rust else "unexpected"
+                errors.append(
+                    f"  {class_name}.{camel}.rust: declared={declared_rust}, "
+                    f"actual={actual_rust} ({verb} -- expected "
+                    f"`pub fn {rust_member}` or `pub async fn {rust_member}` "
+                    f"inside `impl {rust_lookup_class}` in "
+                    f"crates/thetadatadx/src/client.rs)"
+                )
 
     # Reverse-direction orphan scan for the unified-client view accessors.
     # An accessor present on the `Client` class in a binding but carrying
@@ -4137,6 +4224,7 @@ def main(argv: list[str] | None = None) -> int:
     py_class_methods = _collect_python_class_methods(PY_SRC)
     ts_class_methods = _collect_typescript_class_methods(TS_SRC)
     cpp_class_methods = _collect_cpp_class_methods(CPP_HPP)
+    rust_view_methods = _collect_rust_view_methods(CORE_CLIENT_RS)
 
     declared_names: set[str] = {row["name"] for row in rows}
 
@@ -4172,7 +4260,11 @@ def main(argv: list[str] | None = None) -> int:
     # load-bearing user-facing classes — `Client`,
     # `StreamingClient`, `Credentials`, `Config`).
     method_errors = _check_method_rows(
-        method_rows, py_class_methods, ts_class_methods, cpp_class_methods
+        method_rows,
+        py_class_methods,
+        ts_class_methods,
+        cpp_class_methods,
+        rust_view_methods,
     )
 
     # Reverse-direction orphan check on the core streaming surfaces: a
@@ -5367,6 +5459,99 @@ def _run_selftest() -> int:
     _case("flatfiles negative — dropped C++ to_path trips overridden row", _case_flatfiles_to_path_override_drop_trips)
     _case("flatfiles negative — unenrolled namespace fetch method trips", _case_flatfiles_namespace_orphan_trips)
     _case("flatfiles positive — namespace collector artifacts exempt", _case_flatfiles_namespace_artifacts_exempt)
+
+    def _case_method_rust_column_resolves() -> None:
+        """A `FlatFilesNamespace` fetch row with `rust = true` resolves to the
+        Rust `FlatFiles` view via `RUST_METHOD_CLASS` and the snake_case name."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "optionTradeQuote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "rust": True,
+            }
+        ]
+        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
+        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
+        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
+        rust_methods = {"FlatFiles": {"option_trade_quote"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
+        assert errors == [], (
+            f"rust-column fetch row must resolve to the FlatFiles view; got {errors!r}"
+        )
+
+    def _case_method_rust_column_missing_trips() -> None:
+        """`rust = true` but the method is absent on the Rust view — trips."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "optionTradeQuote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "rust": True,
+            }
+        ]
+        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
+        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
+        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
+        rust_methods: dict[str, set[str]] = {"FlatFiles": set()}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
+        assert any("optionTradeQuote" in e and ".rust" in e and "missing" in e for e in errors), (
+            f"missing Rust view method must trip the rust column; got {errors!r}"
+        )
+
+    def _case_method_rust_to_path_override_resolves() -> None:
+        """The blob-to-disk row resolves its Rust target through
+        `METHOD_BINDING_OVERRIDES` to `FlatFiles::to_path`, alongside the
+        divergent Python / TS / C++ homes."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "flatFileToPath",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+                "rust": True,
+            }
+        ]
+        py_methods = {"Client": {"flatfile_to_path"}}
+        ts_methods = {"Client": {"flatFileToPath"}}
+        cpp_methods = {"FlatFiles": {"to_path"}}
+        rust_methods = {"FlatFiles": {"to_path"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
+        assert errors == [], (
+            f"rust to_path override must resolve to FlatFiles::to_path; got {errors!r}"
+        )
+
+    def _case_method_rust_column_opt_in() -> None:
+        """A row whose class is not in `RUST_METHOD_CLASS` and omits `rust` is
+        not Rust-gated — the Rust column stays opt-in and never weakens the
+        existing three-binding checks."""
+        rows = [
+            {
+                "class": "Contract",
+                "name": "quote",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"Contract": {"quote"}}
+        ts_methods = {"Contract": {"quote"}}
+        cpp_methods = {"FluentContract": {"quote"}}
+        # No rust_methods passed at all (defaults to None) — must stay silent.
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"unmapped class without rust column must not be Rust-gated; got {errors!r}"
+        )
+
+    _case("method positive — rust column resolves to the FlatFiles view", _case_method_rust_column_resolves)
+    _case("method negative — rust column missing on view trips", _case_method_rust_column_missing_trips)
+    _case("method positive — rust to_path override resolves", _case_method_rust_to_path_override_resolves)
+    _case("method positive — rust column is opt-in for unmapped classes", _case_method_rust_column_opt_in)
 
     def _case_value_field_positive_matches() -> None:
         """Declared Rust + C++ field types match the sources — gate silent."""

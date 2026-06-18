@@ -30,6 +30,10 @@
 //!     }
 //! })?;
 //! client.stream().subscribe(Contract::stock("AAPL").quote())?;
+//!
+//! // Bulk flat files — on the `flat_files` surface, decoded in memory
+//! let rows = client.flat_files().option_trade_quote("20240115").await?;
+//! # let _ = rows;
 //! # Ok(()) }
 //! ```
 //!
@@ -265,7 +269,7 @@ pub use mdds::registry::{
 
 pub use auth::Credentials;
 pub use backoff::JitterMode;
-pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
+pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
 pub use config::{
     DirectConfig, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
@@ -368,9 +372,14 @@ pub mod historical {
 
 /// Bulk flat-file downloads from ThetaData's flat-file distribution.
 ///
-/// Use [`flatfile_request`] to write directly to disk, or
+/// For the accessor shape that matches the Python, TypeScript, and C++
+/// bindings, use [`Client::flat_files`] to reach the same surface through
+/// a [`FlatFiles`] view (`client.flat_files().option_trade_quote(date)`).
+/// The free functions below are the lower-level API: use
+/// [`flatfile_request`] to write directly to disk, or
 /// [`flatfile_request_decoded`] to materialise rows in memory.
 pub mod flatfiles_api {
+    pub use crate::client::FlatFiles;
     pub use crate::flatfiles::{
         default_output_filename as flatfile_default_filename, flatfile_request,
         flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,

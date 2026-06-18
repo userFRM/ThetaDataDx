@@ -18,12 +18,17 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 ```rust
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 
-// Vendor-format file straight to disk (bounded memory):
-client.flatfile_option_trade_quote("20250303", "trade_quotes.csv", FlatFileFormat::Csv).await?;
+// Decoded rows in memory, via the `flat_files` view:
+let rows = client.flat_files().option_trade_quote("20250303").await?;
 
-// Decoded rows in memory:
-let rows = client.flatfile_request_decoded(SecType::Option, ReqType::TradeQuote, "20250303").await?;
+// Generic dispatcher (same view), for config-driven call shapes:
+let rows = client.flat_files().request(SecType::Option, ReqType::TradeQuote, "20250303").await?;
+
+// Vendor-format file straight to disk (bounded memory):
+client.flat_files().to_path(SecType::Option, ReqType::TradeQuote, "20250303", "trade_quotes.csv", FlatFileFormat::Csv).await?;
 ```
+
+The standalone `thetadatadx::flatfile_request*` free functions remain available as the lower-level API for callers passing credentials and config explicitly.
 
 </template>
 
