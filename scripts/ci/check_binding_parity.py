@@ -3723,7 +3723,7 @@ def _check_connect_rows(
 #
 # The `Credentials` class is the single auth handle every binding builds
 # and hands to a connect call. Its factories (`fromFile`, `fromEmail`,
-# `fromApiKey`, `fromApiKeyWithEmail`, `fromEnvOrFile`) ride `[[method]]`
+# `fromApiKey`, `fromApiKeyWithEmail`, `fromEnvOrFile`, `fromDotenv`) ride `[[method]]`
 # rows, but a forward `[[method]]` check only fires when a row already
 # exists — a binding that grows a NEW credentials factory the others lack
 # reaches none of them and no row is there to trip. This family closes
@@ -3754,6 +3754,7 @@ CREDENTIALS_FACTORY_ROSTER: dict[str, frozenset[str]] = {
     "fromApiKey": frozenset({"python", "typescript", "cpp", "ffi"}),
     "fromApiKeyWithEmail": frozenset({"python", "typescript", "cpp", "ffi"}),
     "fromEnvOrFile": frozenset({"python", "typescript", "cpp", "ffi"}),
+    "fromDotenv": frozenset({"python", "typescript", "cpp", "ffi"}),
 }
 
 
@@ -4592,7 +4593,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Credentials factory surface — the auth-handle factories
     # (`fromFile` / `fromEmail` / `fromApiKey` / `fromApiKeyWithEmail` /
-    # `fromEnvOrFile`). Each rides a `[[method]]` row, but a forward
+    # `fromEnvOrFile` / `fromDotenv`). Each rides a `[[method]]` row, but a forward
     # `[[method]]` check only fires when the row exists; this reverse
     # scan harvests every `Credentials` factory from all four bindings
     # and trips when one has no row, or when a governed factory is absent
@@ -6670,7 +6671,13 @@ def _run_selftest() -> int:
             {"class": "Credentials", "name": name}
             for name in CREDENTIALS_FACTORY_ROSTER
         ]
-        four = {"fromFile", "fromApiKey", "fromApiKeyWithEmail", "fromEnvOrFile"}
+        four = {
+            "fromFile",
+            "fromApiKey",
+            "fromApiKeyWithEmail",
+            "fromEnvOrFile",
+            "fromDotenv",
+        }
         py = set(four)
         ts = set(four)
         cpp = four | {"fromEmail"}
@@ -6699,7 +6706,13 @@ def _run_selftest() -> int:
             {"class": "Credentials", "name": name}
             for name in CREDENTIALS_FACTORY_ROSTER
         ]
-        four = {"fromFile", "fromApiKey", "fromApiKeyWithEmail", "fromEnvOrFile"}
+        four = {
+            "fromFile",
+            "fromApiKey",
+            "fromApiKeyWithEmail",
+            "fromEnvOrFile",
+            "fromDotenv",
+        }
         py = four - {"fromEnvOrFile"}  # dropped from Python only
         ts = set(four)
         cpp = four | {"fromEmail"}

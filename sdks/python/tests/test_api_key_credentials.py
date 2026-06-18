@@ -43,6 +43,24 @@ def test_from_env_or_file_falls_back_to_file(mod, monkeypatch, tmp_path) -> None
     assert creds is not None
 
 
+def test_from_dotenv_reads_api_key(mod, tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text('# comment\nTHETADATA_API_KEY="td_example_key"\n')
+    creds = mod.Credentials.from_dotenv(str(env_file))
+    assert creds is not None
+
+
+def test_from_dotenv_repr_redacts_secret(mod, tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("THETADATA_API_KEY=td_secret_value\n")
+    creds = mod.Credentials.from_dotenv(str(env_file))
+    rendered = repr(creds)
+    assert "td_secret_value" not in rendered, (
+        f"Credentials repr leaked the .env API key: {rendered}"
+    )
+    assert "<redacted>" in rendered
+
+
 def test_api_key_repr_redacts_secret(mod) -> None:
     creds = mod.Credentials.from_api_key("super-secret-key")
     rendered = repr(creds)

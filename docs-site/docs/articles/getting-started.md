@@ -79,26 +79,308 @@ The [server binary](/server/) exposes the full surface as local HTTP REST and We
 
 ## 2. Authenticate
 
-You can sign in with an API key or with your account email and password. An API key is the simpler option: a cleaner sign-in that does not require storing your account password. Email and password still works.
+You can sign in with an API key or with your account email and password. An API key is the simpler option: a cleaner sign-in that does not require storing your account password. Email and password still works. Each form has three ways to supply the credential, so you can pick whichever fits your setup.
 
 ### API key
 
-Generate an API key from your [ThetaData user portal](https://www.thetadata.net/), then make it available to the SDK. The standard way is an environment variable:
+Generate an API key from your [ThetaData user portal](https://www.thetadata.net/), then supply it one of three ways.
+
+**1. Pass it directly.** Hand the key straight to the api-key constructor.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::api_key("your_api_key");
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials.from_api_key("your_api_key")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = Credentials.fromApiKey('your_api_key');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_api_key("your_api_key");
+```
+
+</template>
+
+<template #http>
+
+```bash
+thetadatadx-server --api-key "your_api_key" &
+```
+
+</template>
+
+</SdkTabs>
+
+**2. Environment variable.** Set `THETADATA_API_KEY` and let the SDK read it. `from_env_or_file` reads the variable when it is set and falls back to a `creds.txt` file otherwise, so the same code works in both setups.
 
 ```bash
 export THETADATA_API_KEY="your_api_key"
 ```
 
-`from_env_or_file("creds.txt")` reads `THETADATA_API_KEY` when it is set and falls back to the `creds.txt` file otherwise, so the same code works in both setups. You can also pass the key straight to the api-key constructor instead of using the environment variable. Per-SDK methods are shown in the [first request](#_3-first-request) below.
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::from_env_or_file("creds.txt")?;
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials.from_env_or_file("creds.txt")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = Credentials.fromEnvOrFile('creds.txt');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_env_or_file("creds.txt");
+```
+
+</template>
+
+<template #http>
+
+```bash
+export THETADATA_API_KEY="your_api_key"
+thetadatadx-server &
+```
+
+</template>
+
+</SdkTabs>
+
+**3. `.env` file.** Keep the key in a `.env` file (one `KEY=VALUE` per line) and point the SDK at it.
+
+```
+THETADATA_API_KEY="your_api_key"
+```
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::from_dotenv(".env")?;
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials.from_dotenv(".env")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = Credentials.fromDotenv('.env');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_dotenv(".env");
+```
+
+</template>
+
+<template #http>
+
+```bash
+# Export the .env into the process environment first, then start the server.
+export $(grep -v '^#' .env | xargs)
+thetadatadx-server &
+```
+
+</template>
+
+</SdkTabs>
 
 ### Email and password
 
-Create a `creds.txt` in your working directory: your ThetaData account email on line 1, password on line 2.
+Supply your account email and password one of three ways.
+
+**1. Credentials file.** Create a `creds.txt` in your working directory: your ThetaData account email on line 1, password on line 2.
 
 ```
 you@example.com
 your-password
 ```
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::from_file("creds.txt")?;
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials.from_file("creds.txt")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = Credentials.fromFile('creds.txt');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_file("creds.txt");
+```
+
+</template>
+
+<template #http>
+
+```bash
+thetadatadx-server --creds creds.txt &
+```
+
+</template>
+
+</SdkTabs>
+
+**2. Pass them directly.** Hand the email and password straight to the constructor.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::new("you@example.com", "your-password");
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials("you@example.com", "your-password")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = new Credentials('you@example.com', 'your-password');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_email("you@example.com", "your-password");
+```
+
+</template>
+
+<template #http>
+
+```bash
+# The HTTP server reads the pair from a credentials file.
+thetadatadx-server --creds creds.txt &
+```
+
+</template>
+
+</SdkTabs>
+
+**3. Custom file path.** Point `from_file` at any path, not just `creds.txt` in the working directory.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let creds = thetadatadx::Credentials::from_file("/path/to/creds.txt")?;
+```
+
+</template>
+
+<template #python>
+
+```python
+creds = Credentials.from_file("/path/to/creds.txt")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const creds = Credentials.fromFile('/path/to/creds.txt');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto creds = thetadatadx::Credentials::from_file("/path/to/creds.txt");
+```
+
+</template>
+
+<template #http>
+
+```bash
+thetadatadx-server --creds /path/to/creds.txt &
+```
+
+</template>
+
+</SdkTabs>
 
 No subscription yet? Create an account at [thetadata.net](https://www.thetadata.net/) — several endpoints work on the free tier (look for the Free badge on [reference pages](/reference/)).
 

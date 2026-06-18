@@ -156,6 +156,17 @@ impl Credentials {
         Ok(Credentials { inner })
     }
 
+    /// Source credentials from a `.env`-format file. The file uses the
+    /// common `.env` grammar (one `KEY=VALUE` per line, optional `export`
+    /// prefix, `#` comments, optional quotes). `THETADATA_API_KEY`
+    /// selects an API key; otherwise `THETADATA_EMAIL` +
+    /// `THETADATA_PASSWORD` build email + password credentials.
+    #[napi(factory, js_name = "fromDotenv")]
+    pub fn from_dotenv(path: String) -> napi::Result<Credentials> {
+        let inner = auth::Credentials::from_dotenv(&path).map_err(to_napi_err)?;
+        Ok(Credentials { inner })
+    }
+
     /// Redacted string form — never exposes the email or password.
     #[napi(js_name = "toString")]
     pub fn to_string_js(&self) -> String {

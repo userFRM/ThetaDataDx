@@ -164,7 +164,7 @@ The library exposes opaque handle types and `extern "C"` functions:
 
 | Category | Functions |
 |---|---|
-| **Lifecycle** | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_from_api_key`, `thetadatadx_credentials_from_api_key_with_email`, `thetadatadx_credentials_from_env_or_file`, `thetadatadx_credentials_free` |
+| **Lifecycle** | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_from_api_key`, `thetadatadx_credentials_from_api_key_with_email`, `thetadatadx_credentials_from_env_or_file`, `thetadatadx_credentials_from_dotenv`, `thetadatadx_credentials_free` |
 | **Config** | `thetadatadx_config_production`, `thetadatadx_config_dev`, `thetadatadx_config_free` |
 | **HistoricalClient** | `thetadatadx_historical_connect`, `thetadatadx_historical_free` |
 | **Unified** | `thetadatadx_client_connect`, `thetadatadx_client_historical`, `thetadatadx_client_*`, `thetadatadx_client_free` |

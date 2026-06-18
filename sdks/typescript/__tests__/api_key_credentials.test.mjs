@@ -5,6 +5,9 @@
 // key or the email.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // CI build step is mandatory before `npm test`; fail loud if the addon
 // is missing so a broken build does not appear green.
@@ -48,6 +51,24 @@ describe('Credentials API-key factories', () => {
       () => mod.Credentials.fromEnvOrFile('/nonexistent/creds.txt'),
       'fromEnvOrFile should throw when neither the env nor the file is available',
     );
+  });
+
+  it('sources an API key from a .env file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tdx-dotenv-'));
+    try {
+      const path = join(dir, '.env');
+      writeFileSync(path, '# comment\nTHETADATA_API_KEY="td_example_key"\n');
+      const creds = mod.Credentials.fromDotenv(path);
+      assert.ok(creds, 'fromDotenv should return a Credentials handle');
+      const rendered = creds.toString();
+      assert.ok(
+        !rendered.includes('td_example_key'),
+        `toString leaked the .env API key: ${rendered}`,
+      );
+      assert.ok(rendered.includes('<redacted>'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('redacts the API key in toString', () => {

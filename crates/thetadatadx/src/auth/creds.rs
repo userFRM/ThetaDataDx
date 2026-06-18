@@ -29,6 +29,77 @@ use crate::error::Error;
 /// email + password.
 const API_KEY_ENV: &str = "THETADATA_API_KEY";
 
+/// `.env`-file key carrying the account email, used when a `.env` file
+/// supplies email + password rather than an API key.
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+
+/// `.env`-file key carrying the account password, paired with
+/// [`EMAIL_ENV`].
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
+
+/// Look up `key` in the parsed `.env` assignments, returning the trimmed
+/// value when present and non-empty.
+///
+/// The returned slice borrows the [`Zeroizing`] buffer that owns the
+/// file contents, so the matched value is never copied into a separate
+/// plain `String` before it reaches the secret-wrapping constructor.
+fn dotenv_lookup<'a>(pairs: &'a [(String, &'a str)], key: &str) -> Option<&'a str> {
+    pairs
+        .iter()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| *value)
+        .filter(|value| !value.is_empty())
+}
+
+/// Parse `.env`-format text into `(key, value)` pairs.
+///
+/// The grammar is the common `.env` subset: one `KEY=VALUE` assignment
+/// per line, with optional `export ` prefix, `#` comment lines, blank
+/// lines, and optional matching single or double quotes around the
+/// value. Whitespace around the key and the (unquoted) value is trimmed.
+/// A later assignment to the same key wins, matching shell `source`
+/// semantics.
+///
+/// The value slices borrow `contents`; the caller owns that buffer
+/// (wrapped in [`Zeroizing`] on the secret path) so no secret value is
+/// copied into an unmanaged allocation here.
+fn parse_dotenv(contents: &str) -> Vec<(String, &str)> {
+    let mut pairs: Vec<(String, &str)> = Vec::new();
+    for raw in contents.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let line = line.strip_prefix("export ").map_or(line, str::trim_start);
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_string();
+        if key.is_empty() {
+            continue;
+        }
+        let value = value.trim();
+        // Strip one layer of matching surrounding quotes; leave the
+        // inner bytes verbatim (no escape processing — secrets are
+        // opaque).
+        let value = if value.len() >= 2
+            && ((value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\'')))
+        {
+            &value[1..value.len() - 1]
+        } else {
+            value
+        };
+        // Last assignment wins.
+        if let Some(slot) = pairs.iter_mut().find(|(name, _)| name == &key) {
+            slot.1 = value;
+        } else {
+            pairs.push((key, value));
+        }
+    }
+    pairs
+}
+
 /// The authentication method backing a [`Credentials`] value.
 ///
 /// Exactly one method is present. The two variants are mutually
@@ -302,6 +373,70 @@ impl Credentials {
         Self::from_file(path)
     }
 
+    /// Source credentials from a `.env`-format file.
+    ///
+    /// The file uses the common `.env` grammar: one `KEY=VALUE`
+    /// assignment per line, with optional `export ` prefix, `#` comment
+    /// lines, blank lines, and optional matching single or double quotes
+    /// around the value.
+    ///
+    /// Key precedence:
+    /// 1. `THETADATA_API_KEY` — if present and non-empty, an API key is
+    ///    used.
+    /// 2. `THETADATA_EMAIL` + `THETADATA_PASSWORD` — if both are present
+    ///    and non-empty, email + password credentials are built.
+    ///
+    /// This mirrors the environment-variable names that
+    /// [`Credentials::from_env_or_file`] reads, so the same `.env` file
+    /// works whether it is exported into the process environment or read
+    /// directly through this constructor.
+    ///
+    /// # Zeroization pipeline
+    ///
+    /// The full file contents are read into a [`Zeroizing`] buffer so
+    /// the on-disk secret bytes are wiped from the heap on drop. The
+    /// parsed value slices borrow that buffer; the api-key / password
+    /// constructors keep their own zeroized copy of the secret.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the file cannot be read, and
+    /// [`Error::Auth`] if the file carries neither a non-empty
+    /// `THETADATA_API_KEY` nor a complete `THETADATA_EMAIL` +
+    /// `THETADATA_PASSWORD` pair.
+    pub fn from_dotenv(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let path = path.as_ref();
+        let contents =
+            Zeroizing::new(std::fs::read_to_string(path).map_err(|e| Error::Config {
+                kind: crate::error::ConfigErrorKind::Io(format!(
+                    "failed to read .env file {}: {}",
+                    path.display(),
+                    e
+                )),
+                message: ".env file unreadable".to_string(),
+                source: Some(Box::new(e)),
+            })?);
+
+        let pairs = parse_dotenv(&contents);
+
+        if let Some(key) = dotenv_lookup(&pairs, API_KEY_ENV) {
+            return Ok(Self::api_key(key));
+        }
+
+        match (
+            dotenv_lookup(&pairs, EMAIL_ENV),
+            dotenv_lookup(&pairs, PASSWORD_ENV),
+        ) {
+            (Some(email), Some(password)) => Ok(Self::new(email, password)),
+            _ => Err(Error::Auth {
+                kind: crate::error::AuthErrorKind::InvalidCredentials,
+                message: format!(
+                    ".env file must define {API_KEY_ENV}, or both {EMAIL_ENV} and {PASSWORD_ENV}"
+                ),
+            }),
+        }
+    }
+
     /// The account email, when one is available.
     ///
     /// Always `Some` for email + password credentials. For API-key
@@ -487,6 +622,104 @@ mod tests {
                 "whitespace-only env var must fall through to the file path"
             );
         });
+    }
+
+    /// Write `body` to a uniquely-named temp file and return its path.
+    /// The unique suffix keeps parallel test threads from colliding.
+    fn write_temp(suffix: &str, body: &str) -> std::path::PathBuf {
+        use std::io::Write as _;
+        let path = std::env::temp_dir().join(format!(
+            "thetadatadx-dotenv-{}-{suffix}",
+            std::process::id()
+        ));
+        let mut f = std::fs::File::create(&path).expect("create tmp .env file");
+        f.write_all(body.as_bytes()).expect("write tmp .env file");
+        path
+    }
+
+    #[test]
+    fn from_dotenv_reads_api_key() {
+        let path = write_temp(
+            "api.env",
+            "# a comment\nTHETADATA_API_KEY=\"td_example_key\"\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_supports_export_and_single_quotes() {
+        let path = write_temp("export.env", "export THETADATA_API_KEY='td_example_key'\n");
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_reads_email_password_when_no_api_key() {
+        let path = write_temp(
+            "creds.env",
+            "\nTHETADATA_EMAIL=User@Example.COM\nTHETADATA_PASSWORD=hunter2\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("email/password must parse");
+        assert!(!creds.is_api_key());
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_prefers_api_key_over_email_password() {
+        let path = write_temp(
+            "both.env",
+            "THETADATA_API_KEY=td_example_key\nTHETADATA_EMAIL=u@example.com\nTHETADATA_PASSWORD=pw\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("api key must win");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_errors_when_no_recognized_keys() {
+        let path = write_temp("empty.env", "# nothing useful\nOTHER=value\n");
+        let err = Credentials::from_dotenv(&path).unwrap_err();
+        assert!(err.to_string().contains("THETADATA_API_KEY"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_errors_on_missing_file() {
+        let err = Credentials::from_dotenv("/nonexistent/dir/.env").unwrap_err();
+        assert!(err.to_string().contains(".env file unreadable"));
+    }
+
+    /// `Debug` on `.env`-sourced api-key credentials must still redact.
+    #[test]
+    fn from_dotenv_redacts_in_debug() {
+        let path = write_temp("redact.env", "THETADATA_API_KEY=td_secret_value\n");
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        let rendered = format!("{creds:?}");
+        assert!(
+            !rendered.contains("td_secret_value"),
+            "Debug leaked .env api key: {rendered}"
+        );
+        assert!(rendered.contains("<redacted>"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// The `.env` parser handles comments, blanks, quotes, `export`, and
+    /// last-assignment-wins without touching the filesystem.
+    #[test]
+    fn parse_dotenv_grammar() {
+        let pairs = parse_dotenv(
+            "# comment\n\n  export A = \"one\" \nB='two'\nA=three\nbad-line-no-eq\n=novalue\n",
+        );
+        assert_eq!(dotenv_lookup(&pairs, "A"), Some("three"));
+        assert_eq!(dotenv_lookup(&pairs, "B"), Some("two"));
+        assert_eq!(dotenv_lookup(&pairs, "MISSING"), None);
     }
 
     /// Serializes env-mutating tests so parallel test threads never

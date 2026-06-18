@@ -6,8 +6,11 @@
 // `THETADATADX_LIVE_CREDS` pointing at a `creds.txt` file with the
 // account email on line 1 and the password on line 2.
 
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <string>
+#include <unistd.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -18,6 +21,15 @@ namespace {
 std::string env_or_empty(const char* key) {
     const char* raw = std::getenv(key);
     return raw == nullptr ? std::string() : std::string(raw);
+}
+
+// Build a unique temp path for the current process without `tmpnam`
+// (whose use trips a linker warning). The PID + a per-call counter keeps
+// parallel test runners from colliding.
+std::string unique_dotenv_path() {
+    static int counter = 0;
+    return "/tmp/thetadatadx-cpp-dotenv-" + std::to_string(::getpid()) + "-"
+           + std::to_string(counter++) + ".env";
 }
 
 } // namespace
@@ -54,6 +66,29 @@ TEST_CASE("Credentials::from_env_or_file falls back to the file when the env is 
     // No fallback file exists, so the file path must surface an error
     // (a throw) rather than silently building a handle.
     REQUIRE_THROWS(thetadatadx::Credentials::from_env_or_file("/nonexistent/creds.txt"));
+}
+
+TEST_CASE("Credentials::from_dotenv reads THETADATA_API_KEY from a .env file",
+          "[lifecycle][offline]") {
+    const std::string path = unique_dotenv_path();
+    {
+        std::ofstream out(path);
+        out << "# comment\nTHETADATA_API_KEY=\"td_example_key\"\n";
+    }
+    auto creds = thetadatadx::Credentials::from_dotenv(path);
+    REQUIRE(creds.get() != nullptr);
+    std::remove(path.c_str());
+}
+
+TEST_CASE("Credentials::from_dotenv throws when the file defines no recognized keys",
+          "[lifecycle][offline]") {
+    const std::string path = unique_dotenv_path();
+    {
+        std::ofstream out(path);
+        out << "OTHER=value\n";
+    }
+    REQUIRE_THROWS(thetadatadx::Credentials::from_dotenv(path));
+    std::remove(path.c_str());
 }
 
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {

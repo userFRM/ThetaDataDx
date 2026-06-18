@@ -136,6 +136,13 @@ targets = ["cpp_lifecycle"]
 params = [{ name = "path", type = "string", doc = "Path to the fallback credentials file." }]
 
 [[methods]]
+name = "credentials_from_dotenv"
+kind = "credentials_from_dotenv"
+doc = "Source credentials from a .env-format file. THETADATA_API_KEY selects an API key; otherwise THETADATA_EMAIL + THETADATA_PASSWORD build email + password credentials. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the .env file." }]
+
+[[methods]]
 name = "config_production"
 kind = "config_constructor"
 doc = "Create the production configuration."

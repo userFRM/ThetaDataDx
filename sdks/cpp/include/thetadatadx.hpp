@@ -628,6 +628,17 @@ public:
      *  @throws thetadatadx::ThetaDataError if the fallback file is unreadable or malformed. */
     static Credentials from_env_or_file(const std::string& path);
 
+    /** Source credentials from a `.env`-format file.
+     *  Each line is a `KEY=VALUE` assignment, with optional `export`
+     *  prefix, `#` comment lines, and optional matching quotes around the
+     *  value. `THETADATA_API_KEY` selects an API key; otherwise
+     *  `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
+     *  credentials.
+     *  @param path Path to the `.env` file.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the file is unreadable or defines none of the recognized keys. */
+    static Credentials from_dotenv(const std::string& path);
+
     /** Borrow the underlying `ThetaDataDxCredentials*` for a connect call.
      *  @return A non-owning handle; ownership stays with this object. */
     ThetaDataDxCredentials* get() const { return handle_.get(); }

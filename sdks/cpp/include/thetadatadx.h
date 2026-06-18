@@ -971,6 +971,17 @@ ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_env_or_file(const char* path);
 
+/** Source a credentials handle from a .env-format file.
+ *  The file uses the common .env grammar (one KEY=VALUE per line, optional
+ *  export prefix, # comment lines, optional matching quotes). When
+ *  THETADATA_API_KEY is present and non-empty an API key is used; otherwise a
+ *  complete THETADATA_EMAIL + THETADATA_PASSWORD pair builds email + password
+ *  credentials.
+ *  @param path Filesystem path to the .env file; must be non-NULL.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_dotenv(const char* path);
+
 /** Release a credentials handle.
  *  @param creds Handle from thetadatadx_credentials_from_email /
  *               thetadatadx_credentials_from_file; no-op when NULL. Call exactly once. */

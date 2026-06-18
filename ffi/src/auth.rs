@@ -182,6 +182,42 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_env_or_file(
     })
 }
 
+/// Source credentials from a `.env`-format file.
+///
+/// The file uses the common `.env` grammar (one `KEY=VALUE` per line,
+/// optional `export` prefix, `#` comment lines, optional matching
+/// quotes). When `THETADATA_API_KEY` is present and non-empty an API key
+/// is used; otherwise a complete `THETADATA_EMAIL` + `THETADATA_PASSWORD`
+/// pair builds email + password credentials.
+///
+/// Returns null on error (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_credentials_from_dotenv(
+    path: *const c_char,
+) -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let path = match unsafe { cstr_to_str(path) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("path is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("path is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        match thetadatadx::Credentials::from_dotenv(path) {
+            Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Free a credentials handle.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_credentials_free(creds: *mut ThetaDataDxCredentials) {
@@ -4362,5 +4398,48 @@ mod resilience_knob_tests {
 
             super::thetadatadx_config_free(cfg);
         }
+    }
+}
+
+#[cfg(test)]
+mod credentials_dotenv_tests {
+    //! Offline smoke coverage for `thetadatadx_credentials_from_dotenv`:
+    //! build a credentials handle from a temporary `.env` file carrying a
+    //! dummy `THETADATA_API_KEY`, confirm the handle is non-null, and
+    //! confirm the error path on a file with no recognized keys.
+
+    use std::ffi::CString;
+    use std::io::Write as _;
+
+    fn write_temp(suffix: &str, body: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "thetadatadx-ffi-dotenv-{}-{suffix}",
+            std::process::id()
+        ));
+        let mut f = std::fs::File::create(&path).expect("create tmp .env");
+        f.write_all(body.as_bytes()).expect("write tmp .env");
+        path
+    }
+
+    #[test]
+    fn from_dotenv_builds_handle_from_api_key() {
+        let path = write_temp("ok.env", "THETADATA_API_KEY=\"td_example_key\"\n");
+        let c_path = CString::new(path.to_str().unwrap()).unwrap();
+        // SAFETY: c_path is a valid NUL-terminated string for the call's duration.
+        let creds = unsafe { super::thetadatadx_credentials_from_dotenv(c_path.as_ptr()) };
+        assert!(!creds.is_null());
+        // SAFETY: handle just returned by thetadatadx_credentials_from_dotenv.
+        unsafe { super::thetadatadx_credentials_free(creds) };
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_returns_null_when_no_recognized_keys() {
+        let path = write_temp("bad.env", "OTHER=value\n");
+        let c_path = CString::new(path.to_str().unwrap()).unwrap();
+        // SAFETY: c_path is a valid NUL-terminated string for the call's duration.
+        let creds = unsafe { super::thetadatadx_credentials_from_dotenv(c_path.as_ptr()) };
+        assert!(creds.is_null());
+        std::fs::remove_file(&path).ok();
     }
 }

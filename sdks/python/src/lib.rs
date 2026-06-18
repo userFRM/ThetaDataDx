@@ -226,6 +226,19 @@ impl Credentials {
         Ok(Self { inner })
     }
 
+    /// Source credentials from a ``.env``-format file.
+    ///
+    /// The file uses the common ``.env`` grammar (one ``KEY=VALUE`` per
+    /// line, optional ``export`` prefix, ``#`` comments, optional quotes).
+    /// ``THETADATA_API_KEY`` selects an API key; otherwise
+    /// ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
+    /// password credentials.
+    #[staticmethod]
+    fn from_dotenv(path: &str) -> PyResult<Self> {
+        let inner = auth::Credentials::from_dotenv(path).map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
     fn __repr__(&self) -> String {
         // Match the redacted Rust `Debug` impl on `auth::Credentials`
         // (`crates/thetadatadx/src/auth/creds.rs`). Never interpolate

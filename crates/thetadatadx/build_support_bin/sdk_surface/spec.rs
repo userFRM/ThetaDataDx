@@ -60,6 +60,7 @@ pub(super) enum MethodKind {
     CredentialsFromApiKey,
     CredentialsFromApiKeyWithEmail,
     CredentialsFromEnvOrFile,
+    CredentialsFromDotenv,
     ConfigConstructor,
     ClientConnect,
     ClientConnectFromFile,
@@ -321,6 +322,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         ),
         MethodKind::CredentialsFromEnvOrFile => (
             Some("credentials_from_env_or_file"),
+            &[LIFE],
+            true,
+            &[("path", ParamType::String)],
+        ),
+        MethodKind::CredentialsFromDotenv => (
+            Some("credentials_from_dotenv"),
             &[LIFE],
             true,
             &[("path", ParamType::String)],

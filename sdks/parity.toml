@@ -1511,6 +1511,21 @@ python = true
 typescript = true   # `Credentials.fromEnvOrFile(path)` napi factory
 cpp = true
 
+# Dotenv sourcing: read credentials from a `.env`-format file.
+# `THETADATA_API_KEY` selects an API key; otherwise `THETADATA_EMAIL` +
+# `THETADATA_PASSWORD` build email + password credentials. Every binding
+# exposes it, so all columns stay `true` across Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the
+# `thetadatadx_credentials_from_dotenv` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromDotenv"
+python = true
+typescript = true   # `Credentials.fromDotenv(path)` napi factory
+cpp = true
+
 # ── Config (the streaming/historical client configuration class) ──
 #
 # Field-level setters are tracked by the dotted `[[class]]` rows above

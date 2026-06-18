@@ -23,13 +23,13 @@ Produces:
 
 | Handle | Create | Free |
 |--------|--------|------|
-| `ThetaDataDxCredentials` | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_from_api_key`, `thetadatadx_credentials_from_api_key_with_email`, `thetadatadx_credentials_from_env_or_file` | `thetadatadx_credentials_free` |
+| `ThetaDataDxCredentials` | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_from_api_key`, `thetadatadx_credentials_from_api_key_with_email`, `thetadatadx_credentials_from_env_or_file`, `thetadatadx_credentials_from_dotenv` | `thetadatadx_credentials_free` |
 | `ThetaDataDxConfig` | `thetadatadx_config_production`, `thetadatadx_config_dev` | `thetadatadx_config_free` |
 | `ThetaDataDxHistoricalClient` | `thetadatadx_historical_connect` | `thetadatadx_historical_free` |
 | `ThetaDataDxClient` | `thetadatadx_client_connect` | `thetadatadx_client_free` |
 | `ThetaDataDxStreamHandle` | `thetadatadx_streaming_connect` | `thetadatadx_streaming_free` |
 
-Credentials accept either an API key or an email/password pair. `thetadatadx_credentials_from_api_key` (and `thetadatadx_credentials_from_api_key_with_email`) take a key the caller generated from the ThetaData user portal; `thetadatadx_credentials_from_env_or_file` reads the key from the `THETADATA_API_KEY` environment variable when it is set and non-empty, otherwise falls back to the two-line creds file at the given path.
+Credentials accept either an API key or an email/password pair. `thetadatadx_credentials_from_api_key` (and `thetadatadx_credentials_from_api_key_with_email`) take a key the caller generated from the ThetaData user portal; `thetadatadx_credentials_from_env_or_file` reads the key from the `THETADATA_API_KEY` environment variable when it is set and non-empty, otherwise falls back to the two-line creds file at the given path. `thetadatadx_credentials_from_dotenv` reads the same `THETADATA_API_KEY` (or a `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair) from a `.env`-format file.
 
 ### Historical (via ThetaDataDxHistoricalClient or ThetaDataDxClient)
 

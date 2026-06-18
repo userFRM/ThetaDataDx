@@ -678,6 +678,14 @@ export declare class Credentials {
    * otherwise the two-line file at `path` is read.
    */
   static fromEnvOrFile(path: string): Credentials
+  /**
+   * Source credentials from a `.env`-format file. The file uses the
+   * common `.env` grammar (one `KEY=VALUE` per line, optional `export`
+   * prefix, `#` comments, optional quotes). `THETADATA_API_KEY`
+   * selects an API key; otherwise `THETADATA_EMAIL` +
+   * `THETADATA_PASSWORD` build email + password credentials.
+   */
+  static fromDotenv(path: string): Credentials
   /** Redacted string form — never exposes the email or password. */
   toString(): string
 }
