@@ -13,11 +13,23 @@ use super::super::fixture_validation::validate_test_fixtures;
 use super::super::parser::load_endpoint_specs;
 use super::super::sdk_helpers::collect_builder_params;
 use super::super::test_fixtures::load_test_fixtures;
-use super::{cli_validate, cpp, cpp_validate, enums, ffi, python, python_validate, typescript};
+use super::{
+    cli_validate, cpp, cpp_validate, enums, ffi, python, python_stub, python_validate, typescript,
+};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
     contents: String,
+}
+
+/// Fully checked-in file that carries one generated region between two
+/// marker comments while the rest of the file stays hand-maintained.
+struct SplicedSourceFile {
+    relative_path: &'static str,
+    begin_marker: &'static str,
+    end_marker: &'static str,
+    /// The freshly generated region (markers included).
+    region: String,
 }
 
 /// Write the checked-in SDK surface artifacts generated from `endpoint_surface.toml`.
@@ -28,6 +40,12 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, file.contents)?;
+    }
+    for file in render_spliced_files()? {
+        let path = repo_root.join(file.relative_path);
+        let current = std::fs::read_to_string(&path)?;
+        let spliced = splice_region(&current, &file)?;
+        std::fs::write(path, spliced)?;
     }
     Ok(())
 }
@@ -47,7 +65,46 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
             .into());
         }
     }
+    for file in render_spliced_files()? {
+        let path = repo_root.join(file.relative_path);
+        let actual = std::fs::read_to_string(&path)?.replace("\r\n", "\n");
+        let expected = splice_region(&actual, &file)?;
+        if actual != expected {
+            return Err(format!(
+                "generated region of '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
+                file.relative_path
+            )
+            .into());
+        }
+    }
     Ok(())
+}
+
+/// Replace the marked region of `current` with the freshly generated one,
+/// preserving the file's leading and trailing hand-written content and the
+/// exact indentation in front of each marker.
+fn splice_region(
+    current: &str,
+    file: &SplicedSourceFile,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let normalized = current.replace("\r\n", "\n");
+    let begin = normalized.find(file.begin_marker).ok_or_else(|| {
+        format!(
+            "begin marker not found in '{}'; expected line: {}",
+            file.relative_path, file.begin_marker
+        )
+    })?;
+    let after_end_marker = normalized.find(file.end_marker).ok_or_else(|| {
+        format!(
+            "end marker not found in '{}'; expected line: {}",
+            file.relative_path, file.end_marker
+        )
+    })? + file.end_marker.len();
+    let mut out = String::with_capacity(normalized.len());
+    out.push_str(&normalized[..begin]);
+    out.push_str(&file.region);
+    out.push_str(&normalized[after_end_marker..]);
+    Ok(out)
 }
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
@@ -144,4 +201,18 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &fixtures),
         },
     ])
+}
+
+/// Files whose generated region is spliced between marker comments while
+/// the rest of the file stays hand-maintained. Today this carries only the
+/// Python type stub's `HistoricalView` endpoint surface, projected from the
+/// same `endpoint_surface.toml` that drives the runtime `#[pymethods]`.
+fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::Error>> {
+    let parsed = load_endpoint_specs()?;
+    Ok(vec![SplicedSourceFile {
+        relative_path: "sdks/python/python/thetadatadx/__init__.pyi",
+        begin_marker: python_stub::STUB_BEGIN_MARKER,
+        end_marker: python_stub::STUB_END_MARKER,
+        region: python_stub::render_python_historical_view_stub(&parsed.endpoints),
+    }])
 }
