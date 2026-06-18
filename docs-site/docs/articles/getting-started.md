@@ -193,7 +193,11 @@ int main() {
 <template #http>
 
 ```bash
-thetadatadx-server --creds creds.txt &
+# API key: reads THETADATA_API_KEY when set, or pass it with --api-key.
+export THETADATA_API_KEY="your_api_key"
+thetadatadx-server &
+# Or pass the key directly: thetadatadx-server --api-key "$THETADATA_API_KEY" &
+# Email + password: thetadatadx-server --creds creds.txt &
 
 curl 'http://127.0.0.1:25503/v3/stock/history/eod?symbol=AAPL&start_date=2025-03-03&end_date=2025-03-06'
 ```
