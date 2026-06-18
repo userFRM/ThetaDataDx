@@ -2,8 +2,9 @@
 //!
 //! # Protocol
 //!
-//! Authentication issues a POST to the Nexus API carrying the caller's
-//! email and password plus a static terminal-identification header:
+//! Authentication issues a POST to the Nexus API carrying either the
+//! caller's email and password or an API key, plus a static
+//! terminal-identification header:
 //!
 //! ```text
 //! POST https://nexus-api.thetadata.us/identity/terminal/auth_user
@@ -11,8 +12,12 @@
 //!   TD-TERMINAL-KEY: cf58ada4-4175-11f0-860f-1e2e95c79e64
 //!   Accept: application/json
 //!   Content-Type: application/json
-//! Body: {"email": "...", "password": "..."}
+//! Body (email + password): {"email": "...", "password": "..."}
+//! Body (API key):          {"apiKey": "..."}
 //! ```
+//!
+//! The endpoint accepts either form; the two are mutually exclusive on a
+//! single request.
 //!
 //! The `TD-TERMINAL-KEY` is a static UUID that identifies the terminal
 //! application (not the user). It is not a user secret.
@@ -62,11 +67,41 @@ const TERMINAL_KEY_HEADER: &str = "TD-TERMINAL-KEY";
 
 /// JSON body for the auth request.
 ///
-/// Debug is intentionally NOT derived — `password` must never appear in logs.
+/// Carries either email + password or an API key; the unused fields are
+/// skipped so the serialized body holds exactly one credential form.
+///
+/// Debug is intentionally NOT derived — `password` and `api_key` must
+/// never appear in logs.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AuthRequest<'a> {
-    email: &'a str,
-    password: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    api_key: Option<&'a str>,
+}
+
+impl<'a> AuthRequest<'a> {
+    /// Build the request body from the credential's authentication
+    /// method. An API key serializes as `{"apiKey": ...}`; an email +
+    /// password serializes as `{"email": ..., "password": ...}`.
+    fn from_credentials(creds: &'a Credentials) -> Self {
+        if let Some(key) = creds.api_key_secret() {
+            Self {
+                email: None,
+                password: None,
+                api_key: Some(key),
+            }
+        } else {
+            Self {
+                email: creds.email(),
+                password: creds.password(),
+                api_key: None,
+            }
+        }
+    }
 }
 
 /// Successful authentication response from Nexus API.
@@ -347,20 +382,22 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
             message: format!("failed to build HTTP client: {e}"),
         })?;
 
-    let body = AuthRequest {
-        email: &creds.email,
-        password: &creds.password,
-    };
+    let body = AuthRequest::from_credentials(creds);
 
     // Log the email prefix rather than the full address: full emails in
     // structured logs / crash reports are recoverable PII even when the
     // password is zeroized. The prefix is enough for operators to
     // correlate a request with a tenant without exposing the full
-    // address. The Nexus URL itself includes routing topology that
-    // operators rarely need at `debug` — keep that field at `trace`
-    // verbosity so production deployments do not record it by default.
+    // address. API-key credentials may carry no email — fall back to a
+    // method label so the log line still records that an auth attempt
+    // ran. The Nexus URL itself includes routing topology that operators
+    // rarely need at `debug` — keep that field at `trace` verbosity so
+    // production deployments do not record it by default.
+    let email_label = creds
+        .email()
+        .map_or_else(|| "<api-key>".to_string(), redacted_email_prefix);
     tracing::debug!(
-        email_prefix = %redacted_email_prefix(&creds.email),
+        email_prefix = %email_label,
         "authenticating against Nexus API"
     );
     tracing::trace!(url = url, "Nexus auth URL");
@@ -477,6 +514,52 @@ mod tests {
     #[test]
     fn terminal_key_is_valid_uuid() {
         validate_uuid_format(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
+    }
+
+    /// Email + password credentials serialize as `{"email", "password"}`
+    /// with no `apiKey` field present.
+    #[test]
+    fn auth_request_serializes_email_password() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let body = AuthRequest::from_credentials(&creds);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["email"], "user@example.com");
+        assert_eq!(json["password"], "hunter2");
+        assert!(
+            json.get("apiKey").is_none(),
+            "password body must omit apiKey: {json}"
+        );
+    }
+
+    /// API-key credentials serialize as `{"apiKey"}` only, with email and
+    /// password omitted entirely.
+    #[test]
+    fn auth_request_serializes_api_key_only() {
+        let creds = Credentials::api_key("secret-key-xyz");
+        let body = AuthRequest::from_credentials(&creds);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["apiKey"], "secret-key-xyz");
+        assert!(
+            json.get("email").is_none(),
+            "api-key body must omit email: {json}"
+        );
+        assert!(
+            json.get("password").is_none(),
+            "api-key body must omit password: {json}"
+        );
+    }
+
+    /// An API key paired with an email still serializes apiKey-only: the
+    /// endpoint treats the two credential forms as mutually exclusive, so
+    /// the email never rides alongside the key on the auth request.
+    #[test]
+    fn auth_request_api_key_with_email_stays_api_key_only() {
+        let creds = Credentials::api_key_with_email("user@example.com", "secret-key-xyz");
+        let body = AuthRequest::from_credentials(&creds);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["apiKey"], "secret-key-xyz");
+        assert!(json.get("email").is_none());
+        assert!(json.get("password").is_none());
     }
 
     #[test]

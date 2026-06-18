@@ -109,9 +109,7 @@ use crate::config::{
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
-use self::protocol::{
-    build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
-};
+use self::protocol::{build_login_payload, build_subscribe_payload, Contract, SubscriptionKind};
 
 /// Capacity of the bounded command channel from the public surface and the
 /// ping thread to the I/O thread.
@@ -1246,7 +1244,7 @@ impl StreamingClient {
         // Send CREDENTIALS (code 0). Write straight from the `Zeroizing` buffer
         // rather than moving the cleartext into a `Frame`, so the secret bytes
         // are wiped on drop instead of lingering in a frame-owned `Vec`.
-        let cred_payload = build_credentials_payload(&creds.email, &creds.password)?;
+        let cred_payload = build_login_payload(creds)?;
         framing::write_raw_frame(&mut stream, StreamMsgType::Credentials, &cred_payload)?;
         tracing::debug!("sent CREDENTIALS to {server_addr}");
 

@@ -27,7 +27,7 @@ use crate::error::{AuthErrorKind, Error};
 use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
 use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
 use crate::flatfiles::types::FlatFilesUnavailableReason;
-use crate::fpss::protocol::build_credentials_payload;
+use crate::fpss::protocol::build_login_payload;
 
 /// Established, authenticated MDDS connection.
 pub(crate) struct AuthedSession {
@@ -101,7 +101,7 @@ pub(crate) async fn login(
     creds: &Credentials,
 ) -> Result<String, Error> {
     // CREDENTIALS frame.
-    let creds_payload = build_credentials_payload(&creds.email, creds.password())?;
+    let creds_payload = build_login_payload(creds)?;
     write_frame(stream, msg::CREDENTIALS, -1, &creds_payload).await?;
 
     // VERSION frame.
@@ -231,8 +231,10 @@ mod tests {
 
     #[test]
     fn credentials_payload_layout_is_stable() {
-        // Verifies leading byte is 0x00 and userlen is BE u16.
-        let p = build_credentials_payload("a@b.c", "pw").expect("valid creds");
+        // Verifies leading byte is 0x00 and userlen is BE u16 for a
+        // password credential routed through the login-payload dispatcher.
+        let creds = Credentials::new("a@b.c", "pw");
+        let p = build_login_payload(&creds).expect("valid creds");
         assert_eq!(p[0], 0x00);
         assert_eq!(&p[1..3], &5u16.to_be_bytes());
         assert_eq!(&p[3..8], b"a@b.c");
