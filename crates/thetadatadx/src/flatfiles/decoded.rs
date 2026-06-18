@@ -23,6 +23,22 @@ use crate::flatfiles::types::{ReqType, SecType};
 use crate::flatfiles::writer::{CsvSink, JsonlSink, RowSink, RowView};
 use crate::util::random_id::random_id_hex;
 
+/// Narrow a wire `u64` byte offset to the platform `usize` used for slicing.
+///
+/// Header lengths and INDEX block offsets are 64-bit on the wire. On a target
+/// where `usize` is narrower than `u64` an out-of-range offset would truncate,
+/// and the subsequent in-bounds check would then pass against the truncated
+/// value and read the wrong block. Route every offset through this checked
+/// conversion so an offset that does not fit becomes a typed error on every
+/// target instead of a silent wrong read.
+fn offset_to_usize(v: u64, field: &str) -> Result<usize, Error> {
+    usize::try_from(v).map_err(|_| {
+        Error::config_internal(format!(
+            "flatfiles: offset {field}={v} does not fit in usize on this target"
+        ))
+    })
+}
+
 /// Pull a flat-file blob, decode it, and write the requested format.
 ///
 /// 1. Auth + raw-stream pull into a scratch file alongside `output_path`.
@@ -96,16 +112,9 @@ pub(crate) fn decode_to_file(
     let blob = std::fs::read(raw_path)?;
     let hdr = parse_header(&blob)?;
 
-    let to_usize = |v: u64, field: &str| {
-        usize::try_from(v).map_err(|_| {
-            Error::config_internal(format!(
-                "flatfiles: header field {field}={v} does not fit in usize on this target"
-            ))
-        })
-    };
-    let index_start = to_usize(hdr.index_offset, "index_offset")?;
-    let index_byte_len = to_usize(hdr.index_byte_len, "index_byte_len")?;
-    let data_byte_len = to_usize(hdr.data_byte_len, "data_byte_len")?;
+    let index_start = offset_to_usize(hdr.index_offset, "index_offset")?;
+    let index_byte_len = offset_to_usize(hdr.index_byte_len, "index_byte_len")?;
+    let data_byte_len = offset_to_usize(hdr.data_byte_len, "data_byte_len")?;
     let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
         Error::config_internal(format!(
             "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
@@ -147,8 +156,8 @@ pub(crate) fn decode_to_file(
     let mut rows_buf: Vec<Vec<i32>> = Vec::with_capacity(1024);
     for entry_res in IndexIter::new(index_bytes, sec) {
         let entry = entry_res?;
-        let bs = entry.block_start as usize;
-        let be = entry.block_end as usize;
+        let bs = offset_to_usize(entry.block_start, "block_start")?;
+        let be = offset_to_usize(entry.block_end, "block_end")?;
         if be > data_bytes.len() || bs > be {
             return Err(Error::config_internal(format!(
                 "flatfiles: INDEX block bounds [{bs}, {be}) escape DATA section ({} bytes)",
@@ -221,16 +230,9 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
     let blob = std::fs::read(raw_path)?;
     let hdr = parse_header(&blob)?;
 
-    let to_usize = |v: u64, field: &str| {
-        usize::try_from(v).map_err(|_| {
-            Error::config_internal(format!(
-                "flatfiles: header field {field}={v} does not fit in usize on this target"
-            ))
-        })
-    };
-    let index_start = to_usize(hdr.index_offset, "index_offset")?;
-    let index_byte_len = to_usize(hdr.index_byte_len, "index_byte_len")?;
-    let data_byte_len = to_usize(hdr.data_byte_len, "data_byte_len")?;
+    let index_start = offset_to_usize(hdr.index_offset, "index_offset")?;
+    let index_byte_len = offset_to_usize(hdr.index_byte_len, "index_byte_len")?;
+    let data_byte_len = offset_to_usize(hdr.data_byte_len, "data_byte_len")?;
     let index_end = index_start
         .checked_add(index_byte_len)
         .ok_or_else(|| Error::config_internal("flatfiles: header lengths overflow usize"))?;
@@ -254,8 +256,8 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
     let mut out: Vec<FlatFileRow> = Vec::new();
     for entry_res in IndexIter::new(index_bytes, sec) {
         let entry = entry_res?;
-        let bs = entry.block_start as usize;
-        let be = entry.block_end as usize;
+        let bs = offset_to_usize(entry.block_start, "block_start")?;
+        let be = offset_to_usize(entry.block_end, "block_end")?;
         if be > data_bytes.len() || bs > be {
             return Err(Error::config_internal(format!(
                 "flatfiles: INDEX block bounds [{bs}, {be}) escape DATA section ({} bytes)",
@@ -334,5 +336,39 @@ mod tests {
             FlatFileFormat::Jsonl,
         );
         assert_eq!(p, "STOCK-TRADE-20260428.jsonl");
+    }
+
+    #[test]
+    fn offset_to_usize_round_trips_in_range_values() {
+        // An offset that fits is returned unchanged on every target.
+        assert_eq!(offset_to_usize(0, "block_start").unwrap(), 0);
+        assert_eq!(offset_to_usize(1500, "block_end").unwrap(), 1500);
+        assert_eq!(
+            offset_to_usize(usize::MAX as u64, "block_end").unwrap(),
+            usize::MAX
+        );
+    }
+
+    #[test]
+    fn offset_to_usize_rejects_value_exceeding_usize() {
+        // On a target where `usize` is narrower than `u64`, an offset above
+        // `usize::MAX` must surface as a typed error rather than truncating
+        // silently and reading the wrong DATA block. Where `usize == u64`
+        // (the shipped 64-bit target) no such value exists, so the typed
+        // conversion is exercised through its success path instead.
+        if let Some(too_big) = (usize::MAX as u64).checked_add(1) {
+            let err = offset_to_usize(too_big, "block_end").unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                msg.contains("block_end") && msg.contains("does not fit in usize"),
+                "expected typed out-of-range offset error, got: {msg}"
+            );
+        } else {
+            // 64-bit target: every u64 fits, so the checked path cannot reject.
+            assert_eq!(
+                offset_to_usize(u64::MAX, "block_end").unwrap(),
+                u64::MAX as usize
+            );
+        }
     }
 }
