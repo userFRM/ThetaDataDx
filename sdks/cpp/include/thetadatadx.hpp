@@ -607,6 +607,19 @@ public:
      *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_email(const std::string& email, const std::string& password);
 
+    /** Authenticate with an API key instead of an email and password.
+     *  @param api_key API key; trimmed and held as secret material.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
+    static Credentials from_api_key(const std::string& api_key);
+
+    /** Authenticate with an API key paired with an account email.
+     *  @param email Account email (lowercased and trimmed; an empty email is dropped).
+     *  @param api_key API key; trimmed and held as secret material.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
+    static Credentials from_api_key_with_email(const std::string& email, const std::string& api_key);
+
     /** Borrow the underlying `ThetaDataDxCredentials*` for a connect call.
      *  @return A non-owning handle; ownership stays with this object. */
     ThetaDataDxCredentials* get() const { return handle_.get(); }

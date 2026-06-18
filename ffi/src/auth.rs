@@ -47,6 +47,77 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_email(
     })
 }
 
+/// Create credentials that authenticate with an API key.
+///
+/// The API key is an alternative to email + password. It is trimmed and
+/// held as secret material on the resulting handle.
+///
+/// Returns null on invalid input (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_credentials_from_api_key(
+    api_key: *const c_char,
+) -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let api_key = match unsafe { cstr_to_str(api_key) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("api_key is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("api_key is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        let creds = thetadatadx::Credentials::api_key(api_key);
+        Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
+    })
+}
+
+/// Create credentials that authenticate with an API key paired with an
+/// account email.
+///
+/// The email is lowercased and trimmed; an empty email is dropped. The
+/// API key is trimmed and held as secret material on the resulting
+/// handle.
+///
+/// Returns null on invalid input (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_credentials_from_api_key_with_email(
+    email: *const c_char,
+    api_key: *const c_char,
+) -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let email = match unsafe { cstr_to_str(email) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("email is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("email is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let api_key = match unsafe { cstr_to_str(api_key) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("api_key is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("api_key is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        let creds = thetadatadx::Credentials::api_key_with_email(email, api_key);
+        Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
+    })
+}
+
 /// Load credentials from a file (line 1 = email, line 2 = password).
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).

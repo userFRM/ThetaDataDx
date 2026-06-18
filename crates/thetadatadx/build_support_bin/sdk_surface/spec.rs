@@ -57,6 +57,8 @@ pub(super) enum MethodKind {
     FpssConnectFromFile,
     CredentialsFromFile,
     CredentialsFromEmail,
+    CredentialsFromApiKey,
+    CredentialsFromApiKeyWithEmail,
     ConfigConstructor,
     ClientConnect,
     ClientConnectFromFile,
@@ -303,6 +305,18 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
                 ("email", ParamType::String),
                 ("password", ParamType::String),
             ],
+        ),
+        MethodKind::CredentialsFromApiKey => (
+            Some("credentials_from_api_key"),
+            &[LIFE],
+            true,
+            &[("api_key", ParamType::String)],
+        ),
+        MethodKind::CredentialsFromApiKeyWithEmail => (
+            Some("credentials_from_api_key_with_email"),
+            &[LIFE],
+            true,
+            &[("email", ParamType::String), ("api_key", ParamType::String)],
         ),
         MethodKind::ConfigConstructor => {
             // Name is data-dependent (`config_<variant>`); check it here so

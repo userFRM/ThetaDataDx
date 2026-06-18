@@ -661,6 +661,23 @@ export declare class Credentials {
   constructor(email: string, password: string)
   /** Load credentials from a file (line 1 = email, line 2 = password). */
   static fromFile(path: string): Credentials
+  /**
+   * Authenticate with an API key instead of an email + password. The
+   * key is trimmed and held as secret material; `toString` never
+   * exposes it.
+   */
+  static fromApiKey(apiKey: string): Credentials
+  /**
+   * Authenticate with an API key paired with an account email. The
+   * email is lowercased and trimmed; an empty email is dropped.
+   */
+  static fromApiKeyWithEmail(email: string, apiKey: string): Credentials
+  /**
+   * Source credentials from the environment, falling back to a file.
+   * When `THETADATA_API_KEY` is set and non-empty an API key is used;
+   * otherwise the two-line file at `path` is read.
+   */
+  static fromEnvOrFile(path: string): Credentials
   /** Redacted string form — never exposes the email or password. */
   toString(): string
 }

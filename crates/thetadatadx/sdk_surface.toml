@@ -112,6 +112,23 @@ params = [
 ]
 
 [[methods]]
+name = "credentials_from_api_key"
+kind = "credentials_from_api_key"
+doc = "Authenticate with an API key instead of an email and password. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "api_key", type = "string", doc = "API key, held as secret material." }]
+
+[[methods]]
+name = "credentials_from_api_key_with_email"
+kind = "credentials_from_api_key_with_email"
+doc = "Authenticate with an API key paired with an account email. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [
+  { name = "email", type = "string", doc = "Account email." },
+  { name = "api_key", type = "string", doc = "API key, held as secret material." },
+]
+
+[[methods]]
 name = "config_production"
 kind = "config_constructor"
 doc = "Create the production configuration."

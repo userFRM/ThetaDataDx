@@ -128,6 +128,34 @@ impl Credentials {
         Ok(Credentials { inner })
     }
 
+    /// Authenticate with an API key instead of an email + password. The
+    /// key is trimmed and held as secret material; `toString` never
+    /// exposes it.
+    #[napi(factory, js_name = "fromApiKey")]
+    pub fn from_api_key(api_key: String) -> Credentials {
+        Credentials {
+            inner: auth::Credentials::api_key(api_key),
+        }
+    }
+
+    /// Authenticate with an API key paired with an account email. The
+    /// email is lowercased and trimmed; an empty email is dropped.
+    #[napi(factory, js_name = "fromApiKeyWithEmail")]
+    pub fn from_api_key_with_email(email: String, api_key: String) -> Credentials {
+        Credentials {
+            inner: auth::Credentials::api_key_with_email(email, api_key),
+        }
+    }
+
+    /// Source credentials from the environment, falling back to a file.
+    /// When `THETADATA_API_KEY` is set and non-empty an API key is used;
+    /// otherwise the two-line file at `path` is read.
+    #[napi(factory, js_name = "fromEnvOrFile")]
+    pub fn from_env_or_file(path: String) -> napi::Result<Credentials> {
+        let inner = auth::Credentials::from_env_or_file(&path).map_err(to_napi_err)?;
+        Ok(Credentials { inner })
+    }
+
     /// Redacted string form — never exposes the email or password.
     #[napi(js_name = "toString")]
     pub fn to_string_js(&self) -> String {

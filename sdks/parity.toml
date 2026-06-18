@@ -1475,6 +1475,28 @@ python = false  # Python uses the `Credentials(email, password)` constructor
 typescript = false
 cpp = true
 
+# API-key authentication: the alternative to email + password. Every
+# binding exposes both the bare-key and key-with-email factory, so both
+# columns stay `true` across Python (`from_api_key` /
+# `from_api_key_with_email` staticmethods), TypeScript (`fromApiKey` /
+# `fromApiKeyWithEmail` napi factories), and C++ (`from_api_key` /
+# `from_api_key_with_email` static members over the
+# `thetadatadx_credentials_from_api_key*` C ABI symbols).
+
+[[method]]
+class = "Credentials"
+name = "fromApiKey"
+python = true
+typescript = true   # `Credentials.fromApiKey(key)` napi factory
+cpp = true
+
+[[method]]
+class = "Credentials"
+name = "fromApiKeyWithEmail"
+python = true
+typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
+cpp = true
+
 # ── Config (the streaming/historical client configuration class) ──
 #
 # Field-level setters are tracked by the dotted `[[class]]` rows above

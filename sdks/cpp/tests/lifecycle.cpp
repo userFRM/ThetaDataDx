@@ -27,6 +27,19 @@ TEST_CASE("Config::production builds without network access", "[lifecycle][offli
     REQUIRE(config.get() != nullptr);
 }
 
+TEST_CASE("Credentials::from_api_key builds a handle without network access",
+          "[lifecycle][offline]") {
+    auto creds = thetadatadx::Credentials::from_api_key("super-secret-key");
+    REQUIRE(creds.get() != nullptr);
+}
+
+TEST_CASE("Credentials::from_api_key_with_email builds a handle without network access",
+          "[lifecycle][offline]") {
+    auto creds = thetadatadx::Credentials::from_api_key_with_email("user@example.com",
+                                                                   "super-secret-key");
+    REQUIRE(creds.get() != nullptr);
+}
+
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
     auto config = thetadatadx::Config::production();
     REQUIRE_NOTHROW(config.set_reconnect_policy(0));

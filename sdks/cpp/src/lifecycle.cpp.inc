@@ -12,6 +12,18 @@ Credentials Credentials::from_email(const std::string& email, const std::string&
     return Credentials(h);
 }
 
+Credentials Credentials::from_api_key(const std::string& api_key) {
+    auto h = thetadatadx_credentials_from_api_key(api_key.c_str());
+    if (!h) detail::throw_last_ffi_error();
+    return Credentials(h);
+}
+
+Credentials Credentials::from_api_key_with_email(const std::string& email, const std::string& api_key) {
+    auto h = thetadatadx_credentials_from_api_key_with_email(email.c_str(), api_key.c_str());
+    if (!h) detail::throw_last_ffi_error();
+    return Credentials(h);
+}
+
 Config Config::production() { return Config(thetadatadx_config_production()); }
 
 Config Config::dev() { return Config(thetadatadx_config_dev()); }

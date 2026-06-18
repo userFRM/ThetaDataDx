@@ -192,6 +192,40 @@ impl Credentials {
         Ok(Self { inner })
     }
 
+    /// Authenticate with an API key instead of an email + password.
+    ///
+    /// The key is trimmed and held as secret material; the repr never
+    /// exposes it.
+    #[staticmethod]
+    fn from_api_key(api_key: String) -> Self {
+        Self {
+            inner: auth::Credentials::api_key(api_key),
+        }
+    }
+
+    /// Authenticate with an API key paired with an account email.
+    ///
+    /// The email is lowercased and trimmed; an empty email is dropped.
+    /// The key is trimmed and held as secret material.
+    #[staticmethod]
+    fn from_api_key_with_email(email: String, api_key: String) -> Self {
+        Self {
+            inner: auth::Credentials::api_key_with_email(email, api_key),
+        }
+    }
+
+    /// Source credentials from the environment, falling back to a
+    /// credentials file.
+    ///
+    /// When ``THETADATA_API_KEY`` is set and non-empty an API key is
+    /// used; otherwise the two-line ``creds.txt`` file at ``path`` is
+    /// read.
+    #[staticmethod]
+    fn from_env(path: &str) -> PyResult<Self> {
+        let inner = auth::Credentials::from_env_or_file(path).map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
     fn __repr__(&self) -> String {
         // Match the redacted Rust `Debug` impl on `auth::Credentials`
         // (`crates/thetadatadx/src/auth/creds.rs`). Never interpolate

@@ -209,6 +209,13 @@ fn cpp_lifecycle_def(method: &MethodSpec) -> String {
         MethodKind::CredentialsFromEmail => {
             include_str!("templates/cpp/credentials_from_email_def.cpp.tmpl").to_string()
         }
+        MethodKind::CredentialsFromApiKey => {
+            include_str!("templates/cpp/credentials_from_api_key_def.cpp.tmpl").to_string()
+        }
+        MethodKind::CredentialsFromApiKeyWithEmail => {
+            include_str!("templates/cpp/credentials_from_api_key_with_email_def.cpp.tmpl")
+                .to_string()
+        }
         MethodKind::ConfigConstructor => {
             let variant = method.config_variant.as_deref().unwrap();
             format!(
