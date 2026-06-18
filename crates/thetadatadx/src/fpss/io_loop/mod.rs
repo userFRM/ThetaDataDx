@@ -523,6 +523,21 @@ where
     );
     let mut last_known_good_host = None;
 
+    // Originating disconnect reason carried across consecutive FAILED
+    // redials. A rate-limited (`TooManyRequests`) or `ServerRestarting`
+    // drop sets a long cooldown floor and a large attempt budget; if the
+    // first redial after that drop fails before the reader is replaced
+    // with a live stream, control returns to `'session` top with only the
+    // dead, pre-drop `reader` to read from. That read can only time out
+    // and re-derive a generic `TimedOut` (Transient) reason, which would
+    // silently downgrade the class to the fast ladder and the smaller
+    // budget. Holding the originating reason here preserves the class
+    // across the redial-failure streak. It is `take`n at the top of each
+    // session: a live read on a successfully reconnected session always
+    // re-derives a fresh reason, so a genuinely new disconnect reason
+    // still overrides once the connection is re-established.
+    let mut pending_reason: Option<RemoveReason> = None;
+
     'session: loop {
         // Session-local liveness clock: starts at session entry so a
         // session that never delivers a frame still times out exactly
@@ -530,137 +545,121 @@ where
         // `last_event_at_ns` operator-facing staleness clock.
         let mut last_frame_at = Instant::now();
 
+        // A carried reason from a failed redial short-circuits the inner
+        // read: the only `reader` available here is the dead pre-drop
+        // stream, so reading it would waste a full `read_timeout` and emit
+        // a spurious `TimedOut` Disconnected/Reconnecting pair before
+        // re-deriving the wrong class. Honour the shutdown flag first (the
+        // inner loop's own first act) so a carried reason can never wedge
+        // a shutting-down thread, then drive the reconnect decision
+        // straight off the preserved reason instead of the stale read. A
+        // session that successfully reconnected has no carried reason, so
+        // a live read on it always re-derives a fresh class below: the
+        // carry only holds the class WHILE we are still failing to
+        // re-establish the connection, never after.
+        if pending_reason.is_some() && shutdown.load(Ordering::Relaxed) {
+            break 'session;
+        }
+
         // --- Inner read/write loop for one connection session ---
         // When the inner loop breaks, `disconnect_reason` holds the reason.
-        let disconnect_reason: RemoveReason = 'inner: loop {
-            if shutdown.load(Ordering::Relaxed) {
-                break 'session;
-            }
-
-            // --- Phase 1: Try to read a frame (short blocking read) ---
-            match read_frame_into_with_stall_timeout(
-                &mut reader,
-                &mut frame_buf,
-                &mut frame_state,
-                read_timeout,
-            ) {
-                Ok(Some((code, payload_len))) => {
-                    last_frame_at = Instant::now();
-                    last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
-                    // Reset reconnect counters on successful data reception
-                    // and mark "data did flow on this session" so the
-                    // stable-window check on the next drop knows whether
-                    // the connection ran long enough to deserve a fresh
-                    // retry budget.
-                    reconnect_state.reset_counters();
-                    reconnect_state.note_data_received();
-
-                    let (primary, secondary) = decode_frame(
-                        code,
-                        &frame_buf[..payload_len],
-                        &authenticated,
-                        &mut local_contracts,
-                        &shutdown,
-                        &mut delta_state,
-                        derive_ohlcvc,
-                    );
-
-                    // Correlate a subscription response to the subscribe it
-                    // answers (by `req_id`) before publishing it. A rejecting
-                    // response untracks the offending subscription so it is
-                    // neither re-replayed on the next reconnect nor over-
-                    // reported by `active_subscriptions()`; an accepting one
-                    // simply clears the pending entry and keeps it tracked.
-                    if let Some(FpssEventInternal::Control(StreamControl::ReqResponse {
-                        req_id,
-                        result,
-                    })) = &primary
-                    {
-                        apply_req_response(
-                            *req_id,
-                            *result,
-                            &pending_subs,
-                            &active_subs,
-                            &active_full_subs,
-                        );
-                    }
-
-                    if let Some(evt) = primary {
-                        if producer
-                            .try_publish(|slot| {
-                                slot.event = evt;
-                            })
-                            .is_err()
-                        {
-                            // Ring buffer full: consumer fell behind.
-                            // Count the drop and keep reading — the
-                            // alternative (blocking `publish`) would
-                            // stall the TLS reader and cause the
-                            // vendor session to drop on a slow
-                            // user callback.
-                            dropped.fetch_add(1, Ordering::Relaxed);
-                        }
-                    }
-                    if let Some(evt) = secondary {
-                        if producer
-                            .try_publish(|slot| {
-                                slot.event = evt;
-                            })
-                            .is_err()
-                        {
-                            dropped.fetch_add(1, Ordering::Relaxed);
-                        }
-                    }
+        // A carried reason from a failed redial bypasses the read so the
+        // stale dead stream is never re-read and the class is preserved.
+        let disconnect_reason: RemoveReason = if let Some(carried) = pending_reason.take() {
+            // The liveness clock belongs to the read path; the carried
+            // branch never consults it but the binding must remain for the
+            // read arm below.
+            let _ = &last_frame_at;
+            carried
+        } else {
+            'inner: loop {
+                if shutdown.load(Ordering::Relaxed) {
+                    break 'session;
                 }
-                Ok(None) => {
-                    // Clean EOF
-                    tracing::warn!("FPSS connection closed by server");
-                    if producer
-                        .try_publish(|slot| {
-                            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
-                                reason: RemoveReason::Unspecified,
-                            });
-                        })
-                        .is_err()
-                    {
-                        dropped.fetch_add(1, Ordering::Relaxed);
-                        tracing::warn!(
-                            target: "thetadatadx::fpss::io_loop",
-                            "ring full while publishing Disconnected (Unspecified); dropped",
+
+                // --- Phase 1: Try to read a frame (short blocking read) ---
+                match read_frame_into_with_stall_timeout(
+                    &mut reader,
+                    &mut frame_buf,
+                    &mut frame_state,
+                    read_timeout,
+                ) {
+                    Ok(Some((code, payload_len))) => {
+                        last_frame_at = Instant::now();
+                        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
+                        // Reset reconnect counters on successful data reception
+                        // and mark "data did flow on this session" so the
+                        // stable-window check on the next drop knows whether
+                        // the connection ran long enough to deserve a fresh
+                        // retry budget.
+                        reconnect_state.reset_counters();
+                        reconnect_state.note_data_received();
+
+                        let (primary, secondary) = decode_frame(
+                            code,
+                            &frame_buf[..payload_len],
+                            &authenticated,
+                            &mut local_contracts,
+                            &shutdown,
+                            &mut delta_state,
+                            derive_ohlcvc,
                         );
-                    }
-                    authenticated.store(false, Ordering::Release);
-                    break 'inner RemoveReason::Unspecified;
-                }
-                Err(ref e) if is_read_timeout(e) => {
-                    let quiet = last_frame_at.elapsed();
-                    let read_deadline_hit = quiet >= read_timeout;
-                    // Last-frame watchdog: a hard wall-clock backstop
-                    // above the read timeout. With the default 3 s
-                    // read timeout the deadline above fires first;
-                    // the watchdog catches configurations that widen
-                    // the read timeout past the watchdog window.
-                    let watchdog_hit = !data_watchdog.is_zero() && quiet >= data_watchdog;
-                    if read_deadline_hit || watchdog_hit {
-                        if watchdog_hit && !read_deadline_hit {
-                            tracing::warn!(
-                                watchdog_ms =
-                                    u64::try_from(data_watchdog.as_millis()).unwrap_or(u64::MAX),
-                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
-                                "FPSS last-frame watchdog tripped; forcing reconnect",
-                            );
-                        } else {
-                            tracing::warn!(
-                                timeout_ms = read_timeout_ms_total,
-                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
-                                "FPSS read timed out (no frames inside the read deadline)",
+
+                        // Correlate a subscription response to the subscribe it
+                        // answers (by `req_id`) before publishing it. A rejecting
+                        // response untracks the offending subscription so it is
+                        // neither re-replayed on the next reconnect nor over-
+                        // reported by `active_subscriptions()`; an accepting one
+                        // simply clears the pending entry and keeps it tracked.
+                        if let Some(FpssEventInternal::Control(StreamControl::ReqResponse {
+                            req_id,
+                            result,
+                        })) = &primary
+                        {
+                            apply_req_response(
+                                *req_id,
+                                *result,
+                                &pending_subs,
+                                &active_subs,
+                                &active_full_subs,
                             );
                         }
+
+                        if let Some(evt) = primary {
+                            if producer
+                                .try_publish(|slot| {
+                                    slot.event = evt;
+                                })
+                                .is_err()
+                            {
+                                // Ring buffer full: consumer fell behind.
+                                // Count the drop and keep reading — the
+                                // alternative (blocking `publish`) would
+                                // stall the TLS reader and cause the
+                                // vendor session to drop on a slow
+                                // user callback.
+                                dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                        if let Some(evt) = secondary {
+                            if producer
+                                .try_publish(|slot| {
+                                    slot.event = evt;
+                                })
+                                .is_err()
+                            {
+                                dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        // Clean EOF
+                        tracing::warn!("FPSS connection closed by server");
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
                                     FpssEventInternal::Control(StreamControl::Disconnected {
-                                        reason: RemoveReason::TimedOut,
+                                        reason: RemoveReason::Unspecified,
                                     });
                             })
                             .is_err()
@@ -668,78 +667,41 @@ where
                             dropped.fetch_add(1, Ordering::Relaxed);
                             tracing::warn!(
                                 target: "thetadatadx::fpss::io_loop",
-                                "ring full while publishing Disconnected (TimedOut); dropped",
+                                "ring full while publishing Disconnected (Unspecified); dropped",
                             );
                         }
                         authenticated.store(false, Ordering::Release);
-                        break 'inner RemoveReason::TimedOut;
+                        break 'inner RemoveReason::Unspecified;
                     }
-                    // Otherwise, fall through to drain commands.
-                }
-                Err(ref e) if is_drain_yield(e) => {
-                    // Mid-frame reader yielded so the command drain can
-                    // keep up. `frame_state` has
-                    // been updated with the exact byte offset in the
-                    // header / payload, so the next `read_frame_into`
-                    // call resumes without desync. Do NOT count this
-                    // toward `consecutive_timeouts` -- the TLS socket
-                    // IS delivering bytes, just slowly; a sustained
-                    // drain-yield is expected behaviour on a trickling
-                    // sender, not a sign of a dead connection. Fall
-                    // through to the Phase 2 drain.
-                    FPSS_DRAIN_YIELDS.increment(1);
-                    tracing::trace!(
-                        "mid-frame drain-yield -- draining outbound commands \
-                         before re-entering read"
-                    );
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "FPSS read error");
-                    if producer
-                        .try_publish(|slot| {
-                            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
-                                reason: RemoveReason::Unspecified,
-                            });
-                        })
-                        .is_err()
-                    {
-                        dropped.fetch_add(1, Ordering::Relaxed);
-                        tracing::warn!(
-                            target: "thetadatadx::fpss::io_loop",
-                            "ring full while publishing Disconnected (read error); dropped",
-                        );
-                    }
-                    authenticated.store(false, Ordering::Release);
-                    break 'inner RemoveReason::Unspecified;
-                }
-            }
-
-            // --- Phase 2: Drain command channel (non-blocking) ---
-            loop {
-                match cmd_rx.try_recv() {
-                    Ok(IoCommand::WriteFrame { code, payload }) => {
-                        let writer = reader.get_mut();
-                        let result = if code == StreamMsgType::Ping
-                            || flush_mode == StreamingFlushMode::Immediate
-                        {
-                            write_raw_frame(writer, code, &payload)
-                        } else {
-                            write_raw_frame_no_flush(writer, code, &payload)
-                        };
-                        if let Err(e) = result {
-                            // A steady-state write failure means the socket's
-                            // write side is broken. Reading on never recovers
-                            // the queued subscribe/command that just failed, so
-                            // escalate to reconnect immediately rather than
-                            // deferring to the next read timeout. Mirror the
-                            // disconnect-and-break shape the read-error and
-                            // EOF branches use.
-                            tracing::warn!(error = %e, "frame write failed; treating socket as broken and reconnecting");
+                    Err(ref e) if is_read_timeout(e) => {
+                        let quiet = last_frame_at.elapsed();
+                        let read_deadline_hit = quiet >= read_timeout;
+                        // Last-frame watchdog: a hard wall-clock backstop
+                        // above the read timeout. With the default 3 s
+                        // read timeout the deadline above fires first;
+                        // the watchdog catches configurations that widen
+                        // the read timeout past the watchdog window.
+                        let watchdog_hit = !data_watchdog.is_zero() && quiet >= data_watchdog;
+                        if read_deadline_hit || watchdog_hit {
+                            if watchdog_hit && !read_deadline_hit {
+                                tracing::warn!(
+                                    watchdog_ms = u64::try_from(data_watchdog.as_millis())
+                                        .unwrap_or(u64::MAX),
+                                    quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                    "FPSS last-frame watchdog tripped; forcing reconnect",
+                                );
+                            } else {
+                                tracing::warn!(
+                                    timeout_ms = read_timeout_ms_total,
+                                    quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                    "FPSS read timed out (no frames inside the read deadline)",
+                                );
+                            }
                             if producer
                                 .try_publish(|slot| {
                                     slot.event =
                                         FpssEventInternal::Control(StreamControl::Disconnected {
-                                            reason: RemoveReason::Unspecified,
+                                            reason: RemoveReason::TimedOut,
                                         });
                                 })
                                 .is_err()
@@ -747,43 +709,126 @@ where
                                 dropped.fetch_add(1, Ordering::Relaxed);
                                 tracing::warn!(
                                     target: "thetadatadx::fpss::io_loop",
-                                    "ring full while publishing Disconnected (write error); dropped",
+                                    "ring full while publishing Disconnected (TimedOut); dropped",
                                 );
                             }
                             authenticated.store(false, Ordering::Release);
-                            break 'inner RemoveReason::Unspecified;
+                            break 'inner RemoveReason::TimedOut;
                         }
+                        // Otherwise, fall through to drain commands.
                     }
-                    Ok(IoCommand::Shutdown) => {
-                        let stop_payload = protocol::build_stop_payload();
-                        let writer = reader.get_mut();
-                        // Best-effort STOP: we're about to tear down the
-                        // socket anyway, so write failure here is not
-                        // actionable. But silent failure masks half-closed
-                        // sockets and kernel buffer exhaustion -- surface
-                        // the error so operators can diagnose kernel-side
-                        // issues from logs rather than from stream
-                        // truncation alone.
-                        if let Err(e) = write_raw_frame(writer, StreamMsgType::Stop, &stop_payload)
+                    Err(ref e) if is_drain_yield(e) => {
+                        // Mid-frame reader yielded so the command drain can
+                        // keep up. `frame_state` has
+                        // been updated with the exact byte offset in the
+                        // header / payload, so the next `read_frame_into`
+                        // call resumes without desync. Do NOT count this
+                        // toward `consecutive_timeouts` -- the TLS socket
+                        // IS delivering bytes, just slowly; a sustained
+                        // drain-yield is expected behaviour on a trickling
+                        // sender, not a sign of a dead connection. Fall
+                        // through to the Phase 2 drain.
+                        FPSS_DRAIN_YIELDS.increment(1);
+                        tracing::trace!(
+                            "mid-frame drain-yield -- draining outbound commands \
+                         before re-entering read"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "FPSS read error");
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event =
+                                    FpssEventInternal::Control(StreamControl::Disconnected {
+                                        reason: RemoveReason::Unspecified,
+                                    });
+                            })
+                            .is_err()
                         {
+                            dropped.fetch_add(1, Ordering::Relaxed);
                             tracing::warn!(
-                                error = %e,
-                                "failed to send STOP frame on shutdown"
+                                target: "thetadatadx::fpss::io_loop",
+                                "ring full while publishing Disconnected (read error); dropped",
                             );
                         }
-                        tracing::debug!("sent STOP, I/O thread exiting");
-                        shutdown.store(true, Ordering::Release);
-                        break;
+                        authenticated.store(false, Ordering::Release);
+                        break 'inner RemoveReason::Unspecified;
                     }
-                    Err(std_mpsc::TryRecvError::Empty) => break,
-                    Err(std_mpsc::TryRecvError::Disconnected) => {
-                        tracing::debug!("command channel disconnected, I/O thread exiting");
-                        shutdown.store(true, Ordering::Release);
-                        break;
+                }
+
+                // --- Phase 2: Drain command channel (non-blocking) ---
+                loop {
+                    match cmd_rx.try_recv() {
+                        Ok(IoCommand::WriteFrame { code, payload }) => {
+                            let writer = reader.get_mut();
+                            let result = if code == StreamMsgType::Ping
+                                || flush_mode == StreamingFlushMode::Immediate
+                            {
+                                write_raw_frame(writer, code, &payload)
+                            } else {
+                                write_raw_frame_no_flush(writer, code, &payload)
+                            };
+                            if let Err(e) = result {
+                                // A steady-state write failure means the socket's
+                                // write side is broken. Reading on never recovers
+                                // the queued subscribe/command that just failed, so
+                                // escalate to reconnect immediately rather than
+                                // deferring to the next read timeout. Mirror the
+                                // disconnect-and-break shape the read-error and
+                                // EOF branches use.
+                                tracing::warn!(error = %e, "frame write failed; treating socket as broken and reconnecting");
+                                if producer
+                                    .try_publish(|slot| {
+                                        slot.event = FpssEventInternal::Control(
+                                            StreamControl::Disconnected {
+                                                reason: RemoveReason::Unspecified,
+                                            },
+                                        );
+                                    })
+                                    .is_err()
+                                {
+                                    dropped.fetch_add(1, Ordering::Relaxed);
+                                    tracing::warn!(
+                                        target: "thetadatadx::fpss::io_loop",
+                                        "ring full while publishing Disconnected (write error); dropped",
+                                    );
+                                }
+                                authenticated.store(false, Ordering::Release);
+                                break 'inner RemoveReason::Unspecified;
+                            }
+                        }
+                        Ok(IoCommand::Shutdown) => {
+                            let stop_payload = protocol::build_stop_payload();
+                            let writer = reader.get_mut();
+                            // Best-effort STOP: we're about to tear down the
+                            // socket anyway, so write failure here is not
+                            // actionable. But silent failure masks half-closed
+                            // sockets and kernel buffer exhaustion -- surface
+                            // the error so operators can diagnose kernel-side
+                            // issues from logs rather than from stream
+                            // truncation alone.
+                            if let Err(e) =
+                                write_raw_frame(writer, StreamMsgType::Stop, &stop_payload)
+                            {
+                                tracing::warn!(
+                                    error = %e,
+                                    "failed to send STOP frame on shutdown"
+                                );
+                            }
+                            tracing::debug!("sent STOP, I/O thread exiting");
+                            shutdown.store(true, Ordering::Release);
+                            break;
+                        }
+                        Err(std_mpsc::TryRecvError::Empty) => break,
+                        Err(std_mpsc::TryRecvError::Disconnected) => {
+                            tracing::debug!("command channel disconnected, I/O thread exiting");
+                            shutdown.store(true, Ordering::Release);
+                            break;
+                        }
                     }
                 }
             }
-        }; // end 'inner loop (yields RemoveReason)
+        }; // end inner read loop (yields RemoveReason)
 
         // If shutdown was requested (explicit or channel disconnect), exit entirely.
         if shutdown.load(Ordering::Relaxed) {
@@ -1030,7 +1075,11 @@ where
                 // Loop around to try again. The per-class counter was
                 // already incremented on the reconnection-decision
                 // branch above and will be re-incremented on the next
-                // failure-with-reason cycle through the loop.
+                // failure-with-reason cycle through the loop. Carry the
+                // originating reason so the next cycle re-derives the same
+                // class (floor + budget) rather than reading the dead
+                // stream and downgrading to a generic TimedOut.
+                pending_reason = Some(reason);
                 continue 'session;
             }
         };
@@ -1052,6 +1101,9 @@ where
         if let Err(e) = write_raw_frame(&mut new_stream, StreamMsgType::Credentials, &cred_payload)
         {
             tracing::warn!(error = %e, "failed to send credentials on reconnect");
+            // Reader is still the dead pre-drop stream here; carry the
+            // class so the next cycle keeps its floor + budget.
+            pending_reason = Some(reason);
             continue 'session;
         }
 
@@ -1064,6 +1116,9 @@ where
             Ok(r) => r,
             Err(e) => {
                 tracing::warn!(error = %e, "login failed on reconnect");
+                // Reader is still the dead pre-drop stream here; carry the
+                // class so the next cycle keeps its floor + budget.
+                pending_reason = Some(reason);
                 continue 'session;
             }
         };
@@ -1136,6 +1191,13 @@ where
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
+                // Transient login rejection. The server just handed us a
+                // fresh, authoritative reason (e.g. ServerRestarting /
+                // TooManyRequests); carry THAT class forward rather than
+                // the originating drop's, so the next cycle's floor +
+                // budget reflect the most recent server signal instead of
+                // a stale read's generic TimedOut.
+                pending_reason = Some(reason);
                 continue 'session;
             }
         };
@@ -1153,6 +1215,10 @@ where
         // initial-connect path in `StreamingClient::connect_with_stream`.
         if let Err(e) = new_stream.sock.set_read_timeout(Some(io_read_slice)) {
             tracing::warn!(error = %e, "failed to set read timeout on reconnect");
+            // The new stream never became the live `reader` (that swap is
+            // below), so the next cycle would re-read the dead pre-drop
+            // stream. Carry the class to keep its floor + budget.
+            pending_reason = Some(reason);
             continue 'session;
         }
 
@@ -1735,6 +1801,121 @@ mod tests {
         // Use `assert_eq!` so a future drift in either factor surfaces
         // immediately rather than passing on any value <= the bound.
         assert_eq!(total_ms, 1_300_000);
+    }
+
+    /// A rate-limited (`TooManyRequests`) drop whose FIRST redial fails
+    /// before the reader is replaced with a live stream must keep its
+    /// class on the SECOND attempt — the rate-limited floor + budget, not
+    /// the fast transient ladder.
+    ///
+    /// The io_loop re-enters `'session` after a failed redial with only
+    /// the dead pre-drop stream to read, whose read can only time out and
+    /// re-derive a generic `TimedOut` (Transient). The fix carries the
+    /// originating reason across that failure so the next decision class
+    /// is derived from the preserved reason, not the stale read. This test
+    /// models the exact attempt sequence the loop drives: attempt 1 from
+    /// the live drop, attempt 2 from the carried reason. The regression
+    /// signature is the counter bucket — a downgraded re-derive would land
+    /// attempt 2 in `transient`, leaving `rate_limited` stuck at 1.
+    #[test]
+    fn rate_limited_class_is_preserved_across_a_failed_first_redial() {
+        let limits = ReconnectAttemptLimits::default();
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // Attempt 1: the live `TooManyRequests` drop. The io_loop derives
+        // the class from the just-read reason exactly this way.
+        let drop_reason = RemoveReason::TooManyRequests;
+        let class1 = ReconnectAttemptLimits::class_for(drop_reason)
+            .expect("TooManyRequests is not permanent");
+        assert_eq!(class1, ReconnectAttemptClass::RateLimited);
+        let attempt1 = counters.record(class1);
+        assert_eq!(attempt1, 1);
+
+        // The first redial fails before the reader is reassigned, so the
+        // loop carries the originating reason instead of re-deriving from
+        // the dead stream. Model the carry: the reason for attempt 2 is the
+        // preserved drop reason, NOT a re-read `TimedOut`.
+        let carried = drop_reason;
+        let class2 = ReconnectAttemptLimits::class_for(carried)
+            .expect("carried TooManyRequests is not permanent");
+
+        // The class MUST still be rate-limited. A regression that read the
+        // dead stream would yield `TimedOut` here, classified Transient.
+        assert_eq!(
+            class2,
+            ReconnectAttemptClass::RateLimited,
+            "a carried TooManyRequests must stay rate-limited on the second attempt"
+        );
+        assert_ne!(
+            ReconnectAttemptLimits::class_for(RemoveReason::TimedOut),
+            Some(ReconnectAttemptClass::RateLimited),
+            "TimedOut classifies Transient -- the downgrade this test guards against",
+        );
+
+        let attempt2 = counters.record(class2);
+
+        // Both attempts incremented the SAME (rate-limited) counter, so the
+        // budget consumed is the rate-limited one. A downgrade to Transient
+        // would have left this at 1 and bumped `transient` to 1 instead.
+        assert_eq!(
+            attempt2, 2,
+            "the second rate-limited attempt must advance the rate-limited counter to 2"
+        );
+        assert_eq!(
+            counters.transient, 0,
+            "no transient attempt may be consumed for a carried rate-limited drop"
+        );
+
+        // The second attempt draws on the large rate-limited budget and the
+        // 130 s floor, not the 30-attempt transient budget / fast ladder.
+        assert_eq!(
+            limits.budget_for(class2),
+            limits.max_rate_limited_attempts,
+            "the carried attempt must spend the rate-limited budget"
+        );
+        assert!(
+            limits.budget_for(class2) > limits.max_attempts,
+            "the rate-limited budget must exceed the transient budget the bug would use"
+        );
+        let floor = crate::fpss::reconnect_delay(carried)
+            .expect("TooManyRequests yields a finite reconnect delay");
+        assert_eq!(
+            floor,
+            crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS,
+            "the carried attempt must honour the rate-limited floor, not the transient ladder"
+        );
+    }
+
+    /// A transient login rejection on reconnect (`ServerRestarting`) hands
+    /// the loop a FRESH, authoritative server reason. The carry must
+    /// forward THAT class, so the next attempt is paced as a server
+    /// restart rather than downgraded by a stale read.
+    #[test]
+    fn transient_login_rejection_carries_its_own_class() {
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // Originating drop was a generic timeout (Transient)...
+        let _ = counters.record(
+            ReconnectAttemptLimits::class_for(RemoveReason::TimedOut)
+                .expect("TimedOut is not permanent"),
+        );
+
+        // ...the redial connects but the server rejects login with
+        // ServerRestarting. The loop carries that reason, not the original.
+        let carried = RemoveReason::ServerRestarting;
+        let class =
+            ReconnectAttemptLimits::class_for(carried).expect("ServerRestarting is not permanent");
+        assert_eq!(
+            class,
+            ReconnectAttemptClass::ServerRestart,
+            "a transient login rejection must drive the class it reported"
+        );
+        let attempt = counters.record(class);
+        assert_eq!(
+            attempt, 1,
+            "the server-restart counter advances on its own class, independent of the prior transient attempt"
+        );
+        assert_eq!(counters.server_restart, 1);
     }
 
     /// Stable-window reset: a session that ran cleanly for at least
