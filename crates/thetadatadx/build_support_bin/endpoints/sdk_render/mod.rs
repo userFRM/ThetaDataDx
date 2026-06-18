@@ -11,6 +11,7 @@ mod doc;
 mod enums;
 mod ffi;
 mod python;
+mod python_stub;
 mod python_validate;
 mod sdk_files;
 mod typescript;

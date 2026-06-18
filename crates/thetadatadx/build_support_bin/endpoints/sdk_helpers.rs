@@ -333,6 +333,14 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
     format!("{}List", render_for(return_type).pyclass)
 }
 
+/// Name of the generated row `#[pyclass]` (e.g. `EodTick`) for a return
+/// type. Snapshot endpoints return a plain `list[<row pyclass>]` rather
+/// than the chainable `<TickName>List` wrapper, so the type-stub emitter
+/// annotates them as `List[<row pyclass>]`.
+pub(super) fn python_pyclass_row_class(return_type: &str) -> String {
+    render_for(return_type).pyclass.clone()
+}
+
 /// Map a collection return type (e.g. `CalendarDays`) to the generated
 /// `<tick>_vec_to_pylist` converter in `tick_classes.rs`. This is the
 /// snapshot-endpoint fast path: takes a decoder-owned `Vec<tick::T>` and
