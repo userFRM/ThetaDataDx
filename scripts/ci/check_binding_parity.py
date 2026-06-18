@@ -3719,6 +3719,187 @@ def _check_connect_rows(
     return errors
 
 
+# ─── Credentials factory surface (reverse-orphan over `Credentials`) ──
+#
+# The `Credentials` class is the single auth handle every binding builds
+# and hands to a connect call. Its factories (`fromFile`, `fromEmail`,
+# `fromApiKey`, `fromApiKeyWithEmail`, `fromEnvOrFile`) ride `[[method]]`
+# rows, but a forward `[[method]]` check only fires when a row already
+# exists — a binding that grows a NEW credentials factory the others lack
+# reaches none of them and no row is there to trip. This family closes
+# that blind spot at its source: it harvests every `Credentials` factory
+# from each binding, folds the per-binding spelling to the canonical
+# cross-binding name the rows use, and trips when a harvested factory has
+# no `[[method]]` row OR when a known factory is absent from a binding the
+# roster says should carry it.
+#
+# Per-binding factory spelling → canonical cross-binding name:
+#   * Python  — `from_env_or_file` snake_case staticmethod  → `fromEnvOrFile`
+#   * TS      — `fromEnvOrFile` napi factory (already camel) → `fromEnvOrFile`
+#   * C++     — `from_env_or_file` snake_case static member  → `fromEnvOrFile`
+#   * C ABI   — `thetadatadx_credentials_from_env_or_file`   → `fromEnvOrFile`
+#
+# `fromEmail` is C++/C-ABI only: Python and TypeScript build email +
+# password credentials through the class constructor, not a factory, so
+# the roster records that asymmetry rather than tripping on it.
+
+# Canonical cross-binding name → the bindings that MUST expose the
+# factory. The constructor-only email path (`fromEmail`) is C++/C-ABI
+# only; every other factory is four-way. This roster is the governed set:
+# a harvested factory outside it, or a roster member missing from a
+# binding it lists, trips the gate.
+CREDENTIALS_FACTORY_ROSTER: dict[str, frozenset[str]] = {
+    "fromFile": frozenset({"python", "typescript", "cpp", "ffi"}),
+    "fromEmail": frozenset({"cpp", "ffi"}),
+    "fromApiKey": frozenset({"python", "typescript", "cpp", "ffi"}),
+    "fromApiKeyWithEmail": frozenset({"python", "typescript", "cpp", "ffi"}),
+    "fromEnvOrFile": frozenset({"python", "typescript", "cpp", "ffi"}),
+}
+
+
+def _credentials_factory_camel(snake: str) -> str:
+    """Fold a snake_case `Credentials` factory name (Python staticmethod /
+    C++ static member / the `from_*` tail of a C ABI symbol) to the
+    camelCase cross-binding name the `[[method]]` rows use."""
+    head, *rest = snake.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
+# `Credentials` members that are not factories: the constructor, the
+# borrow accessor + its backing handle, the email getter, and the
+# redaction hooks. Harvested by the generic method collectors but never a
+# cross-binding factory, so they are exempt before the camelCase fold.
+# Names are the raw per-binding spellings (TS `new` / `toString`; C++
+# `email` / `get` / `handle_`; Python dunders).
+CREDENTIALS_NON_FACTORY_MEMBERS: frozenset[str] = frozenset(
+    {
+        "new",
+        "get",
+        "handle_",
+        "email",
+        "to_string",
+        "toString",
+        "__repr__",
+        "__str__",
+    }
+)
+
+
+def _collect_python_credentials_factories(py_methods: dict[str, set[str]]) -> set[str]:
+    """Canonical cross-binding names of every `Credentials` factory the
+    Python pyclass exposes (snake_case staticmethods folded to camelCase).
+    """
+    members = py_methods.get("Credentials", set())
+    return {
+        _credentials_factory_camel(m)
+        for m in members
+        if m not in CREDENTIALS_NON_FACTORY_MEMBERS
+    }
+
+
+def _collect_typescript_credentials_factories(ts_methods: dict[str, set[str]]) -> set[str]:
+    """Canonical cross-binding names of every `Credentials` factory the
+    TypeScript napi class exposes (the `js_name` is already camelCase)."""
+    members = ts_methods.get("Credentials", set())
+    return {m for m in members if m not in CREDENTIALS_NON_FACTORY_MEMBERS}
+
+
+def _collect_cpp_credentials_factories(cpp_methods: dict[str, set[str]]) -> set[str]:
+    """Canonical cross-binding names of every `Credentials` factory the
+    C++ wrapper exposes (snake_case static members folded to camelCase,
+    inlining the generator-emitted `*.inc` members)."""
+    reverse_alias = {v: k for k, v in CPP_ALIASES.items()}
+    out: set[str] = set()
+    for cls, members in cpp_methods.items():
+        if reverse_alias.get(cls, cls) != "Credentials":
+            continue
+        out |= {
+            _credentials_factory_camel(m)
+            for m in members
+            if m not in CREDENTIALS_NON_FACTORY_MEMBERS
+        }
+    return out
+
+
+def _collect_ffi_credentials_factories(ffi_src: pathlib.Path) -> set[str]:
+    """Canonical cross-binding names of every `Credentials` factory the C
+    ABI exposes (`thetadatadx_credentials_<tail>` extern "C" symbols,
+    excluding the `free` lifecycle hook)."""
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    fn_re = re.compile(r"\bfn\s+thetadatadx_credentials_(\w+)\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for m in fn_re.finditer(text):
+            tail = m.group(1)
+            if tail == "free":
+                continue
+            out.add(_credentials_factory_camel(tail))
+    return out
+
+
+def _check_credentials_factory_rows(
+    rows: list[dict[str, Any]],
+    py_factories: set[str],
+    ts_factories: set[str],
+    cpp_factories: set[str],
+    ffi_factories: set[str],
+) -> list[str]:
+    """Cross-binding gate for the `Credentials` factory surface.
+
+    `rows` is the `[[method]]` roster filtered to `class = "Credentials"`.
+    The check is two-directional:
+
+      * Reverse-orphan — every `Credentials` factory harvested from ANY
+        binding must carry a `[[method]]` row. A binding that grows a new
+        factory the matrix does not track trips the gate even when nobody
+        adds the row, closing the blind spot a forward-only check leaves.
+
+      * Roster completeness — every factory in
+        `CREDENTIALS_FACTORY_ROSTER` must be present on each binding the
+        roster lists, so an asymmetric drop (a factory removed from one
+        binding) trips even if its row is also (wrongly) deleted.
+
+    Returns a list of mismatch strings (empty when the surface is
+    symmetric and fully tracked).
+    """
+    errors: list[str] = []
+    declared_names = {
+        row.get("name")
+        for row in rows
+        if row.get("class") == "Credentials" and row.get("name")
+    }
+    per_binding: dict[str, set[str]] = {
+        "python": py_factories,
+        "typescript": ts_factories,
+        "cpp": cpp_factories,
+        "ffi": ffi_factories,
+    }
+
+    # Reverse-orphan: a harvested factory with no [[method]] row.
+    seen = py_factories | ts_factories | cpp_factories | ffi_factories
+    for factory in sorted(seen - declared_names):
+        on = sorted(lang for lang, s in per_binding.items() if factory in s)
+        errors.append(
+            f"  Credentials.{factory}: factory present on {on} but has no "
+            f"[[method]] row (class = \"Credentials\"). Add one declaring "
+            f"its per-binding presence so the auth surface stays tracked."
+        )
+
+    # Roster completeness: a governed factory missing from a binding the
+    # roster says must carry it.
+    for factory, required in sorted(CREDENTIALS_FACTORY_ROSTER.items()):
+        for lang in sorted(required):
+            if factory not in per_binding[lang]:
+                errors.append(
+                    f"  Credentials.{factory}: governed factory missing from "
+                    f"the {lang} binding (roster requires {sorted(required)}). "
+                    f"Add it so the auth surface stays symmetric."
+                )
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
@@ -4409,6 +4590,26 @@ def main(argv: list[str] | None = None) -> int:
         connect_rows, py_connect, ts_connect, cpp_connect, ffi_connect_stems
     )
 
+    # Credentials factory surface — the auth-handle factories
+    # (`fromFile` / `fromEmail` / `fromApiKey` / `fromApiKeyWithEmail` /
+    # `fromEnvOrFile`). Each rides a `[[method]]` row, but a forward
+    # `[[method]]` check only fires when the row exists; this reverse
+    # scan harvests every `Credentials` factory from all four bindings
+    # and trips when one has no row, or when a governed factory is absent
+    # from a binding the roster lists. A new asymmetric factory cannot
+    # slip in untracked.
+    py_cred_factories = _collect_python_credentials_factories(py_class_methods)
+    ts_cred_factories = _collect_typescript_credentials_factories(ts_class_methods)
+    cpp_cred_factories = _collect_cpp_credentials_factories(cpp_class_methods)
+    ffi_cred_factories = _collect_ffi_credentials_factories(FFI_SRC)
+    credentials_factory_errors = _check_credentials_factory_rows(
+        method_rows,
+        py_cred_factories,
+        ts_cred_factories,
+        cpp_cred_factories,
+        ffi_cred_factories,
+    )
+
     # Public-surface vocabulary: no public client identifier may embed
     # one of OUR implementation-detail tokens (tokio / disruptor /
     # crossbeam / parking_lot / block_on / allow_threads / os_pipe).
@@ -4640,6 +4841,17 @@ def main(argv: list[str] | None = None) -> int:
             f"`[[connect]]` granularity):"
         )
         for e in connect_errors:
+            print(e)
+        print()
+
+    if credentials_factory_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(credentials_factory_errors)} "
+            f"Credentials factory mismatch(es) (cross-binding auth-handle "
+            f"surface):"
+        )
+        for e in credentials_factory_errors:
             print(e)
         print()
 
@@ -6442,6 +6654,84 @@ def _run_selftest() -> int:
     _case("from-file negative — untracked client trips", _case_from_file_untracked_orphan_trips)
     _case("from-file — FFI stem table maps class name", _case_from_file_ffi_stem_maps_class_name)
     _case("from-file — live sources clean", _case_from_file_live_sources_clean)
+
+    # ── Credentials factory surface selftests ──────────────────────
+
+    def _case_credentials_factory_camel_folds() -> None:
+        """The snake_case → camelCase fold matches the row spelling."""
+        assert _credentials_factory_camel("from_env_or_file") == "fromEnvOrFile"
+        assert _credentials_factory_camel("from_api_key_with_email") == "fromApiKeyWithEmail"
+        assert _credentials_factory_camel("from_file") == "fromFile"
+
+    def _case_credentials_factory_positive_all_bound() -> None:
+        """Every roster factory present on each required binding, with a
+        matching `[[method]]` row, is silent."""
+        rows = [
+            {"class": "Credentials", "name": name}
+            for name in CREDENTIALS_FACTORY_ROSTER
+        ]
+        four = {"fromFile", "fromApiKey", "fromApiKeyWithEmail", "fromEnvOrFile"}
+        py = set(four)
+        ts = set(four)
+        cpp = four | {"fromEmail"}
+        ffi = four | {"fromEmail"}
+        errors = _check_credentials_factory_rows(rows, py, ts, cpp, ffi)
+        assert errors == [], f"fully-bound credentials surface must be silent; got {errors!r}"
+
+    def _case_credentials_factory_untracked_orphan_trips() -> None:
+        """A `Credentials` factory harvested from a binding with no
+        `[[method]]` row trips the reverse-orphan scan."""
+        errors = _check_credentials_factory_rows(
+            [],  # no rows declared at all
+            {"fromEnvOrFile"},
+            set(),
+            set(),
+            set(),
+        )
+        assert any(
+            "fromEnvOrFile" in e and "no [[method]] row" in e for e in errors
+        ), f"untracked credentials factory must trip; got {errors!r}"
+
+    def _case_credentials_factory_roster_gap_trips() -> None:
+        """A governed factory missing from a binding the roster lists trips
+        even when its row still exists (asymmetric removal)."""
+        rows = [
+            {"class": "Credentials", "name": name}
+            for name in CREDENTIALS_FACTORY_ROSTER
+        ]
+        four = {"fromFile", "fromApiKey", "fromApiKeyWithEmail", "fromEnvOrFile"}
+        py = four - {"fromEnvOrFile"}  # dropped from Python only
+        ts = set(four)
+        cpp = four | {"fromEmail"}
+        ffi = four | {"fromEmail"}
+        errors = _check_credentials_factory_rows(rows, py, ts, cpp, ffi)
+        assert any(
+            "fromEnvOrFile" in e and "missing from the python binding" in e
+            for e in errors
+        ), f"roster gap on a binding must trip; got {errors!r}"
+
+    def _case_credentials_factory_live_sources_clean() -> None:
+        """The shipped bindings expose a symmetric, fully-tracked
+        `Credentials` factory surface."""
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        method_rows = data.get("method", [])
+        py_methods = _collect_python_class_methods(PY_SRC)
+        ts_methods = _collect_typescript_class_methods(TS_SRC)
+        cpp_methods = _collect_cpp_class_methods(CPP_HPP)
+        errors = _check_credentials_factory_rows(
+            method_rows,
+            _collect_python_credentials_factories(py_methods),
+            _collect_typescript_credentials_factories(ts_methods),
+            _collect_cpp_credentials_factories(cpp_methods),
+            _collect_ffi_credentials_factories(FFI_SRC),
+        )
+        assert errors == [], f"live credentials factory surface must be clean; got {errors!r}"
+
+    _case("credentials — camelCase fold matches row spelling", _case_credentials_factory_camel_folds)
+    _case("credentials positive — all bindings + rows silent", _case_credentials_factory_positive_all_bound)
+    _case("credentials negative — untracked factory trips", _case_credentials_factory_untracked_orphan_trips)
+    _case("credentials negative — roster gap on a binding trips", _case_credentials_factory_roster_gap_trips)
+    _case("credentials — live sources clean", _case_credentials_factory_live_sources_clean)
 
     # ── Public-surface vocabulary guard selftests ──────────────────
 

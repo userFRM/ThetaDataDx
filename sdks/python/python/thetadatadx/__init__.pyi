@@ -106,7 +106,7 @@ class Credentials:
         ...
 
     @staticmethod
-    def from_env(path: str) -> Credentials:
+    def from_env_or_file(path: str) -> Credentials:
         """Source credentials from the environment, falling back to a file.
 
         When ``THETADATA_API_KEY`` is set and non-empty an API key is

@@ -59,6 +59,7 @@ pub(super) enum MethodKind {
     CredentialsFromEmail,
     CredentialsFromApiKey,
     CredentialsFromApiKeyWithEmail,
+    CredentialsFromEnvOrFile,
     ConfigConstructor,
     ClientConnect,
     ClientConnectFromFile,
@@ -317,6 +318,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
             &[LIFE],
             true,
             &[("email", ParamType::String), ("api_key", ParamType::String)],
+        ),
+        MethodKind::CredentialsFromEnvOrFile => (
+            Some("credentials_from_env_or_file"),
+            &[LIFE],
+            true,
+            &[("path", ParamType::String)],
         ),
         MethodKind::ConfigConstructor => {
             // Name is data-dependent (`config_<variant>`); check it here so

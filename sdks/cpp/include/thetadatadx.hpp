@@ -620,6 +620,14 @@ public:
      *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_api_key_with_email(const std::string& email, const std::string& api_key);
 
+    /** Source credentials from the environment, falling back to a file.
+     *  When `THETADATA_API_KEY` is set and non-empty an API key is used;
+     *  otherwise the two-line file at `path` is read.
+     *  @param path Path to the fallback credentials file.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the fallback file is unreadable or malformed. */
+    static Credentials from_env_or_file(const std::string& path);
+
     /** Borrow the underlying `ThetaDataDxCredentials*` for a connect call.
      *  @return A non-owning handle; ownership stays with this object. */
     ThetaDataDxCredentials* get() const { return handle_.get(); }

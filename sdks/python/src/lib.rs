@@ -221,7 +221,7 @@ impl Credentials {
     /// used; otherwise the two-line ``creds.txt`` file at ``path`` is
     /// read.
     #[staticmethod]
-    fn from_env(path: &str) -> PyResult<Self> {
+    fn from_env_or_file(path: &str) -> PyResult<Self> {
         let inner = auth::Credentials::from_env_or_file(path).map_err(to_py_err)?;
         Ok(Self { inner })
     }

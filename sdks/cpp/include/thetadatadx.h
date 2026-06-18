@@ -963,6 +963,14 @@ ThetaDataDxCredentials* thetadatadx_credentials_from_api_key_with_email(const ch
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
 
+/** Source a credentials handle from the environment, falling back to a file.
+ *  When THETADATA_API_KEY is set and non-empty an API key is used; otherwise
+ *  the two-line file (line 1 = email, line 2 = password) at path is read.
+ *  @param path Filesystem path to the fallback credentials file; must be non-NULL.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_env_or_file(const char* path);
+
 /** Release a credentials handle.
  *  @param creds Handle from thetadatadx_credentials_from_email /
  *               thetadatadx_credentials_from_file; no-op when NULL. Call exactly once. */

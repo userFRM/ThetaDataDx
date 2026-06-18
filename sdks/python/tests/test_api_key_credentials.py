@@ -29,9 +29,17 @@ def test_from_api_key_with_email_builds_credentials(mod) -> None:
     assert creds is not None
 
 
-def test_from_env_falls_back_to_constructor(mod, monkeypatch) -> None:
+def test_from_env_or_file_sources_from_env(mod, monkeypatch) -> None:
     monkeypatch.setenv("THETADATA_API_KEY", "env-sourced-key")
-    creds = mod.Credentials.from_env("/nonexistent/creds.txt")
+    creds = mod.Credentials.from_env_or_file("/nonexistent/creds.txt")
+    assert creds is not None
+
+
+def test_from_env_or_file_falls_back_to_file(mod, monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("THETADATA_API_KEY", raising=False)
+    creds_file = tmp_path / "creds.txt"
+    creds_file.write_text("user@example.com\nsuper-secret-pw\n")
+    creds = mod.Credentials.from_env_or_file(str(creds_file))
     assert creds is not None
 
 

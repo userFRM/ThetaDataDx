@@ -148,6 +148,40 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_file(
     })
 }
 
+/// Source credentials from the environment, falling back to a file.
+///
+/// When `THETADATA_API_KEY` is set and non-empty an API key is used;
+/// otherwise the two-line file (line 1 = email, line 2 = password) at
+/// `path` is read.
+///
+/// Returns null on error (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_credentials_from_env_or_file(
+    path: *const c_char,
+) -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let path = match unsafe { cstr_to_str(path) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("path is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("path is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        match thetadatadx::Credentials::from_env_or_file(path) {
+            Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Free a credentials handle.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_credentials_free(creds: *mut ThetaDataDxCredentials) {

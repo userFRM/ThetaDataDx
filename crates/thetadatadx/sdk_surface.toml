@@ -129,6 +129,13 @@ params = [
 ]
 
 [[methods]]
+name = "credentials_from_env_or_file"
+kind = "credentials_from_env_or_file"
+doc = "Source credentials from the environment, falling back to a file. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the fallback credentials file." }]
+
+[[methods]]
 name = "config_production"
 kind = "config_constructor"
 doc = "Create the production configuration."

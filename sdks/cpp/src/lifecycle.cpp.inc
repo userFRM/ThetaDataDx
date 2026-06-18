@@ -24,6 +24,12 @@ Credentials Credentials::from_api_key_with_email(const std::string& email, const
     return Credentials(h);
 }
 
+Credentials Credentials::from_env_or_file(const std::string& path) {
+    auto h = thetadatadx_credentials_from_env_or_file(path.c_str());
+    if (!h) detail::throw_last_ffi_error();
+    return Credentials(h);
+}
+
 Config Config::production() { return Config(thetadatadx_config_production()); }
 
 Config Config::dev() { return Config(thetadatadx_config_dev()); }

@@ -1497,6 +1497,20 @@ python = true
 typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
 cpp = true
 
+# Environment-or-file sourcing: read `THETADATA_API_KEY` from the
+# environment, else fall back to the two-line credentials file. Every
+# binding exposes it, so all columns stay `true` across Python
+# (`from_env_or_file` staticmethod), TypeScript (`fromEnvOrFile` napi
+# factory), and C++ (`from_env_or_file` static member over the
+# `thetadatadx_credentials_from_env_or_file` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromEnvOrFile"
+python = true
+typescript = true   # `Credentials.fromEnvOrFile(path)` napi factory
+cpp = true
+
 # ── Config (the streaming/historical client configuration class) ──
 #
 # Field-level setters are tracked by the dotted `[[class]]` rows above

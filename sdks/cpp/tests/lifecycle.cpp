@@ -40,6 +40,22 @@ TEST_CASE("Credentials::from_api_key_with_email builds a handle without network 
     REQUIRE(creds.get() != nullptr);
 }
 
+TEST_CASE("Credentials::from_env_or_file sources from THETADATA_API_KEY",
+          "[lifecycle][offline]") {
+    setenv("THETADATA_API_KEY", "env-sourced-key", 1);
+    auto creds = thetadatadx::Credentials::from_env_or_file("/nonexistent/creds.txt");
+    REQUIRE(creds.get() != nullptr);
+    unsetenv("THETADATA_API_KEY");
+}
+
+TEST_CASE("Credentials::from_env_or_file falls back to the file when the env is unset",
+          "[lifecycle][offline]") {
+    unsetenv("THETADATA_API_KEY");
+    // No fallback file exists, so the file path must surface an error
+    // (a throw) rather than silently building a handle.
+    REQUIRE_THROWS(thetadatadx::Credentials::from_env_or_file("/nonexistent/creds.txt"));
+}
+
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
     auto config = thetadatadx::Config::production();
     REQUIRE_NOTHROW(config.set_reconnect_policy(0));

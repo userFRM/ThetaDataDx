@@ -40,6 +40,16 @@ describe('Credentials API-key factories', () => {
     }
   });
 
+  it('falls back to the file when the env is unset', () => {
+    delete process.env.THETADATA_API_KEY;
+    // No fallback file exists, so the file path must surface an error
+    // rather than silently building a handle.
+    assert.throws(
+      () => mod.Credentials.fromEnvOrFile('/nonexistent/creds.txt'),
+      'fromEnvOrFile should throw when neither the env nor the file is available',
+    );
+  });
+
   it('redacts the API key in toString', () => {
     const creds = mod.Credentials.fromApiKey('super-secret-key');
     const rendered = creds.toString();
