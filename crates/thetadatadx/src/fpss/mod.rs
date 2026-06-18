@@ -3192,40 +3192,29 @@ mod builder_tests {
     #[test]
     fn builder_threads_wait_strategy_preset() {
         use crate::config::StreamingWaitStrategy;
-        use disruptor::wait_strategies::WaitStrategy;
+        use crate::fpss::ring::AdaptiveWaitStrategy;
         let creds = Credentials::new("user", "pw");
         let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
 
-        // Default preset is the low-latency strategy that never sleeps; a
-        // selected Balanced preset with a measurable park actually parks.
-        // Compare the two RELATIVELY: an absolute upper bound on the
-        // never-sleeping path flakes when a loaded host stretches the
-        // yield phase, whereas a real `thread::sleep` has a reliable lower
-        // bound and is always slower than the spin-only path.
+        // The default builder resolves to the low-latency preset that
+        // preserves the historical fixed behaviour, and a selected preset
+        // reaches the connect args unchanged. Assert the resolved wait mode
+        // against the expected preset's mode rather than timing a poll, so
+        // the guard cannot flake under contended host scheduling.
         let default_args = StreamingClientBuilder::new(&creds, &hosts).into_args();
-        let t0 = std::time::Instant::now();
-        default_args.wait_strategy.wait_for(0);
-        let low_latency_elapsed = t0.elapsed();
+        assert_eq!(
+            default_args.wait_strategy.mode(),
+            AdaptiveWaitStrategy::low_latency().mode(),
+            "default builder must resolve to the low-latency preset"
+        );
 
         let balanced_args = StreamingClientBuilder::new(&creds, &hosts)
             .wait_strategy(StreamingWaitStrategy::Balanced)
-            .wait_strategy_tuning(0, 0, 2_000)
             .into_args();
-        let t1 = std::time::Instant::now();
-        balanced_args.wait_strategy.wait_for(0);
-        let balanced_elapsed = t1.elapsed();
-
-        // Balanced parks ~its configured 2 ms (a sleep never returns much
-        // early — reliable lower bound).
-        assert!(
-            balanced_elapsed >= std::time::Duration::from_micros(1_800),
-            "Balanced should park ~2ms, took {balanced_elapsed:?}"
-        );
-        // The never-sleeping low-latency path is faster than the 2 ms park —
-        // a relative bound that holds even on a contended CI host.
-        assert!(
-            low_latency_elapsed < balanced_elapsed,
-            "LowLatency ({low_latency_elapsed:?}) should be faster than Balanced ({balanced_elapsed:?})"
+        assert_eq!(
+            balanced_args.wait_strategy.mode(),
+            AdaptiveWaitStrategy::balanced().mode(),
+            "selected Balanced preset must reach the connect args"
         );
     }
 

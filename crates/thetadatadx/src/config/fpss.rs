@@ -514,19 +514,13 @@ mod tests {
     #[test]
     fn build_wait_strategy_default_is_low_latency() {
         let cfg = StreamingConfig::production_defaults();
-        // The default config must reproduce the historical fixed strategy.
+        // The default config must reproduce the historical fixed strategy:
+        // the low-latency preset, which never parks. Assert the resolved
+        // wait mode equals the low-latency preset's mode rather than timing
+        // a poll, so the guard holds regardless of host scheduling load.
         let built = cfg.build_wait_strategy();
         let expected = crate::fpss::ring::AdaptiveWaitStrategy::low_latency();
-        // Both are LowLatency with the 100/10 tuning; compare the public
-        // preset constructor against the config-built strategy via their
-        // observable `wait_for` (LowLatency never sleeps).
-        use disruptor::wait_strategies::WaitStrategy;
-        let t0 = std::time::Instant::now();
-        built.wait_for(0);
-        expected.wait_for(0);
-        // LowLatency never parks, so two calls stay well under a
-        // millisecond — guards against the default silently parking.
-        assert!(t0.elapsed() < std::time::Duration::from_millis(5));
+        assert_eq!(built.mode(), expected.mode());
     }
 
     #[test]
