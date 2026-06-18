@@ -7,7 +7,7 @@ info:
     ThetaDataDx's server surface. SDK-only callback-based `*_stream` history
     builders are documented in the API reference rather than this OpenAPI file.
 
-    ThetaDataDx also ships native Rust, Python (PyO3), Go (CGo), and C++
+    ThetaDataDx also ships native Rust, Python (PyO3), and C++
     bindings backed by the same Rust core.
 
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.

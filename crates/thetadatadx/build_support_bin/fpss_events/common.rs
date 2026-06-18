@@ -169,7 +169,7 @@ pub(super) fn rust_ffi_zero_literal(column_type: &str) -> &'static str {
     }
 }
 
-/// Schema primitive → C `<stdint.h>` alias used by the cgo-facing header.
+/// Schema primitive → C `<stdint.h>` alias used by the C-ABI-facing header.
 pub(super) fn c_ffi_scalar(column_type: &str, event_name: &str, column_name: &str) -> &'static str {
     match column_type {
         "i32" => "int32_t",

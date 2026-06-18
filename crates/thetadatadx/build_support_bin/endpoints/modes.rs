@@ -28,7 +28,7 @@ use super::test_fixtures::TestFixtures;
 // [`test_modes_for`] from the endpoint's wire shape — list endpoints get one
 // mode, ContractSpec endpoints get the full wildcard cross-product, and so
 // on. Each mode carries language-agnostic string args so per-language
-// renderers (CLI / Python / Go / C++) can format them appropriately.
+// renderers (CLI / Python / TypeScript / C++) can format them appropriately.
 
 /// One parameter-mode test cell to run against a live endpoint.
 #[derive(Debug, Clone)]
@@ -52,8 +52,8 @@ pub(super) struct TestMode {
     pub(super) min_tier: &'static str,
     /// Optional (builder-bound) parameter overrides to apply on this mode.
     /// Each entry is `(param_name, representative_value)`. Rendered per
-    /// language: Python kwargs, Go `thetadatadx.WithXxx()` opts, C++
-    /// `EndpointRequestOptions{}.with_xxx()`. CLI skips these (positional
+    /// language: Python kwargs, C++ `EndpointRequestOptions{}.with_xxx()`.
+    /// CLI skips these (positional
     /// clap args don't support targeted optional injection).
     pub(super) builder_overrides: Vec<(String, String)>,
 }

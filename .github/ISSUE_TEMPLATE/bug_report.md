@@ -15,7 +15,7 @@ A clear and concise description of the bug.
 - **thetadatadx version**: (e.g., 0.1.0)
 - **OS**: (e.g., Ubuntu 24.04, macOS 15)
 - **Rust version**: (output of `rustc --version`)
-- **SDK** (if applicable): Python / Go / C++
+- **SDK** (if applicable): Rust / Python / TypeScript / C++
 - **ThetaData terminal version** (if applicable):
 - **ThetaData subscription tier** (if applicable): Free / Value / Standard / Pro
 

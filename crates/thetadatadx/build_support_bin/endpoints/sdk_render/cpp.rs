@@ -3,7 +3,7 @@
 //! Generates the EndpointRequestOptions header, per-endpoint method
 //! declarations and definitions on both the standalone `HistoricalClient`
 //! and the unified client's `Historical` view (returned by
-//! `client.historical()`), and the cgo-facing `_with_options` extern decl
+//! `client.historical()`), and the C-ABI-facing `_with_options` extern decl
 //! header.
 
 use std::fmt::Write as _;
@@ -571,7 +571,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     out
 }
 
-/// Renders the cgo-facing `extern` declarations for every endpoint's
+/// Renders the C-ABI-facing `extern` declarations for every endpoint's
 /// `thetadatadx_<endpoint>_with_options` C entry point.
 pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
