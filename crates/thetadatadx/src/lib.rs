@@ -62,6 +62,22 @@
 //! `poll_batch(FnMut)` and `for_each(FnMut)` are the closure-driven
 //! shapes.
 //!
+//! For historical-only workloads, build a [`historical::HistoricalClient`]
+//! directly and query endpoints on it:
+//!
+//! ```rust,no_run
+//! use thetadatadx::historical::HistoricalClient;
+//! use thetadatadx::{Credentials, DirectConfig};
+//!
+//! # async fn doc() -> Result<(), thetadatadx::Error> {
+//! let creds = Credentials::from_file("creds.txt")?;
+//! let client = HistoricalClient::connect(&creds, DirectConfig::production()).await?;
+//!
+//! let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! println!("{} EOD ticks", eod.len());
+//! # Ok(()) }
+//! ```
+//!
 //! ## Data delivery
 //!
 //! Historical data arrives over ThetaData's MDDS service; real-time
@@ -245,10 +261,6 @@ pub use mdds::registry::{
     by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
     CATEGORIES, ENDPOINTS,
 };
-#[cfg(feature = "__internal")]
-#[doc(hidden)]
-pub use mdds::{HistoricalClient, SubscriptionTier};
-
 // ─── Curated public client surface ───────────────────────────────────────────
 
 pub use auth::Credentials;
@@ -327,6 +339,29 @@ pub mod streaming {
             BusySpin, BusySpinWithSpinLoopHint, Sleep, WaitStrategy,
         };
     }
+}
+
+// ─── Historical queries ──────────────────────────────────────────────────────
+// The canonical historical surface lives in the [`historical`] module: build a
+// standalone [`historical::HistoricalClient`], or reach the same query surface
+// through [`Client::historical`] on the unified client.
+
+/// Standalone historical-query client.
+///
+/// `HistoricalClient` and its [`SubscriptionTier`] are also re-exported at the
+/// crate root so both `thetadatadx::HistoricalClient` and
+/// `thetadatadx::historical::HistoricalClient` resolve.
+pub use mdds::{HistoricalClient, SubscriptionTier};
+
+/// Historical-query consumer surface.
+///
+/// `thetadatadx::historical` is the canonical path for the standalone
+/// historical-query client, the counterpart to [`streaming`].
+/// Build a [`HistoricalClient`] directly, or reach the same query surface
+/// through [`Client::historical`](crate::Client::historical) on the unified
+/// client.
+pub mod historical {
+    pub use crate::mdds::{HistoricalClient, SubscriptionTier};
 }
 
 // ─── Flat-file bulk pulls ─────────────────────────────────────────────────────
