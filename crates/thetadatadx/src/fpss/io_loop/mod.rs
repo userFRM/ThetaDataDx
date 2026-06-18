@@ -1226,6 +1226,16 @@ where
         delta_state.clear();
         local_contracts.clear();
 
+        // Reset the frame reader to a clean header boundary. A drop that
+        // interrupted a partially transmitted frame leaves `frame_state`
+        // with `payload_phase == true` and a partial `payload_read`. The
+        // reborn reader below reads a brand-new session whose bytes start
+        // at a frame header, so a stale mid-frame position would consume
+        // the new session's leading bytes as the tail of a phantom frame
+        // and desync every frame after it. The invariant: a new
+        // connection always begins at a frame boundary.
+        frame_state = FrameReadState::new();
+
         // Fresh authenticated session: start the data-flow marker from
         // zero so the stable-window check on the NEXT drop uses the
         // wall-clock of THIS session, not the previous one. Counters
