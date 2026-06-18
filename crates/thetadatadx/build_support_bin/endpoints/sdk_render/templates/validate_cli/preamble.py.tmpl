@@ -38,7 +38,7 @@ SLOW_MODE_TIMEOUT_MS = 180_000
 # shouldn't); the OS reaps the child via SIGKILL on expiry.
 SUBPROCESS_KILL_SECS = (SLOW_MODE_TIMEOUT_MS * 3) // 2000
 
-REPO = pathlib.Path(__file__).resolve().parents[1]
+REPO = pathlib.Path(__file__).resolve().parents[2]
 TDX = REPO / "target" / "release" / ("thetadatadx.exe" if os.name == "nt" else "thetadatadx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
@@ -46,7 +46,7 @@ ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 # `declared_min_tier` is informational only (printed on tier-permission
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; surfaces in the
-# per-cell JSON artifact and in scripts/validate_agreement.py output.
+# per-cell JSON artifact and in scripts/ci/check_agreement.py output.
 # `slow` selects `SLOW_MODE_TIMEOUT_MS` over `PER_CELL_TIMEOUT_MS` for
 # bulk-chain / all-strike cells whose payload doesn't fit in 60s.
 CELLS = [

@@ -45,7 +45,7 @@ jobs:
       # (`tick_array_free!` etc.); the nm-based ground truth catches
       # every exported `thetadatadx_*` symbol the loader will actually expose.
       - run: cargo build -p thetadatadx-ffi --release
-      - run: python3 scripts/check_c_abi_completeness.py
+      - run: python3 scripts/ci/check_c_abi_completeness.py
 
   binding-parity:
     name: Cross-binding parity matrix
@@ -59,11 +59,11 @@ jobs:
       # Gate 2 test harness (#595): exercise the per-field /
       # per-setter granularity matrix in-process before running the
       # production gate. Two layers — `--selftest` is a fast in-process
-      # smoke check; `scripts/test_check_binding_parity.py` drives the
+      # smoke check; `scripts/ci/tests/test_check_binding_parity.py` drives the
       # full synthetic-source matrix via tempdir.
-      - run: python3 scripts/check_binding_parity.py --selftest
-      - run: python3 scripts/test_check_binding_parity.py
-      - run: python3 scripts/check_binding_parity.py
+      - run: python3 scripts/ci/check_binding_parity.py --selftest
+      - run: python3 scripts/ci/tests/test_check_binding_parity.py
+      - run: python3 scripts/ci/check_binding_parity.py
 
   wire-schema-drift:
     name: Wire schema drift (proto + FPSS + tick layouts)
@@ -103,8 +103,8 @@ jobs:
           python-version: "3.12"
       - name: Structural SAFETY-comment boilerplate detector
         run: |
-          python3 scripts/check_safety_comment_boilerplate.py --selftest
-          python3 scripts/check_safety_comment_boilerplate.py
+          python3 scripts/ci/check_safety_comment_boilerplate.py --selftest
+          python3 scripts/ci/check_safety_comment_boilerplate.py
 
   public-surface-leak:
     name: Public surface internal-name leak
@@ -117,8 +117,8 @@ jobs:
           python-version: "3.12"
       - name: Shipped surface internal-name leak detector
         run: |
-          python3 scripts/check_public_surface_leak.py --selftest
-          python3 scripts/check_public_surface_leak.py
+          python3 scripts/ci/check_public_surface_leak.py --selftest
+          python3 scripts/ci/check_public_surface_leak.py
 
   doc-defaults:
     name: Documented config defaults
@@ -131,8 +131,8 @@ jobs:
           python-version: "3.12"
       - name: Documented default vs Rust source-of-truth detector
         run: |
-          python3 scripts/check_doc_defaults.py --selftest
-          python3 scripts/check_doc_defaults.py
+          python3 scripts/ci/check_doc_defaults.py --selftest
+          python3 scripts/ci/check_doc_defaults.py
 
   no-re-framing:
     name: Source docs framing hygiene
@@ -145,8 +145,8 @@ jobs:
           python-version: "3.12"
       - name: Source docs framing detector
         run: |
-          python3 scripts/check_no_re_framing.py --selftest
-          python3 scripts/check_no_re_framing.py
+          python3 scripts/ci/check_no_re_framing.py --selftest
+          python3 scripts/ci/check_no_re_framing.py
 
   cargo-deny:
     name: Cargo deny
@@ -305,7 +305,7 @@ jobs:
           # GitHub-hosted runner without one observed sample.
           cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
       - name: Validate the regression gate's own threshold logic
-        run: python3 scripts/check_bench_regression.py --selftest
+        run: python3 scripts/ci/check_bench_regression.py --selftest
       - name: Compare against checked-in baseline
         # Threshold tightened from 100% (a 2x slowdown passed) to 25%.
         # The baseline JSON is recaptured against the GH-hosted runner
@@ -315,7 +315,7 @@ jobs:
         # gate first landed (local vs CI runner perf delta was
         # unknown); now that the baseline is CI-equivalent, the
         # threshold can shrink to the meaningful signal range.
-        run: python3 scripts/check_bench_regression.py --threshold 25
+        run: python3 scripts/ci/check_bench_regression.py --threshold 25
 
   semver:
     name: Semver check
@@ -364,14 +364,14 @@ jobs:
           node-version: "20"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - run: python3 scripts/check_docs_consistency.py
-      - run: python3 scripts/check_version_sync.py
+      - run: python3 scripts/ci/check_docs_consistency.py
+      - run: python3 scripts/ci/check_version_sync.py
       # Cross-Cargo.lock dependency-version drift on security-critical
       # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
       # deps. A workspace bump must land in every binding lockfile or the
       # wheel / npm package ships a stale runtime.
-      - run: python3 scripts/check_lockfile_drift.py
-      - run: python3 scripts/validate_agreement_test.py
+      - run: python3 scripts/ci/check_lockfile_drift.py
+      - run: python3 scripts/ci/tests/test_check_agreement.py
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo check --manifest-path tools/mcp/Cargo.toml --locked

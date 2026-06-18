@@ -61,7 +61,7 @@ fn endpoint_tier(endpoint: &GeneratedEndpoint, upstream: &UpstreamOpenApi) -> St
         .map(|e| e.min_subscription.clone())
         .unwrap_or_else(|| {
             panic!(
-                "endpoint {} has no x-min-subscription in scripts/upstream_openapi.yaml \
+                "endpoint {} has no x-min-subscription in scripts/ci/data/upstream_openapi.yaml \
                  and no fallback in endpoint_tier()",
                 endpoint.name
             )

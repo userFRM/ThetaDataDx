@@ -14,7 +14,7 @@ sdks/cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 sdks/cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
 sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
-scripts/validate_python.py           text eol=lf linguist-generated=true
+scripts/ci/check_python.py           text eol=lf linguist-generated=true
 sdks/python/src/fpss_event_classes.rs text eol=lf linguist-generated=true
 sdks/python/src/tick_classes.rs      text eol=lf linguist-generated=true
 sdks/python/src/tick_arrow.rs        text eol=lf linguist-generated=true
@@ -30,7 +30,7 @@ sdks/typescript/src/buffered_event.rs text eol=lf linguist-generated=true
 sdks/cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.
-scripts/validate_cli.py              text eol=lf linguist-generated=true
+scripts/ci/check_cli.py              text eol=lf linguist-generated=true
 sdks/cpp/examples/validate.cpp       text eol=lf linguist-generated=true
 
 # include_str! templates for the code generators. Must stay LF on every

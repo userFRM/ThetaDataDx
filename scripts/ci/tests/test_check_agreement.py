@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Synthetic tests for scripts/validate_agreement.py.
+"""Synthetic tests for scripts/ci/check_agreement.py.
 
 Constructs four mock SDK artifacts with intentional disagreements and
 asserts the diff engine's output names the right fields. Uses only
 stdlib so it runs in CI without extra deps. Invoke via:
 
-    python3 scripts/validate_agreement_test.py
+    python3 scripts/ci/tests/test_check_agreement.py
 
 Exits non-zero on the first failing assertion.
 """
@@ -19,10 +19,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
+GATE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(GATE_DIR))
 
-import validate_agreement  # noqa: E402
+import check_agreement as validate_agreement  # noqa: E402
 
 
 def _write_artifact(base: Path, lang: str, records: list[dict]) -> None:

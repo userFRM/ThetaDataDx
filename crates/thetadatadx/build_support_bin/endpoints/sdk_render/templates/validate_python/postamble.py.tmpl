@@ -66,7 +66,7 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
             continue
         # Exception messages can span multiple lines; escape them at the
         # producer so the agreement-table row stays on one line. See
-        # scripts/validate_agreement.py disagreement output.
+        # scripts/ci/check_agreement.py disagreement output.
         detail = str(exc).replace("\n", "\\n").replace("\r", "\\r")[:200]
         print(f"  {label:60s} FAIL  {exc}", flush=True)
         fail_count += 1

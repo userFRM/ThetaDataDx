@@ -1,6 +1,6 @@
 //! Build-time parser for the pinned upstream ThetaData OpenAPI snapshot.
 //!
-//! The committed snapshot at `scripts/upstream_openapi.yaml` (captured from
+//! The committed snapshot at `scripts/ci/data/upstream_openapi.yaml` (captured from
 //! `https://docs.thetadata.us/openapiv3.yaml`) is the authoritative source for:
 //!   * each endpoint's minimum subscription tier (`x-min-subscription`)
 //!   * whether each endpoint accepts `expiration=*`; upstream binds the strict
@@ -55,13 +55,13 @@ impl UpstreamOpenApi {
     ///
     /// Callers come from both `build.rs` (cwd = crate root) and the
     /// `generate_sdk_surfaces` binary (same cwd), so the snapshot path
-    /// is resolved relative to the crate root at `../../scripts/upstream_openapi.yaml`.
+    /// is resolved relative to the crate root at `../../scripts/ci/data/upstream_openapi.yaml`.
     pub fn load() -> &'static Self {
         static CACHE: OnceLock<UpstreamOpenApi> = OnceLock::new();
         CACHE.get_or_init(|| {
             let candidates: [PathBuf; 2] = [
-                PathBuf::from("../../scripts/upstream_openapi.yaml"),
-                PathBuf::from("scripts/upstream_openapi.yaml"),
+                PathBuf::from("../../scripts/ci/data/upstream_openapi.yaml"),
+                PathBuf::from("scripts/ci/data/upstream_openapi.yaml"),
             ];
             let (path, text) = candidates
                 .iter()
@@ -74,7 +74,7 @@ impl UpstreamOpenApi {
                     panic!(
                         "upstream OpenAPI snapshot not found; expected one of {candidates:?} \
                          relative to the current directory. Run \
-                         `python3 scripts/check_tier_badges.py --refresh-snapshot` to populate."
+                         `python3 scripts/ci/check_tier_badges.py --refresh-snapshot` to populate."
                     )
                 });
             // Emit rerun-if-changed so cargo picks up refreshed snapshots
@@ -635,7 +635,7 @@ paths:
             .unwrap()
             .parent()
             .unwrap()
-            .join("scripts/upstream_openapi.yaml");
+            .join("scripts/ci/data/upstream_openapi.yaml");
         let Ok(text) = std::fs::read_to_string(&snapshot_path) else {
             // Snapshot not present — test is effectively a no-op.
             return;

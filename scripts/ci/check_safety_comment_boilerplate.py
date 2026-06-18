@@ -23,7 +23,7 @@ ordering that makes the unsafe block sound. Boilerplate that says
 
 Run::
 
-    python3 scripts/check_safety_comment_boilerplate.py
+    python3 scripts/ci/check_safety_comment_boilerplate.py
 
 Exit codes:
 
@@ -32,7 +32,7 @@ Exit codes:
 
 Selftest::
 
-    python3 scripts/check_safety_comment_boilerplate.py --selftest
+    python3 scripts/ci/check_safety_comment_boilerplate.py --selftest
 
 The selftest simulates a regression and verifies the detector flags it.
 """
@@ -47,7 +47,7 @@ from collections import defaultdict
 from typing import Iterable
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 # Minimum number of verbatim-identical SAFETY comments at non-FFI sites
@@ -64,7 +64,7 @@ SCAN_GLOBS = ("crates/**/*.rs", "ffi/**/*.rs", "tools/**/*.rs", "sdks/**/*.rs")
 # Per-site allowlist file. Substring matches against the normalised
 # SAFETY-comment text exempt the comment from the duplicate count.
 # See the file's own header for the policy on when to add an entry.
-ALLOWLIST_PATH = REPO_ROOT / "scripts" / "safety_comment_allowlist.txt"
+ALLOWLIST_PATH = REPO_ROOT / "scripts" / "ci" / "data" / "safety_comment_allowlist.txt"
 
 EXEMPT_PATH_FRAGMENTS = (
     "/target/",
@@ -227,7 +227,7 @@ def _scan(
         # Per-site allowlist: a verbatim invariant shared genuinely
         # across multiple sites (e.g. handle-based FFI fns) is
         # accepted via a substring entry in
-        # `scripts/safety_comment_allowlist.txt`.
+        # `scripts/ci/data/safety_comment_allowlist.txt`.
         if _is_allowlisted(body, allowlist):
             continue
         flagged.append((body, sites))

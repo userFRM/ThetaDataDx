@@ -3,10 +3,10 @@
 # ThetaDataDx Release Validation
 #
 # Single script that validates every delivery surface:
-#   1. CLI       — generated validate_cli.py        (Rust core)
-#   2. Python    — generated validate_python.py     (PyO3 bridge)
+#   1. CLI       — generated check_cli.py           (Rust core)
+#   2. Python    — generated check_python.py        (PyO3 bridge)
 #   3. C++       — generated validate.cpp           (C FFI bridge)
-#   4. Agreement — cross-language artifact diff     (scripts/validate_agreement.py)
+#   4. Agreement — cross-language artifact diff     (scripts/ci/check_agreement.py)
 #
 # Each SDK validator writes a per-cell JSON artifact to
 # `artifacts/validator_<lang>.json`. The agreement step asserts that every
@@ -14,8 +14,8 @@
 # row_count. Mismatches fail the release. See PR #291.
 #
 # Usage:
-#   ./scripts/validate_release.sh                    # creds.txt in repo root
-#   ./scripts/validate_release.sh /path/to/creds.txt
+#   ./scripts/release/validate_release.sh            # creds.txt in repo root
+#   ./scripts/release/validate_release.sh /path/to/creds.txt
 #
 # Prerequisites:
 #   Rust, Python, a C++17 toolchain, and CMake
@@ -26,7 +26,7 @@
 
 set -uo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 CREDS="${1:-$REPO/creds.txt}"
 
 if [ ! -f "$CREDS" ]; then
@@ -91,7 +91,7 @@ if [ ! -f "$REPO/target/release/thetadatadx" ]; then
     cargo build --release -p thetadatadx-cli --manifest-path "$REPO/Cargo.toml"
 fi
 
-cli_output=$(python3 "$REPO/scripts/validate_cli.py" "$CREDS" 2>&1)
+cli_output=$(python3 "$REPO/scripts/ci/check_cli.py" "$CREDS" 2>&1)
 echo "$cli_output"
 
 cli_counts=$(echo "$cli_output" | grep -oP 'COUNTS:\K.*')
@@ -110,7 +110,7 @@ py_fail=0
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if ensure_python_sdk; then
-    py_result=$("$PYTHON_BIN" "$REPO/scripts/validate_python.py" "$CREDS" 2>&1)
+    py_result=$("$PYTHON_BIN" "$REPO/scripts/ci/check_python.py" "$CREDS" 2>&1)
     echo "$py_result"
     py_counts=$(echo "$py_result" | grep -oP 'COUNTS:\K.*')
     py_pass=$(echo "$py_counts" | cut -d: -f1)
@@ -159,7 +159,7 @@ record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 
 section "4/4  Cross-language agreement"
 
-agreement_result=$(python3 "$REPO/scripts/validate_agreement.py" 2>&1)
+agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" 2>&1)
 echo "$agreement_result"
 agreement_exit=$?
 if [ "$agreement_exit" -ne 0 ]; then

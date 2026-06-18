@@ -63,7 +63,7 @@ fn build_cli() -> Command {
                 .help(
                     "Output format. `json-raw` emits dates as YYYYMMDD ints and \
                      ms_of_day as raw i32 ms (vs `json` which presentation-formats \
-                     them); consumed by scripts/validate_agreement.py for \
+                     them); consumed by scripts/ci/check_agreement.py for \
                      cross-language agreement checks.",
                 ),
         )
@@ -175,7 +175,7 @@ enum OutputFormat {
     /// stay as YYYYMMDD ints (not `"YYYY-MM-DD"` strings), ms-of-day stays
     /// as raw i32 ms (not `"HH:MM:SS.mmm"`), and prices stay as unformatted
     /// f64 (not `"685.860000"` strings). Consumed by
-    /// `scripts/validate_agreement.py` so cross-language agreement doesn't
+    /// `scripts/ci/check_agreement.py` so cross-language agreement doesn't
     /// get false diffs on presentation formatting. Renderers that don't
     /// populate a raw parallel row fall back to `Json` behavior.
     JsonRaw,
@@ -252,7 +252,7 @@ fn format_date(date: i32) -> String {
 ///   (`time` for ms-of-day, `iv` for implied_volatility, dropped contract-id
 ///   columns when the tick isn't an option) drive `--format table | json | csv`.
 /// * `raw_headers` + `raw_rows` — canonical SDK schema. Field names match
-///   `sdks/python/src/tick_columnar.rs` exactly so `scripts/validate_agreement.py`
+///   `sdks/python/src/tick_columnar.rs` exactly so `scripts/ci/check_agreement.py`
 ///   can compare CLI `first_row` against Python / Go / server cell-by-cell
 ///   without renaming surgery. Populated only by tick renderers via
 ///   `push_with_raw`; non-tick renderers leave it empty and `--format json-raw`
@@ -380,7 +380,7 @@ impl TabularData {
         );
     }
 
-    /// Emit the canonical JSON form consumed by scripts/validate_agreement.py.
+    /// Emit the canonical JSON form consumed by scripts/ci/check_agreement.py.
     ///
     /// Uses `raw_headers` (canonical SDK schema, matching
     /// `sdks/python/src/tick_columnar.rs`) and `raw_rows` (raw values, no
@@ -463,13 +463,13 @@ async fn connect(
 // These build `sonic_rs::Value` directly from the raw tick struct fields so
 // the cross-language agreement check can compare apples-to-apples with the
 // Python / C++ SDKs, which expose raw ints for dates and ms-of-day. See
-// scripts/validate_agreement.py for the canonical contract.
+// scripts/ci/check_agreement.py for the canonical contract.
 //
 // Sentinel semantics (`date == 0`, `ms_of_day < 0`) are preserved verbatim
 // here -- Python (sdks/python/src/tick_columnar.rs) emits those same
 // sentinels as raw ints, and the server emitter
 // (tools/server/src/format.rs:346) does too. Normalization to `null` lives
-// entirely on the consumer side in scripts/validate_agreement.py so all
+// entirely on the consumer side in scripts/ci/check_agreement.py so all
 // producers can stay stupid-simple passthroughs and the agreement check has
 // one authoritative canonicalization rule. If this side mapped `0 -> null`,
 // it would silently disagree with every other producer.

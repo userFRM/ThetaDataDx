@@ -4,7 +4,7 @@
 //! quote, OHLC — through the public MDDS decode path and records the
 //! number of heap allocations charged per decoded row. The figure is
 //! written to `target/perf-gate/decode_allocations.json`, which
-//! `scripts/check_perf_gate.py` diffs against the committed baseline.
+//! `scripts/ci/check_perf_gate.py` diffs against the committed baseline.
 //!
 //! Why this gate does not flake on shared CI runners: the metric is an
 //! allocation COUNT, not a wall-clock time. Decoding the identical

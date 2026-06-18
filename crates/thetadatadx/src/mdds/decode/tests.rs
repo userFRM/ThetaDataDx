@@ -939,7 +939,7 @@ fn parse_greeks_all_ticks_still_decodes_number_cells() {
 /// first-order columns plus IV pair — vanna/charm/vomma/veta/speed/
 /// zomma/color/ultima/d1/d2/dual_delta/dual_gamma/vera are absent and
 /// must default to `0.0` without surfacing any `find_header` warn.
-/// Column layout pinned to `scripts/upstream_openapi.yaml` schema
+/// Column layout pinned to `scripts/ci/data/upstream_openapi.yaml` schema
 /// `items_option_snapshot_greeks_first_order`.
 #[test]
 fn parse_greeks_all_ticks_decodes_first_order_subset_with_silent_gaps() {

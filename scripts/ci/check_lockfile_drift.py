@@ -22,7 +22,7 @@ Failure mode this catches:
   - the Python wheel ships an older runtime with a known issue
 
 Usage:
-  python3 scripts/check_lockfile_drift.py [--strict]
+  python3 scripts/ci/check_lockfile_drift.py [--strict]
 
 `--strict` fails on ANY shared-dep drift; default mode only fails
 on the curated security/API list below.
@@ -120,7 +120,7 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     lockfiles = [
         repo_root / "Cargo.lock",
         repo_root / "sdks" / "python" / "Cargo.lock",
