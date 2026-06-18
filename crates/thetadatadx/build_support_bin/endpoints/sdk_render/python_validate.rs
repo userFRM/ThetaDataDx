@@ -1,6 +1,6 @@
 //! Live parameter-mode matrix validator generator for the Python SDK.
 //!
-//! Emits `scripts/validate_python.py`: one callable-driven row per
+//! Emits `scripts/ci/check_python.py`: one callable-driven row per
 //! (endpoint, mode) cell, including builder-override overlays. The script
 //! body lives in `templates/validate_python/` so syntax highlighting works
 //! and the per-cell line is a format template rather than a push_str soup.

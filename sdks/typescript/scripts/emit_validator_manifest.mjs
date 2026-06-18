@@ -1,6 +1,6 @@
 // Emit `artifacts/validator_typescript.json` from the TypeScript SDK's
 // public `index.d.ts` so the cross-language response-shape agreement
-// validator (`scripts/validate_agreement.py`) can compare TS field
+// validator (`scripts/ci/check_agreement.py`) can compare TS field
 // names against the runtime first_row dicts the Python / CLI / C++
 // SDKs already emit.
 //
@@ -29,7 +29,7 @@
 // 4. Project a representative sub-set of methods (chosen to mirror the
 //    "shape drift is most painful" methods called out by the cross-language agreement
 //    spec) into the artifact's `records` shape so the existing
-//    Python-side diff engine in `scripts/validate_agreement.py`
+//    Python-side diff engine in `scripts/ci/check_agreement.py`
 //    consumes them as-is.
 //
 // The artifact is emitted at the same path the Python / CLI / C++

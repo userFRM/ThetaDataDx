@@ -87,7 +87,7 @@ variants = [
 # `with_timeout_ms` (Rust/Python/C++). These are NOT per-endpoint
 # builder params — they apply uniformly across the surface — but the
 # FFI struct layout still needs to mirror this list, so we declare
-# them here as the single source of truth. `scripts/check_docs_consistency.py`
+# them here as the single source of truth. `scripts/ci/check_docs_consistency.py`
 # enforces the drift check.
 
 [[request_options_global]]

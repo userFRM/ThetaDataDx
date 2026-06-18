@@ -1,6 +1,6 @@
 //! Live parameter-mode matrix validator generator for the CLI surface.
 //!
-//! Emits `scripts/validate_cli.py`: one subprocess-driven row per
+//! Emits `scripts/ci/check_cli.py`: one subprocess-driven row per
 //! (endpoint, mode) cell. CLI-specific caveat: builder-override cells are
 //! skipped because clap positional args don't support targeted optional
 //! injection. The script body lives in `templates/validate_cli/`.

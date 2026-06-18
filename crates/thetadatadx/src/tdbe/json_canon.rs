@@ -3,7 +3,7 @@
 //! Standards-compliant JSON encoders refuse `NaN`, `+Infinity`, and
 //! `-Infinity` because the JSON spec has no representation for them. The
 //! `sonic_rs` encoder writes JSON `null` in their place, but the cross-language
-//! SDK contract (see `scripts/validate_agreement.py` and the `raw_f64` helper
+//! SDK contract (see `scripts/ci/check_agreement.py` and the `raw_f64` helper
 //! in `tools/cli/src/main.rs`) requires every frontend — REST, MCP, CLI — to
 //! canonicalise non-finite f64 to `null` BEFORE the value tree leaves the
 //! frontend, so callers cannot observe a backend-specific drift.

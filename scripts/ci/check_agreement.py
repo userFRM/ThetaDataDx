@@ -2,7 +2,7 @@
 """Cross-language agreement check for the live parameter-mode matrix.
 
 Loads per-language validator artifacts from `artifacts/validator_<lang>.json`
-(written by `scripts/validate_cli.py`, `scripts/validate_python.py`,
+(written by `scripts/ci/check_cli.py`, `scripts/ci/check_python.py`,
 and `sdks/cpp` validator) and compares every
 (endpoint, mode) cell across SDKs on:
 
@@ -126,7 +126,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = ROOT / "artifacts"
 
 LANGS = ("python", "cli", "cpp", "typescript")

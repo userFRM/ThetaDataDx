@@ -71,7 +71,7 @@ import tomllib
 from typing import Any
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PARITY_TOML = REPO_ROOT / "sdks" / "parity.toml"
 PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
 TS_DTS = REPO_ROOT / "sdks" / "typescript" / "index.d.ts"

@@ -6,7 +6,7 @@ The authoritative source is ThetaData's OpenAPI spec
 subscription tier of every endpoint via a top-level
 ``x-min-subscription:`` field.
 
-Source of truth: ``scripts/upstream_openapi.yaml`` (a checked-in snapshot
+Source of truth: ``scripts/ci/data/upstream_openapi.yaml`` (a checked-in snapshot
 of the upstream YAML). The Rust validator generator parses the same file,
 so both machinery and humans reason against one pinned schema. Refresh
 the snapshot by rerunning this script with ``--refresh-snapshot``; the
@@ -36,9 +36,9 @@ import urllib.request
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_ROOT = ROOT / "docs-site/docs/reference"
-SNAPSHOT_PATH = ROOT / "scripts/upstream_openapi.yaml"
+SNAPSHOT_PATH = ROOT / "scripts/ci/data/upstream_openapi.yaml"
 
 UPSTREAM_URL = "https://docs.thetadata.us/openapiv3.yaml"
 FETCH_TIMEOUT_SECS = 30
@@ -112,7 +112,7 @@ def read_snapshot_yaml() -> str:
     if not SNAPSHOT_PATH.exists():
         fail(
             f"snapshot missing at {SNAPSHOT_PATH.relative_to(ROOT)}; "
-            "run `python3 scripts/check_tier_badges.py --refresh-snapshot` to populate."
+            "run `python3 scripts/ci/check_tier_badges.py --refresh-snapshot` to populate."
         )
     return SNAPSHOT_PATH.read_text()
 
@@ -133,10 +133,10 @@ def refresh_snapshot() -> None:
     frontmatter = (
         f"# _captured_at: {captured_at}\n"
         f"# _source: {UPSTREAM_URL}\n"
-        "# _refresh_with: python3 scripts/check_tier_badges.py --refresh-snapshot\n"
+        "# _refresh_with: python3 scripts/ci/check_tier_badges.py --refresh-snapshot\n"
         "#\n"
         "# This file is the pinned upstream ThetaData OpenAPI v3 spec. Both the\n"
-        "# tier-badge check (scripts/check_tier_badges.py) and the Rust validator\n"
+        "# tier-badge check (scripts/ci/check_tier_badges.py) and the Rust validator\n"
         "# generator (crates/thetadatadx/build_support/endpoints/) derive endpoint\n"
         "# min-subscription tiers and expiration-wildcard support from it, so both\n"
         "# human docs and generated machinery agree on one pinned schema. Refresh\n"
@@ -208,7 +208,7 @@ def main() -> int:
         action="store_true",
         help=(
             "Fetch the live upstream YAML and overwrite "
-            "scripts/upstream_openapi.yaml, then exit."
+            "scripts/ci/data/upstream_openapi.yaml, then exit."
         ),
     )
     args = parser.parse_args()

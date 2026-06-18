@@ -3,7 +3,7 @@
 // These tests exercise route registration and request-body parsing
 // WITHOUT touching ThetaData. The "happy path" requires a live MDDS
 // connection and is covered by the integration test suite in
-// `scripts/validate_*.py`.
+// `scripts/ci/check_cli.py / check_python.py`.
 //
 // The race-regression suite that closes the concurrent-
 // write race (unique scratch path per request + atomic rename onto a

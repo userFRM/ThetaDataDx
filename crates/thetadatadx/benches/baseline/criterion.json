@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "comment": "Baseline calibrated against the GitHub-hosted runner perf profile. The global threshold is 25% so a real regression past this baseline trips CI. The loader in `scripts/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field and gates on `criterion_path` + `p50_ns`. An entry may add `threshold_pct` to set its own tolerance: wider for a known high-variance workload, tighter for a critical hot path. It replaces the global gate for that entry, and the `comment` field records why."
+    "comment": "Baseline calibrated against the GitHub-hosted runner perf profile. The global threshold is 25% so a real regression past this baseline trips CI. The loader in `scripts/ci/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field and gates on `criterion_path` + `p50_ns`. An entry may add `threshold_pct` to set its own tolerance: wider for a known high-variance workload, tighter for a critical hot path. It replaces the global gate for that entry, and the `comment` field records why."
   },
   "_captured_on": "2026-05-21",
   "streaming_channels/direct_callback/100k_events": {
