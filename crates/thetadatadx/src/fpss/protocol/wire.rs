@@ -243,9 +243,8 @@ pub fn build_login_payload(creds: &crate::auth::Credentials) -> Result<Zeroizing
     if let Some(key) = creds.api_key_secret() {
         // For an API-key credential the user field carries the account email
         // when the credential was paired with one, and is empty (userLen 0)
-        // otherwise. The empty-user case is exercised by the payload tests;
-        // its acceptance is confirmed during integration testing against the
-        // live endpoint before release.
+        // otherwise. The streaming endpoint accepts the empty-user form for
+        // key-only credentials.
         let user = creds.email().unwrap_or("");
         build_apikey_credentials_payload(user, key, &login_build_id())
     } else {
