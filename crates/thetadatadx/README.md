@@ -71,7 +71,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 One authentication, one connection. Historical queries work immediately; the streaming transport opens on the first `start_streaming(callback)` call. Subscribe specific contracts with the fluent `Contract` API, or take a whole-market feed:
 
 ```rust
-use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::prelude::*;
 
 fn format_contract(contract: &Contract) -> String {
@@ -144,8 +144,8 @@ For workloads that never touch history, `StreamingClient` connects to the stream
 ```rust
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
-use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{StreamingClient, StreamEvent};
+use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{StreamingClient, StreamEvent};
 
 let creds = Credentials::from_file("creds.txt")?;
 let hosts = DirectConfig::production().streaming.hosts;
