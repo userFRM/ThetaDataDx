@@ -493,10 +493,13 @@ const ACCEPTED_REQ_TYPES: &[&str] = &[
 /// Parse the option `strike` field (dollars, JSON number) into the
 /// FPSS wire's fixed-point thousandths integer.
 ///
-/// Accepts any positive finite number; rejects missing / non-numeric
-/// values, non-positive strikes, and values whose thousandths scaling
-/// leaves `i32`. Dollars are the only accepted unit — clients holding
-/// the wire integer divide by 1000 before subscribing.
+/// Accepts any positive finite number at or above the smallest
+/// representable strike; rejects missing / non-numeric values,
+/// non-positive strikes, positive strikes that round to zero in the
+/// thousandths unit (the smallest valid strike is $0.001), and values
+/// whose thousandths scaling overflows `i32`. Dollars are the only
+/// accepted unit; clients holding the wire integer divide by 1000
+/// before subscribing.
 fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
     let dollars = raw.ok_or_else(|| {
         "'strike' must be a number in dollars (e.g. 550 or 550.5), got: <missing or non-numeric>"
@@ -508,6 +511,15 @@ fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
         ));
     }
     let scaled = (dollars * 1000.0).round();
+    // A positive strike below half the smallest representable unit
+    // rounds to zero thousandths. A zero strike is not a real
+    // instrument, so reject it rather than silently collapse the
+    // contract to a $0.00 strike.
+    if scaled < 1.0 {
+        return Err(format!(
+            "'strike' {dollars} is below the smallest representable strike ($0.001)"
+        ));
+    }
     if scaled > f64::from(i32::MAX) {
         return Err(format!(
             "'strike' {dollars} exceeds the representable range after fixed-point scaling"
@@ -664,6 +676,45 @@ mod tests {
         assert!(!is_valid_yyyymmdd_range(99999999));
         assert!(!is_valid_yyyymmdd_range(MAX_OPTION_EXP + 1));
         assert!(!is_valid_yyyymmdd_range(i32::MAX));
+    }
+
+    // -----------------------------------------------------------------------
+    //  strike dollars -> fixed-point thousandths
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn strike_accepts_smallest_representable_and_normal_values() {
+        // $0.001 is the smallest representable strike: it maps to the
+        // smallest nonzero thousandths value.
+        assert_eq!(parse_strike_dollars(Some(0.001)).unwrap(), 1);
+        // Ordinary strikes round-trip through the thousandths scaling.
+        assert_eq!(parse_strike_dollars(Some(550.0)).unwrap(), 550_000);
+        assert_eq!(parse_strike_dollars(Some(550.5)).unwrap(), 550_500);
+        assert_eq!(parse_strike_dollars(Some(0.5)).unwrap(), 500);
+    }
+
+    #[test]
+    fn strike_rejects_sub_smallest_unit_positive_value() {
+        // 0.0004 dollars scales to 0.4 thousandths, which rounds to 0.
+        // A 0-strike contract is not a real instrument, so the value
+        // must be rejected rather than silently collapsed to zero.
+        let err = parse_strike_dollars(Some(0.0004)).unwrap_err();
+        assert!(
+            err.contains("smallest representable strike"),
+            "diagnostic must explain the sub-unit floor: {err}"
+        );
+        // The boundary: anything in (0, 0.0005) rounds to 0 and is
+        // rejected; $0.0005 rounds up to the smallest valid unit.
+        assert!(parse_strike_dollars(Some(0.0001)).is_err());
+        assert!(parse_strike_dollars(Some(0.0005)).is_ok());
+    }
+
+    #[test]
+    fn strike_rejects_non_positive_and_non_numeric() {
+        assert!(parse_strike_dollars(Some(0.0)).is_err());
+        assert!(parse_strike_dollars(Some(-1.0)).is_err());
+        assert!(parse_strike_dollars(Some(f64::NAN)).is_err());
+        assert!(parse_strike_dollars(None).is_err());
     }
 
     // -----------------------------------------------------------------------
