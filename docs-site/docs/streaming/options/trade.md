@@ -16,8 +16,8 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
     if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {

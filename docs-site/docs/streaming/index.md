@@ -16,8 +16,8 @@ Streaming requires a Standard subscription or higher on the matching asset class
 <template #rust>
 
 ```rust
-use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::{Credentials, DirectConfig, Client};
 
 #[tokio::main]
