@@ -69,8 +69,24 @@ impl TickChunkSink {
     /// Forward one chunk to the registered C callback. `rows` / `len` come
     /// straight from the decoder-owned slice (`chunk.as_ptr()` /
     /// `chunk.len()`), so there is no copy or re-marshaling on this path.
+    ///
+    /// The core wraps this handler in a `Mutex` and may drive it from a
+    /// runtime worker thread (see the type doc), not on the
+    /// `ffi_boundary!`-guarded entry point, so a panic raised inside the
+    /// user callback would unwind across the C ABI on a foreign thread.
+    /// Catch it per invocation, the same defence the reconnect callback and
+    /// the stream dispatcher apply, so a panicking callback is contained at
+    /// the boundary instead of aborting the process.
     fn emit(&self, rows: *const c_void, len: usize) {
-        (self.callback)(rows, len, self.ctx);
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            (self.callback)(rows, len, self.ctx);
+        }));
+        if outcome.is_err() {
+            tracing::error!(
+                target: "thetadatadx::ffi",
+                "tick-chunk callback panicked; chunk dropped and the panic contained at the C boundary",
+            );
+        }
     }
 }
 

@@ -15,6 +15,9 @@ use super::common::{
     is_byte_buffer, is_contract, rust_ffi_scalar, rust_ffi_zero_literal, snake_case,
     zero_const_name,
 };
+use super::layout::{
+    c_struct_size, contract_align, contract_size, fpss_event_align, fpss_event_size, struct_align,
+};
 use super::schema::{
     sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
 };
@@ -221,6 +224,69 @@ fn render_event_struct_rust(out: &mut String, event_name: &str, def: &EventDef) 
     out.push_str("}\n\n");
 }
 
+/// Emit one `const _: () = { ... };` block pinning a struct's `size_of`
+/// and `align_of`. The compiler evaluates both intrinsics against the
+/// real `#[repr(C)]` layout, so an accidental schema / field-width change
+/// that shifts the Rust layout fails the build at the definition site,
+/// before the generated C header and its C++ `static_assert` mirror can
+/// drift apart. Numbers come from the same layout walk that feeds the C++
+/// asserts, never hand-typed.
+fn render_layout_assert(out: &mut String, type_name: &str, size: usize, align: usize) {
+    writeln!(out, "const _: () = {{").unwrap();
+    writeln!(
+        out,
+        "    assert!(core::mem::size_of::<{type_name}>() == {size});"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "    assert!(core::mem::align_of::<{type_name}>() == {align});"
+    )
+    .unwrap();
+    out.push_str("};\n");
+}
+
+/// Render the size + align asserts for every emitted `#[repr(C)]` struct:
+/// the shared `ThetaDataDxContract`, each data and control variant, and
+/// the tagged `ThetaDataDxStreamEvent` wrapper. Mirrors the C++
+/// `static_assert` coverage so the layout is pinned on the Rust side that
+/// defines the ABI, not only on the C++ consumer.
+fn render_rust_layout_asserts(out: &mut String, schema: &Schema) {
+    out.push_str("// Layout drift-guard: pin the `#[repr(C)]` size + alignment of every\n");
+    out.push_str("// emitted struct on the Rust side that defines the ABI. A schema or\n");
+    out.push_str("// field-width change that shifts a layout fails the build here, before\n");
+    out.push_str("// the generated C header and its C++ asserts can drift out of sync.\n");
+    render_layout_assert(
+        out,
+        "ThetaDataDxContract",
+        contract_size(),
+        contract_align(),
+    );
+    for (event_name, def) in sorted_data_events(schema) {
+        render_layout_assert(
+            out,
+            &format!("ThetaDataDxStream{event_name}"),
+            c_struct_size(&def.columns),
+            struct_align(&def.columns),
+        );
+    }
+    for (event_name, def) in sorted_control_events(schema) {
+        render_layout_assert(
+            out,
+            &format!("ThetaDataDxStream{event_name}"),
+            c_struct_size(&def.columns),
+            struct_align(&def.columns),
+        );
+    }
+    render_layout_assert(
+        out,
+        "ThetaDataDxStreamEvent",
+        fpss_event_size(schema),
+        fpss_event_align(schema),
+    );
+    out.push('\n');
+}
+
 /// Render the matching `ZERO_*` const for one variant. All scalars zero,
 /// pointers null, lengths zero, contracts `ZERO_CONTRACT_STRUCT`, byte
 /// buffers `(null, 0)`, padding bytes 0.
@@ -315,6 +381,9 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
         writeln!(out, "    pub {field}: ThetaDataDxStream{event_name},").unwrap();
     }
     out.push_str("}\n\n");
+
+    // Size + align drift-guard for every emitted `#[repr(C)]` struct.
+    render_rust_layout_asserts(&mut out, schema);
 
     // Zero-initialised defaults for inactive fields.
     out.push_str("// Zero-initialized defaults for inactive union-style fields.\n");
