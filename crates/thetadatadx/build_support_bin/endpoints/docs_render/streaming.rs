@@ -310,9 +310,9 @@ const STREAMS: &[StreamSpec] = &[
 fn rust_tab(spec: &StreamSpec) -> String {
     let needs_sectype = spec.rust_sub.starts_with("SecType");
     let imports = if needs_sectype {
-        "use thetadatadx::fpss::protocol::SecTypeExt;\nuse thetadatadx::fpss::{StreamData, StreamEvent};\nuse thetadatadx::SecType;"
+        "use thetadatadx::streaming::SecTypeExt;\nuse thetadatadx::streaming::{StreamData, StreamEvent};\nuse thetadatadx::SecType;"
     } else {
-        "use thetadatadx::fpss::protocol::Contract;\nuse thetadatadx::fpss::{StreamData, StreamEvent};"
+        "use thetadatadx::streaming::Contract;\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     };
     let (pattern, print) = match spec.event {
         "Quote" => (

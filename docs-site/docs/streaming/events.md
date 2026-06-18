@@ -14,7 +14,7 @@ Every streaming update reaches your callback as one typed event. There are five 
 <template #rust>
 
 ```rust
-use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};
+use thetadatadx::streaming::{StreamControl, StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
     match event {

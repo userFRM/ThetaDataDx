@@ -1227,8 +1227,8 @@ function genRust(): string {
     for d in &early { println!("  {}  closes={}", d.date, d.close_time); }`)
 
     case 'live_quote_monitor': return `${rustHeader()}
-use thetadatadx::fpss::{StreamEvent, StreamData};
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::streaming::{StreamEvent, StreamData};
+use thetadatadx::streaming::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
@@ -1258,8 +1258,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'trade_tape': return `${rustHeader()}
-use thetadatadx::fpss::{StreamEvent, StreamData};
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::streaming::{StreamEvent, StreamData};
+use thetadatadx::streaming::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
@@ -1292,8 +1292,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'option_flow_scanner': return `${rustHeader()}
-use thetadatadx::fpss::{StreamEvent, StreamData};
-use thetadatadx::fpss::protocol::SecTypeExt;
+use thetadatadx::streaming::{StreamEvent, StreamData};
+use thetadatadx::streaming::SecTypeExt;
 use thetadatadx::SecType;
 
 #[tokio::main]
@@ -1331,8 +1331,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'live_option_chain': return `${rustHeader()}
-use thetadatadx::fpss::{StreamEvent, StreamData};
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::streaming::{StreamEvent, StreamData};
+use thetadatadx::streaming::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {

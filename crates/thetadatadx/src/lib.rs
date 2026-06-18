@@ -13,8 +13,8 @@
 //!
 //! ```rust,no_run
 //! use thetadatadx::{Client, Credentials, DirectConfig};
-//! use thetadatadx::fpss::{StreamEvent, StreamData};
-//! use thetadatadx::fpss::protocol::Contract;
+//! use thetadatadx::streaming::{StreamEvent, StreamData};
+//! use thetadatadx::streaming::Contract;
 //!
 //! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
@@ -33,15 +33,15 @@
 //! # Ok(()) }
 //! ```
 //!
-//! For streaming-only workloads, build an [`fpss::StreamingClient`] directly
+//! For streaming-only workloads, build an [`streaming::StreamingClient`] directly
 //! and iterate events on the caller's thread:
 //!
 //! ```rust,no_run
-//! use thetadatadx::fpss::{StreamingClient, StreamEvent};
+//! use thetadatadx::streaming::{StreamingClient, StreamEvent};
 //! use thetadatadx::{Credentials, DirectConfig};
-//! use thetadatadx::fpss::protocol::Contract;
+//! use thetadatadx::streaming::Contract;
 //!
-//! # fn doc() -> Result<(), thetadatadx::fpss::FpssError> {
+//! # fn doc() -> Result<(), thetadatadx::streaming::FpssError> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = DirectConfig::production().streaming.hosts;
 //!
@@ -67,7 +67,7 @@
 //! Historical data arrives over ThetaData's MDDS service; real-time
 //! ticks arrive over ThetaData's FPSS service. Both are decoded
 //! inside the crate — consumers see typed tick rows on the historical side
-//! and a typed [`fpss::StreamEvent`] stream on the streaming side.
+//! and a typed [`streaming::StreamEvent`] stream on the streaming side.
 
 // `wire_semantics.rs` is `#[path]`-shared between this library and the
 // `generate_sdk_surfaces` binary's code-generation tree. The binary sees
@@ -85,6 +85,11 @@ pub(crate) mod client;
 pub mod config;
 pub mod error;
 pub mod flatfiles;
+// The streaming implementation lives here, but `thetadatadx::streaming` is the
+// canonical public path for the streaming surface. `fpss` stays `pub` so existing
+// `use thetadatadx::fpss::...` imports keep compiling, and is `#[doc(hidden)]` so
+// the vendor protocol name no longer fronts the rendered API.
+#[doc(hidden)]
 pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
@@ -259,17 +264,33 @@ pub use error::{
     GrpcStatusKind, TransportErrorKind,
 };
 
-// ─── Real-time streaming (FPSS) ──────────────────────────────────────────────
-// The streaming surface lives in the [`fpss`] module: build a client with
-// [`fpss::StreamingClient::builder`], subscribe via [`fpss::protocol::Contract`],
-// then drain with `next_event` / `poll_batch` / the `Iterator` impl.
+// ─── Real-time streaming ─────────────────────────────────────────────────────
+// The canonical streaming surface lives in the [`streaming`] module: build a
+// client with [`streaming::StreamingClient::builder`], subscribe via
+// [`streaming::Contract`], then drain with `next_event` / `poll_batch` / the
+// `Iterator` impl.
 
-/// Outcome of a single [`fpss::StreamingClient::poll_batch`] call, re-exported at
-/// the crate root for callers that drive the batch loop directly.
+/// Outcome of a single [`streaming::StreamingClient::poll_batch`] call, re-exported
+/// at the crate root for callers that drive the batch loop directly.
 pub use fpss::PollOutcome;
 
 /// Real-time streaming consumer surface.
+///
+/// This is the canonical module for the streaming client, its events, and the
+/// subscription-building types. Build a client with
+/// [`StreamingClient::builder`](crate::streaming::StreamingClient::builder),
+/// subscribe via [`Contract`](crate::streaming::Contract), then drain events
+/// with `next_event` / `poll_batch` / `for_each` or the `Iterator` impl on
+/// `&StreamingClient`.
 pub mod streaming {
+    pub use crate::fpss::protocol::{
+        Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
+    };
+    pub use crate::fpss::{
+        FpssError, PollOutcome, StreamControl, StreamData, StreamEvent, StreamingClient,
+        StreamingClientBuilder,
+    };
+
     /// Consumer wait strategies for the streaming ring.
     ///
     /// When the consumer drains the ring faster than events arrive, it
@@ -281,7 +302,7 @@ pub mod streaming {
     ///
     /// A Rust caller that needs an exotic backoff the presets do not
     /// model can instead supply any type implementing `WaitStrategy` to
-    /// [`crate::fpss::StreamingClient::for_each_with_wait_strategy`]. The
+    /// [`crate::streaming::StreamingClient::for_each_with_wait_strategy`]. The
     /// strategy is monomorphised into the drain loop, so the per-poll
     /// cost is the caller's `wait_for` body with no indirection.
     ///
@@ -508,7 +529,7 @@ pub mod prelude {
     pub use crate::client::{Client, ConnectionStatus};
     pub use crate::config::DirectConfig;
     pub use crate::error::Error;
-    pub use crate::fpss::protocol::{
+    pub use crate::streaming::{
         Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
     };
     pub use crate::tdbe::types::enums::SecType;

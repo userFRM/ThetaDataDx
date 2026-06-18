@@ -16,8 +16,8 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::fpss::protocol::SecTypeExt;
-use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::streaming::SecTypeExt;
+use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
 client.stream().start_streaming(|event: &StreamEvent| {
