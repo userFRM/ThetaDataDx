@@ -60,9 +60,8 @@ pub use self::subscription::{FullSubscriptionKind, SecTypeExt, Subscription, Sub
 // paths working for in-crate callers while removing the symbols from
 // the published surface.
 pub(crate) use self::wire::{
-    build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
-    build_stop_payload, build_subscribe_payload, parse_contract_message, parse_disconnect_reason,
-    parse_req_response,
+    build_full_type_subscribe_payload, build_login_payload, build_ping_payload, build_stop_payload,
+    build_subscribe_payload, parse_contract_message, parse_disconnect_reason, parse_req_response,
 };
 
 /// Test-only wire-builder re-exports used by integration tests under

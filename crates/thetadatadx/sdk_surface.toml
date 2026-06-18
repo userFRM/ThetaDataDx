@@ -112,6 +112,37 @@ params = [
 ]
 
 [[methods]]
+name = "credentials_from_api_key"
+kind = "credentials_from_api_key"
+doc = "Authenticate with an API key instead of an email and password. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "api_key", type = "string", doc = "API key, held as secret material." }]
+
+[[methods]]
+name = "credentials_from_api_key_with_email"
+kind = "credentials_from_api_key_with_email"
+doc = "Authenticate with an API key paired with an account email. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [
+  { name = "email", type = "string", doc = "Account email." },
+  { name = "api_key", type = "string", doc = "API key, held as secret material." },
+]
+
+[[methods]]
+name = "credentials_from_env_or_file"
+kind = "credentials_from_env_or_file"
+doc = "Source credentials from the environment, falling back to a file. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the fallback credentials file." }]
+
+[[methods]]
+name = "credentials_from_dotenv"
+kind = "credentials_from_dotenv"
+doc = "Source credentials from a .env-format file. THETADATA_API_KEY selects an API key; otherwise THETADATA_EMAIL + THETADATA_PASSWORD build email + password credentials. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the .env file." }]
+
+[[methods]]
 name = "config_production"
 kind = "config_constructor"
 doc = "Create the production configuration."

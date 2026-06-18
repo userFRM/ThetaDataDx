@@ -79,6 +79,73 @@ class Credentials:
         """
         ...
 
+    @staticmethod
+    def from_api_key(api_key: str) -> Credentials:
+        """Authenticate with an API key instead of an email and password.
+
+        Args:
+            api_key: The API key. Trimmed and held as secret material.
+
+        Returns:
+            The built :class:`Credentials`.
+        """
+        ...
+
+    @staticmethod
+    def from_api_key_with_email(email: str, api_key: str) -> Credentials:
+        """Authenticate with an API key paired with an account email.
+
+        Args:
+            email: Account email (lowercased and trimmed; an empty email
+                is dropped).
+            api_key: The API key. Trimmed and held as secret material.
+
+        Returns:
+            The built :class:`Credentials`.
+        """
+        ...
+
+    @staticmethod
+    def from_env_or_file(path: str) -> Credentials:
+        """Source credentials from the environment, falling back to a file.
+
+        When ``THETADATA_API_KEY`` is set and non-empty an API key is
+        used; otherwise the two-line file at ``path`` is read.
+
+        Args:
+            path: Path to the credentials file used as the fallback.
+
+        Returns:
+            The sourced :class:`Credentials`.
+
+        Raises:
+            ThetaDataError: If the fallback file cannot be read or is
+                malformed.
+        """
+        ...
+
+    @staticmethod
+    def from_dotenv(path: str) -> Credentials:
+        """Source credentials from a ``.env``-format file.
+
+        The file uses the common ``.env`` grammar (one ``KEY=VALUE`` per
+        line, optional ``export`` prefix, ``#`` comments, optional
+        quotes). ``THETADATA_API_KEY`` selects an API key; otherwise
+        ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
+        password credentials.
+
+        Args:
+            path: Path to the ``.env`` file to read.
+
+        Returns:
+            The sourced :class:`Credentials`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or defines none of
+                the recognized keys.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a representation with the email redacted."""
         ...

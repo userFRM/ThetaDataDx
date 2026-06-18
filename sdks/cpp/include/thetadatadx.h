@@ -940,12 +940,47 @@ int64_t thetadatadx_last_error_retry_after_ms(void);
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_email(const char* email, const char* password);
 
+/** Create a credentials handle that authenticates with an API key.
+ *  @param api_key API key; must be non-NULL. Trimmed and held as secret
+ *         material on the handle.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_api_key(const char* api_key);
+
+/** Create a credentials handle that authenticates with an API key paired
+ *  with an account email.
+ *  @param email Account email; must be non-NULL. An empty email is dropped.
+ *  @param api_key API key; must be non-NULL. Trimmed and held as secret
+ *         material on the handle.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_api_key_with_email(const char* email, const char* api_key);
+
 /** Create a credentials handle by reading a file (line 1 = email,
  *  line 2 = password).
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @return Heap-owned ThetaDataDxCredentials the caller must release with
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
+
+/** Source a credentials handle from the environment, falling back to a file.
+ *  When THETADATA_API_KEY is set and non-empty an API key is used; otherwise
+ *  the two-line file (line 1 = email, line 2 = password) at path is read.
+ *  @param path Filesystem path to the fallback credentials file; must be non-NULL.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_env_or_file(const char* path);
+
+/** Source a credentials handle from a .env-format file.
+ *  The file uses the common .env grammar (one KEY=VALUE per line, optional
+ *  export prefix, # comment lines, optional matching quotes). When
+ *  THETADATA_API_KEY is present and non-empty an API key is used; otherwise a
+ *  complete THETADATA_EMAIL + THETADATA_PASSWORD pair builds email + password
+ *  credentials.
+ *  @param path Filesystem path to the .env file; must be non-NULL.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_dotenv(const char* path);
 
 /** Release a credentials handle.
  *  @param creds Handle from thetadatadx_credentials_from_email /

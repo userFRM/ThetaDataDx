@@ -70,7 +70,7 @@ use super::framing::{
     self, is_drain_yield, read_frame_into_with_stall_timeout, write_raw_frame,
     write_raw_frame_no_flush, FrameReadState,
 };
-use super::protocol::{self, build_credentials_payload, Contract};
+use super::protocol::{self, build_login_payload, Contract};
 use super::reconnect_delay;
 use super::ring::{
     self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
@@ -1085,7 +1085,7 @@ where
         };
 
         // Re-authenticate on the new stream.
-        let cred_payload = match build_credentials_payload(&creds.email, &creds.password) {
+        let cred_payload = match build_login_payload(&creds) {
             Ok(p) => p,
             Err(e) => {
                 // Oversized credentials are a fatal configuration error, not a

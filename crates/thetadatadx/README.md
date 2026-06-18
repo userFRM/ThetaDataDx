@@ -36,8 +36,13 @@ thetadatadx = { version = "13.0.0-rc.1", features = ["polars"] }
 ## Quick start
 
 > [!TIP]
-> Credentials can come from a `creds.txt` file (email on line 1, password on
-> line 2), an inline `Credentials::new(...)`, or the `THETADATA_EMAIL` /
+> The cleaner way to sign in is an API key: generate one from your
+> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
+> and call `Credentials::from_env_or_file("creds.txt")`. It reads the key from
+> the environment when set and falls back to the file otherwise. To pass the key
+> directly, use `Credentials::api_key(key)` (or `Credentials::api_key_with_email(email, key)`).
+> Email and password still works: a `creds.txt` file (email on line 1, password
+> on line 2), an inline `Credentials::new(...)`, or the `THETADATA_EMAIL` /
 > `THETADATA_PASSWORD` environment variables.
 
 ```rust

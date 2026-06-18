@@ -31,8 +31,14 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ## Quick start
 
 > [!TIP]
-> Credentials can come from a `creds.txt` file (email on line 1, password on
-> line 2) via `connectFromFile`, or inline via `connect(new Credentials(email, password))`.
+> The cleaner way to sign in is an API key: generate one from your
+> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
+> and build credentials with `Credentials.fromEnvOrFile("creds.txt")`. It reads
+> the key from the environment when set and falls back to the file otherwise. To
+> pass the key directly, use `Credentials.fromApiKey(key)` (or
+> `Credentials.fromApiKeyWithEmail(email, key)`), then `Client.connect(creds)`.
+> Email and password still works: a `creds.txt` file (email on line 1, password
+> on line 2) via `connectFromFile`, or inline via `connect(new Credentials(email, password))`.
 
 ```typescript
 import { Client } from 'thetadatadx';

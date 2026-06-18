@@ -9,6 +9,8 @@ Real-time quotes, trades, and open interest are delivered as **typed events thro
 
 Streaming requires a Standard subscription or higher on the matching asset class — see [Subscriptions](/articles/subscriptions). Markets closed? Connect with the `dev()` [configuration](/articles/configuration) to stream a replayed session.
 
+Streaming authenticates the same way as historical requests. An API key works here too: set `THETADATA_API_KEY` and build credentials with `from_env_or_file` (or the api-key constructor) in place of `from_file`. See [Authenticate](/articles/getting-started#_2-authenticate).
+
 ## Connect, subscribe, receive
 
 <SdkTabs>

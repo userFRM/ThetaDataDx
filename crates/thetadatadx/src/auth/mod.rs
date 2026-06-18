@@ -2,18 +2,22 @@
 //!
 //! Two sub-modules handle the two halves of the auth story:
 //!
-//! - `creds` — Parse `creds.txt` (email + password)
+//! - `creds` — Source credentials: a `creds.txt` email + password pair,
+//!   or an API key (inline or from `THETADATA_API_KEY`)
 //! - `nexus` — HTTP POST to Nexus API to obtain a session UUID
+//!
+//! A credential carries one of two methods — email + password or an API
+//! key — and both channels accept either.
 //!
 //! # Auth flow
 //!
 //! ```text
-//! creds.txt --> Credentials --> nexus::authenticate() --> AuthResponse.session_id
-//!                                                           |
-//!                         +---------------------------------+
-//!                         |
+//! creds.txt / API key --> Credentials --> nexus::authenticate() --> AuthResponse.session_id
+//!                                                                     |
+//!                                  +----------------------------------+
+//!                                  |
 //!             Historical channel:  session UUID attached to every request
-//!             Streaming channel:   email + password sent in the login handshake
+//!             Streaming channel:   the credential is sent in the login handshake
 //! ```
 
 pub(crate) mod creds;

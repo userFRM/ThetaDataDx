@@ -9,6 +9,10 @@ Existing clients using the current `/v3/*` local terminal routes can point at th
 ## Quick start
 
 ```bash
+# With an API key (or set THETADATA_API_KEY in the environment)
+thetadatadx-server --api-key YOUR_API_KEY
+export THETADATA_API_KEY="YOUR_API_KEY" && thetadatadx-server
+
 # With email/password directly (no creds file needed)
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD
 
@@ -32,6 +36,7 @@ The server starts:
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--api-key` | | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variable and the email/password path. |
 | `--email` | | ThetaData email (alternative to `--creds`) |
 | `--password` | | ThetaData password (alternative to `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file |
@@ -50,10 +55,11 @@ Every request emits one `INFO` access-log line (method, URI, status, latency) by
 
 ### Environment variables
 
-These runtime knobs are read from the environment, not from CLI flags. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
+These runtime knobs are read from the environment. `THETADATA_API_KEY` also has a `--api-key` flag that overrides it; the rate-limit knobs have no flag. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `THETADATA_API_KEY` | | API key for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
 | `THETADATADX_RATE_LIMIT_PER_SECOND` | off | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on. |
 | `THETADATADX_RATE_LIMIT_BURST_SIZE` | off | Burst size for the per-IP rate limiter. If only one of the two rate-limit variables is set, the other falls back to `20` req/s / `40` burst. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer drops events; invalid or zero values keep the default. |

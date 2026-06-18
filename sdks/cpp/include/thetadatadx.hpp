@@ -607,6 +607,38 @@ public:
      *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_email(const std::string& email, const std::string& password);
 
+    /** Authenticate with an API key instead of an email and password.
+     *  @param api_key API key; trimmed and held as secret material.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
+    static Credentials from_api_key(const std::string& api_key);
+
+    /** Authenticate with an API key paired with an account email.
+     *  @param email Account email (lowercased and trimmed; an empty email is dropped).
+     *  @param api_key API key; trimmed and held as secret material.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
+    static Credentials from_api_key_with_email(const std::string& email, const std::string& api_key);
+
+    /** Source credentials from the environment, falling back to a file.
+     *  When `THETADATA_API_KEY` is set and non-empty an API key is used;
+     *  otherwise the two-line file at `path` is read.
+     *  @param path Path to the fallback credentials file.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the fallback file is unreadable or malformed. */
+    static Credentials from_env_or_file(const std::string& path);
+
+    /** Source credentials from a `.env`-format file.
+     *  Each line is a `KEY=VALUE` assignment, with optional `export`
+     *  prefix, `#` comment lines, and optional matching quotes around the
+     *  value. `THETADATA_API_KEY` selects an API key; otherwise
+     *  `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
+     *  credentials.
+     *  @param path Path to the `.env` file.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if the file is unreadable or defines none of the recognized keys. */
+    static Credentials from_dotenv(const std::string& path);
+
     /** Borrow the underlying `ThetaDataDxCredentials*` for a connect call.
      *  @return A non-owning handle; ownership stays with this object. */
     ThetaDataDxCredentials* get() const { return handle_.get(); }

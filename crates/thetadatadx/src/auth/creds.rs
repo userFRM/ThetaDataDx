@@ -1,8 +1,19 @@
-//! Credential parsing from `creds.txt`.
+//! Credential parsing and sourcing.
 //!
-//! # Format
+//! Credentials carry one of two authentication methods:
 //!
-//! `creds.txt` uses a two-line plaintext format read from the working directory:
+//! - **Email + password** — parsed from a two-line `creds.txt` file or
+//!   supplied inline. This is the original method.
+//! - **API key** — a single secret string supplied inline or sourced
+//!   from the `THETADATA_API_KEY` environment variable.
+//!
+//! Both methods are accepted by the historical channel (the
+//! authentication endpoint) and the streaming channel (the login
+//! handshake); they are mutually exclusive on a single `Credentials`.
+//!
+//! # `creds.txt` format
+//!
+//! `creds.txt` uses a two-line plaintext format:
 //! - Line 1: email address (lowercased, trimmed)
 //! - Line 2: password (trimmed)
 //!
@@ -14,35 +25,149 @@ use zeroize::Zeroizing;
 
 use crate::error::Error;
 
-/// Raw credentials parsed from `creds.txt`.
+/// Environment variable carrying an API key as an alternative to
+/// email + password.
+const API_KEY_ENV: &str = "THETADATA_API_KEY";
+
+/// `.env`-file key carrying the account email, used when a `.env` file
+/// supplies email + password rather than an API key.
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+
+/// `.env`-file key carrying the account password, paired with
+/// [`EMAIL_ENV`].
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
+
+/// Look up `key` in the parsed `.env` assignments, returning the trimmed
+/// value when present and non-empty.
 ///
-/// These are used for both auth flows:
-/// - **Historical channel**: email + password are exchanged with the Nexus API to obtain a session UUID
-/// - **Streaming channel**: email + password are sent in the FPSS login handshake
-///
-/// The `password` is wrapped in [`zeroize::Zeroizing`] so the backing buffer is
-/// wiped when the struct (or any clone) is dropped, preventing plaintext
-/// recovery from a core dump or `/proc/<pid>/mem`.
-#[derive(Clone)]
-#[non_exhaustive]
-pub struct Credentials {
-    /// Email address, lowercased and trimmed.
-    pub email: String,
-    /// Password, trimmed. Zeroed on drop.
-    pub(crate) password: Zeroizing<String>,
+/// The returned slice borrows the [`Zeroizing`] buffer that owns the
+/// file contents, so the matched value is never copied into a separate
+/// plain `String` before it reaches the secret-wrapping constructor.
+fn dotenv_lookup<'a>(pairs: &'a [(String, &'a str)], key: &str) -> Option<&'a str> {
+    pairs
+        .iter()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| *value)
+        .filter(|value| !value.is_empty())
 }
 
-impl std::fmt::Debug for Credentials {
+/// Parse `.env`-format text into `(key, value)` pairs.
+///
+/// The grammar is the common `.env` subset: one `KEY=VALUE` assignment
+/// per line, with optional `export ` prefix, `#` comment lines, blank
+/// lines, and optional matching single or double quotes around the
+/// value. Whitespace around the key and the (unquoted) value is trimmed.
+/// A later assignment to the same key wins, matching shell `source`
+/// semantics.
+///
+/// The value slices borrow `contents`; the caller owns that buffer
+/// (wrapped in [`Zeroizing`] on the secret path) so no secret value is
+/// copied into an unmanaged allocation here.
+fn parse_dotenv(contents: &str) -> Vec<(String, &str)> {
+    let mut pairs: Vec<(String, &str)> = Vec::new();
+    for raw in contents.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let line = line.strip_prefix("export ").map_or(line, str::trim_start);
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_string();
+        if key.is_empty() {
+            continue;
+        }
+        let value = value.trim();
+        // Strip one layer of matching surrounding quotes; leave the
+        // inner bytes verbatim (no escape processing — secrets are
+        // opaque).
+        let value = if value.len() >= 2
+            && ((value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\'')))
+        {
+            &value[1..value.len() - 1]
+        } else {
+            value
+        };
+        // Last assignment wins.
+        if let Some(slot) = pairs.iter_mut().find(|(name, _)| name == &key) {
+            slot.1 = value;
+        } else {
+            pairs.push((key, value));
+        }
+    }
+    pairs
+}
+
+/// The authentication method backing a [`Credentials`] value.
+///
+/// Exactly one method is present. The two variants are mutually
+/// exclusive: a `Credentials` either authenticates with an email +
+/// password pair or with a single API key, never both.
+///
+/// Secret material (the password, the API key) is wrapped in
+/// [`zeroize::Zeroizing`] so the backing buffer is wiped on drop,
+/// preventing plaintext recovery from a core dump or `/proc/<pid>/mem`.
+#[derive(Clone)]
+pub(crate) enum AuthMethod {
+    /// Email + password. The email is lowercased and trimmed; the
+    /// password is trimmed and zeroed on drop.
+    Password {
+        /// Email address, lowercased and trimmed.
+        email: String,
+        /// Password, trimmed. Zeroed on drop.
+        password: Zeroizing<String>,
+    },
+    /// API key. The optional email, when present, is the account email
+    /// the streaming login may carry alongside the key.
+    ApiKey {
+        /// Account email, when one is available. `None` when the caller
+        /// supplied only an API key.
+        email: Option<String>,
+        /// API key. Zeroed on drop.
+        key: Zeroizing<String>,
+    },
+}
+
+impl std::fmt::Debug for AuthMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Credentials")
-            .field("email", &"<redacted>")
-            .field("password", &"<redacted>")
-            .finish()
+        match self {
+            Self::Password { .. } => f
+                .debug_struct("Password")
+                .field("email", &"<redacted>")
+                .field("password", &"<redacted>")
+                .finish(),
+            Self::ApiKey { .. } => f
+                .debug_struct("ApiKey")
+                .field("email", &"<redacted>")
+                .field("key", &"<redacted>")
+                .finish(),
+        }
     }
 }
 
+/// Authentication credentials for `ThetaData` direct server access.
+///
+/// A `Credentials` carries exactly one authentication method — email +
+/// password or an API key — selected at construction time. Both methods
+/// are used by both channels:
+/// - **Historical channel**: the credential is exchanged with the
+///   authentication endpoint to obtain a session UUID.
+/// - **Streaming channel**: the credential is sent in the login
+///   handshake.
+///
+/// Secret material is wrapped in [`zeroize::Zeroizing`] so the backing
+/// buffer is wiped when the struct (or any clone) is dropped. `Debug`
+/// redacts every secret and the email.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct Credentials {
+    pub(crate) method: AuthMethod,
+}
+
 impl Credentials {
-    /// Parse credentials from a `creds.txt` file.
+    /// Parse email + password credentials from a `creds.txt` file.
     ///
     /// # Format
     ///
@@ -96,8 +221,8 @@ impl Credentials {
         Self::parse(&contents)
     }
 
-    /// Parse credentials from a string with the same format as
-    /// `creds.txt`.
+    /// Parse email + password credentials from a string with the same
+    /// format as `creds.txt`.
     ///
     /// Useful for testing and for cases where credentials come from
     /// environment variables or other sources.
@@ -149,16 +274,13 @@ impl Credentials {
             });
         }
 
-        Ok(Self { email, password })
+        Ok(Self {
+            method: AuthMethod::Password { email, password },
+        })
     }
 
-    /// Get the password.
-    #[must_use]
-    pub fn password(&self) -> &str {
-        &self.password
-    }
-
-    /// Construct credentials directly (e.g. from environment variables).
+    /// Construct email + password credentials directly (e.g. from
+    /// environment variables).
     ///
     /// # Zeroization pipeline
     ///
@@ -174,9 +296,184 @@ impl Credentials {
         // allocation and the `Credentials` construction.
         let password: Zeroizing<String> = Zeroizing::new(password.into().trim().to_string());
         Self {
-            email: email.into().trim().to_lowercase(),
-            password,
+            method: AuthMethod::Password {
+                email: email.into().trim().to_lowercase(),
+                password,
+            },
         }
+    }
+
+    /// Construct credentials that authenticate with an API key.
+    ///
+    /// The API key is an alternative to email + password. It is trimmed
+    /// and wrapped in [`zeroize::Zeroizing`] so the backing buffer is
+    /// wiped on drop.
+    ///
+    /// # Zeroization pipeline
+    ///
+    /// The caller-supplied key goes through a transient owned `String`
+    /// for the `trim()` + `to_string()` step, wrapped in `Zeroizing`
+    /// before the struct is built so the post-trim copy is wiped on
+    /// drop even on a panic between the allocation and construction.
+    pub fn api_key(key: impl Into<String>) -> Self {
+        let key: Zeroizing<String> = Zeroizing::new(key.into().trim().to_string());
+        Self {
+            method: AuthMethod::ApiKey { email: None, key },
+        }
+    }
+
+    /// Construct API-key credentials that also carry an account email.
+    ///
+    /// The email is lowercased and trimmed. An empty email collapses to
+    /// `None`. The streaming login can carry the email alongside the key.
+    ///
+    /// # Zeroization pipeline
+    ///
+    /// The key transient is wrapped in `Zeroizing` before the struct is
+    /// built, matching [`Credentials::api_key`].
+    pub fn api_key_with_email(email: impl Into<String>, key: impl Into<String>) -> Self {
+        let key: Zeroizing<String> = Zeroizing::new(key.into().trim().to_string());
+        let email = email.into().trim().to_lowercase();
+        Self {
+            method: AuthMethod::ApiKey {
+                email: (!email.is_empty()).then_some(email),
+                key,
+            },
+        }
+    }
+
+    /// Source credentials from the environment, falling back to a
+    /// `creds.txt` file.
+    ///
+    /// Precedence:
+    /// 1. `THETADATA_API_KEY` — if set and non-empty, an API key is used.
+    /// 2. The `creds.txt` file at `path` — the two-line email + password
+    ///    format.
+    ///
+    /// An explicit constructor ([`Credentials::new`],
+    /// [`Credentials::api_key`]) always takes precedence over both, since
+    /// the caller is then supplying the credential directly rather than
+    /// asking this helper to source one.
+    ///
+    /// # Errors
+    ///
+    /// When `THETADATA_API_KEY` is unset or empty, returns whatever
+    /// [`Credentials::from_file`] returns for `path`.
+    pub fn from_env_or_file(path: impl AsRef<Path>) -> Result<Self, Error> {
+        if let Ok(key) = std::env::var(API_KEY_ENV) {
+            // Wrap the environment buffer so the key bytes are wiped on drop
+            // rather than lingering in freed heap; `api_key` keeps its own
+            // zeroized copy.
+            let key = Zeroizing::new(key);
+            let trimmed = key.trim();
+            if !trimmed.is_empty() {
+                return Ok(Self::api_key(trimmed));
+            }
+        }
+        Self::from_file(path)
+    }
+
+    /// Source credentials from a `.env`-format file.
+    ///
+    /// The file uses the common `.env` grammar: one `KEY=VALUE`
+    /// assignment per line, with optional `export ` prefix, `#` comment
+    /// lines, blank lines, and optional matching single or double quotes
+    /// around the value.
+    ///
+    /// Key precedence:
+    /// 1. `THETADATA_API_KEY` — if present and non-empty, an API key is
+    ///    used.
+    /// 2. `THETADATA_EMAIL` + `THETADATA_PASSWORD` — if both are present
+    ///    and non-empty, email + password credentials are built.
+    ///
+    /// This mirrors the environment-variable names that
+    /// [`Credentials::from_env_or_file`] reads, so the same `.env` file
+    /// works whether it is exported into the process environment or read
+    /// directly through this constructor.
+    ///
+    /// # Zeroization pipeline
+    ///
+    /// The full file contents are read into a [`Zeroizing`] buffer so
+    /// the on-disk secret bytes are wiped from the heap on drop. The
+    /// parsed value slices borrow that buffer; the api-key / password
+    /// constructors keep their own zeroized copy of the secret.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the file cannot be read, and
+    /// [`Error::Auth`] if the file carries neither a non-empty
+    /// `THETADATA_API_KEY` nor a complete `THETADATA_EMAIL` +
+    /// `THETADATA_PASSWORD` pair.
+    pub fn from_dotenv(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let path = path.as_ref();
+        let contents =
+            Zeroizing::new(std::fs::read_to_string(path).map_err(|e| Error::Config {
+                kind: crate::error::ConfigErrorKind::Io(format!(
+                    "failed to read .env file {}: {}",
+                    path.display(),
+                    e
+                )),
+                message: ".env file unreadable".to_string(),
+                source: Some(Box::new(e)),
+            })?);
+
+        let pairs = parse_dotenv(&contents);
+
+        if let Some(key) = dotenv_lookup(&pairs, API_KEY_ENV) {
+            return Ok(Self::api_key(key));
+        }
+
+        match (
+            dotenv_lookup(&pairs, EMAIL_ENV),
+            dotenv_lookup(&pairs, PASSWORD_ENV),
+        ) {
+            (Some(email), Some(password)) => Ok(Self::new(email, password)),
+            _ => Err(Error::Auth {
+                kind: crate::error::AuthErrorKind::InvalidCredentials,
+                message: format!(
+                    ".env file must define {API_KEY_ENV}, or both {EMAIL_ENV} and {PASSWORD_ENV}"
+                ),
+            }),
+        }
+    }
+
+    /// The account email, when one is available.
+    ///
+    /// Always `Some` for email + password credentials. For API-key
+    /// credentials it is `Some` only when the key was paired with an
+    /// email via [`Credentials::api_key_with_email`].
+    #[must_use]
+    pub fn email(&self) -> Option<&str> {
+        match &self.method {
+            AuthMethod::Password { email, .. } => Some(email),
+            AuthMethod::ApiKey { email, .. } => email.as_deref(),
+        }
+    }
+
+    /// The password, when this credential authenticates with email +
+    /// password. `None` for API-key credentials.
+    #[must_use]
+    pub fn password(&self) -> Option<&str> {
+        match &self.method {
+            AuthMethod::Password { password, .. } => Some(password),
+            AuthMethod::ApiKey { .. } => None,
+        }
+    }
+
+    /// The API key, when this credential authenticates with one.
+    /// `None` for email + password credentials.
+    #[must_use]
+    pub fn api_key_secret(&self) -> Option<&str> {
+        match &self.method {
+            AuthMethod::ApiKey { key, .. } => Some(key),
+            AuthMethod::Password { .. } => None,
+        }
+    }
+
+    /// Whether this credential authenticates with an API key.
+    #[must_use]
+    pub fn is_api_key(&self) -> bool {
+        matches!(self.method, AuthMethod::ApiKey { .. })
     }
 }
 
@@ -187,35 +484,37 @@ mod tests {
     #[test]
     fn parse_basic() {
         let creds = Credentials::parse("user@example.com\nhunter2\n").unwrap();
-        assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password(), "hunter2");
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
+        assert_eq!(creds.api_key_secret(), None);
+        assert!(!creds.is_api_key());
     }
 
     #[test]
     fn parse_lowercases_email() {
         let creds = Credentials::parse("User@Example.COM\npassword123\n").unwrap();
-        assert_eq!(creds.email, "user@example.com");
+        assert_eq!(creds.email(), Some("user@example.com"));
     }
 
     #[test]
     fn parse_trims_whitespace() {
         let creds = Credentials::parse("  user@example.com  \n  hunter2  \n").unwrap();
-        assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password(), "hunter2");
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
     }
 
     #[test]
     fn parse_ignores_extra_lines() {
         let creds = Credentials::parse("user@example.com\nhunter2\nextra line\nanother\n").unwrap();
-        assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password(), "hunter2");
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
     }
 
     #[test]
     fn parse_no_trailing_newline() {
         let creds = Credentials::parse("user@example.com\nhunter2").unwrap();
-        assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password(), "hunter2");
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
     }
 
     #[test]
@@ -245,8 +544,211 @@ mod tests {
     #[test]
     fn new_trims_and_lowercases() {
         let creds = Credentials::new("  User@Example.COM  ", "  hunter2  ");
-        assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password(), "hunter2");
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
+    }
+
+    #[test]
+    fn api_key_basic() {
+        let creds = Credentials::api_key("  secret-key-123  ");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("secret-key-123"));
+        assert_eq!(creds.password(), None);
+        assert_eq!(creds.email(), None);
+    }
+
+    #[test]
+    fn api_key_with_email_carries_email() {
+        let creds = Credentials::api_key_with_email("  User@Example.COM  ", "  key-abc  ");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("key-abc"));
+        assert_eq!(creds.email(), Some("user@example.com"));
+    }
+
+    #[test]
+    fn api_key_with_empty_email_is_none() {
+        let creds = Credentials::api_key_with_email("   ", "key-abc");
+        assert_eq!(creds.email(), None);
+        assert_eq!(creds.api_key_secret(), Some("key-abc"));
+    }
+
+    /// Env sourcing: `THETADATA_API_KEY` selects an API key and takes
+    /// precedence over the file fallback. A missing/empty env var falls
+    /// back to the file. The test uses a unique env scope to avoid
+    /// cross-test interference.
+    #[test]
+    fn from_env_or_file_prefers_env_api_key() {
+        // SAFETY: single-threaded test body; the env var is set and
+        // removed within this test's scope. No other test reads
+        // `THETADATA_API_KEY`.
+        temp_env_var(API_KEY_ENV, Some("  env-sourced-key  "), || {
+            let creds = Credentials::from_env_or_file("/nonexistent/creds.txt")
+                .expect("env api key must source without touching the file");
+            assert!(creds.is_api_key());
+            assert_eq!(creds.api_key_secret(), Some("env-sourced-key"));
+        });
+    }
+
+    #[test]
+    fn from_env_or_file_falls_back_to_file_when_env_absent() {
+        use std::io::Write as _;
+        let tmp = std::env::temp_dir().join(format!(
+            "thetadatadx-env-fallback-{}.txt",
+            std::process::id()
+        ));
+        {
+            let mut f = std::fs::File::create(&tmp).expect("create tmp creds file");
+            writeln!(f, "fallback@example.com").unwrap();
+            writeln!(f, "fallback-pass").unwrap();
+        }
+        temp_env_var(API_KEY_ENV, None, || {
+            let creds =
+                Credentials::from_env_or_file(&tmp).expect("file fallback must parse creds.txt");
+            assert!(!creds.is_api_key());
+            assert_eq!(creds.email(), Some("fallback@example.com"));
+            assert_eq!(creds.password(), Some("fallback-pass"));
+        });
+        std::fs::remove_file(&tmp).ok();
+    }
+
+    #[test]
+    fn from_env_or_file_treats_empty_env_as_absent() {
+        temp_env_var(API_KEY_ENV, Some("   "), || {
+            // Empty/whitespace env must NOT be treated as a key; the
+            // file fallback then errors on the missing path.
+            let res = Credentials::from_env_or_file("/nonexistent/creds.txt");
+            assert!(
+                res.is_err(),
+                "whitespace-only env var must fall through to the file path"
+            );
+        });
+    }
+
+    /// Write `body` to a uniquely-named temp file and return its path.
+    /// The unique suffix keeps parallel test threads from colliding.
+    fn write_temp(suffix: &str, body: &str) -> std::path::PathBuf {
+        use std::io::Write as _;
+        let path = std::env::temp_dir().join(format!(
+            "thetadatadx-dotenv-{}-{suffix}",
+            std::process::id()
+        ));
+        let mut f = std::fs::File::create(&path).expect("create tmp .env file");
+        f.write_all(body.as_bytes()).expect("write tmp .env file");
+        path
+    }
+
+    #[test]
+    fn from_dotenv_reads_api_key() {
+        let path = write_temp(
+            "api.env",
+            "# a comment\nTHETADATA_API_KEY=\"td_example_key\"\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_supports_export_and_single_quotes() {
+        let path = write_temp("export.env", "export THETADATA_API_KEY='td_example_key'\n");
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_reads_email_password_when_no_api_key() {
+        let path = write_temp(
+            "creds.env",
+            "\nTHETADATA_EMAIL=User@Example.COM\nTHETADATA_PASSWORD=hunter2\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("email/password must parse");
+        assert!(!creds.is_api_key());
+        assert_eq!(creds.email(), Some("user@example.com"));
+        assert_eq!(creds.password(), Some("hunter2"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_prefers_api_key_over_email_password() {
+        let path = write_temp(
+            "both.env",
+            "THETADATA_API_KEY=td_example_key\nTHETADATA_EMAIL=u@example.com\nTHETADATA_PASSWORD=pw\n",
+        );
+        let creds = Credentials::from_dotenv(&path).expect("api key must win");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("td_example_key"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_errors_when_no_recognized_keys() {
+        let path = write_temp("empty.env", "# nothing useful\nOTHER=value\n");
+        let err = Credentials::from_dotenv(&path).unwrap_err();
+        assert!(err.to_string().contains("THETADATA_API_KEY"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_errors_on_missing_file() {
+        let err = Credentials::from_dotenv("/nonexistent/dir/.env").unwrap_err();
+        assert!(err.to_string().contains(".env file unreadable"));
+    }
+
+    /// `Debug` on `.env`-sourced api-key credentials must still redact.
+    #[test]
+    fn from_dotenv_redacts_in_debug() {
+        let path = write_temp("redact.env", "THETADATA_API_KEY=td_secret_value\n");
+        let creds = Credentials::from_dotenv(&path).expect("api key must parse");
+        let rendered = format!("{creds:?}");
+        assert!(
+            !rendered.contains("td_secret_value"),
+            "Debug leaked .env api key: {rendered}"
+        );
+        assert!(rendered.contains("<redacted>"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// The `.env` parser handles comments, blanks, quotes, `export`, and
+    /// last-assignment-wins without touching the filesystem.
+    #[test]
+    fn parse_dotenv_grammar() {
+        let pairs = parse_dotenv(
+            "# comment\n\n  export A = \"one\" \nB='two'\nA=three\nbad-line-no-eq\n=novalue\n",
+        );
+        assert_eq!(dotenv_lookup(&pairs, "A"), Some("three"));
+        assert_eq!(dotenv_lookup(&pairs, "B"), Some("two"));
+        assert_eq!(dotenv_lookup(&pairs, "MISSING"), None);
+    }
+
+    /// Serializes env-mutating tests so parallel test threads never
+    /// observe a torn `THETADATA_API_KEY` while another test is mid-swap.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Run `body` with `var` temporarily set to `value` (or removed when
+    /// `None`), restoring the prior value afterward. Keeps env mutation
+    /// scoped so the suite stays order-independent.
+    fn temp_env_var(var: &str, value: Option<&str>, body: impl FnOnce()) {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prior = std::env::var(var).ok();
+        // SAFETY: tests run in-process; this helper sets/removes a single
+        // env var around a synchronous closure and restores the prior
+        // value, so no other thread observes a torn state for `var`.
+        unsafe {
+            match value {
+                Some(v) => std::env::set_var(var, v),
+                None => std::env::remove_var(var),
+            }
+        }
+        body();
+        // SAFETY: same as above — restore the captured prior value.
+        unsafe {
+            match prior {
+                Some(v) => std::env::set_var(var, v),
+                None => std::env::remove_var(var),
+            }
+        }
     }
 
     /// `Debug` must never expose the email or the password -- both would
@@ -270,30 +772,40 @@ mod tests {
         );
     }
 
-    /// Smoke test that the `Zeroizing<String>` wrapper derefs to `&str` so
-    /// every existing `&creds.password` call site keeps compiling. The
-    /// actual zero-on-drop behavior is covered by the `zeroize` crate's
-    /// own tests; asserting on freed memory here would be UB.
+    /// `Debug` must never expose the API key either.
     #[test]
-    fn password_derefs_to_str() {
-        let creds = Credentials::new("user@example.com", "hunter2");
-        let borrowed: &str = &creds.password;
-        assert_eq!(borrowed, "hunter2");
+    fn debug_redacts_api_key() {
+        let creds = Credentials::api_key_with_email("user@example.com", "super-secret-key");
+        let rendered = format!("{creds:?}");
+        assert!(
+            !rendered.contains("super-secret-key"),
+            "Debug impl leaked api key: {rendered}"
+        );
+        assert!(
+            !rendered.contains("user@example.com"),
+            "Debug impl leaked email: {rendered}"
+        );
+        assert!(
+            rendered.contains("<redacted>"),
+            "Debug missing redaction marker: {rendered}"
+        );
     }
 
-    /// Finding #6 coverage: `from_file` wraps the full file contents
-    /// in `Zeroizing` so the on-disk password bytes are wiped from
-    /// the heap on drop. Verifies the pipeline compiles and round-
-    /// trips with the `Zeroizing<String>` contents buffer.
+    /// Smoke test that the password accessor derefs through the
+    /// `Zeroizing<String>` wrapper. The actual zero-on-drop behavior is
+    /// covered by the `zeroize` crate's own tests.
+    #[test]
+    fn password_accessor_round_trips() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        assert_eq!(creds.password(), Some("hunter2"));
+    }
+
+    /// The full file contents and the parsed password both round-trip
+    /// through `Zeroizing` buffers in `from_file`.
     #[test]
     fn from_file_round_trips_through_zeroizing_buffer() {
         use std::io::Write as _;
 
-        // Write a creds file into a temp path, read it back via the
-        // hardened `from_file`, and assert the parsed struct matches
-        // the expected shape. The value-check is the load-bearing
-        // assertion — the zeroize wrapping is a source-level
-        // contract verified by the `Zeroizing` type system.
         let tmp =
             std::env::temp_dir().join(format!("thetadatadx-creds-test-{}.txt", std::process::id()));
         {
@@ -303,47 +815,31 @@ mod tests {
         }
         let creds =
             Credentials::from_file(&tmp).expect("from_file must parse with Zeroizing buffer");
-        assert_eq!(creds.email, "secret-user@example.com");
-        assert_eq!(creds.password(), "pipelined-secret");
+        assert_eq!(creds.email(), Some("secret-user@example.com"));
+        assert_eq!(creds.password(), Some("pipelined-secret"));
         std::fs::remove_file(&tmp).ok();
     }
 
-    /// Finding #6 coverage: the transient password `String` built
-    /// inside `parse()` is wrapped in `Zeroizing` before the
-    /// `Credentials` struct is built. Running a successful parse
-    /// verifies the wrapper type round-trips unchanged.
+    /// The transient password `String` built inside `parse()` is wrapped
+    /// in `Zeroizing` before the `Credentials` struct is built; the
+    /// `AuthMethod::Password` variant stores it as `Zeroizing<String>`,
+    /// so a regression to a plain `String` would fail to compile.
     #[test]
-    fn parse_wraps_transient_password_in_zeroizing() {
+    fn parse_stores_password_in_zeroizing() {
         let creds = Credentials::parse("pipeline-user@example.com\npipelined-password\n")
             .expect("parse must succeed");
-        assert_eq!(creds.password(), "pipelined-password");
-
-        // The password field is declared `Zeroizing<String>`; if the
-        // parse path were to replace it with a plain `String` the
-        // source would fail to compile. This type-level assertion
-        // is the strongest zeroization check we can do without
-        // undefined-behaviour memory snooping.
-        let _: &Zeroizing<String> = &creds.password;
+        assert_eq!(creds.password(), Some("pipelined-password"));
+        match &creds.method {
+            AuthMethod::Password { password, .. } => {
+                let _: &Zeroizing<String> = password;
+            }
+            AuthMethod::ApiKey { .. } => panic!("expected a password credential"),
+        }
     }
 
-    /// Finding #6 coverage: `new()` wraps the transient
-    /// `trim().to_string()` allocation in `Zeroizing` before
-    /// assigning to the struct. Same type-level contract as
-    /// `parse()`.
-    #[test]
-    fn new_wraps_transient_password_in_zeroizing() {
-        let creds = Credentials::new("  Pipeline@Example.COM  ", "  transient-secret  ");
-        assert_eq!(creds.email, "pipeline@example.com");
-        assert_eq!(creds.password(), "transient-secret");
-        let _: &Zeroizing<String> = &creds.password;
-    }
-
-    /// Finding #6 coverage: dropping a `Credentials` must run the
-    /// `Zeroizing` destructor on the password. Instrument the
-    /// drop via a wrapper so we can assert deterministically that
-    /// the destructor actually ran. Memory-content checks on freed
-    /// allocations would be UB; observing `Drop` execution is the
-    /// portable substitute.
+    /// Dropping a `Credentials` must run the `Zeroizing` destructor on
+    /// the secret. Observing `Drop` execution via a canary is the
+    /// portable substitute for snooping freed memory (which is UB).
     #[test]
     fn credentials_drop_runs_zeroizing_destructor() {
         struct DropCanary<'a> {
@@ -354,15 +850,11 @@ mod tests {
                 self.ran.set(true);
             }
         }
-        // This canary mirrors the Drop-runs property of
-        // `Zeroizing<String>`: constructing `Credentials` and letting
-        // it go out of scope MUST call Drop on the password field.
         let canary_ran = std::cell::Cell::new(false);
         {
             let _canary = DropCanary { ran: &canary_ran };
             let creds = Credentials::new("canary@example.com", "secret-canary");
-            assert_eq!(creds.password(), "secret-canary");
-            // `creds` drops here, then `_canary` after it.
+            assert_eq!(creds.password(), Some("secret-canary"));
         }
         assert!(
             canary_ran.get(),

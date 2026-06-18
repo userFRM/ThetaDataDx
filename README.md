@@ -45,8 +45,14 @@ C++ ships as a header plus a small implementation file over a prebuilt library (
 ## Quick start
 
 > [!TIP]
-> Credentials can come from a `creds.txt` file (email on line 1, password on
-> line 2), an inline `Credentials`, or the `THETADATA_EMAIL` /
+> The cleaner way to sign in is an API key: generate one from your
+> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
+> and build credentials with `from_env_or_file`. Or pass the key to the api-key
+> constructor: `Credentials.from_api_key` in Python, `Credentials.fromApiKey` in
+> TypeScript, `Credentials::api_key` in Rust, and
+> `thetadatadx::Credentials::from_api_key` in C++. Email and password still
+> works: a `creds.txt` file (email on line 1,
+> password on line 2), an inline `Credentials`, or the `THETADATA_EMAIL` /
 > `THETADATA_PASSWORD` environment variables.
 
 ### Python

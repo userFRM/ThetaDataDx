@@ -1475,6 +1475,57 @@ python = false  # Python uses the `Credentials(email, password)` constructor
 typescript = false
 cpp = true
 
+# API-key authentication: the alternative to email + password. Every
+# binding exposes both the bare-key and key-with-email factory, so both
+# columns stay `true` across Python (`from_api_key` /
+# `from_api_key_with_email` staticmethods), TypeScript (`fromApiKey` /
+# `fromApiKeyWithEmail` napi factories), and C++ (`from_api_key` /
+# `from_api_key_with_email` static members over the
+# `thetadatadx_credentials_from_api_key*` C ABI symbols).
+
+[[method]]
+class = "Credentials"
+name = "fromApiKey"
+python = true
+typescript = true   # `Credentials.fromApiKey(key)` napi factory
+cpp = true
+
+[[method]]
+class = "Credentials"
+name = "fromApiKeyWithEmail"
+python = true
+typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
+cpp = true
+
+# Environment-or-file sourcing: read `THETADATA_API_KEY` from the
+# environment, else fall back to the two-line credentials file. Every
+# binding exposes it, so all columns stay `true` across Python
+# (`from_env_or_file` staticmethod), TypeScript (`fromEnvOrFile` napi
+# factory), and C++ (`from_env_or_file` static member over the
+# `thetadatadx_credentials_from_env_or_file` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromEnvOrFile"
+python = true
+typescript = true   # `Credentials.fromEnvOrFile(path)` napi factory
+cpp = true
+
+# Dotenv sourcing: read credentials from a `.env`-format file.
+# `THETADATA_API_KEY` selects an API key; otherwise `THETADATA_EMAIL` +
+# `THETADATA_PASSWORD` build email + password credentials. Every binding
+# exposes it, so all columns stay `true` across Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the
+# `thetadatadx_credentials_from_dotenv` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromDotenv"
+python = true
+typescript = true   # `Credentials.fromDotenv(path)` napi factory
+cpp = true
+
 # ── Config (the streaming/historical client configuration class) ──
 #
 # Field-level setters are tracked by the dotted `[[class]]` rows above
