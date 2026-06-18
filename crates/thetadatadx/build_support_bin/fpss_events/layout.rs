@@ -122,10 +122,12 @@ pub(super) fn c_struct_offsets(columns: &[ColumnDef]) -> Vec<(String, usize)> {
     offsets
 }
 
-/// Alignment requirement of a control-variant struct, computed from its
-/// columns. Empty-column control variants fall back to align=1 (one
-/// `_padding` byte).
-pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
+/// Alignment requirement of any emitted event struct, computed from the
+/// widest field in its expanded column list. An empty column list is a
+/// `_padding: u8` placeholder, hence align 1. Shared by the Rust-side
+/// `align_of!` asserts and the control-variant placement walk so the
+/// asserted alignment is never hand-typed.
+pub(super) fn struct_align(columns: &[ColumnDef]) -> usize {
     if columns.is_empty() {
         1
     } else {
@@ -135,6 +137,24 @@ pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
             .max()
             .unwrap_or(1)
     }
+}
+
+/// Alignment requirement of the shared `ThetaDataDxContract` struct,
+/// computed from its widest field so the Rust-side `align_of!` assert
+/// tracks the same layout walk that places every embedding event.
+pub(super) fn contract_align() -> usize {
+    contract_fields()
+        .iter()
+        .map(|(_, l)| l.align)
+        .max()
+        .unwrap_or(1)
+}
+
+/// Alignment requirement of a control-variant struct, computed from its
+/// columns. Empty-column control variants fall back to align=1 (one
+/// `_padding` byte).
+pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
+    struct_align(columns)
 }
 
 /// Returns the total C struct size, in bytes, of the tagged `ThetaDataDxStreamEvent` wrapper.
@@ -156,6 +176,17 @@ pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
         size += layout.size;
     }
     offsets
+}
+
+/// Alignment requirement of the tagged `ThetaDataDxStreamEvent` wrapper,
+/// taken as the widest embedded field so the Rust-side `align_of!` assert
+/// tracks the same walk that sizes the wrapper.
+pub(super) fn fpss_event_align(schema: &Schema) -> usize {
+    fpss_event_fields(schema)
+        .into_iter()
+        .map(|(_, layout)| layout.align)
+        .max()
+        .unwrap_or(1)
 }
 
 fn fpss_event_fields(schema: &Schema) -> Vec<(String, CFieldLayout)> {

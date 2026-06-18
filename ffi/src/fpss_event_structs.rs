@@ -437,6 +437,107 @@ pub struct ThetaDataDxStreamEvent {
     pub unknown_frame: ThetaDataDxStreamUnknownFrame,
 }
 
+// Layout drift-guard: pin the `#[repr(C)]` size + alignment of every
+// emitted struct on the Rust side that defines the ABI. A schema or
+// field-width change that shifts a layout fails the build here, before
+// the generated C header and its C++ asserts can drift out of sync.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxContract>() == 40);
+    assert!(core::mem::align_of::<ThetaDataDxContract>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamMarketValue>() == 88);
+    assert!(core::mem::align_of::<ThetaDataDxStreamMarketValue>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamOhlcvc>() == 112);
+    assert!(core::mem::align_of::<ThetaDataDxStreamOhlcvc>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamOpenInterest>() == 64);
+    assert!(core::mem::align_of::<ThetaDataDxStreamOpenInterest>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamQuote>() == 104);
+    assert!(core::mem::align_of::<ThetaDataDxStreamQuote>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamTrade>() == 120);
+    assert!(core::mem::align_of::<ThetaDataDxStreamTrade>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamConnected>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamConnected>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamContractAssigned>() == 48);
+    assert!(core::mem::align_of::<ThetaDataDxStreamContractAssigned>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamDisconnected>() == 4);
+    assert!(core::mem::align_of::<ThetaDataDxStreamDisconnected>() == 4);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamLoginSuccess>() == 8);
+    assert!(core::mem::align_of::<ThetaDataDxStreamLoginSuccess>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamMarketClose>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamMarketClose>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamMarketOpen>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamMarketOpen>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamParseError>() == 8);
+    assert!(core::mem::align_of::<ThetaDataDxStreamParseError>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamPing>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxStreamPing>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnected>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReconnected>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnectedServer>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReconnectedServer>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnecting>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReconnecting>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnectsExhausted>() == 8);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReconnectsExhausted>() == 4);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamReqResponse>() == 8);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReqResponse>() == 4);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamRestart>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamRestart>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamServerError>() == 8);
+    assert!(core::mem::align_of::<ThetaDataDxStreamServerError>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamUnknownControl>() == 1);
+    assert!(core::mem::align_of::<ThetaDataDxStreamUnknownControl>() == 1);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamUnknownFrame>() == 24);
+    assert!(core::mem::align_of::<ThetaDataDxStreamUnknownFrame>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 688);
+    assert!(core::mem::align_of::<ThetaDataDxStreamEvent>() == 8);
+};
+
 // Zero-initialized defaults for inactive union-style fields.
 pub(crate) const ZERO_MARKET_VALUE: ThetaDataDxStreamMarketValue = ThetaDataDxStreamMarketValue {
     contract: ZERO_CONTRACT_STRUCT,
