@@ -26,7 +26,7 @@ const CLIENT_PARAMETER_VALUE: &str = "terminal";
 ///
 /// `session_uuid` and `client_type` thread through the
 /// `QueryInfo.auth_token.session_uuid` and `QueryInfo.client_type`
-/// wire fields — see [`crate::mdds::HistoricalClient`] for how they are
+/// wire fields — see [`crate::HistoricalClient`] for how they are
 /// obtained from the Nexus auth response.
 ///
 /// # Errors
@@ -64,7 +64,7 @@ pub async fn stock_list_symbols(
 }
 
 /// Drain `stream` into a single merged `DataTable`. Mirrors the
-/// `collect_stream` helper on [`crate::mdds::HistoricalClient`] but operates
+/// `collect_stream` helper on [`crate::HistoricalClient`] but operates
 /// on a raw [`crate::grpc::ServerStreaming`] without an `HistoricalClient`.
 ///
 /// Each chunk's zstd + protobuf decode runs inline on the caller's

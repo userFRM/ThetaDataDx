@@ -73,7 +73,7 @@ enum StreamingSlot {
     Stopped,
 }
 
-/// Render a [`crate::mdds::SubscriptionTier`] (or `None`) as the
+/// Render a [`crate::SubscriptionTier`] (or `None`) as the
 /// human-facing label this SDK uses on `SubscriptionInfo`. Kept
 /// outside the impl so the mapping is testable without spinning up an
 /// authenticated client.

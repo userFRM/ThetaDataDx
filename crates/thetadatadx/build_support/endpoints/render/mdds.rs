@@ -444,6 +444,23 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str(include_str!("templates/mdds/metrics_result_block.rs.tmpl"));
 
     writeln!(out, "impl HistoricalClient {{").unwrap();
+    writeln!(
+        out,
+        "    /// Open a `{builder_name}` for the `{}` streaming endpoint.",
+        endpoint.name
+    )
+    .unwrap();
+    writeln!(out, "    ///").unwrap();
+    writeln!(
+        out,
+        "    /// Set any optional filters on the returned builder, then drain the"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "    /// response chunk-by-chunk with the builder's `stream` method."
+    )
+    .unwrap();
     write!(out, "    pub fn {}(&self", endpoint.name).unwrap();
     for param in &method_params {
         write!(

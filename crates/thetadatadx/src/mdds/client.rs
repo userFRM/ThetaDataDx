@@ -228,8 +228,8 @@ impl HistoricalClient {
         &self.config
     }
 
-    /// Return the session UUID. Reads through the shared
-    /// [`SessionToken`] so the value reflects any mid-session refresh.
+    /// Return the session UUID. Reads through the shared session token
+    /// so the value reflects any mid-session refresh.
     pub async fn session_uuid(&self) -> String {
         self.session.current_uuid().await
     }
