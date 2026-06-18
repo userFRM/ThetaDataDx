@@ -125,7 +125,9 @@ def test_documented_implied_volatility_runs(mod) -> None:
     """Smoke test the analytical helper documented in lib.rs."""
     iv, err = mod.implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
     assert iv > 0
-    assert err >= 0
+    # iv_error is the signed relative residual (value - price) / price, so a
+    # converged solve sits near zero on either side; assert the magnitude is small.
+    assert abs(err) < 1e-3
 
 
 def test_version_attribute_exposed(mod) -> None:
