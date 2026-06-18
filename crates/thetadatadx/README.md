@@ -16,7 +16,7 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
-- **Typed errors** — one `Error` enum across every transport, plus a dedicated `FpssError` for the streaming path.
+- **Typed errors** — one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
 - **DataFrames on demand** — opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
 
 ## Install
@@ -191,7 +191,7 @@ let df = client.historical().stock_history_eod("AAPL", "20240101", "20240301").a
 
 ## Errors
 
-Every public method returns `Result<_, thetadatadx::Error>`. The streaming surface adds a typed `FpssError` for the polling and subscribe paths; `Error` implements `From<FpssError>`, so callers that prefer a single error type can stay with `Error` throughout.
+Every public method returns `Result<_, thetadatadx::Error>`. The streaming surface adds a typed `StreamError` for the polling and subscribe paths; `Error` implements `From<StreamError>`, so callers that prefer a single error type can stay with `Error` throughout.
 
 ## Documentation
 

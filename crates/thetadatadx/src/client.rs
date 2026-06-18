@@ -227,7 +227,7 @@ impl Client {
     /// the slot is already [`StreamingSlot::Live`].
     fn already_streaming() -> Error {
         Error::Fpss {
-            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: "streaming already started".into(),
         }
     }
@@ -238,7 +238,7 @@ impl Client {
     /// [`StreamingClient`] is dropped before this returns.
     fn stopped_during_start() -> Error {
         Error::Fpss {
-            kind: crate::error::FpssErrorKind::Disconnected,
+            kind: crate::error::StreamErrorKind::Disconnected,
             message: "stop_streaming() raced ahead of start_streaming(); start refused".into(),
         }
     }
@@ -413,7 +413,7 @@ impl Client {
                 }
             })
             .map_err(|e| Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn FPSS dispatcher thread: {e}"),
             })?;
 
@@ -832,7 +832,7 @@ impl Client {
         match &**snap {
             StreamingSlot::Live { client } => f(client.as_ref()),
             StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
+                kind: crate::error::StreamErrorKind::Disconnected,
                 message: "streaming not started -- call start_streaming() first".into(),
             }),
         }
@@ -1996,7 +1996,7 @@ mod tests {
             |_kind, contract| {
                 if &*contract.symbol == "MSFT" {
                     Err(Error::Fpss {
-                        kind: crate::error::FpssErrorKind::Disconnected,
+                        kind: crate::error::StreamErrorKind::Disconnected,
                         message: "injected: MSFT subscribe rejected".to_string(),
                     })
                 } else {
@@ -2046,7 +2046,7 @@ mod tests {
             |_, _| Ok(()),
             |_, _| {
                 Some(Err(Error::Fpss {
-                    kind: crate::error::FpssErrorKind::TooManyRequests,
+                    kind: crate::error::StreamErrorKind::TooManyRequests,
                     message: "injected: full-type subscribe rate-limited".to_string(),
                 }))
             },
@@ -2079,7 +2079,7 @@ mod tests {
             ReplayPacing::unpaced(),
             |_, _| {
                 Err(Error::Fpss {
-                    kind: crate::error::FpssErrorKind::Disconnected,
+                    kind: crate::error::StreamErrorKind::Disconnected,
                     message: "injected".to_string(),
                 })
             },

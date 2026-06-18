@@ -203,7 +203,7 @@ fn rate_limit_err(e: &thetadatadx::Error) -> PyErr {
 /// future variants to `ThetaDataError` so upstream SDK additions never
 /// break the Python wheel build.
 pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
 
     match &e {
         thetadatadx::Error::Auth { kind, .. } => match kind {
@@ -242,12 +242,12 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             }
         }
         thetadatadx::Error::Fpss { kind, .. } => match kind {
-            FpssErrorKind::TooManyRequests => rate_limit_err(&e),
-            FpssErrorKind::Timeout => DeadlineExceededError::new_err(e.to_string()),
-            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => {
+            StreamErrorKind::TooManyRequests => rate_limit_err(&e),
+            StreamErrorKind::Timeout => DeadlineExceededError::new_err(e.to_string()),
+            StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => {
                 NetworkError::new_err(e.to_string())
             }
-            FpssErrorKind::ProtocolError => StreamError::new_err(e.to_string()),
+            StreamErrorKind::ProtocolError => StreamError::new_err(e.to_string()),
             _ => StreamError::new_err(e.to_string()),
         },
         // FlatFiles availability + partial-reconnect failures are
@@ -272,7 +272,7 @@ mod tests {
     //! instantiable.
 
     use super::*;
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
 
     /// Helper: check that `err` is an instance of the named Python
     /// exception class. Equivalent to `isinstance(err, cls)` in Python.
@@ -443,7 +443,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Fpss {
-                kind: FpssErrorKind::TooManyRequests,
+                kind: StreamErrorKind::TooManyRequests,
                 message: "back off".into(),
             });
             assert_exception_class(py, &err, "RateLimitError");
@@ -455,7 +455,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Fpss {
-                kind: FpssErrorKind::ProtocolError,
+                kind: StreamErrorKind::ProtocolError,
                 message: "bad frame".into(),
             });
             assert_exception_class(py, &err, "StreamError");

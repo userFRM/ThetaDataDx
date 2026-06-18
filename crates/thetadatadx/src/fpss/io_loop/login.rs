@@ -99,7 +99,7 @@ where
     loop {
         if now() >= deadline {
             return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::Timeout,
+                kind: crate::error::StreamErrorKind::Timeout,
                 message: "login handshake did not complete within the handshake deadline"
                     .to_string(),
             });
@@ -107,7 +107,7 @@ where
 
         if pending_control.len() >= max_pending_control {
             return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::ProtocolError,
+                kind: crate::error::StreamErrorKind::ProtocolError,
                 message: format!(
                     "login handshake buffered {max_pending_control} control frames without METADATA"
                 ),
@@ -115,7 +115,7 @@ where
         }
 
         let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
-            kind: crate::error::FpssErrorKind::Disconnected,
+            kind: crate::error::StreamErrorKind::Disconnected,
             message: "connection closed during login handshake".to_string(),
         })?;
 
@@ -132,7 +132,7 @@ where
                 let msg = String::from_utf8_lossy(&frame.payload);
                 tracing::warn!(message = %msg, "server error during login");
                 return Err(Error::Fpss {
-                    kind: crate::error::FpssErrorKind::ConnectionRefused,
+                    kind: crate::error::StreamErrorKind::ConnectionRefused,
                     message: format!("server error during login: {msg}"),
                 });
             }
@@ -453,7 +453,7 @@ mod tests {
         );
         match result {
             Err(Error::Fpss { kind, .. }) => {
-                assert!(matches!(kind, crate::error::FpssErrorKind::Timeout));
+                assert!(matches!(kind, crate::error::StreamErrorKind::Timeout));
             }
             Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
             Ok(_) => panic!("a chatty no-METADATA peer must trip the handshake deadline"),
@@ -479,7 +479,7 @@ mod tests {
         let result = wait_for_login_generic(&mut cursor, &mut pending, deadline, cap, Instant::now);
         match result {
             Err(Error::Fpss { kind, .. }) => {
-                assert!(matches!(kind, crate::error::FpssErrorKind::ProtocolError));
+                assert!(matches!(kind, crate::error::StreamErrorKind::ProtocolError));
             }
             Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),
             Ok(_) => panic!("flooding control frames past the cap must error"),

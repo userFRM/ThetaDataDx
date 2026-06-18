@@ -41,7 +41,7 @@
 //! use thetadatadx::{Credentials, DirectConfig};
 //! use thetadatadx::streaming::Contract;
 //!
-//! # fn doc() -> Result<(), thetadatadx::streaming::FpssError> {
+//! # fn doc() -> Result<(), thetadatadx::streaming::StreamError> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = DirectConfig::production().streaming.hosts;
 //!
@@ -272,8 +272,8 @@ pub use config::{
     StreamingWaitStrategy,
 };
 pub use error::{
-    AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,
-    GrpcStatusKind, TransportErrorKind,
+    AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, GrpcStatusKind,
+    StreamErrorKind, TransportErrorKind,
 };
 
 // ─── Real-time streaming ─────────────────────────────────────────────────────
@@ -299,7 +299,7 @@ pub mod streaming {
         Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
     };
     pub use crate::fpss::{
-        FpssError, PollOutcome, StreamControl, StreamData, StreamEvent, StreamingClient,
+        PollOutcome, StreamControl, StreamData, StreamError, StreamEvent, StreamingClient,
         StreamingClientBuilder,
     };
 

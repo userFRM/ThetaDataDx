@@ -129,7 +129,7 @@ fn set_error_string_only(msg: &str) {
 /// mapping mirrors the Python `to_py_err` leaf set so a single Rust
 /// variant lands on the same conceptual class across every binding.
 pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
     use thetadatadx::Error;
     match err {
         Error::Auth { kind, .. } => match kind {
@@ -165,9 +165,9 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
             }
         }
         Error::Fpss { kind, .. } => match kind {
-            FpssErrorKind::TooManyRequests => THETADATADX_ERR_RATE_LIMIT,
-            FpssErrorKind::Timeout => THETADATADX_ERR_DEADLINE_EXCEEDED,
-            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => {
+            StreamErrorKind::TooManyRequests => THETADATADX_ERR_RATE_LIMIT,
+            StreamErrorKind::Timeout => THETADATADX_ERR_DEADLINE_EXCEEDED,
+            StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => {
                 THETADATADX_ERR_NETWORK
             }
             _ => THETADATADX_ERR_STREAM,
@@ -344,7 +344,7 @@ mod tests {
     //! silently routing to `THETADATADX_ERR_OTHER`.
 
     use super::*;
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
 
     fn grpc(kind: GrpcStatusKind) -> thetadatadx::Error {
         thetadatadx::Error::Grpc {
@@ -361,7 +361,7 @@ mod tests {
         }
     }
 
-    fn fpss(kind: FpssErrorKind) -> thetadatadx::Error {
+    fn fpss(kind: StreamErrorKind) -> thetadatadx::Error {
         thetadatadx::Error::Fpss {
             kind,
             message: String::new(),
@@ -541,19 +541,19 @@ mod tests {
     #[test]
     fn fpss_kinds_route_to_expected_codes() {
         assert_eq!(
-            error_code_for(&fpss(FpssErrorKind::TooManyRequests)),
+            error_code_for(&fpss(StreamErrorKind::TooManyRequests)),
             THETADATADX_ERR_RATE_LIMIT
         );
         assert_eq!(
-            error_code_for(&fpss(FpssErrorKind::Timeout)),
+            error_code_for(&fpss(StreamErrorKind::Timeout)),
             THETADATADX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
-            error_code_for(&fpss(FpssErrorKind::Disconnected)),
+            error_code_for(&fpss(StreamErrorKind::Disconnected)),
             THETADATADX_ERR_NETWORK
         );
         assert_eq!(
-            error_code_for(&fpss(FpssErrorKind::ProtocolError)),
+            error_code_for(&fpss(StreamErrorKind::ProtocolError)),
             THETADATADX_ERR_STREAM
         );
     }
