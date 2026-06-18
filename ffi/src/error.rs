@@ -4,10 +4,10 @@
 //! Contract: the error slot is scoped to the OS thread that set it. C++
 //! and Python never migrate threads implicitly, so no pinning is needed
 //! there. Any third-party FFI consumer whose runtime can migrate a logical
-//! execution unit across OS threads (e.g. Go's goroutines, which can park
-//! on one thread and resume on another) MUST pin the execution unit for
+//! execution unit across OS threads (a green-thread runtime that parks on
+//! one thread and resumes on another) MUST pin the execution unit for
 //! the duration of a clear/call/check sequence — typically via the host
-//! runtime's equivalent of `runtime.LockOSThread` + deferred unlock.
+//! runtime's lock-to-OS-thread primitive + deferred unlock.
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -226,7 +226,7 @@ pub extern "C" fn thetadatadx_last_error() -> *const c_char {
 
 /// Clear the thread-local error string.
 ///
-/// Wrappers in higher-level languages (Go, C++, Python) should call this
+/// Wrappers in higher-level languages (C++, Python) should call this
 /// before issuing an FFI call so they can distinguish "the call set a new
 /// error" from "the previous call left a stale error in the slot". Critical
 /// for endpoints that return an empty value sentinel on both success
@@ -731,7 +731,8 @@ mod tests {
     #[test]
     fn require_symbol_array_null_pointer_zero_len_ok() {
         thetadatadx_clear_error();
-        let out = run_require_symbol_array(ptr::null(), 0).expect("(null, 0) is the Go-empty case");
+        let out =
+            run_require_symbol_array(ptr::null(), 0).expect("(null, 0) is the empty-slice case");
         assert!(out.is_empty());
         assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_NONE);
     }

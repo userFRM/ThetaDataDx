@@ -2,7 +2,7 @@
 
 C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.
 
-Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the C++ (RAII) and TypeScript/Node.js (napi-rs) SDKs, and available to any third-party C/C++/Go/etc. consumer that wants to roll their own wrapper against the `thetadatadx_*` symbols.
+Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the C++ (RAII) and TypeScript/Node.js (napi-rs) SDKs, and available to any third-party C/C++ consumer that wants to roll their own wrapper against the `thetadatadx_*` symbols.
 
 > **Surface coverage:** the FFI layer exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). The flat-files entry points are `thetadatadx_flatfile_request_decoded` (pull + decode into an opaque row-list), `thetadatadx_flatfile_rows_to_arrow_ipc` (serialise to Arrow IPC bytes), `thetadatadx_flatfile_request_to_path` (raw vendor bytes straight to disk), and the matching `_rowlist_free` / `_bytes_free` cleanup helpers.
 

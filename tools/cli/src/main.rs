@@ -253,7 +253,7 @@ fn format_date(date: i32) -> String {
 ///   columns when the tick isn't an option) drive `--format table | json | csv`.
 /// * `raw_headers` + `raw_rows` — canonical SDK schema. Field names match
 ///   `sdks/python/src/tick_columnar.rs` exactly so `scripts/ci/check_agreement.py`
-///   can compare CLI `first_row` against Python / Go / server cell-by-cell
+///   can compare CLI `first_row` against Python / server cell-by-cell
 ///   without renaming surgery. Populated only by tick renderers via
 ///   `push_with_raw`; non-tick renderers leave it empty and `--format json-raw`
 ///   falls back to the string-reparse path.
@@ -1890,7 +1890,7 @@ mod tests {
     #[test]
     fn raw_date_passes_through_sentinel() {
         // `0` is a sentinel for "no date" but we pass it through verbatim.
-        // Python/Go SDKs emit `0` as raw i32 too; normalizing to null here
+        // The Python SDK emits `0` as raw i32 too; normalizing to null here
         // would silently disagree with them. The validator consumer
         // canonicalizes both shapes to None for comparison.
         assert!(raw_date(0).is_number());
@@ -1900,7 +1900,7 @@ mod tests {
     #[test]
     fn raw_ms_passes_through_sentinel() {
         // Negative ms is a sentinel for "missing" but we pass it through
-        // verbatim to match Python/Go SDK behavior. Consumer-side
+        // verbatim to match Python SDK behavior. Consumer-side
         // canonicalization collapses it to None for agreement checks.
         assert!(raw_ms(-1).is_number());
         assert!(raw_ms(0).is_number());

@@ -181,9 +181,9 @@ pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
 
 // ───────────────────────── Casing ────────────────────────────────────────────
 
-/// Returns the Go-exported PascalCase form of a single name segment,
-/// keeping known initialisms (EOD, OHLC, IV, DTE, NBBO) fully upper.
-pub(super) fn go_segment_pascal(segment: &str) -> String {
+/// Returns the PascalCase form of a single name segment, keeping known
+/// initialisms (EOD, OHLC, IV, DTE, NBBO) fully upper.
+pub(super) fn pascal_segment(segment: &str) -> String {
     match segment {
         "eod" => "EOD".into(),
         "ohlc" => "OHLC".into(),
@@ -200,20 +200,20 @@ pub(super) fn go_segment_pascal(segment: &str) -> String {
     }
 }
 
-/// Returns the Go-exported PascalCase name for an underscore-separated
-/// identifier, applying `go_segment_pascal` to each segment.
-pub(super) fn to_go_exported_name(value: &str) -> String {
+/// Returns the PascalCase name for an underscore-separated identifier,
+/// applying `pascal_segment` to each segment.
+pub(super) fn to_pascal_case(value: &str) -> String {
     value
         .split('_')
         .filter(|segment| !segment.is_empty())
-        .map(go_segment_pascal)
+        .map(pascal_segment)
         .collect::<String>()
 }
 
 /// Returns the camelCase form of an underscore-separated identifier
 /// (PascalCase with a lowercased first letter).
 pub(super) fn to_camel_case(value: &str) -> String {
-    let pascal = to_go_exported_name(value);
+    let pascal = to_pascal_case(value);
     let mut chars = pascal.chars();
     match chars.next() {
         Some(first) => first.to_lowercase().to_string() + chars.as_str(),
@@ -316,7 +316,7 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
 
 /// Name of the generated `*_to_pyclass_list` converter for a given tick
 /// return type. This is the PRIMARY return path for Python historical
-/// endpoints — typed `#[pyclass]` objects matching Rust/TS/Go/C++ SDKs.
+/// endpoints — typed `#[pyclass]` objects matching Rust/TS/C++ SDKs.
 /// See `build_support_bin/ticks/python_classes.rs::render_python_tick_classes`.
 pub(super) fn python_pyclass_list_converter(return_type: &str) -> String {
     render_for(return_type).python_pyclass_list.clone()

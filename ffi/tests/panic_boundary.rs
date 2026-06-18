@@ -3,7 +3,7 @@
 //! Background: Rust 1.81+ converts a panic unwinding across an `extern "C"`
 //! boundary into a process abort (pre-1.81 the behavior was undefined). Either
 //! way, a single bad invariant inside any of the ~145 `extern "C"` entry
-//! points would take down the host process (C / Go / Python). The
+//! points would take down the host process (C / C++ / Python). The
 //! `ffi_boundary!` macro wraps every body in `catch_unwind`, converts the
 //! panic into the function's declared default return value, and stashes the
 //! payload into the thread-local `thetadatadx_last_error` slot.

@@ -204,7 +204,7 @@ fn run_rust_vec_push(contract: Arc<Contract>) -> (u64, Duration) {
 // ─── Variant 4: FFI-style extern "C" callback indirection ─────────────
 
 /// Counter used as the FFI context — pointer-only, mimics what a C or
-/// Go shim would pass as `void* ctx`.
+/// C++ shim would pass as `void* ctx`.
 struct FfiCtx {
     counter: AtomicU64,
 }

@@ -654,7 +654,7 @@ pub unsafe extern "C" fn thetadatadx_string_array_free(arr: ThetaDataDxStringArr
 
 /// Parse a C array of C string pointers into `Vec<String>`.
 ///
-/// When `symbols` is null and `symbols_len` is 0 (Go empty-slice convention),
+/// When `symbols` is null and `symbols_len` is 0 (empty-slice convention),
 /// returns `Some(vec![])`. Returns `None` and sets the thread-local error if
 /// the pointer is null with a non-zero length, or any element is null / invalid
 /// UTF-8.
@@ -664,7 +664,7 @@ pub(crate) unsafe fn parse_symbol_array(
 ) -> Option<Vec<String>> {
     if symbols.is_null() {
         if symbols_len == 0 {
-            // Go sends (nil, 0) for empty slices — that's valid.
+            // A (null, 0) pair denotes an empty slice — that's valid.
             return Some(vec![]);
         }
         set_error("symbols array pointer is null");

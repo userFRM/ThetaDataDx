@@ -3,7 +3,7 @@
 #
 # Read by `build_support/fpss_events/`. Drives:
 #   - per-language typed structs for every variant (Python pyclass,
-#     TS napi `#[napi(object)]`, Go struct, C++ struct, FFI struct).
+#     TS napi `#[napi(object)]`, C++ struct, FFI struct).
 #   - the `BufferedEvent` enum in Python + TS (generator-emitted, not
 #     hand-rolled — drift is compile-fatal).
 #   - the `fpss_event_to_buffered(event: &StreamEvent) -> BufferedEvent`
@@ -28,8 +28,7 @@
 # Contract struct/class with (root, sec_type, exp_date?, is_call?, strike?).
 # Optional fields (exp_date / is_call / strike) use the language-native
 # nullable shape (`Option<..>` in Rust, `Option<..>` in napi, `Optional[..]`
-# in Python via pyo3 `Option<..>`, `*T` pointer in Go, `std::optional<..>`
-# in C++).
+# in Python via pyo3 `Option<..>`, `std::optional<..>` in C++).
 
 version = 8
 

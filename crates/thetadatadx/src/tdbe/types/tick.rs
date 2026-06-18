@@ -121,7 +121,7 @@ impl OptionContract {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Layout asserts -- pin the generated struct sizes/alignments AND every
-//  field offset to the schema-derived figures every C / Go FFI mirror and
+//  field offset to the schema-derived figures every C FFI mirror and
 //  `tick_layout_asserts.hpp.inc` rely on. The whole module is generator-
 //  emitted from `tick_schema.toml` so adding a tick type picks up coverage
 //  automatically. A schema edit that drifts any layout is caught here on

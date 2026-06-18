@@ -474,7 +474,7 @@ pub enum Error {
     /// Per-request deadline elapsed.
     ///
     /// Returned when a `with_deadline(d)` (Rust builder) or `timeout_ms`
-    /// (FFI / Python / Go / C++) elapses while the gRPC call was in flight.
+    /// (FFI / Python / C++) elapses while the gRPC call was in flight.
     /// The in-flight future is dropped before this error is returned, so the
     /// underlying gRPC channel sends `RST_STREAM` and the
     /// request-semaphore permit is released; subsequent calls on the same

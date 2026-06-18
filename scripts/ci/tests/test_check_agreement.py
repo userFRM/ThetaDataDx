@@ -89,9 +89,9 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("2 cells agree across", out)
 
     def test_field_level_diff_pinpoints_bid(self) -> None:
-        # All four SDKs passed, row_count matches (1 row each), but
-        # go got a different bid price. The diff must name `bid` as
-        # the differing field.
+        # All SDKs passed, row_count matches (1 row each), but one
+        # producer got a different bid price. The diff must name `bid`
+        # as the differing field.
         base_row = {
             "ask": 685.88,
             "bid": 685.86,
@@ -105,12 +105,12 @@ class AgreementTests(unittest.TestCase):
                 lang,
                 [_base_record("stock_snapshot_quote", "concrete", first_row=dict(base_row))],
             )
-        go_row = dict(base_row)
-        go_row["bid"] = 685.87
+        divergent_row = dict(base_row)
+        divergent_row["bid"] = 685.87
         _write_artifact(
             self.artifacts,
             "cli",
-            [_base_record("stock_snapshot_quote", "concrete", first_row=go_row)],
+            [_base_record("stock_snapshot_quote", "concrete", first_row=divergent_row)],
         )
 
         code, _, err = self._run()
@@ -143,7 +143,7 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("10", err)
 
     def test_status_disagreement(self) -> None:
-        # Python passed, CLI/go/cpp failed. Diff must flag as status
+        # Python passed, CLI/cpp failed. Diff must flag as status
         # disagreement and show each SDK's status + detail.
         _write_artifact(
             self.artifacts,
@@ -513,16 +513,15 @@ class AgreementTests(unittest.TestCase):
     # Omit-vs-null-vs-sentinel-value equivalence.
     # Producers diverge on contract-id field shape:
     #   - Python emits `expiration: 0` always
-    #   - Go's `omitempty` strips zero-valued fields from JSON
     #   - Server's `insert_contract_id_fields` skips when expiration==0
     #   - CLI raw helpers emit `expiration: 0` verbatim
-    # All four shapes must canonicalize to the same thing.
+    # All shapes must canonicalize to the same thing.
     # ------------------------------------------------------------------
 
     def test_omit_vs_null_for_expiration_agrees(self) -> None:
-        # Two producers omit `expiration` entirely (Go omitempty, server
-        # skip-when-zero). One producer emits `expiration: null`. After
-        # canonicalization, all three shapes must agree.
+        # Two producers omit `expiration` entirely (server skip-when-zero).
+        # One producer emits `expiration: null`. After canonicalization,
+        # all three shapes must agree.
         _write_artifact(
             self.artifacts,
             "python",
@@ -543,8 +542,8 @@ class AgreementTests(unittest.TestCase):
 
     def test_omit_vs_zero_for_expiration_agrees(self) -> None:
         # Three producers emit `expiration: 0` (Python tick_columnar,
-        # CLI raw helpers). One producer omits it (Go omitempty / server
-        # skip-when-zero). Both shapes must canonicalize to "absent".
+        # CLI raw helpers). One producer omits it (server skip-when-zero).
+        # Both shapes must canonicalize to "absent".
         for lang in ("python", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
@@ -587,8 +586,8 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("volume", _diff_section(err))
 
     def test_strike_zero_sentinel_canonicalizes(self) -> None:
-        # `strike: 0.0` (Python) vs omitted strike (Go omitempty) must
-        # agree. Strike is a contract-id sentinel.
+        # `strike: 0.0` (Python) vs omitted strike must agree. Strike is
+        # a contract-id sentinel.
         _write_artifact(
             self.artifacts,
             "python",
@@ -611,11 +610,10 @@ class AgreementTests(unittest.TestCase):
 
     def test_right_empty_string_and_zero_canonicalize(self) -> None:
         # Right field has two valid sentinel shapes: empty string `""`
-        # (Python tick_columnar `right: "C"/"P"/""`, Go RightStr) and raw
-        # int `0` (server's right_label fall-through, OptionContract).
-        # Both must canonicalize to "absent" so `right: ""` (Python),
-        # `right: 0` (server / OptionContract emitter), and omitted
-        # `right` (Go omitempty) all agree.
+        # (Python tick_columnar `right: "C"/"P"/""`) and raw int `0`
+        # (server's right_label fall-through, OptionContract). Both must
+        # canonicalize to "absent" so `right: ""` (Python), `right: 0`
+        # (server / OptionContract emitter), and omitted `right` all agree.
         _write_artifact(
             self.artifacts,
             "python",
@@ -735,7 +733,7 @@ class AgreementTests(unittest.TestCase):
         # Team-lead flagged this case as debatable. We pick DISAGREE
         # because real first_row schemas emit contract-id fields at the
         # TOP level -- no producer in the ecosystem (Python tick_columnar,
-        # Go tick_structs, server format.rs) nests a `contract` sub-dict.
+        # server format.rs) nests a `contract` sub-dict.
         # If a hypothetical producer started doing so, surfacing the
         # divergence is safer than silently eliding it.
         #

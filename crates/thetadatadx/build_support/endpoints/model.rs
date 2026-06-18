@@ -153,7 +153,7 @@ pub(super) struct SurfaceTemplate {
     pub(super) list_column: Option<String>,
     /// Upstream vendor docstring lifted from the ThetaData Python SDK
     /// (Apache-2.0). Single SSOT field feeding every target language's
-    /// docstring rendering (Python / TypeScript / Rust / C++ / Go /
+    /// docstring rendering (Python / TypeScript / Rust / C++ /
     /// fluent builders / async variants). Templates may set a default
     /// (e.g. empty) which endpoints override.
     #[serde(default)]

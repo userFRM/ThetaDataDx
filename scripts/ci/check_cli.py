@@ -324,7 +324,7 @@ for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
     try:
         proc = subprocess.run(
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
-            # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
+            # i32 ms so first_row matches the raw form Python/C++ SDKs expose.
             # See scripts/ci/check_agreement.py for the canonical contract.
             # --timeout-ms forwards the SDK-enforced deadline so the
             # subprocess exits cleanly with "Request deadline exceeded"

@@ -37,8 +37,8 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         )
         .unwrap();
         writeln!(out, "              \"{c_name} layout drifted from Rust\");").unwrap();
-        // Per-field offset asserts. Same field set/order as the Rust /
-        // Go offset tables (column tail + contract_id triple +
+        // Per-field offset asserts. Same field set/order as the Rust
+        // offset table (column tail + contract_id triple +
         // QuoteTick.midpoint). Field-offset drift can sneak past total-
         // size asserts when two same-size fields swap order.
         for (field, offset) in tick_ffi_offsets(type_name, def) {
