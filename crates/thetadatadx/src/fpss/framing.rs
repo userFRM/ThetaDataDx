@@ -1591,4 +1591,71 @@ mod tests {
         assert_eq!(frame.code, StreamMsgType::Ping);
         assert_eq!(frame.payload, vec![0x01, 0x02, 0x03, 0x04]);
     }
+
+    /// A mid-frame disconnect leaves `FrameReadState` parked in the
+    /// payload phase with a partial `payload_read`. Reusing that state to
+    /// read a brand-new session (the reconnect path) skips the header and
+    /// consumes the new session's leading bytes as the tail of a phantom
+    /// frame, classifying them under the previous frame's code byte and
+    /// desyncing every frame after it. Resetting the state to the
+    /// header-phase initial value (`FrameReadState::new()`) before the
+    /// reborn reader runs restores the frame-boundary invariant.
+    ///
+    /// This pins the contract the io_loop reconnect block relies on when
+    /// it resets `frame_state` after establishing a new connection.
+    #[test]
+    fn reset_frame_state_recovers_frame_boundary_after_mid_frame_disconnect() {
+        // Build a state that looks exactly like the residue of a frame
+        // whose payload was cut mid-transmission: header decoded for a
+        // 4-byte ERROR frame, payload phase entered, 2 of 4 bytes read.
+        let mut frame_state = FrameReadState::new();
+        frame_state.header_buf = [0x04, StreamMsgType::Error as u8];
+        frame_state.header_read = 2;
+        frame_state.payload_phase = true;
+        frame_state.payload_len = 4;
+        frame_state.payload_read = 2;
+
+        // The reborn reader's first bytes are a fresh, well-formed PING
+        // frame from the new session: LEN=1, CODE=PING, one payload byte.
+        let fresh_session = encode_manual(StreamMsgType::Ping as u8, &[0xAA]);
+
+        // Without a reset, the stale payload phase swallows the first two
+        // bytes of the new session as the phantom frame's tail and
+        // classifies them under the stale ERROR code -- a desync.
+        {
+            let mut desynced_state = frame_state.clone();
+            // The io_loop reuses one `frame_buf` across frames; on the
+            // stale path it is still sized to the interrupted frame's
+            // payload because the resize only runs at header completion,
+            // which the skipped header phase never reaches.
+            let mut buf = vec![0u8; desynced_state.payload_len];
+            let mut cursor = Cursor::new(fresh_session.clone());
+            let (code, _len) = read_frame_into(&mut cursor, &mut buf, &mut desynced_state)
+                .unwrap()
+                .unwrap();
+            // The phantom frame is mis-attributed to the previous code,
+            // not the PING that actually began the new session.
+            assert_eq!(
+                code,
+                StreamMsgType::Error,
+                "without reset, the stale code byte mislabels the new session's bytes"
+            );
+        }
+
+        // With the reset the io_loop applies on reconnect, the reader
+        // starts at the new session's header boundary and decodes the
+        // PING frame correctly.
+        frame_state = FrameReadState::new();
+        assert!(!frame_state.payload_phase);
+        assert_eq!(frame_state.header_read, 0);
+        assert_eq!(frame_state.payload_read, 0);
+
+        let mut buf = Vec::new();
+        let mut cursor = Cursor::new(fresh_session);
+        let (code, len) = read_frame_into(&mut cursor, &mut buf, &mut frame_state)
+            .unwrap()
+            .unwrap();
+        assert_eq!(code, StreamMsgType::Ping);
+        assert_eq!(&buf[..len], &[0xAA]);
+    }
 }
