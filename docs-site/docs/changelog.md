@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.4] - 2026-06-19
+
+### Added
+
+- API-key authentication as an alternative to email and password. A key can be supplied inline, read from the `THETADATA_API_KEY` environment variable, or loaded from a `.env` file, and it authenticates both historical and streaming access. It is available across the Rust, Python, TypeScript, and C++ SDKs and the bundled server (`--api-key` flag or the `THETADATA_API_KEY` environment variable). New `Credentials` factories cover the sourcing options (per-binding casing): `api_key` / `from_api_key` for an inline key, `api_key_with_email` / `from_api_key_with_email` to pair a key with an email, `from_env_or_file` to take the key from the environment or fall back to a file, and `from_dotenv` to read it from a `.env` file. Email and password authentication is unchanged (creds file, inline, or a custom file path).
+
 ## [13.0.0-rc.3] - 2026-06-18
 
 ### Removed
@@ -3769,7 +3775,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...HEAD
+[13.0.0-rc.4]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...v13.0.0-rc.4
 [13.0.0-rc.3]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...v13.0.0-rc.3
 [13.0.0-rc.2]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...v13.0.0-rc.2
 [13.0.0-rc.1]: https://github.com/userFRM/ThetaDataDx/compare/v12.0.0...v13.0.0-rc.1
