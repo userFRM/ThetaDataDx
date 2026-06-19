@@ -752,16 +752,16 @@ impl Client {
     }
 
     /// Connect with the authentication and environment selected inline via
-    /// an options object — the API key as a first-class, directly-passed
+    /// an options object, with the API key as a first-class, directly-passed
     /// field.
     ///
     /// ```js
-    /// const client = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
-    /// const client = await Client.connectWith({ email: "u@e.com", password: "secret" });
-    /// const client = await Client.connectWith({ apiKeyFromEnv: true });
+    /// const staged = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+    /// const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
+    /// const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
     /// ```
     ///
-    /// Exactly one authentication field must be set — `apiKey`,
+    /// Exactly one authentication field must be set: `apiKey`,
     /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
     /// or `credentialsFile`. Passing none, or two different ones, rejects
     /// with a `ConfigError` before any network round-trip. `mddsType`
